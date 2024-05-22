@@ -21,7 +21,6 @@ def download_video(video_url, save_path, progress_callback=None):
                     downloaded += len(chunk)
                     if progress_callback and total_length > 0:
                         progress_callback(100 * downloaded / total_length)
-        # Show success message after successful download
         messagebox.showinfo("Success", f"Download completed successfully. Saved as {save_path}")
     except Exception as e:
         messagebox.showerror("Error", f"Error downloading video: {e}")
@@ -48,7 +47,6 @@ def download_youtube_video(link, progress_callback=None):
         yt.register_on_progress_callback(youtube_progress_callback)
         stream = yt.streams.get_highest_resolution()
         stream.download(filename='youtube_video.mp4')
-        # Show success message after successful download
         messagebox.showinfo("Success", "YouTube video downloaded successfully.")
     except Exception as e:
         messagebox.showerror("Error", f"Error downloading YouTube video: {e}")
@@ -58,7 +56,7 @@ def scrape_media(tweet_id):
         response = requests.get(f'https://api.vxtwitter.com/Twitter/status/{tweet_id}')
         response.raise_for_status()
         media_data = response.json()
-        print("Scraped Media Data:", media_data)  # Debug: print the whole response
+        print("Scraped Media Data:", media_data) 
         return media_data.get('media_extended', [])
     except Exception as e:
         messagebox.showerror("Error", f"Failed to fetch media: {e}")
@@ -70,11 +68,11 @@ def download_media(tweet_id, progress_callback=None):
         messagebox.showerror("Error", "No media found for this tweet.")
         return
 
-    print("Tweet Media for Download:", tweet_media)  # Check what we're trying to iterate over
+    print("Tweet Media for Download:", tweet_media)  
     for media in tweet_media:
         if isinstance(media, dict) and 'url' in media:
             media_url = media['url']
-            media_type = media.get('type', 'video')  # Default to 'video' if no type specified
+            media_type = media.get('type', 'video') 
             try:
                 response = requests.get(media_url, stream=True)
                 response.raise_for_status()
@@ -90,7 +88,6 @@ def download_media(tweet_id, progress_callback=None):
                             downloaded += len(chunk)
                             if progress_callback and total_length > 0:
                                 progress_callback(100 * downloaded / total_length)
-                # Show success message after successful download
                 messagebox.showinfo("Success", f"Media downloaded successfully. Saved as {save_path}")
             except Exception as e:
                 messagebox.showerror("Error", f"Error downloading media: {e}")
@@ -127,8 +124,6 @@ def perform_operation(link):
     else:
         messagebox.showwarning("Unsupported URL", "The provided URL does not match any supported services.")
 
-        
-# Initialize CustomTkinter
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
 
