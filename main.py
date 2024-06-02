@@ -77,7 +77,7 @@ def download_media(tweet_media: List[dict]) -> None:
                 file_extension = 'mp4'
             else:
                 continue
-
+                
             with open(f'media.{file_extension}', 'wb') as file:
                 for chunk in response.iter_content(1024):
                     file.write(chunk)
@@ -108,13 +108,13 @@ def download_pinterest_image(link):
         if image_url:
             download_video(image_url, "pinterest_image.jpg")
             messagebox.showinfo("Success", "Pinterest image downloaded successfully.")
-            on_operation_done()  # Callback to re-enable the button
+            on_operation_done()
         else:
             messagebox.showerror("Error", "Image URL not found.")
-            on_operation_done()  # Callback to re-enable the button
+            on_operation_done() 
     except Exception as e:
         messagebox.showerror("Error", f"Error downloading Pinterest image: {e}")
-        on_operation_done()  # Callback to re-enable the button
+        on_operation_done()  
 
 def download_twitter_media(link):
     tweet_ids = extract_tweet_ids(link)
@@ -126,10 +126,10 @@ def download_twitter_media(link):
                 on_operation_done()  # Callback to re-enable the button after each media download
             else:
                 messagebox.showerror("Error", "No media found for this tweet.")
-                on_operation_done()  # Callback to re-enable the button if no media found
+                on_operation_done() 
     else:
         messagebox.showerror("Error", "No supported tweet link found")
-        on_operation_done()  # Callback to re-enable the button if no tweet IDs found
+        on_operation_done() 
 
 operations = {
     'instagram.com': download_instagram_video,
@@ -146,7 +146,7 @@ def perform_operation(link):
         operations[domain](link)
     else:
         messagebox.showwarning("Unsupported URL", "The provided URL does not match any supported services.")
-        on_operation_done()  # Callback to re-enable the button if URL is unsupported
+        on_operation_done() 
 
 app = ctk.CTk()
 app.title("Social Media Toolkit")
@@ -154,10 +154,9 @@ app.geometry("500x500")
 
 entry = ctk.CTkEntry(app, width=430, placeholder_text="Enter a URL", height=45, corner_radius=30)
 entry.pack(pady=65)
-
 def on_button_click():
     link = entry.get()
-    download_media_button.configure(state=ctk.DISABLED)  # Disable the button
+    download_media_button.configure(state=ctk.DISABLED) 
     Thread(target=perform_operation, args=(link,), daemon=True).start()
 
 def on_operation_done():
