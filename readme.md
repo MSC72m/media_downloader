@@ -25,7 +25,7 @@ Create a virtual environment (optional but recommended):
 python -m venv venv
 source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
 ```
-** Install Required Libraries: **
+**Install Required Libraries:**
 ```
    pip install requests beautifulsoup4 customtkinter pytube instaloader
 ```
