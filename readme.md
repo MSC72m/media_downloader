@@ -9,7 +9,7 @@ The Social Media Toolkit is an easy-to-use application that helps you download m
 - **Download Videos** from YouTube and Instagram
 - **Download Images** from Pinterest
 - **Download Media** from Twitter
-- **Progress Bar** to track download progress
+- **Progress Bar** to track download progress (future versions)
 - **User-Friendly Interface** with CustomTkinter
 
 ## Installation
