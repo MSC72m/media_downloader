@@ -9,7 +9,6 @@ The Social Media Toolkit is an easy-to-use application that helps you download m
 - **Download Videos** from YouTube and Instagram
 - **Download Images** from Pinterest
 - **Download Media** from Twitter
-- **Progress Bar** to track download progress (future versions)
 - **User-Friendly Interface** with CustomTkinter
 
 ## Installation
@@ -27,7 +26,7 @@ source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
 ```
 **Install Required Libraries:**
 ```
-   pip install requests beautifulsoup4 customtkinter pytube instaloader
+   pip install requests beautifulsoup4 customtkinter pytube instaloader threading
 ```
 ## Usage
 Run the application:
@@ -47,7 +46,7 @@ Enter a URL in the input field of the GUI and click the "Analyze URL and Downloa
   - `tkinter`
   - `pytube`
   - `instaloader`
-
+  - `threading`
 
 ## Troubleshooting
 
