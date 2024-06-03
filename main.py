@@ -16,10 +16,10 @@ def download_instagram_video(link):
         video_url = post.video_url
         download_video(video_url, "downloaded_instagram_video.mp4")
         messagebox.showinfo("Success", "Video downloaded successfully.")
-        on_operation_done()  # Callback to re-enable the button
+        on_operation_done() 
     except Exception as e:
         messagebox.showerror("Error", f"Error downloading Instagram video: {e}")
-        on_operation_done()  # Callback to re-enable the button
+        on_operation_done()
 
 def download_video(video_url, save_path):
     try:
@@ -93,10 +93,10 @@ def download_youtube_video(link):
         stream = yt.streams.get_highest_resolution()
         stream.download(filename='youtube_video.mp4')
         messagebox.showinfo("Success", "YouTube video downloaded successfully.")
-        on_operation_done()  # Callback to re-enable the button
+        on_operation_done()
     except Exception as e:
         messagebox.showerror("Error", f"Error downloading YouTube video: {e}")
-        on_operation_done()  # Callback to re-enable the button
+        on_operation_done()
 
 def download_pinterest_image(link):
     try:
@@ -123,7 +123,7 @@ def download_twitter_media(link):
             media = scrape_media(int(tweet_id))
             if media:
                 download_media(media)
-                on_operation_done()  # Callback to re-enable the button after each media download
+                on_operation_done()
             else:
                 messagebox.showerror("Error", "No media found for this tweet.")
                 on_operation_done() 
@@ -152,14 +152,18 @@ app = ctk.CTk()
 app.title("Social Media Toolkit")
 app.geometry("500x500")
 
+# input field
 entry = ctk.CTkEntry(app, width=430, placeholder_text="Enter a URL", height=45, corner_radius=30)
 entry.pack(pady=65)
+
+# on click will perform intended opration
 def on_button_click():
     link = entry.get()
     download_media_button.configure(state=ctk.DISABLED) 
     Thread(target=perform_operation, args=(link,), daemon=True).start()
 
 def on_operation_done():
+    """ sets button back to normal state and useable, after each error message or success (after the program is done either with downloading or has encountered an error) should be triggered to re-enable the download button """
     download_media_button.configure(state=ctk.NORMAL)
 
 download_media_button = ctk.CTkButton(app, text="Analyze URL and Download", command=on_button_click, width=300,
