@@ -15,7 +15,7 @@ The Social Media Toolkit is an easy-to-use application that helps you download m
 
 1. **Clone the repository**:
    ```sh
-   git clone https://github.com/yourusername/social-media-toolkit.git
+   git clone https://github.com/MSC72m/social-media-toolkit.git
    cd social-media-toolkit
    ```
 Create a virtual environment (optional but recommended):
