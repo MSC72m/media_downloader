@@ -38,7 +38,9 @@ Enter a URL in the input field of the GUI and click the "Analyze URL and Downloa
 
 ## Disclaimer
  Instagram has 12 anonymous download limit, if you encounter 401 errors it's because of that.
-### Usage
+ ### caution
+   Meta is sensitive to scraping methods, In inorder to limit the risk of getting your main account banned, preferably create a fake Instagram account and use that to download media. if you don't download near the 1000 download limit daily, the risk of getting banned is lower but still, it's recommended to use a fake account for this perpose
+### Add Your Username && Password
 
 1. navigate to the project directory.
 2. Open the script file.
