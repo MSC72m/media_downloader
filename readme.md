@@ -80,7 +80,7 @@ Enter a URL in the input field of the GUI and click the "Analyze URL and Downloa
 4. Replace `'your_username'` and `'your_password'` with your Instagram login credentials in the `download_instagram_video` function.
 5. Run the script:
     ```bash
-    python your_script.py
+    python main.py
     ```
 
 By following these instructions, users will be able to download more than the anonymous limit of 12 files by logging in with their Instagram credentials (it will have a 1000-item limit).
