@@ -26,7 +26,7 @@ source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
 ```
 **Install Required Libraries:**
 ```
-   pip install requests beautifulsoup4 customtkinter pytube instaloader threading
+   pip install requests beautifulsoup4 customtkinter pytube instaloader threading random
 ```
 ## Usage
 Run the application:
@@ -97,6 +97,7 @@ By following these instructions, users will be able to download more than the an
   - `pytube`
   - `instaloader`
   - `threading`
+  - `random`
 
 ## Troubleshooting
 
