@@ -69,7 +69,7 @@ Enter a URL in the input field of the GUI and click the "Analyze URL and Downloa
         try:
             post = instaloader.Post.from_shortcode(loader.context, link.split('/')[-2])
             video_url = post.video_url
-            download_video(video_url, "downloaded_instagram_video.mp4")
+            download_video(video_url, f"downloaded_instagram_video{save_path}.mp4")
             messagebox.showinfo("Success", "Video downloaded successfully.")
             on_operation_done() 
         except Exception as e:
