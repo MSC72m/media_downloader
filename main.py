@@ -10,9 +10,6 @@ from typing import Optional, List
 from threading import Thread
 import random
 
-#random number to the end of each file name to prevent overwriting previously downloaded video
-save_path = random.randint(1, 500)
-
 
 def download_instagram_video(link):
     loader = instaloader.Instaloader()
@@ -122,7 +119,7 @@ def download_pinterest_image(link):
             on_operation_done()
         else:
             messagebox.showerror("Error", "Image URL not found.")
-            on_operation_done() 
+            on_operation_done()
     except Exception as e:
         messagebox.showerror("Error", f"Error downloading Pinterest image: {e}")
         on_operation_done()
@@ -135,13 +132,20 @@ def download_twitter_media(link):
             media = scrape_media(int(tweet_id))
             if media:
                 download_media(media)
-                on_operation_done()  # Callback to re-enable the button after each media download
+                on_operation_done() 
             else:
                 messagebox.showerror("Error", "No media found for this tweet.")
-                on_operation_done()  # Callback to re-enable the button if no media found
+                on_operation_done()  
     else:
         messagebox.showerror("Error", "No supported tweet link found")
-        on_operation_done()  # Callback to re-enable the button if no tweet IDs found
+        on_operation_done() 
+
+
+def random_save_path():
+    # generating a random number to save the file with different names each time
+    save = random.randint(50, 500)
+    save_path = random.randint(save, 1000)
+    return save_path
 
 
 operations = {
@@ -152,15 +156,19 @@ operations = {
     'x.com': download_twitter_media
 }
 
+save_path = 0
+
 
 def perform_operation(link):
     parsed_url = urlparse(link)
     domain = parsed_url.netloc.lower().replace('www.', '')
     if domain in operations:
+        global save_path
+        save_path = random_save_path()
         operations[domain](link)
     else:
         messagebox.showwarning("Unsupported URL", "The provided URL does not match any supported services.")
-        on_operation_done()  # Callback to re-enable the button if URL is unsupported
+        on_operation_done()
 
 
 app = ctk.CTk()
