@@ -26,20 +26,20 @@ def download_instagram_video(link):
 
                 if node.is_video:
                     video_url = node.video_url
-                    download_slide(video_url, f"insta_slide_{shortcode}_{_}")
+                    download_video(video_url, f"insta_slide_{shortcode}_{_}")
 
                 else:
                     photo_url = node.display_url
-                    download_slide(photo_url, f"insta_slide_{shortcode}_{_}")
+                    download_video(photo_url, f"insta_slide_{shortcode}_{_}")
 
         else:
             if post.is_video:  # Single video post
                 video_url = post.video_url
-                download_slide(video_url, f"insta_slide_{shortcode}")
+                download_video(video_url, f"insta_slide_{shortcode}")
 
             else:    # Single image post
                 media_url = post.url
-                download_slide(media_url, f"insta_slide_{shortcode}")
+                download_video(media_url, f"insta_slide_{shortcode}")
 
         messagebox.showinfo("Success", "Video downloaded successfully.")
 
@@ -50,7 +50,7 @@ def download_instagram_video(link):
         on_operation_done()
 
 
-def download_slide(video_url, filename):
+def  download_video(video_url, filename):
 
     try:
         response = requests.get(video_url, stream=True)
