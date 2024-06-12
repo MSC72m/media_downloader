@@ -11,26 +11,60 @@ from threading import Thread
 import random
 
 
+insta_loader = instaloader.Instaloader()
+
+
 def download_instagram_video(link):
-    loader = instaloader.Instaloader()
     try:
-        post = instaloader.Post.from_shortcode(loader.context, link.split('/')[-2])
-        video_url = post.video_url
-        download_video(video_url, f"Instagram_video{save_path}")
+        shortcode = link.split('/')[-2]
+        post = instaloader.Post.from_shortcode(insta_loader.context, shortcode)
+
+        # Carousel post (multiple images/videos)
+        if post.typename == 'GraphSidecar':
+
+            for _, node in enumerate(post.get_sidecar_nodes()):
+
+                if node.is_video:
+                    video_url = node.video_url
+                    download_slide(video_url, f"insta_slide_{shortcode}_{_}")
+
+                else:
+                    photo_url = node.display_url
+                    download_slide(photo_url, f"insta_slide_{shortcode}_{_}")
+
+        else:
+            if post.is_video:  # Single video post
+                video_url = post.video_url
+                download_slide(video_url, f"insta_slide_{shortcode}")
+
+            else:    # Single image post
+                media_url = post.url
+                download_slide(media_url, f"insta_slide_{shortcode}")
+
         messagebox.showinfo("Success", "Video downloaded successfully.")
+
         on_operation_done()
     except Exception as e:
-        messagebox.showerror("Error", f"Error downloading Instagram video: {e}")
+        messagebox.showerror(
+            "Error", f"Error downloading Instagram video: {e}")
         on_operation_done()
 
 
-def download_video(video_url, save_path1):
+def download_slide(video_url, filename):
+
     try:
-        with open(save_path1, 'wb') as f:
-            response = requests.get(video_url, stream=True)
-            response.raise_for_status()
+        response = requests.get(video_url, stream=True)
+
+        response.raise_for_status()
+
+        file_format = response.headers.get('Content-Type').split("/")[1]
+
+        # TODO add default file path as home
+        home = ""
+        with open(home + f"{filename}.{file_format}", 'wb') as f:
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
+
     except requests.exceptions.RequestException as e:
         messagebox.showerror("Error", f"Error downloading video: {e}")
     except IOError as e:
@@ -47,14 +81,16 @@ def extract_tweet_ids(text: str) -> Optional[List[str]]:
         except requests.exceptions.RequestException as e:
             print(f"Failed to unshorten link {link}: {e}")
 
-    tweet_ids = re.findall(r"(?:twitter|x)\.com/.{1,15}/(?:web|status(?:es)?)/([0-9]{1,20})", text + unshortened_links)
+    tweet_ids = re.findall(
+        r"(?:twitter|x)\.com/.{1,15}/(?:web|status(?:es)?)/([0-9]{1,20})", text + unshortened_links)
     tweet_ids = list(dict.fromkeys(tweet_ids))
     return tweet_ids or None
 
 
 def scrape_media(tweet_id: int) -> List[dict]:
     try:
-        response = requests.get(f'https://api.vxtwitter.com/Twitter/status/{tweet_id}', verify=False)
+        response = requests.get(
+            f'https://api.vxtwitter.com/Twitter/status/{tweet_id}', verify=False)
         response.raise_for_status()
         media_data = response.json()
         print("Scraped Media Data:", media_data)
@@ -87,7 +123,8 @@ def download_media(tweet_media: List[dict]) -> None:
             with open(f'Twitter_Media{save_path}.{file_extension}', 'wb') as file:
                 for chunk in response.iter_content(1024):
                     file.write(chunk)
-            messagebox.showinfo("Success", f"Media downloaded successfully. Saved as media.{file_extension}")
+            messagebox.showinfo(
+                "Success", f"Media downloaded successfully. Saved as media.{file_extension}")
         except requests.exceptions.RequestException as e:
             messagebox.showerror("Error", f"Error downloading media: {e}")
         except Exception as e:
@@ -99,7 +136,8 @@ def download_youtube_video(link):
         yt = YouTube(link)
         stream = yt.streams.get_highest_resolution()
         stream.download(filename=f'Youtube_video{save_path}.mp4')
-        messagebox.showinfo("Success", "YouTube video downloaded successfully.")
+        messagebox.showinfo(
+            "Success", "YouTube video downloaded successfully.")
         on_operation_done()
     except Exception as e:
         messagebox.showerror("Error", f"Error downloading YouTube video: {e}")
@@ -115,13 +153,15 @@ def download_pinterest_image(link):
         image_url = image_tag['content'] if image_tag else None
         if image_url:
             download_video(image_url, f"Pinterest_file{save_path}.jpg")
-            messagebox.showinfo("Success", "Pinterest image downloaded successfully.")
+            messagebox.showinfo(
+                "Success", "Pinterest image downloaded successfully.")
             on_operation_done()
         else:
             messagebox.showerror("Error", "Image URL not found.")
             on_operation_done()
     except Exception as e:
-        messagebox.showerror("Error", f"Error downloading Pinterest image: {e}")
+        messagebox.showerror(
+            "Error", f"Error downloading Pinterest image: {e}")
         on_operation_done()
 
 
@@ -132,13 +172,13 @@ def download_twitter_media(link):
             media = scrape_media(int(tweet_id))
             if media:
                 download_media(media)
-                on_operation_done() 
+                on_operation_done()
             else:
                 messagebox.showerror("Error", "No media found for this tweet.")
-                on_operation_done()  
+                on_operation_done()
     else:
         messagebox.showerror("Error", "No supported tweet link found")
-        on_operation_done() 
+        on_operation_done()
 
 
 def random_save_path():
@@ -167,7 +207,8 @@ def perform_operation(link):
         save_path = random_save_path()
         operations[domain](link)
     else:
-        messagebox.showwarning("Unsupported URL", "The provided URL does not match any supported services.")
+        messagebox.showwarning(
+            "Unsupported URL", "The provided URL does not match any supported services.")
         on_operation_done()
 
 
@@ -175,7 +216,8 @@ app = ctk.CTk()
 app.title("Social Media Toolkit")
 app.geometry("500x500")
 
-entry = ctk.CTkEntry(app, width=430, placeholder_text="Enter a URL", height=45, corner_radius=30)
+entry = ctk.CTkEntry(
+    app, width=430, placeholder_text="Enter a URL", height=45, corner_radius=30)
 entry.pack(pady=65)
 
 
