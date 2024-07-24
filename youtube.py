@@ -1,25 +1,27 @@
 from tkinter import messagebox
-from pytube import YouTube
-import pytube
-import urllib3
-
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
+import yt_dlp
+from oprations import random_save_path
+from oprations import on_operation_done
 
 def download_youtube_video(link):
-    from main import save_path
-    from oprations import on_operation_done
+
+
+    save_path = random_save_path()
+
+    # Options for downloading video
+    video_options = {
+        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        'outtmpl': f'Youtube_video{save_path}.mp4'
+    }
+
     try:
-        yt = YouTube(link)
-        stream = yt.streams.get_highest_resolution()
-        stream.download(filename=f'Youtube_video{save_path}.mp4')
-        messagebox.showinfo(
-            "Success", "YouTube video downloaded successfully.")
+        with yt_dlp.YoutubeDL(video_options) as ydl:
+            ydl.download([link])
+        messagebox.showinfo("Success", "YouTube video downloaded successfully.")
         on_operation_done()
-    except pytube.exceptions.PytubeError as e:
+    except yt_dlp.utils.DownloadError as e:
         messagebox.showerror("Error", f"An error occurred: {e}")
         on_operation_done()
     except Exception as e:
         messagebox.showerror("Error", f"Error downloading YouTube video: {e}")
         on_operation_done()
-

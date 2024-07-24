@@ -35,9 +35,10 @@ def scrape_media(tweet_id: int) -> List[dict]:
         return []
 
 
-def download_media(tweet_media: List[dict], save_path) -> None:
+def download_media(tweet_media: List[dict]) -> None:
     """Download media from the provided list of Twitter media dictionaries."""
-    from main import save_path
+    from oprations import random_save_path
+    save_path = random_save_path()
     for media in tweet_media:
         media_url = media['url']
         try:
@@ -66,12 +67,11 @@ def download_media(tweet_media: List[dict], save_path) -> None:
 def download_twitter_media(link):
     tweet_ids = extract_tweet_ids(link)
     from oprations import on_operation_done
-    from main import save_path
     if tweet_ids:
         for tweet_id in tweet_ids:
             media = scrape_media(int(tweet_id))
             if media:
-                download_media(media, save_path)
+                download_media(media)
                 on_operation_done()
             else:
                 messagebox.showerror("Error", "No media found for this tweet.")

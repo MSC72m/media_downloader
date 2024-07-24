@@ -4,9 +4,10 @@ import requests
 
 from instagram import download_video
 def download_pinterest_image(link):
-    from main import save_path
+    from oprations import random_save_path
     from oprations import on_operation_done
     try:
+        save_path = random_save_path()
         response = requests.get(link, headers={"User-Agent": "Mozilla/5.0"})
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')

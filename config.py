@@ -1,5 +1,5 @@
 import customtkinter as ctk
-from threading import Thread
+
 
 # Initialize the app
 app = ctk.CTk()
@@ -14,8 +14,8 @@ def total_links():
 
 
 # Shared button
-from oprations import on_button_click, add_entry
 
+from oprations import on_button_click, add_entry
 download_media_button = ctk.CTkButton(
     app, text="Analyze URL and Download",
     command=on_button_click, width=300,
@@ -37,13 +37,13 @@ add_download_button = ctk.CTkButton(
 )
 
 # Shared entry
-entry = ctk.CTkEntry(
+first_entry = ctk.CTkEntry(
     app,
     width=430,
     placeholder_text="Enter a URL",
     height=45,
     corner_radius=10
 )
-entry.pack(pady=30)
+first_entry.pack(pady=30)
 spacer = ctk.CTkLabel(app, text="", height=50)  # Spacer with 50 pixels height
 spacer.pack()

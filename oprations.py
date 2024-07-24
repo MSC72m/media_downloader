@@ -1,6 +1,13 @@
 import customtkinter as ctk
 from threading import Thread
-import time
+import queue
+
+entries = []
+entry_count = 0
+operation_status = False
+download_queue = queue.Queue()
+download_thread = None
+stop_download_thread = False
 
 
 def random_save_path():
@@ -11,59 +18,81 @@ def random_save_path():
 
 
 def on_button_click():
-    from config import entry, download_media_button
+    """Starts the downloading process when the button is clicked."""
+    from config import first_entry
+    global download_thread
+
+    first_link = first_entry.get().strip()
+    if first_link and first_link not in entries:
+        entries.append(first_link)
+        download_queue.put(first_link)
+        print(entries)
+
+    disable_button()
+
+    if not download_thread or not download_thread.is_alive():
+        download_thread = Thread(target=process_downloads, daemon=True)
+        download_thread.start()
+
+
+def process_downloads():
+    """Process each link from the queue sequentially."""
+    global stop_download_thread
+    while not download_queue.empty() and not stop_download_thread:
+        link = download_queue.get()
+        perform_operation_thread(link)
+    on_all_operations_done()
+
+
+def perform_operation_thread(link):
+    """Thread target function for performing operation."""
     from main import perform_operation
-    link = entry.get()
-    download_media_button.configure(state=ctk.DISABLED)  # Disable the button
-    Thread(target=perform_operation, args=(link,), daemon=True).start()
+    global operation_status
+    try:
+        perform_operation(link)
+    except Exception as e:
+        print(f"Error: {e}")
 
 
 def on_operation_done():
-    """Sets button back to normal state and usable, after each error message or success
-    (after the program is done either with downloading or has encountered an error)
-    should be triggered to re-enable the download button."""
+    """Callback to update the GUI after operation is done."""
+    if download_queue.empty():
+        enable_button()
+
+
+def on_all_operations_done():
+    """Callback when all operations are done."""
+    from config import app
+    app.after(0, enable_button)
+
+
+def enable_button():
     from config import download_media_button
-    if download_media_button:
-        download_media_button.configure(state=ctk.NORMAL)
+    download_media_button.configure(state=ctk.NORMAL)
 
 
-entry_count = 0
-entries = []
+def disable_button():
+    from config import download_media_button
+    download_media_button.configure(state=ctk.DISABLED)
 
 
-def add_entry():
+def add_entry(event=None):
     global entry_count
+    from config import app
     if entry_count > 9:
         return None
-    from config import app
+
     entry = ctk.CTkEntry(app, width=360, placeholder_text="Enter a URL", height=50, corner_radius=5)
     entry.pack(pady=(10, 0))
     entry_count += 1
-    processed = False
-    previous_link = ""
 
     def on_entry_change(event=None):
-        nonlocal processed
-        """
-        Callback function triggered when the user presses the Enter key or the entry widget loses focus.
-        Retrieves the text from the entry widget and appends it to the 'entries' list if it is not empty.
-        """
-        link = entry.get()
-        time.sleep(0.1)
-        if link != previous_link:
-            if link and not processed:  # Only append if the link is not empty and is not already added
-                entries.append(link)
-                print(entries)
-                processed = True
-            previus_link = link
+        link = entry.get().strip()
+        if link and link not in entries:
+            entries.append(link)
+            download_queue.put(link)  # Only enqueue the link once
+            print(entries)
 
-    # Bind the on_entry_change function to the <FocusOut> event.
-    # This event is triggered when the entry widget loses focus (e.g., the user clicks outside it),
-    # ensuring that the entered URL is retrieved and processed if the user moves focus away.
     entry.bind("<Return>", on_entry_change)
-    # Bind the on_entry_change function to the <Return> event.
-    # This event is triggered when the user presses the Enter key in the entry widget,
-    # ensuring that the entered URL is retrieved and processed.
     entry.bind("<FocusOut>", on_entry_change)
-    time.sleep(0.2)
     return entry
