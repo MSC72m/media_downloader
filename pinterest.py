@@ -1,9 +1,8 @@
-from PyQt5.QtWidgets import QMessageBox
+from tkinter import messagebox
 from bs4 import BeautifulSoup
 import requests
-from operations import operations
 
-def download_pinterest_image(link, save_name, progress_callback):
+def download_pinterest_image(link, save_name):
     try:
         response = requests.get(link, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
         response.raise_for_status()
@@ -12,16 +11,12 @@ def download_pinterest_image(link, save_name, progress_callback):
         image_url = image_tag['content'] if image_tag else None
 
         if image_url:
-            save_path = operations.random_save_path()
-            download_image(image_url, f"Pinterest_file{save_path}.jpg")
-            progress_callback.emit(100)  # Update progress
-            QMessageBox.information(None, "Success", f"Pinterest image downloaded successfully as Pinterest_file{save_path}.jpg")
+            download_image(image_url, f"{save_name}.jpg")
+            messagebox.showinfo("Success", f"Pinterest image downloaded successfully as Pinterest_file{save_name}.jpg")
         else:
-            QMessageBox.critical(None, "Error", "Image URL not found.")
+            messagebox.showerror("Error", "Image URL not found.")
     except Exception as e:
-        QMessageBox.critical(None, "Error", f"Error downloading Pinterest image: {str(e)}")
-    finally:
-        operations.on_operation_done()
+        messagebox.showerror("Error", f"Error downloading Pinterest image: {str(e)}")
 
 def download_image(image_url, filename):
     try:
@@ -29,10 +24,10 @@ def download_image(image_url, filename):
         response.raise_for_status()
 
         with open(filename, 'wb') as file:
-            for chunk in response.iter_content(1024):
+            for chunk in response.iter_content(8192):
                 file.write(chunk)
 
     except requests.exceptions.RequestException as e:
-        QMessageBox.critical(None, "Error", f"Error downloading image: {str(e)}")
+        messagebox.showerror("Error", f"Error downloading image: {str(e)}")
     except IOError as e:
-        QMessageBox.critical(None, "Error", f"Error saving image: {str(e)}")
+        messagebox.showerror("Error", f"Error saving image: {str(e)}")

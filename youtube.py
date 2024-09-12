@@ -1,22 +1,25 @@
-from PyQt5.QtWidgets import QMessageBox
 import yt_dlp
-from operations import operations
+from tkinter import messagebox
 
-def download_youtube_video(link, save_name, progress_callback):
-    video_options = {
-        'format': 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best[ext=mp4]',
-        'outtmpl': f'{save_name}.mp4',
-        'noplaylist': True,
-        'progress_hooks': [lambda d: progress_callback.emit(d['percentage'] * 100) if 'percentage' in d else None]
+def download_youtube_video(link, save_name, quality, download_playlist, audio_only):
+    ydl_opts = {
+        'outtmpl': f'{save_name}.%(ext)s',
+        'noplaylist': not download_playlist,
     }
 
+    if audio_only:
+        ydl_opts['format'] = 'bestaudio/best'
+        ydl_opts['postprocessors'] = [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }]
+    else:
+        ydl_opts['format'] = f'bestvideo[height<={quality[:-1]}]+bestaudio/best[height<={quality[:-1]}]'
+
     try:
-        with yt_dlp.YoutubeDL(video_options) as ydl:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([link])
-        QMessageBox.information(None, "Success", f"YouTube video downloaded successfully as {save_name}.mp4")
-    except yt_dlp.utils.DownloadError as e:
-        QMessageBox.critical(None, "Error", f"An error occurred: {str(e)}")
+        messagebox.showinfo("Success", f"YouTube {'audio' if audio_only else 'video'} downloaded successfully as {save_name}")
     except Exception as e:
-        QMessageBox.critical(None, "Error", f"Error downloading YouTube video: {str(e)}")
-    finally:
-        operations.on_operation_done()
+        messagebox.showerror("Error", f"Error downloading YouTube {'audio' if audio_only else 'video'}: {str(e)}")
