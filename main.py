@@ -1,260 +1,197 @@
-import sys
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget, QPushButton,
-                             QLineEdit, QListWidget, QInputDialog, QMessageBox, QLabel)
-from PyQt5.QtCore import Qt, QRunnable, QThreadPool, pyqtSignal, QObject
+import customtkinter as ctk
+import tkinter as tk
+from tkinter import messagebox, simpledialog
 from urllib.parse import urlparse
-import warnings
-from requests.packages.urllib3.exceptions import InsecureRequestWarning
-
-
-from twitter import download_twitter_media
-from instagram import download_instagram_video
+import threading
+import queue
+import os
 from youtube import download_youtube_video
+from twitter import download_twitter_media
+from instagram import download_instagram_media, authenticate_instagram
 from pinterest import download_pinterest_image
 
+ctk.set_appearance_mode("dark")
+ctk.set_default_color_theme("blue")
 
-warnings.simplefilter('ignore', InsecureRequestWarning)
+class DownloadItem:
+    def __init__(self, name, url, status="Pending"):
+        self.name = name
+        self.url = url
+        self.status = status
 
-class WorkerSignals(QObject):
-    finished = pyqtSignal(str)
-    error = pyqtSignal(str)
-    progress = pyqtSignal(int)
-
-class DownloadWorker(QRunnable):
-    def __init__(self, link, save_name):
-        super().__init__()
-        self.link = link
-        self.save_name = save_name
-        self.signals = WorkerSignals()
-
-    def run(self):
-        try:
-            perform_operation(self.link, self.save_name, self.signals.progress.emit)
-            self.signals.finished.emit(self.save_name)
-        except Exception as e:
-            self.signals.error.emit(str(e))
-
-class MainWindow(QMainWindow):
+class MediaDownloader(ctk.CTk):
+    """
+    program will use popup windows inorder to indicate successful or failed downloads and it will block the program
+    so till you press ok it will not start process of downloading next file so need to fix that aswell.
+    need to tity up the code and add coments and update the README.md file aswell.
+    need to do an release for this repo and include the .exe file for windows and appimage for linux, in adition to code.
+    """
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Media Downloader")
-        self.setGeometry(100, 100, 800, 600)
-        self.downloading_links = set()
-        self.threadpool = QThreadPool()
-        self.setup_ui()
 
-    def setup_ui(self):
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        main_layout = QVBoxLayout(central_widget)
+        self.title("Media Downloader")
+        self.geometry("900x700")
 
-        # Title Label
-        title_label = QLabel("Media Downloader")
-        title_label.setAlignment(Qt.AlignCenter)
-        title_label.setStyleSheet("font-size: 26px; font-weight: bold; color: #ffffff; margin: 20px 0;")
-        main_layout.addWidget(title_label)
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=1)
 
-        # URL Input
-        input_layout = QHBoxLayout()
-        self.url_entry = QLineEdit()
-        self.url_entry.setPlaceholderText("Enter a URL")
-        self.url_entry.setStyleSheet("""
-            QLineEdit {
-                background-color: #1e1e1e;
-                color: #ffffff;
-                border: 2px solid #333;
-                border-radius: 12px;
-                padding: 10px;
-                font-size: 16px;
-            }
-            QLineEdit:focus {
-                border: 2px solid #4a90e2;
-            }
-        """)
-        input_layout.addWidget(self.url_entry)
+        self.main_frame = ctk.CTkFrame(self)
+        self.main_frame.grid(row=0, column=0, padx=20, pady=20, sticky="nsew")
+        self.main_frame.grid_columnconfigure(0, weight=1)
+        self.main_frame.grid_rowconfigure(3, weight=1)
 
-        # Add Button
-        self.add_button = QPushButton("Add")
-        self.add_button.setStyleSheet(self.get_button_style("#4a90e2"))
-        self.add_button.setFixedSize(120, 40)
-        input_layout.addWidget(self.add_button)
+        self.title_label = ctk.CTkLabel(self.main_frame, text="Media Downloader", font=("Helvetica", 26, "bold"))
+        self.title_label.grid(row=0, column=0, columnspan=4, pady=(0, 20))
 
-        main_layout.addLayout(input_layout)
+        self.url_entry = ctk.CTkEntry(self.main_frame, placeholder_text="Enter a URL")
+        self.url_entry.grid(row=1, column=0, columnspan=3, padx=20, pady=(0, 10), sticky="ew")
 
-        # List of added links
-        self.links_list = QListWidget()
-        self.links_list.setStyleSheet("""
-            QListWidget {
-                background-color: #1e1e1e;
-                color: #ffffff;
-                border: 2px solid #333;
-                border-radius: 8px;
-                font-size: 14px;
-                padding: 10px;
-            }
-            QListWidget::item {
-                background-color: #333;
-                border-radius: 6px;
-                margin-bottom: 5px;
-                padding: 8px;
-            }
-            QListWidget::item:selected {
-                background-color: #4a90e2;
-            }
-        """)
-        main_layout.addWidget(self.links_list)
+        self.add_button = ctk.CTkButton(self.main_frame, text="Add", command=self.add_entry)
+        self.add_button.grid(row=1, column=3, padx=(0, 20), pady=(0, 10))
 
-        # Buttons
-        button_layout = QHBoxLayout()
-        self.download_button = QPushButton("Download All")
-        self.download_button.setStyleSheet(self.get_button_style("#27ae60"))
-        button_layout.addWidget(self.download_button)
+        self.options_frame = ctk.CTkFrame(self.main_frame)
+        self.options_frame.grid(row=2, column=0, columnspan=4, padx=20, pady=(0, 10), sticky="ew")
 
-        self.remove_button = QPushButton("Remove Selected")
-        self.remove_button.setStyleSheet(self.get_button_style("#e74c3c"))
-        button_layout.addWidget(self.remove_button)
+        self.playlist_var = ctk.StringVar(value="off")
+        self.playlist_checkbox = ctk.CTkCheckBox(self.options_frame, text="Download YouTube Playlist",
+                                                 variable=self.playlist_var, onvalue="on", offvalue="off")
+        self.playlist_checkbox.pack(side=tk.LEFT, padx=(0, 20))
 
-        main_layout.addLayout(button_layout)
+        self.audio_only_var = ctk.StringVar(value="off")
+        self.audio_only_checkbox = ctk.CTkCheckBox(self.options_frame, text="Audio Only",
+                                                   variable=self.audio_only_var, onvalue="on", offvalue="off")
+        self.audio_only_checkbox.pack(side=tk.LEFT, padx=(0, 30))
 
-        # Status Label
-        self.status_label = QLabel("Ready")
-        self.status_label.setAlignment(Qt.AlignCenter)
-        self.status_label.setStyleSheet("color: #ffffff; font-size: 16px;")
-        main_layout.addWidget(self.status_label)
+        self.quality_var = ctk.StringVar(value="720p")
+        self.quality_dropdown = ctk.CTkOptionMenu(self.options_frame, values=["360p", "480p", "720p", "1080p"],
+                                                  variable=self.quality_var)
+        self.quality_dropdown.pack(side=tk.LEFT)
 
-        # Connect signals to slots
-        self.download_button.clicked.connect(self.on_download_click)
-        self.add_button.clicked.connect(self.add_entry)
-        self.remove_button.clicked.connect(self.remove_entry)
-        self.url_entry.returnPressed.connect(self.add_entry)
+        self.insta_login_button = ctk.CTkButton(self.options_frame, text="Instagram Login", command=self.instagram_login)
+        self.insta_login_button.pack(side=tk.LEFT, padx=(20, 0))
 
-        # Apply dark theme
-        self.set_dark_theme()
+        self.download_list = ctk.CTkTextbox(self.main_frame, activate_scrollbars=True, height=200)
+        self.download_list.grid(row=3, column=0, columnspan=4, padx=20, pady=(0, 10), sticky="nsew")
 
-    def set_dark_theme(self):
-        self.setStyleSheet("""
-            QMainWindow {
-                background-color: #121212;
-            }
-            QLabel {
-                color: #ffffff;
-            }
-        """)
+        self.download_button = ctk.CTkButton(self.main_frame, text="Download All", command=self.on_download_click)
+        self.download_button.grid(row=4, column=0, columnspan=2, padx=(20, 10), pady=(0, 10), sticky="ew")
 
-    def get_button_style(self, color):
-        return f"""
-            QPushButton {{
-                background-color: {color};
-                color: white;
-                font-size: 16px;
-                font-weight: bold;
-                border: none;
-                border-radius: 12px;
-                padding: 10px;
-                min-width: 140px;
-            }}
-            QPushButton:hover {{
-                background-color: {color};
-            }}
-            QPushButton:pressed {{
-                background-color: {color};
-            }}
-        """
+        self.remove_button = ctk.CTkButton(self.main_frame, text="Remove Selected", command=self.remove_entry)
+        self.remove_button.grid(row=4, column=2, columnspan=2, padx=(10, 20), pady=(0, 10), sticky="ew")
+
+        self.status_label = ctk.CTkLabel(self.main_frame, text="Ready")
+        self.status_label.grid(row=5, column=0, columnspan=4, pady=(0, 10))
+
+        self.progress_bar = ctk.CTkProgressBar(self.main_frame)
+        self.progress_bar.grid(row=6, column=0, columnspan=4, padx=20, pady=(0, 10), sticky="ew")
+        self.progress_bar.set(0)
+
+        self.download_queue = queue.Queue()
+        self.download_items = []
+
+        # Create Downloads folder
+        self.downloads_folder = "Downloads"
+        if not os.path.exists(self.downloads_folder):
+            os.makedirs(self.downloads_folder)
+
+    def instagram_login(self):
+        username = simpledialog.askstring("Instagram Login", "Enter your Instagram username:")
+        if username:
+            password = simpledialog.askstring("Instagram Login", "Enter your Instagram password:", show='*')
+            if password:
+                if authenticate_instagram(username, password):
+                    messagebox.showinfo("Instagram Login", "Successfully logged in to Instagram")
+                    self.insta_login_button.configure(text="Instagram: Logged In", state="disabled")
 
     def add_entry(self):
-        link = self.url_entry.text().strip()
+        link = self.url_entry.get().strip()
         if not link:
-            QMessageBox.warning(self, "Empty URL", "Please enter a URL to add.")
+            messagebox.showwarning("Empty URL", "Please enter a URL to add.")
             return
 
-        name, ok = QInputDialog.getText(self, "Link Name", "Enter a name for this link:")
-        if ok and name:
-            self.links_list.addItem(f"{name} | {link}")
-            self.url_entry.clear()
+        name = simpledialog.askstring("Link Name", "Enter a name for this link:")
+        if name:
+            item = DownloadItem(name, link)
+            self.download_items.append(item)
+            self.update_download_list()
+            self.url_entry.delete(0, tk.END)
         else:
-            QMessageBox.warning(self, "No Name", "A name is required to add the link.")
+            messagebox.showwarning("No Name", "A name is required to add the link.")
+
+    def update_download_list(self):
+        self.download_list.delete("1.0", tk.END)
+        for item in self.download_items:
+            self.download_list.insert(tk.END, f"{item.name} | {item.url} | {item.status}\n")
 
     def remove_entry(self):
-        current_item = self.links_list.currentItem()
-        if current_item:
-            self.links_list.takeItem(self.links_list.row(current_item))
+        try:
+            sel_start = self.download_list.index(tk.SEL_FIRST)
+            sel_end = self.download_list.index(tk.SEL_LAST)
+            selected_text = self.download_list.get(sel_start, sel_end)
+
+            for item in self.download_items[:]:
+                if f"{item.name} | {item.url}" in selected_text:
+                    self.download_items.remove(item)
+
+            self.update_download_list()
+        except tk.TclError:
+            messagebox.showwarning("No Selection", "Please select a link to remove.")
 
     def on_download_click(self):
-        if self.links_list.count() == 0:
-            QMessageBox.warning(self, "No URLs", "Please add at least one URL to download.")
+        if not self.download_items:
+            messagebox.showwarning("No URLs", "Please add at least one URL to download.")
             return
 
-        self.download_button.setEnabled(False)
-        self.status_label.setText("Downloading...")
-        self.process_next_download()
+        self.download_button.configure(state="disabled")
+        self.status_label.configure(text="Downloading...")
+        self.progress_bar.set(0)
 
-    def process_next_download(self):
-        if self.links_list.count() > 0:
-            item_text = self.links_list.item(0).text()
-            name, link = item_text.split(" | ")
+        for item in self.download_items:
+            self.download_queue.put(item)
 
-            if link in self.downloading_links:
-                return
+        threading.Thread(target=self.process_downloads, daemon=True).start()
 
-            self.downloading_links.add(link)
+    def process_downloads(self):
+        total_items = len(self.download_items)
+        completed_items = 0
 
-            worker = DownloadWorker(link, name)
-            worker.signals.finished.connect(self.on_download_finished)
-            worker.signals.error.connect(self.on_operation_error)
-            self.threadpool.start(worker)
-        else:
-            self.download_button.setEnabled(True)
-            self.url_entry.setEnabled(True)
-            self.status_label.setText("All downloads completed")
+        while not self.download_queue.empty():
+            item = self.download_queue.get()
+            self.perform_download(item)
+            completed_items += 1
+            self.progress_bar.set(completed_items / total_items)
+            self.update_download_list()
 
-    def on_download_finished(self, save_name):
-        self.links_list.takeItem(0)
-        link = save_name.split(" | ")[1] if " | " in save_name else save_name
-        self.downloading_links.discard(link)
-        QMessageBox.information(self, "Success", f"Download completed for {save_name}!")
-        self.process_next_download()
+        self.update_ui_after_downloads()
 
-    def on_operation_error(self, error_message):
-        QMessageBox.critical(self, "Error", f"An error occurred: {error_message}")
-        item = self.links_list.takeItem(0)
-        if item:
-            link = item.text().split(" | ")[1] if " | " in item.text() else item.text()
-            self.downloading_links.discard(link)
-        self.process_next_download()
+    def perform_download(self, item):
+        parsed_url = urlparse(item.url)
+        domain = parsed_url.netloc
 
-    def closeEvent(self, event):
-        if self.threadpool.activeThreadCount() > 0:
-            reply = QMessageBox.question(self, 'Quit', 'Downloads are in progress. Quit anyway?',
-                                         QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-            if reply == QMessageBox.Yes:
-                self.threadpool.clear()
-                event.accept()
+        try:
+            if 'youtube.com' in domain:
+                download_youtube_video(item.url, os.path.join(self.downloads_folder, item.name),
+                                       self.quality_var.get(), self.playlist_var.get() == "on",
+                                       audio_only=self.audio_only_var.get() == "on")
+            elif 'twitter.com' in domain or 'x.com' in domain:
+                download_twitter_media(item.url, os.path.join(self.downloads_folder, item.name))
+            elif 'instagram.com' in domain:
+                download_instagram_media(item.url, os.path.join(self.downloads_folder, item.name))
+            elif 'pinterest.com' in domain:
+                download_pinterest_image(item.url, os.path.join(self.downloads_folder, item.name))
             else:
-                event.ignore()
-        else:
-            event.accept()
+                raise ValueError(f"Unsupported domain: {domain}")
+            item.status = "Completed"
+        except Exception as e:
+            item.status = "Failed"
+            messagebox.showerror("Error", f"Error downloading {item.name}: {str(e)}")
 
-def perform_operation(link, save_name, progress_callback):
-    parsed_url = urlparse(link)
-    domain = parsed_url.netloc
-
-    if 'x.com' in domain or 'twitter.com' in domain:
-        download_twitter_media(link, save_name, progress_callback)
-    elif 'instagram.com' in domain:
-        download_instagram_video(link, save_name, progress_callback)
-    elif 'youtube.com' in domain or 'youtu.be' in domain:
-        download_youtube_video(link, save_name, progress_callback)
-    elif 'pinterest.com' in domain:
-        download_pinterest_image(link, save_name, progress_callback)
-    else:
-        raise ValueError(f"Unsupported domain: {domain}")
-
-def main():
-    app = QApplication(sys.argv)
-    app.setStyle("Fusion")
-    window = MainWindow()
-    window.show()
-    sys.exit(app.exec_())
+    def update_ui_after_downloads(self):
+        self.download_button.configure(state="normal")
+        self.status_label.configure(text="All downloads completed")
+        self.progress_bar.set(1)
+        self.update_download_list()
 
 if __name__ == "__main__":
-    main()
+    app = MediaDownloader()
+    app.mainloop()
