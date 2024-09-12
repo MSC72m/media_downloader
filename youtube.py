@@ -1,25 +1,22 @@
-from tkinter import messagebox
-from pytube import YouTube
-import pytube
-import urllib3
+from PyQt5.QtWidgets import QMessageBox
+import yt_dlp
+from operations import operations
 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+def download_youtube_video(link, save_name, progress_callback):
+    video_options = {
+        'format': 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best[ext=mp4]',
+        'outtmpl': f'{save_name}.mp4',
+        'noplaylist': True,
+        'progress_hooks': [lambda d: progress_callback.emit(d['percentage'] * 100) if 'percentage' in d else None]
+    }
 
-
-def download_youtube_video(link):
-    from main import save_path
-    from oprations import on_operation_done
     try:
-        yt = YouTube(link)
-        stream = yt.streams.get_highest_resolution()
-        stream.download(filename=f'Youtube_video{save_path}.mp4')
-        messagebox.showinfo(
-            "Success", "YouTube video downloaded successfully.")
-        on_operation_done()
-    except pytube.exceptions.PytubeError as e:
-        messagebox.showerror("Error", f"An error occurred: {e}")
-        on_operation_done()
+        with yt_dlp.YoutubeDL(video_options) as ydl:
+            ydl.download([link])
+        QMessageBox.information(None, "Success", f"YouTube video downloaded successfully as {save_name}.mp4")
+    except yt_dlp.utils.DownloadError as e:
+        QMessageBox.critical(None, "Error", f"An error occurred: {str(e)}")
     except Exception as e:
-        messagebox.showerror("Error", f"Error downloading YouTube video: {e}")
-        on_operation_done()
-
+        QMessageBox.critical(None, "Error", f"Error downloading YouTube video: {str(e)}")
+    finally:
+        operations.on_operation_done()
