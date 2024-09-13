@@ -13,6 +13,7 @@ def download_pinterest_image(link, save_name):
         if image_url:
             download_image(image_url, f"{save_name}.jpg")
             messagebox.showinfo("Success", f"Pinterest image downloaded successfully as Pinterest_file{save_name}.jpg")
+            return True
         else:
             messagebox.showerror("Error", "Image URL not found.")
     except Exception as e:

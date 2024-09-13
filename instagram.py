@@ -68,7 +68,7 @@ def download_media(media_url, filename):
         with open(filename, 'wb') as f:
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
-
+        return True
     except requests.exceptions.RequestException as e:
         messagebox.showerror("Error", f"Error downloading media: {str(e)}")
     except IOError as e:
