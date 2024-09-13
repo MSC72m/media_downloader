@@ -52,6 +52,7 @@ def download_media(tweet_media: List[dict], save_path) -> None:
                 for chunk in response.iter_content(1024):
                     file.write(chunk)
             messagebox.showinfo("Success", f"Media downloaded successfully. Saved as Twitter_Media{save_path}.{file_extension}")
+            return True
         except requests.exceptions.RequestException as e:
             messagebox.showerror("Error", f"Error downloading media: {str(e)}")
         except Exception as e:
