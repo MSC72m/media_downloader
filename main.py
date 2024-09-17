@@ -1,17 +1,57 @@
 import customtkinter as ctk
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import messagebox
 from urllib.parse import urlparse
 import threading
 import queue
 import os
+import logging
 from youtube import download_youtube_video
 from twitter import download_twitter_media
 from instagram import download_instagram_media, authenticate_instagram
 from pinterest import download_pinterest_image
 
+# Configure logging
+logging.basicConfig(filename='media_downloader.log', level=logging.INFO,
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
+
+
+class PasswordDialog(ctk.CTkToplevel):
+    def __init__(self, parent, title="Password Entry", message="Enter your password:"):
+        super().__init__(parent)
+        self.geometry("400x150")
+        self.title(title)
+        self.grab_set()
+        self.configure(bg="#2a2d2e")
+
+        self.label = ctk.CTkLabel(self, text=message, font=("Roboto", 14))
+        self.label.pack(pady=10)
+
+        self.password_entry = ctk.CTkEntry(self, show="*", font=("Roboto", 15), width=280)
+        self.password_entry.pack(pady=5)
+        self.password_entry.focus()
+
+        self.password_entry.bind("<Return>", lambda event: self.on_ok())
+
+        self.ok_button = ctk.CTkButton(self, text="OK", command=self.on_ok)
+        self.ok_button.pack(pady=10)
+
+        self.password = None
+        self.parent = parent
+
+    def on_ok(self):
+        self.password = self.password_entry.get()
+        self.destroy()
+
+
+def get_password(parent: object) -> object:
+    dialog = PasswordDialog(parent)
+    parent.wait_window(dialog)
+    return dialog.password
 
 
 class DownloadItem:
@@ -114,6 +154,7 @@ class MediaDownloader(ctk.CTk):
             os.makedirs(self.downloads_folder)
 
     def manage_files(self):
+        logger.info("Opening file manager")
         file_browser = ctk.CTkToplevel(self)
         file_browser.title("File Browser")
         file_browser.geometry("600x400")
@@ -130,7 +171,8 @@ class MediaDownloader(ctk.CTk):
             try:
                 for item in os.listdir(current_path_var.get()):
                     file_listbox.insert(tk.END, item)
-            except OSError:
+            except OSError as oe:
+                logger.error(f"Error accessing directory: {oe}")
                 self.show_status("Error: Unable to access the specified directory.")
 
         go_button = ctk.CTkButton(file_browser, text="Go", width=60, command=update_file_list, height=40,
@@ -158,6 +200,7 @@ class MediaDownloader(ctk.CTk):
 
         def change_directory():
             self.downloads_folder = current_path_var.get()
+            logger.info(f"Download directory changed to: {self.downloads_folder}")
             self.show_status(f"Download directory changed to: {self.downloads_folder}")
             file_browser.destroy()
 
@@ -172,8 +215,10 @@ class MediaDownloader(ctk.CTk):
                 new_folder_path = os.path.join(current_path_var.get(), folder_name)
                 try:
                     os.mkdir(new_folder_path)
+                    logger.info(f"Created new folder: {new_folder_path}")
                     update_file_list()
-                except OSError:
+                except OSError as oe:
+                    logger.error(f"Error creating folder: {oe}")
                     self.show_status("Error: Unable to create the folder.")
 
         create_folder_button = ctk.CTkButton(button_frame, text="Create Folder", command=create_folder, height=40,
@@ -187,15 +232,19 @@ class MediaDownloader(ctk.CTk):
         update_file_list()
 
     def instagram_login(self):
+        logger.info("Attempting Instagram login")
         dialog = ctk.CTkInputDialog(text="Enter your Instagram username:", title="Instagram Login")
         username = dialog.get_input()
         if username:
-            dialog = ctk.CTkInputDialog(text="Enter your Instagram password:", title="Instagram Login")
-            password = dialog.get_input()
+            password = get_password(self)
             if password:
                 if authenticate_instagram(username, password):
+                    logger.info("Successfully logged in to Instagram")
                     self.show_status("Successfully logged in to Instagram")
                     self.insta_login_button.configure(text="Instagram: Logged In", state="disabled")
+                else:
+                    logger.warning("Failed to log in to Instagram")
+                    self.show_status("Failed to log in to Instagram")
 
     def add_entry(self):
         link = self.url_entry.get().strip()
@@ -210,6 +259,7 @@ class MediaDownloader(ctk.CTk):
             self.download_items.append(item)
             self.update_download_list()
             self.url_entry.delete(0, tk.END)
+            logger.info(f"Added new download item: {name} - {link}")
         else:
             self.show_status("A name is required to add the link.")
 
@@ -227,6 +277,7 @@ class MediaDownloader(ctk.CTk):
             for item in self.download_items[:]:
                 if f"{item.name} | {item.url}" in selected_text:
                     self.download_items.remove(item)
+                    logger.info(f"Removed download item: {item.name} - {item.url}")
 
             self.update_download_list()
         except tk.TclError:
@@ -236,6 +287,7 @@ class MediaDownloader(ctk.CTk):
         self.download_items.clear()
         self.update_download_list()
         self.show_status("All items cleared.")
+        logger.info("Cleared all download items")
 
     def on_download_click(self):
         if not self.download_items:
@@ -267,25 +319,39 @@ class MediaDownloader(ctk.CTk):
     def perform_download(self, item):
         parsed_url = urlparse(item.url)
         domain = parsed_url.netloc
+        download_mapping = {
+            'youtube.com': lambda item: download_youtube_video(item.url, os.path.join(self.downloads_folder, item.name),
+                                                               self.quality_var.get(), self.playlist_var.get() == "on",
+                                                               audio_only=self.audio_only_var.get() == "on"),
+            'twitter.com': lambda item: download_twitter_media(item.url,
+                                                               os.path.join(self.downloads_folder, item.name)),
+            'x.com': lambda item: download_twitter_media(item.url, os.path.join(self.downloads_folder, item.name)),
+            'instagram.com': lambda item: download_instagram_media(item.url,
+                                                                   os.path.join(self.downloads_folder, item.name)),
+            'pinterest.com': lambda item: download_pinterest_image(item.url,
+                                                                   os.path.join(self.downloads_folder, item.name)),
+            'pin.it': lambda item: download_pinterest_image(item.url, os.path.join(self.downloads_folder, item.name))
+        }
         try:
-            if 'youtube.com' in domain:
-                self.success = download_youtube_video(item.url, os.path.join(self.downloads_folder, item.name),
-                                                      self.quality_var.get(), self.playlist_var.get() == "on",
-                                                      audio_only=self.audio_only_var.get() == "on")
-            elif 'twitter.com' in domain or 'x.com' in domain:
-                self.success = download_twitter_media(item.url, os.path.join(self.downloads_folder, item.name))
-            elif 'instagram.com' in domain:
-                self.success = download_instagram_media(item.url, os.path.join(self.downloads_folder, item.name))
-            elif 'pinterest.com' in domain:
-                self.success = download_pinterest_image(item.url, os.path.join(self.downloads_folder, item.name))
+            success = False
+            for key, download_func in download_mapping.items():
+                if key in domain:
+                    logger.info(f"Attempting to download from {key}: {item.url}")
+                    success = download_func(item)
+                    item.status = "Downloaded" if success else "Failed"
+                    logger.info(f"Download status for {item.name}: {item.status}")
+                    break
             else:
                 raise ValueError(f"Unsupported domain: {domain}")
 
-            item.status = "Downloaded" if self.success else "Failed"
+            item.status = "Downloaded" if success else "Failed"
+            logger.info(f"Download status for {item.name}: {item.status}")
 
-        except Exception as e:
+        except Exception as f:
             item.status = "Failed"
-            self.show_status(f"Error downloading {item.name}: {str(e)}")
+            error_message = f"Error downloading {item.name}: {str(f)}"
+            logger.error(error_message)
+            self.show_status(error_message)
 
     def update_ui_after_downloads(self):
         self.download_button.configure(state="normal")
@@ -293,12 +359,19 @@ class MediaDownloader(ctk.CTk):
         self.progress_bar.set(1)
         self.update_download_list()
         self.show_status("All downloads have been completed.")
+        logger.info("All downloads completed")
 
     def show_status(self, message):
         self.status_label.configure(text=message)
         self.after(5000, lambda: self.status_label.configure(text="Ready"))
+        logger.info(f"Status message: {message}")
 
 
 if __name__ == "__main__":
-    app = MediaDownloader()
-    app.mainloop()
+    try:
+        app = MediaDownloader()
+        logger.info("Application started")
+        app.mainloop()
+    except Exception as e:
+        logger.critical(f"Critical error in main application: {str(e)}")
+        messagebox.showerror("Critical Error", f"An unexpected error occurred: {str(e)}")
