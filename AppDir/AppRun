@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# Get the directory where the AppRun script is located
+HERE="$(dirname "$(readlink -f "${0}")")"
+
+# Use system Python
+PYTHON="/usr/bin/python3.12"
+
+# Set up Python environment
+export PYTHONPATH="$HERE/venv/lib/python3.12/site-packages:$PYTHONPATH"
+export LD_LIBRARY_PATH="$HERE/venv/lib:$LD_LIBRARY_PATH"
+
+# Execute the Python script
+exec $PYTHON "$HERE/main.py"
