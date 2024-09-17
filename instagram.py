@@ -23,13 +23,10 @@ def authenticate_instagram(username, password):
         error_message = "Invalid username or password"
         logger.error(error_message)
         messagebox.showerror("Authentication Error", error_message)
-        return False
     except Exception as e:
         error_message = f"An error occurred during authentication: {str(e)}"
         logger.error(error_message)
         messagebox.showerror("Authentication Error", error_message)
-        return False
-
 
 def download_instagram_media(link, save_name):
     global insta_loader
@@ -72,13 +69,16 @@ def download_instagram_media(link, save_name):
         success_message = f"Instagram media downloaded successfully as {save_name}"
         logger.info(success_message)
         messagebox.showinfo("Success", success_message)
+        return True
     except ValueError as ve:
         logger.error(f"Invalid URL provided: {str(ve)}")
         messagebox.showerror("Error", str(ve))
+        return False
     except Exception as e:
         error_message = f"Error downloading Instagram media: {str(e)}"
         logger.error(error_message)
         messagebox.showerror("Download Error", error_message)
+        return False
 
 
 def download_media(media_url, filename):
