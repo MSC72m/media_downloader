@@ -2,6 +2,10 @@ import requests
 import re
 from typing import Optional, List
 from tkinter import messagebox
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 def extract_tweet_ids(text: str) -> Optional[List[str]]:
     unshortened_links = ''
@@ -10,12 +14,13 @@ def extract_tweet_ids(text: str) -> Optional[List[str]]:
             unshortened_link = requests.get('https://' + link, timeout=10).url
             unshortened_links += '\n' + unshortened_link
         except requests.exceptions.RequestException as e:
-            print(f"Failed to unshorten link {link}: {e}")
+            logger.error(f"Failed to unshorten link {link}: {e}")
 
     tweet_ids = re.findall(
         r"(?:twitter|x)\.com/.{1,15}/(?:web|status(?:es)?)/([0-9]{1,20})", text + unshortened_links)
     tweet_ids = list(dict.fromkeys(tweet_ids))
     return tweet_ids or None
+
 
 def scrape_media(tweet_id: int) -> List[dict]:
     try:
@@ -23,16 +28,21 @@ def scrape_media(tweet_id: int) -> List[dict]:
             f'https://api.vxtwitter.com/Twitter/status/{tweet_id}', verify=False, timeout=10)
         response.raise_for_status()
         media_data = response.json()
-        print("Scraped Media Data:", media_data)
+        logger.info(f"Scraped Media Data for tweet {tweet_id}: {media_data}")
         return media_data.get('media_extended', [])
     except requests.exceptions.RequestException as e:
-        messagebox.showerror("Error", f"Failed to fetch media: {str(e)}")
+        error_message = f"Failed to fetch media: {str(e)}"
+        logger.error(error_message)
+        messagebox.showerror("Error", error_message)
         return []
     except Exception as e:
-        messagebox.showerror("Error", f"Unexpected error: {str(e)}")
+        error_message = f"Unexpected error: {str(e)}"
+        logger.error(error_message)
+        messagebox.showerror("Error", error_message)
         return []
 
-def download_media(tweet_media: List[dict], save_path) -> None:
+
+def download_media(tweet_media: List[dict], save_path) -> bool:
     for media in tweet_media:
         media_url = media['url']
         try:
@@ -46,26 +56,44 @@ def download_media(tweet_media: List[dict], save_path) -> None:
             elif media['type'] == 'video':
                 file_extension = 'mp4'
             else:
+                logger.warning(f"Unsupported media type: {media['type']}")
                 continue
 
-            with open(f'{save_path}.{file_extension}', 'wb') as file:
+            filename = f'{save_path}.{file_extension}'
+            with open(filename, 'wb') as file:
                 for chunk in response.iter_content(1024):
                     file.write(chunk)
-            messagebox.showinfo("Success", f"Media downloaded successfully. Saved as Twitter_Media{save_path}.{file_extension}")
+            logger.info(f"Media downloaded successfully. Saved as {filename}")
+            messagebox.showinfo("Success", f"Media downloaded successfully. Saved as Twitter_Media{filename}")
             return True
         except requests.exceptions.RequestException as e:
-            messagebox.showerror("Error", f"Error downloading media: {str(e)}")
+            error_message = f"Error downloading media: {str(e)}"
+            logger.error(error_message)
+            messagebox.showerror("Error", error_message)
+            return False
         except Exception as e:
-            messagebox.showerror("Error", f"Unexpected error: {str(e)}")
+            error_message = f"Unexpected error: {str(e)}"
+            logger.error(error_message)
+            messagebox.showerror("Error", error_message)
+            return False
+
 
 def download_twitter_media(link, save_name):
     tweet_ids = extract_tweet_ids(link)
     if tweet_ids:
         for i, tweet_id in enumerate(tweet_ids):
+            logger.info(f"Attempting to download media for tweet ID: {tweet_id}")
             media = scrape_media(int(tweet_id))
             if media:
                 download_media(media, f"{save_name}_{i}")
+                return True
             else:
-                messagebox.showwarning("Warning", f"No media found for tweet ID: {tweet_id}")
+                warning_message = f"No media found for tweet ID: {tweet_id}"
+                logger.warning(warning_message)
+                messagebox.showwarning("Warning", warning_message)
+                return False
     else:
-        messagebox.showerror("Error", "No supported tweet link found")
+        error_message = "No supported tweet link found"
+        logger.error(error_message)
+        messagebox.showerror("Error", error_message)
+        return False
