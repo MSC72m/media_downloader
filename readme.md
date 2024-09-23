@@ -33,10 +33,10 @@ The Social Media Toolkit is a sophisticated, cross-platform application designed
 
 ## Supported Platforms
 
-- ![YouTube](https://img.shields.io/badge/YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white)
-- ![Instagram](https://img.shields.io/badge/Instagram-E4405F?style=for-the-badge&logo=instagram&logoColor=white)
-- ![Twitter](https://img.shields.io/badge/Twitter-1DA1F2?style=for-the-badge&logo=twitter&logoColor=white)
-- ![Pinterest](https://img.shields.io/badge/Pinterest-%23E60023.svg?&style=for-the-badge&logo=Pinterest&logoColor=white)
+- [![YouTube](https://img.shields.io/badge/YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://img.shields.io/badge/YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white)
+- [![Instagram](https://img.shields.io/badge/Instagram-E4405F?style=for-the-badge&logo=instagram&logoColor=white)](https://img.shields.io/badge/Instagram-E4405F?style=for-the-badge&logo=instagram&logoColor=white)
+- [![Twitter](https://img.shields.io/badge/Twitter-1DA1F2?style=for-the-badge&logo=twitter&logoColor=white)](https://img.shields.io/badge/Twitter-1DA1F2?style=for-the-badge&logo=twitter&logoColor=white)
+- [![Pinterest](https://img.shields.io/badge/Pinterest-%23E60023.svg?&style=for-the-badge&logo=Pinterest&logoColor=white)](https://img.shields.io/badge/Pinterest-%23E60023.svg?&style=for-the-badge&logo=Pinterest&logoColor=white)
 
 ## Installation
 
@@ -126,36 +126,12 @@ The Social Media Toolkit is a sophisticated, cross-platform application designed
 
 ## Troubleshooting
 
-|
- Issue 
-|
- Solution 
-|
-|
--------
-|
-----------
-|
-|
- Network Errors 
-|
- Check internet connection and retry 
-|
-|
- Unsupported URL 
-|
- Verify the URL is from a supported platform 
-|
-|
- Authentication Failures 
-|
- Ensure correct login credentials for Instagram 
-|
-|
- Download Errors 
-|
- Consult application logs for detailed error messages 
-|
+| Issue | Solution |
+|-------|----------|
+| Network Errors | Check internet connection and retry |
+| Unsupported URL | Verify the URL is from a supported platform |
+| Authentication Failures | Ensure correct login credentials for Instagram |
+| Download Errors | Consult application logs for detailed error messages |
 
 ## Contributing
 
