@@ -3,6 +3,9 @@ import re
 from typing import Optional, List
 from tkinter import messagebox
 import logging
+import os
+
+from src.utils.common import download_file, sanitize_filename
 
 logger = logging.getLogger(__name__)
 
@@ -46,31 +49,22 @@ def download_media(tweet_media: List[dict], save_path) -> bool:
     for media in tweet_media:
         media_url = media['url']
         try:
-            response = requests.get(media_url, stream=True, verify=False, timeout=10)
-            response.raise_for_status()
-
             if media['type'] == 'image':
-                file_extension = 'jpg'
+                file_extension = '.jpg'
             elif media['type'] == 'gif':
-                file_extension = 'gif'
+                file_extension = '.gif'
             elif media['type'] == 'video':
-                file_extension = 'mp4'
+                file_extension = '.mp4'
             else:
                 logger.warning(f"Unsupported media type: {media['type']}")
                 continue
 
-            filename = f'{save_path}.{file_extension}'
-            with open(filename, 'wb') as file:
-                for chunk in response.iter_content(1024):
-                    file.write(chunk)
-            logger.info(f"Media downloaded successfully. Saved as {filename}")
-            messagebox.showinfo("Success", f"Media downloaded successfully. Saved as Twitter_Media{filename}")
-            return True
-        except requests.exceptions.RequestException as e:
-            error_message = f"Error downloading media: {str(e)}"
-            logger.error(error_message)
-            messagebox.showerror("Error", error_message)
-            return False
+            filename = sanitize_filename(f'{os.path.basename(save_path)}{file_extension}')
+            full_save_path = os.path.join(os.path.dirname(save_path), filename)
+            if download_file(media_url, full_save_path, is_twitter=True):
+                return True
+            else:
+                return False
         except Exception as e:
             error_message = f"Unexpected error: {str(e)}"
             logger.error(error_message)
@@ -78,14 +72,14 @@ def download_media(tweet_media: List[dict], save_path) -> bool:
             return False
 
 
-def download_twitter_media(link, save_name):
+def download_twitter_media(link, save_path):
     tweet_ids = extract_tweet_ids(link)
     if tweet_ids:
         for i, tweet_id in enumerate(tweet_ids):
             logger.info(f"Attempting to download media for tweet ID: {tweet_id}")
             media = scrape_media(int(tweet_id))
             if media:
-                download_media(media, f"{save_name}_{i}")
+                download_media(media, f"{save_path}_{i}")
                 return True
             else:
                 warning_message = f"No media found for tweet ID: {tweet_id}"

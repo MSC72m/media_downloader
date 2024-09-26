@@ -6,10 +6,10 @@ import threading
 import queue
 import os
 import logging
-from youtube import download_youtube_video
-from twitter import download_twitter_media
-from instagram import download_instagram_media, authenticate_instagram
-from pinterest import download_pinterest_image
+from downloaders.youtube import download_youtube_video
+from downloaders.twitter import download_twitter_media
+from downloaders.instagram import download_instagram_media, authenticate_instagram
+from downloaders.pinterest import download_pinterest_image
 
 # Configure logging
 logging.basicConfig(filename='media_downloader.log', level=logging.INFO,

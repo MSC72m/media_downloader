@@ -1,16 +1,16 @@
 import yt_dlp
 from tkinter import messagebox
 import logging
+import os
+
+from src.utils.common import sanitize_filename
 
 logger = logging.getLogger(__name__)
 
-def sanitize_filename(filename):
-    invalid_chars = '<>:"/\\|?*'
-    return ''.join(c for c in filename if c not in invalid_chars).strip()
 
 def download_youtube_video(link, save_path, quality, download_playlist, audio_only):
     def get_output_template(save_name):
-        return f'{save_name}_%(title)s.%(ext)s'
+        return os.path.join(os.path.dirname(save_name), sanitize_filename(f'%(title)s.%(ext)s'))
 
     ydl_opts = {
         'outtmpl': {
