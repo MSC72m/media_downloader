@@ -1,24 +1,28 @@
+import os
+import sys
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import customtkinter as ctk
 import tkinter as tk
 from tkinter import messagebox
 from urllib.parse import urlparse
-import threading
 import queue
-import os
 import logging
-from downloaders.youtube import download_youtube_video
-from downloaders.twitter import download_twitter_media
-from downloaders.instagram import download_instagram_media, authenticate_instagram
-from downloaders.pinterest import download_pinterest_image
+import threading
 
-# Configure logging
+# Now import your local modules
+from src.downloaders.youtube import download_youtube_video
+from src.downloaders.twitter import download_twitter_media
+from src.downloaders.instagram import download_instagram_media, authenticate_instagram
+from src.downloaders.pinterest import download_pinterest_image
+
 logging.basicConfig(filename='media_downloader.log', level=logging.INFO,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
-
 
 class PasswordDialog(ctk.CTkToplevel):
     def __init__(self, parent, title="Password Entry", message="Enter your password:"):
@@ -27,32 +31,45 @@ class PasswordDialog(ctk.CTkToplevel):
         self.title(title)
         self.grab_set()
         self.configure(bg="#2a2d2e")
+        self.password = None
+
+        self.resizable(False, False)
+        self.center_window(parent)
 
         self.label = ctk.CTkLabel(self, text=message, font=("Roboto", 14))
         self.label.pack(pady=10)
 
         self.password_entry = ctk.CTkEntry(self, show="*", font=("Roboto", 15), width=280)
         self.password_entry.pack(pady=5)
-        self.password_entry.focus()
 
         self.password_entry.bind("<Return>", lambda event: self.on_ok())
 
         self.ok_button = ctk.CTkButton(self, text="OK", command=self.on_ok)
         self.ok_button.pack(pady=10)
+        self.password_entry.focus_force()
 
-        self.password = None
-        self.parent = parent
+    def center_window(self, parent):
+        parent_x = parent.winfo_x()
+        parent_y = parent.winfo_y()
+        parent_width = parent.winfo_width()
+        parent_height = parent.winfo_height()
+
+        dialog_width = 400
+        dialog_height = 150
+
+        new_x = parent_x + (parent_width // 2) - (dialog_width // 2)
+        new_y = parent_y + (parent_height // 2) - (dialog_height // 2)
+
+        self.geometry(f"{dialog_width}x{dialog_height}+{new_x}+{new_y}")
 
     def on_ok(self):
         self.password = self.password_entry.get()
         self.destroy()
 
-
-def get_password(parent: object) -> object:
+def get_password(parent):
     dialog = PasswordDialog(parent)
     parent.wait_window(dialog)
     return dialog.password
-
 
 class DownloadItem:
     def __init__(self, name, url, status="Pending"):
@@ -60,12 +77,10 @@ class DownloadItem:
         self.url = url
         self.status = status
 
-
 class MediaDownloader(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.success = None
         self.title("Media Downloader")
         self.geometry("1000x700")
 
@@ -153,11 +168,32 @@ class MediaDownloader(ctk.CTk):
         if not os.path.exists(self.downloads_folder):
             os.makedirs(self.downloads_folder)
 
+        self.instagram_authenticated = False
+
+    def center_window(self, window, width, height):
+        parent_x = self.winfo_x()
+        parent_y = self.winfo_y()
+        parent_width = self.winfo_width()
+        parent_height = self.winfo_height()
+
+        new_x = parent_x + (parent_width // 2) - (width // 2)
+        new_y = parent_y + (parent_height // 2) - (height // 2)
+
+        window.geometry(f"{width}x{height}+{new_x}+{new_y}")
+        window.focus_force()
     def manage_files(self):
         logger.info("Opening file manager")
         file_browser = ctk.CTkToplevel(self)
         file_browser.title("File Browser")
         file_browser.geometry("600x400")
+
+        file_browser.resizable(False, False)
+        self.center_window(file_browser, 600, 400)
+
+        file_browser.focus_force()
+        file_browser.lift()
+        file_browser.grab_set()
+
         file_browser.grid_columnconfigure(0, weight=1)
         file_browser.grid_rowconfigure(1, weight=1)
 
@@ -233,18 +269,61 @@ class MediaDownloader(ctk.CTk):
 
     def instagram_login(self):
         logger.info("Attempting Instagram login")
+
+        # Disable the login button during the login process
+        self.insta_login_button.configure(state="disabled")
+
         dialog = ctk.CTkInputDialog(text="Enter your Instagram username:", title="Instagram Login")
+        self.center_window(dialog, 400, 200)
         username = dialog.get_input()
+
         if username:
             password = get_password(self)
             if password:
-                if authenticate_instagram(username, password):
-                    logger.info("Successfully logged in to Instagram")
-                    self.show_status("Successfully logged in to Instagram")
-                    self.insta_login_button.configure(text="Instagram: Logged In", state="disabled")
-                else:
-                    logger.warning("Failed to log in to Instagram")
-                    self.show_status("Failed to log in to Instagram")
+                # Run the authentication process in a separate thread to avoid blocking the UI
+                def authenticate_and_update():
+                    try:
+                        logger.info("Instagram login thread started.")
+                        if authenticate_instagram(username, password):
+                            logger.info("Successfully logged in to Instagram")
+                            self.show_status("Successfully logged in to Instagram")
+                            self.insta_login_button.configure(text="Instagram: Logged In",
+                                                              state="disabled")  # Disable button
+                            self.instagram_authenticated = True
+                        else:
+                            logger.warning("Instagram login failed. Invalid credentials.")
+                            self.show_status("Failed to log in to Instagram. Please check your credentials.")
+                            messagebox.showerror("Login Failed",
+                                                 "Failed to log in to Instagram. Please check your username and password.")
+                            self.insta_login_button.configure(state="normal")  # Re-enable if login fails
+                    except Exception as e:
+                        logger.error(f"Error during Instagram authentication: {str(e)}")
+                        self.show_status("An error occurred during Instagram login.")
+                        messagebox.showerror("Login Error", f"An error occurred during Instagram login: {str(e)}")
+                        self.insta_login_button.configure(state="normal")  # Re-enable in case of error
+                    finally:
+                        logger.info("Instagram login thread finished.")
+                        if not self.instagram_authenticated:
+                            self.insta_login_button.configure(state="normal")  # Re-enable if not logged in
+
+                # Start the thread
+                thread = threading.Thread(target=authenticate_and_update, daemon=True)
+                thread.start()
+
+                # Optionally, monitor if the thread is still alive (not necessary but useful in larger apps)
+                def monitor_thread():
+                    if not thread.is_alive():
+                        logger.info("Thread finished successfully.")
+                    else:
+                        logger.info("Thread still running.")
+
+                self.after(1000, monitor_thread)  # Check after 1 second if the thread is done (non-blocking)
+            else:
+                # Re-enable the button if no password was entered
+                self.insta_login_button.configure(state="normal")
+        else:
+            # Re-enable the button if no username was entered
+            self.insta_login_button.configure(state="normal")
 
     def add_entry(self):
         link = self.url_entry.get().strip()
@@ -320,8 +399,10 @@ class MediaDownloader(ctk.CTk):
         parsed_url = urlparse(item.url)
         domain = parsed_url.netloc
         download_mapping = {
-            'youtube.com': lambda item: download_youtube_video(item.url, os.path.join(self.downloads_folder, item.name),
-                                                               self.quality_var.get(), self.playlist_var.get() == "on",
+            'youtube.com': lambda item: download_youtube_video(item.url,
+                                                               os.path.join(self.downloads_folder, item.name),
+                                                               self.quality_var.get(),
+                                                               self.playlist_var.get() == "on",
                                                                audio_only=self.audio_only_var.get() == "on"),
             'twitter.com': lambda item: download_twitter_media(item.url,
                                                                os.path.join(self.downloads_folder, item.name)),
@@ -330,13 +411,16 @@ class MediaDownloader(ctk.CTk):
                                                                    os.path.join(self.downloads_folder, item.name)),
             'pinterest.com': lambda item: download_pinterest_image(item.url,
                                                                    os.path.join(self.downloads_folder, item.name)),
-            'pin.it': lambda item: download_pinterest_image(item.url, os.path.join(self.downloads_folder, item.name))
+            'pin.it': lambda item: download_pinterest_image(item.url,
+                                                            os.path.join(self.downloads_folder, item.name))
         }
         try:
             success = False
             for key, download_func in download_mapping.items():
                 if key in domain:
                     logger.info(f"Attempting to download from {key}: {item.url}")
+                    if key == 'instagram.com' and not self.instagram_authenticated:
+                        raise ValueError("Instagram authentication required. Please log in first.")
                     success = download_func(item)
                     item.status = "Downloaded" if success else "Failed"
                     logger.info(f"Download status for {item.name}: {item.status}")
@@ -347,11 +431,12 @@ class MediaDownloader(ctk.CTk):
             item.status = "Downloaded" if success else "Failed"
             logger.info(f"Download status for {item.name}: {item.status}")
 
-        except Exception as f:
+        except Exception as xe:
             item.status = "Failed"
-            error_message = f"Error downloading {item.name}: {str(f)}"
+            error_message = f"Error downloading {item.name}: {str(xe)}"
             logger.error(error_message)
             self.show_status(error_message)
+            messagebox.showerror("Download Error", error_message)
 
     def update_ui_after_downloads(self):
         self.download_button.configure(state="normal")
@@ -365,7 +450,6 @@ class MediaDownloader(ctk.CTk):
         self.status_label.configure(text=message)
         self.after(5000, lambda: self.status_label.configure(text="Ready"))
         logger.info(f"Status message: {message}")
-
 
 if __name__ == "__main__":
     try:
