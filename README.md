@@ -45,14 +45,15 @@ The Media Downloader is a sophisticated, cross-platform application designed to 
 Follow these steps to install the  Media Downloader Toolkit on Windows:
 
 1. **Download the installer**
-   - Go to our [releases page](https://github.com/MSC72m/media_downloaderreleases).
-   - Download the latest `.exe` file.
+   - Go to our [releases page]https://github.com/MSC72m/media_downloader/releases/download/v0.1.0/MediaDownloaderSetup.zip).
+   - Download the latest `.zip` file.
+   - Extract the .zip file in the same directory(folder)
 
    ![Download Installer](guide/step-1.png)
 
 2. **Run the installer**
    - Locate the downloaded `.exe` file in your Downloads folder.
-   - Double-click the file to start the installation process.
+   - Double-click the file to start the installation process(run as admin)
 
    ![Run Installer](guide/step-2.png)
 
