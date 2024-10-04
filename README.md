@@ -1,4 +1,4 @@
-# Social Media Toolkit
+# Media Downloader
 
 A powerful, user-friendly application for downloading media content from popular social platforms.
 
@@ -8,8 +8,8 @@ A powerful, user-friendly application for downloading media content from popular
 - [Key Features](#key-features)
 - [Supported Platforms](#supported-platforms)
 - [Installation](#installation)
-  - [Linux Installation](#linux-installation)
   - [Windows Installation](#windows-installation)
+  - [Linux Installation](#linux-installation)
 - [Usage Guide](#usage-guide)
 - [Advanced Features](#advanced-features)
 - [Troubleshooting](#troubleshooting)
@@ -19,11 +19,11 @@ A powerful, user-friendly application for downloading media content from popular
 
 ## Overview
 
-The Social Media Toolkit is a sophisticated, cross-platform application designed to streamline the process of downloading media content from various social media platforms. Built with Python and featuring a modern, intuitive GUI, this toolkit empowers users to easily archive and manage their favorite online content.
+The Media Downloader is a sophisticated, cross-platform application designed to streamline the process of downloading media content from various Media Downloader platforms. Built with Python and featuring a modern, intuitive GUI, this toolkit empowers users to easily archive and manage their favorite online content.
 
 ## Key Features
 
-- **Multi-Platform Support**: Seamlessly download content from major social media sites.
+- **Multi-Platform Support**: Seamlessly download content from major Media Downloader sites.
 - **Customizable Downloads**: Choose video quality, audio-only options, and more.
 - **Bulk Processing**: Queue multiple downloads for efficient batch processing.
 - **User Authentication**: Securely log in to platforms like Instagram for expanded access.
@@ -40,40 +40,108 @@ The Social Media Toolkit is a sophisticated, cross-platform application designed
 
 ## Installation
 
+### Windows Installation
+
+Follow these steps to install the  Media Downloader Toolkit on Windows:
+
+1. **Download the installer**
+   - Go to our [releases page](https://github.com/MSC72m/media_downloaderreleases).
+   - Download the latest `.exe` file.
+
+   ![Download Installer](guide/step-1.png)
+
+2. **Run the installer**
+   - Locate the downloaded `.exe` file in your Downloads folder.
+   - Double-click the file to start the installation process.
+
+   ![Run Installer](guide/step-2.png)
+
+3. **Navigate the installation wizard**
+   - Click "Next" to proceed through the welcome screen.
+
+   ![Welcome Screen](guide/step-3.png)
+
+4. **Choose installation location**
+   - Select where you want to install the program or use the default location.
+   - Click "Next" to continue.
+
+   ![Choose Location](guide/step-4.png)
+
+5. **Select additional tasks**
+   - Choose whether to create a desktop shortcut.
+   - Click "Next" to proceed.
+
+   ![Additional Tasks](guide/step-5.png)
+
+6. **Complete the installation**
+   - Review your choices and click "Install" to begin the installation.
+   - Wait for the installation to complete.
+
+   ![Complete Installation](guide/step-6.png)
+
+7. **Finish the setup**
+   - Click "Finish" to exit the installer.
+   - The Media Downloader is now installed on your system.
+
+8. **Launch the application**
+   - Use the desktop shortcut or find the application in your Start menu.
+
 ### Linux Installation
 
-1. Verify Python installation:
+Follow these steps to install the Media Downloader Toolkit on Linux:
+
+1. **Verify Python installation**
+   Open a terminal and run:
    ```bash
    python3 --version
    ```
+Ensure you have Python 3.6 or higher installed.
 
-2. Clone the repository:
+2. **Install Git (if not already installed)**
+   For Ubuntu/Debian:
    ```bash
-   git clone https://github.com/yourusername/social-media-toolkit.git
-   cd social-media-toolkit
+      sudo apt-get update
+      sudo apt-get install git
+      ```
+   For Fedora:
+   ```bash 
+     sudo dnf install git
+   ```
+3. **Clone the repository**
+   ```bash
+      git clone https://github.com/MSC72m/media_downloader.git
+      cd media_downloader
    ```
 
-3. Set up a virtual environment (recommended):
+4. **Set up a virtual environment (recommended)**
    ```bash
-   python3 -m venv venv
-   source venv/bin/activate
+      python3 -m venv venv
+      source venv/bin/activate
    ```
-
-4. Install dependencies:
+5. **Install dependencies**
    ```bash
    pip install -r requirements.txt
    ```
-
-5. Launch the application:
+6. **Launch the application**
    ```bash
+   cd /src
    python main.py
    ```
-
-### Windows Installation
-
-1. Download `SocialMediaToolkit_Setup.exe` from our releases page.
-2. Run the installer and follow the wizard's instructions.
-3. Launch via the desktop shortcut or start menu.
+7. **Create a desktop shortcut (optional)**
+    Create a .desktop file in ~/.local/share/applications/:
+   ```bash
+   vim ~/.local/share/applications/media_downloader.desktop
+   ```
+   Add the following content (adjust paths as needed):
+   (change ``` /path/to/venv``` and ```/path/to/media_downloader/src/main.py``` ```/path/to/media_downloader/icon.png```  to your actual paths to make this work)
+   ```bash
+   [Desktop Entry]
+   Name= media_downloader
+   Exec=/path/to/venv/bin/python /path/to/downloader/main.py
+   Icon=/path/to/media_downloader/icon.png
+   Type=Application
+   Categories=Utility;
+   ```
 
 ## Usage Guide
 
@@ -89,7 +157,7 @@ The Social Media Toolkit is a sophisticated, cross-platform application designed
 
 ### Managing Queue:
 
-- Remove items with "Remove Selected" or clear all with "Clear All".
+- Remove items with "Remove Selected" (you need to select all the string of each link manually with our mouse) or clear all with "Clear All".
 - Initiate downloads with "Download All".
 
 ### Customizing Save Location:
@@ -126,12 +194,12 @@ The Social Media Toolkit is a sophisticated, cross-platform application designed
 
 ## Troubleshooting
 
-| Issue | Solution |
-|-------|----------|
-| Network Errors | Check internet connection and retry |
-| Unsupported URL | Verify the URL is from a supported platform |
-| Authentication Failures | Ensure correct login credentials for Instagram |
-| Download Errors | Consult application logs for detailed error messages |
+| Issue                   | Solution                                             |
+|-------------------------|------------------------------------------------------|
+| Network Errors          | Check internet connection and retry                  |
+| Unsupported URL         | Verify the URL is from a supported platform          |
+| Authentication Failures | Ensure correct login credentials for Instagram       |
+| Download Errors         | Consult application logs for detailed error messages |
 
 ## Contributing
 
@@ -149,4 +217,4 @@ This project is licensed under the MIT License. See LICENSE for details.
 
 ## Disclaimer
 
-The Social Media Toolkit is intended for personal use only. Users are responsible for adhering to the terms of service of the respective platforms and all applicable copyright laws. The developers assume no liability for misuse of this software.
+The Media Downloader Toolkit is intended for personal use only. Users are responsible for adhering to the terms of service of the respective platforms and all applicable copyright laws. The developers assume no liability for misuse of this software.
