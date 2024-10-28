@@ -3,6 +3,5 @@ customtkinter
 instaloader
 requests
 yt-dlp
-logging
 urllib3
 
