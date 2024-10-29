@@ -1,5 +1,3 @@
-# src/ui/components/status_bar.py
-
 import customtkinter as ctk
 
 

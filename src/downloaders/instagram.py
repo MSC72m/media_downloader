@@ -28,10 +28,10 @@ class InstagramDownloader(BaseDownloader):
             return False
 
     def download(
-            self,
-            url: str,
-            save_path: str,
-            progress_callback: Optional[Callable[[float, float], None]] = None
+        self,
+        url: str,
+        save_path: str,
+        progress_callback: Optional[Callable[[float, float], None]] = None
     ) -> bool:
         if not self.authenticated or not self.loader:
             logger.error("Not authenticated")
@@ -45,13 +45,13 @@ class InstagramDownloader(BaseDownloader):
             post = instaloader.Post.from_shortcode(self.loader.context, shortcode)
 
             # Handle different post types
-            if post.typename == 'GraphSidecar':
+            if post.typename == 'GraphSidecar':  # Multiple images/videos
                 success = True
                 for i, node in enumerate(post.get_sidecar_nodes()):
                     if not self._download_node(node, f"{save_path}_slide_{i + 1}", progress_callback):
                         success = False
                 return success
-            else:
+            else:  # Single image/video
                 return self._download_node(post, save_path, progress_callback)
 
         except Exception as e:
@@ -74,7 +74,7 @@ class InstagramDownloader(BaseDownloader):
     def _download_node(
             node,
             save_path: str,
-            progress_callback: Optional[Callable[[float, float], None]]
+            progress_callback: Optional[Callable[[float, float], None]] = None
     ) -> bool:
         try:
             if node.is_video:
@@ -88,7 +88,6 @@ class InstagramDownloader(BaseDownloader):
             full_path = os.path.join(os.path.dirname(save_path), filename)
 
             return download_file(url, full_path, progress_callback)
-
         except Exception as e:
             logger.error(f"Error downloading node: {str(e)}")
             return False

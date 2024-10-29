@@ -1,5 +1,3 @@
-# src/ui/components/file_list.py
-
 import os
 import tkinter as tk
 from typing import Callable, Optional

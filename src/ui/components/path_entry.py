@@ -1,5 +1,3 @@
-# src/ui/components/path_entry.py
-
 import customtkinter as ctk
 from typing import Callable
 

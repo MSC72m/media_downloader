@@ -1,11 +1,9 @@
 import os
 import sys
 import logging
-from typing import List, Dict, Callable, Optional
-import queue
-import threading
+from typing import List, Optional
 from pathlib import Path
-
+from urllib.parse import urlparse
 import customtkinter as ctk
 from tkinter import messagebox
 
@@ -31,7 +29,7 @@ from src.models.download_item import DownloadItem
 
 # Configure logging
 logging.basicConfig(
-    filename='media_downloader.log',
+   # filename='media_downloader.log',
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
@@ -146,17 +144,41 @@ class MediaDownloader(ctk.CTk):
 
 
     # Inside the MediaDownloader class, update the handle_add_url method:
-    def handle_add_url(self, url: str, name: str):  # Update signature to accept both arguments
+    def handle_add_url(self, url: str, name: str):
         """Handle adding new download item."""
         try:
+            # Validate URL
+            if not url.startswith('http'):
+                raise ValueError("Invalid URL format. URL must start with http:// or https://")
+
+            # Check if URL is from supported platform
+            domain = urlparse(url).netloc.lower()
+            supported = False
+            for platform in ['youtube.com', 'twitter.com', 'x.com', 'instagram.com', 'pinterest.com', 'pin.it']:
+                if platform in domain:
+                    supported = True
+                    break
+
+            if not supported:
+                raise ValueError(
+                    "Unsupported platform. Currently supported: YouTube, Twitter, Instagram, and Pinterest")
+
+            # Create and add item
             item = DownloadItem(name=name, url=url)
             self.download_manager.add_item(item)
             self.download_list.refresh_items(self.download_manager.get_items())
-            self.status_bar.show_message(f"Added: {name}")
+            self.message_queue.add_message(Message(
+                type=MessageType.SUCCESS,
+                text=f"Added: {name}"
+            ))
             logger.info(f"Added download item: {name} - {url}")
         except Exception as e:
-            logger.error(f"Error adding URL: {str(e)}")
-            self.status_bar.show_error(f"Error adding URL: {str(e)}")
+            error_msg = str(e)
+            logger.error(f"Error adding URL: {error_msg}")
+            self.message_queue.add_message(Message(
+                type=MessageType.ERROR,
+                text=f"Error adding URL: {error_msg}"
+            ))
 
     def handle_instagram_login(self):
         """Handle Instagram login process."""
@@ -226,7 +248,19 @@ class MediaDownloader(ctk.CTk):
         """Handle starting downloads."""
         try:
             if not self.download_manager.get_items():
-                self.status_bar.show_message("Please add items to download")
+                self.message_queue.add_message(Message(
+                    type=MessageType.INFO,
+                    text="Please add items to download"
+                ))
+                return
+
+            # Check if Instagram items exist and we're authenticated
+            has_instagram = any('instagram.com' in item.url for item in self.download_manager.get_items())
+            if has_instagram and not self.auth_manager.is_instagram_authenticated():
+                self.message_queue.add_message(Message(
+                    type=MessageType.ERROR,
+                    text="Please log in to Instagram first to download Instagram content"
+                ))
                 return
 
             self.action_buttons.set_button_state("download", "disabled")
@@ -243,32 +277,51 @@ class MediaDownloader(ctk.CTk):
                 completion_callback
             )
         except Exception as e:
-            logger.error(f"Error starting downloads: {str(e)}")
+            error_msg = str(e)
+            logger.error(f"Error starting downloads: {error_msg}")
             self.message_queue.add_message(Message(
                 type=MessageType.ERROR,
-                text=f"Error starting downloads: {str(e)}"
+                text=f"Error starting downloads: {error_msg}"
             ))
             self.action_buttons.set_button_state("download", "normal")
 
     def _update_progress(self, item: DownloadItem, progress: float):
         """Update UI with download progress."""
-        self.download_list.update_item_progress(item, progress)
-        self.status_bar.update_progress(progress)
+        try:
+            self.download_list.update_item_progress(item, progress)
+            self.status_bar.update_progress(progress)
+
+            # Update window title with progress
+            if progress < 100:
+                self.title(f"Media Downloader - Downloading... {progress:.1f}%")
+            else:
+                self.title("Media Downloader")
+
+        except Exception as e:
+            logger.error(f"Error updating progress: {str(e)}")
 
     def _handle_download_completion(self, success: bool, error: Optional[str] = None):
         """Handle download completion."""
-        self.action_buttons.set_button_state("download", "normal")
-        if success:
-            self.message_queue.add_message(Message(
-                type=MessageType.SUCCESS,
-                text="Downloads completed successfully"
-            ))
-        else:
-            self.message_queue.add_message(Message(
-                type=MessageType.ERROR,
-                text=f"Download failed: {error}"
-            ))
-        self.download_list.refresh_items(self.download_manager.get_items())
+        try:
+            self.action_buttons.set_button_state("download", "normal")
+            self.title("Media Downloader")  # Reset title
+
+            if success:
+                self.message_queue.add_message(Message(
+                    type=MessageType.SUCCESS,
+                    text="Downloads completed successfully"
+                ))
+            else:
+                self.message_queue.add_message(Message(
+                    type=MessageType.ERROR,
+                    text=f"Download failed: {error or 'Unknown error'}"
+                ))
+
+            self.download_list.refresh_items(self.download_manager.get_items())
+            self.status_bar.show_message("Ready")
+
+        except Exception as e:
+            logger.error(f"Error handling download completion: {str(e)}")
 
     def handle_manage_files(self):
         """Handle opening file manager dialog."""

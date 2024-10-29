@@ -13,10 +13,10 @@ logger = logging.getLogger(__name__)
 
 class TwitterDownloader(BaseDownloader):
     def download(
-            self,
-            url: str,
-            save_path: str,
-            progress_callback: Optional[Callable[[float, float], None]] = None
+        self,
+        url: str,
+        save_path: str,
+        progress_callback: Optional[Callable[[float, float], None]] = None
     ) -> bool:
         try:
             tweet_ids = self._extract_tweet_ids(url)
@@ -24,13 +24,15 @@ class TwitterDownloader(BaseDownloader):
                 logger.error("No tweet IDs found")
                 return False
 
+            success = False
             for i, tweet_id in enumerate(tweet_ids):
                 media = self._scrape_media(tweet_id)
                 if media:
                     save_name = f"{save_path}_{i}" if len(tweet_ids) > 1 else save_path
-                    return self._download_media(media, save_name, progress_callback)
+                    if self._download_media(media, save_name, progress_callback):
+                        success = True
 
-            return False
+            return success
 
         except Exception as e:
             logger.error(f"Error downloading from Twitter: {str(e)}")
@@ -60,7 +62,7 @@ class TwitterDownloader(BaseDownloader):
     def _download_media(
             media: List[dict],
             save_path: str,
-            progress_callback: Optional[Callable[[float, float], None]] = None,
+            progress_callback: Optional[Callable[[float, float], None]] = None
     ) -> bool:
         for item in media:
             try:
@@ -69,9 +71,7 @@ class TwitterDownloader(BaseDownloader):
                 filename = sanitize_filename(f'{os.path.basename(save_path)}{ext}')
                 full_path = os.path.join(os.path.dirname(save_path), filename)
 
-                success = download_file(url, full_path, progress_callback)
-                return bool(success)
-
+                return download_file(url, full_path, progress_callback)
             except Exception as e:
                 logger.error(f"Error downloading media: {str(e)}")
                 continue

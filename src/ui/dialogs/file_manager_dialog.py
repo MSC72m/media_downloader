@@ -1,5 +1,3 @@
-# src/ui/dialogs/file_manager_dialog.py
-
 import os
 import logging
 import customtkinter as ctk

@@ -1,84 +1,66 @@
+import os
+import time
 import requests
 import logging
-import os
+from typing import Optional, Callable
 from urllib.parse import urlparse
-from typing import Optional
-from tkinter import messagebox
 
 logger = logging.getLogger(__name__)
 
 
-def download_file(url: str, save_path: str, is_twitter: bool = False) -> bool:
-    """
-    Downloads a file from the given URL and saves it to the specified path.
-
-    Args:
-    url (str): The URL of the file to download.
-    save_path (str): The full path where the file should be saved.
-    is_twitter (bool): Flag to indicate if it's a Twitter media download.
-
-    Returns:
-    bool: True if download was successful, False otherwise.
-    """
+def download_file(
+        url: str,
+        filename: str,
+        progress_callback: Optional[Callable[[float, float], None]] = None
+) -> bool:
     try:
-        response = requests.get(url, stream=True, verify=not is_twitter, timeout=10)
+        # Set up headers for more reliable downloads
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+
+        response = requests.get(url, stream=True, headers=headers)
         response.raise_for_status()
 
-        # Ensure the directory exists
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        # Get file size
+        total_size = int(response.headers.get('content-length', 0))
+        block_size = 8192
+        downloaded = 0
 
-        with open(save_path, 'wb') as file:
-            for chunk in response.iter_content(chunk_size=8192):
-                file.write(chunk)
+        start_time = time.time()
 
-        logger.info(f"File downloaded successfully: {save_path}")
-        if is_twitter:
-            messagebox.showinfo("Success", f"Media downloaded successfully. Saved as {save_path}")
+        with open(filename, 'wb') as f:
+            for data in response.iter_content(block_size):
+                downloaded += len(data)
+                f.write(data)
+
+                if progress_callback and total_size:
+                    # Calculate progress percentage and speed
+                    progress = (downloaded / total_size) * 100
+                    elapsed_time = max(time.time() - start_time, 0.1)  # Avoid division by zero
+                    speed = downloaded / elapsed_time
+                    progress_callback(progress, speed)
+
+        # Call one final time with 100% progress
+        if progress_callback:
+            progress_callback(100.0, 0.0)
+
         return True
-    except requests.exceptions.RequestException as e:
-        error_message = f"Failed to download file: {str(e)}"
-        logger.error(error_message)
-        if is_twitter:
-            messagebox.showerror("Error", error_message)
-        return False
-    except IOError as e:
-        error_message = f"Failed to save file: {str(e)}"
-        logger.error(error_message)
-        if is_twitter:
-            messagebox.showerror("Error", error_message)
-        return False
     except Exception as e:
-        error_message = f"Unexpected error while downloading file: {str(e)}"
-        logger.error(error_message)
-        if is_twitter:
-            messagebox.showerror("Error", error_message)
+        logger.error(f"Error downloading file: {str(e)}")
         return False
 
 
 def sanitize_filename(filename: str) -> str:
-    """
-    Sanitizes a filename by removing or replacing invalid characters.
-
-    Args:
-    filename (str): The filename to sanitize.
-
-    Returns:
-    str: The sanitized filename.
-    """
+    # Remove invalid characters
     invalid_chars = '<>:"/\\|?*'
-    return ''.join(c for c in filename if c not in invalid_chars).strip()
+    for char in invalid_chars:
+        filename = filename.replace(char, '')
 
+    # Limit length
+    max_length = 255
+    name, ext = os.path.splitext(filename)
+    if len(filename) > max_length:
+        return name[:max_length - len(ext)] + ext
 
-def get_file_extension(url: str) -> Optional[str]:
-    """
-    Attempts to determine the file extension from the URL.
-
-    Args:
-    url (str): The URL of the file.
-
-    Returns:
-    Optional[str]: The file extension if found, None otherwise.
-    """
-    parsed_url = urlparse(url)
-    path = parsed_url.path
-    return os.path.splitext(path)[1] if path else None
+    return filename

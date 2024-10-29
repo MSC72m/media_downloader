@@ -1,5 +1,3 @@
-# src/ui/components/action_buttons.py
-
 import customtkinter as ctk
 from typing import Callable
 
