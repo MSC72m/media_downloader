@@ -4,13 +4,16 @@ import logging
 import os
 from typing import Callable, Optional
 
+from ..schemas.schemas import YtOptions
+
 logger = logging.getLogger(__name__)
 
 class YouTubeDownloader(BaseDownloader):
-    def __init__(self, quality: str = '720p', download_playlist: bool = False, audio_only: bool = False):
-        self.quality = quality
-        self.download_playlist = download_playlist
-        self.audio_only = audio_only
+    def __init__(self, options: YtOptions):
+        self.quality = options.quality
+        self.download_playlist = options.download_playlist
+        self.audio_only = options.audio_only
+        self.subtitle_setting = options.subtitle_setting
 
     def download(
         self,

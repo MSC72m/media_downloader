@@ -8,7 +8,7 @@ class OptionsBar(ctk.CTkFrame):
 
     def __init__(
             self,
-            master,
+            master: ctk.CTkFrame,
             on_instagram_login: Callable,
             on_quality_change: Callable,
             on_option_change: Callable

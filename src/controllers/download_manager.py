@@ -1,14 +1,12 @@
 import threading
 import logging
-from typing import List, Callable, Optional, Dict, Any
+from typing import List, Callable, Optional, Dict, Any, Union
 from urllib.parse import urlparse
 import os
 
-from src.schemas.schemas import DownloadItem
+from src.schemas.schemas import YtOptions, DownloadItem
 from src.downloaders.youtube import YouTubeDownloader
 from src.downloaders.twitter import TwitterDownloader
-from src.downloaders.instagram import InstagramDownloader
-from src.downloaders.pinterest import PinterestDownloader
 from src.downloaders.pinterest import PinterestDownloader
 from src.downloaders.base import BaseDownloader
 
@@ -16,39 +14,48 @@ logger = logging.getLogger(__name__)
 
 class DownloadManager:
     """Manages download operations and state."""
-
     def __init__(self):
         self.items: List[DownloadItem] = []
         self.active_downloads = 0
-        self.youtube_downloader = YouTubeDownloader()
         self.twitter_downloader = TwitterDownloader()
         self.pinterest_downloader = PinterestDownloader()
         self._lock = threading.Lock()
         self.auth_manager = None
-        self.youtube_options = {
-            'quality': '720p',
-            'playlist': False,
-            'audio_only': False
-        }
+        self._yt_opt = None
+        self._yt_dl = None
 
-    def set_quality(self, quality: str) -> None:
-        """Set video quality."""
-        self.youtube_options['quality'] = quality
-        self.youtube_downloader = YouTubeDownloader(
-            quality=quality,
-            download_playlist=self.youtube_options['playlist'],
-            audio_only=self.youtube_options['audio_only']
-        )
-
-    def set_option(self, option: str, value: bool) -> None:
-        """Set download option."""
-        if option in ['playlist', 'audio_only']:
-            self.youtube_options[option] = value
-            self.youtube_downloader = YouTubeDownloader(
-                quality=self.youtube_options['quality'],
-                download_playlist=self.youtube_options['playlist'],
-                audio_only=self.youtube_options['audio_only']
+    @property
+    def youtube_options(self) -> YtOptions:
+        """Returns default YouTube options if not set."""
+        if self._yt_opt is None:
+            self._yt_opt = YtOptions(
+                quality="720p",
+                audio_only=False,
+                playlist=False
             )
+        return self._yt_opt
+
+    @youtube_options.setter
+    def youtube_options(self, option: YtOptions):
+        """Allows setting custom YouTube options."""
+        self._yt_opt = option
+
+    @property
+    def youtube_downloader(self) -> YouTubeDownloader:
+        """Returns a YouTubeDownloader instance with the current options."""
+        if self._yt_dl is None:
+            self._yt_dl = YouTubeDownloader(
+                options=self.youtube_options
+            )
+        return self._yt_dl
+
+    @youtube_downloader.setter
+    def youtube_downloader(self, option: YtOptions):
+        """Updates the downloader with new options."""
+        self._yt_opt = option
+        self._yt_dl = YouTubeDownloader(
+            options=self._yt_opt
+        )
 
     def set_auth_manager(self, auth_manager: Any):
         """Set the authentication manager instance."""
@@ -135,7 +142,7 @@ class DownloadManager:
                     )
                     item.status = "Completed" if success else "Failed"
 
-                completion_callback(True)
+                completion_callback(True, None)
             except Exception as e:
                 logger.error(f"Download worker error: {str(e)}")
                 completion_callback(False, str(e))
@@ -163,16 +170,13 @@ class DownloadManager:
             self.active_downloads = 0
 
             # Reset downloaders
-            self.youtube_downloader = YouTubeDownloader()
+            self.youtube_downloader
             self.twitter_downloader = TwitterDownloader()
             self.pinterest_downloader = PinterestDownloader()
 
             # Reset options
-            self.youtube_options = {
-                'quality': '720p',
-                'playlist': None,
-                'audio_only': None
-            }
-
+            self.youtube_options
             logger.info("Download manager cleaned up")
+
+            return None
 

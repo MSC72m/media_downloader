@@ -6,6 +6,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 import customtkinter as ctk
 from tkinter import messagebox
+from traceback import format_exc
 
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -348,7 +349,6 @@ class MediaDownloader(ctk.CTk):
                     "There are active downloads. Are you sure you want to exit?"
                 ):
                     return
-
             self.download_manager.cleanup()
             self.auth_manager.cleanup()
             self.quit()
@@ -365,6 +365,7 @@ def main():
         app.mainloop()
     except Exception as e:
         logger.critical(f"Critical error in main application: {str(e)}")
+        logger.error(f"Error traceback {format_exc()}")
         messagebox.showerror(
             "Critical Error",
             "An unexpected error occurred. Please check the log file for details."
