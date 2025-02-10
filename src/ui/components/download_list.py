@@ -1,7 +1,7 @@
 import customtkinter as ctk
 import tkinter as tk
 from typing import List, Callable
-from src.models.download_item import DownloadItem
+from src.schemas.schemas import DownloadItem
 
 
 class DownloadListView(ctk.CTkFrame):

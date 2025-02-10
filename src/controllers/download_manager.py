@@ -4,7 +4,7 @@ from typing import List, Callable, Optional, Dict, Any
 from urllib.parse import urlparse
 import os
 
-from src.models.download_item import DownloadItem
+from src.schemas.schemas import DownloadItem
 from src.downloaders.youtube import YouTubeDownloader
 from src.downloaders.twitter import TwitterDownloader
 from src.downloaders.instagram import InstagramDownloader

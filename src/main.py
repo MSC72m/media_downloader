@@ -25,7 +25,7 @@ from src.utils.message_queue import MessageQueue, Message, MessageType
 # Import managers/controllers
 from src.controllers.download_manager import DownloadManager
 from src.controllers.auth_manager import AuthenticationManager
-from src.models.download_item import DownloadItem
+from src.schemas.schemas import DownloadItem
 
 # Configure logging
 logging.basicConfig(
@@ -47,9 +47,9 @@ class MediaDownloader(ctk.CTk):
         super().__init__()
 
         # Initialize managers first
-        self.auth_manager = AuthenticationManager()  # Create auth manager first
-        self.download_manager = DownloadManager()    # Create download manager
-        self.download_manager.set_auth_manager(self.auth_manager)  # Connect them
+        self.auth_manager = AuthenticationManager()
+        self.download_manager = DownloadManager()
+        self.download_manager.set_auth_manager(self.auth_manager)
         # Initialize state
         self.downloads_folder = os.path.expanduser("~/Downloads")
         os.makedirs(self.downloads_folder, exist_ok=True)
@@ -143,7 +143,6 @@ class MediaDownloader(ctk.CTk):
         self.status_bar.grid(row=5, column=0, sticky="ew")
 
 
-    # Inside the MediaDownloader class, update the handle_add_url method:
     def handle_add_url(self, url: str, name: str):
         """Handle adding new download item."""
         try:
