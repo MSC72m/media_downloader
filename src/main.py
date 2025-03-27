@@ -1,461 +1,486 @@
 import os
 import sys
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-import customtkinter as ctk
-import tkinter as tk
-from tkinter import messagebox
-from urllib.parse import urlparse
-import queue
 import logging
+from typing import List, Optional, Dict
+from pathlib import Path
+from urllib.parse import urlparse
 import threading
+import customtkinter as ctk
+from tkinter import messagebox
 
-# Now import your local modules
-from src.downloaders.youtube import download_youtube_video
-from src.downloaders.twitter import download_twitter_media
-from src.downloaders.instagram import download_instagram_media, authenticate_instagram
-from src.downloaders.pinterest import download_pinterest_image
+# Add project root to path
+sys.path.append(str(Path(__file__).parent.parent))
 
-logging.basicConfig(filename='media_downloader.log', level=logging.INFO,
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# Import UI components
+from src.ui.components.url_entry import URLEntryFrame
+from src.ui.components.options_bar import OptionsBar
+from src.ui.components.download_list import DownloadListView
+from src.ui.components.action_buttons import ActionButtonBar
+from src.ui.components.status_bar import StatusBar
+from src.ui.dialogs.file_manager_dialog import FileManagerDialog
+from src.ui.components.main_action_buttons import ActionButtonBar
+from src.ui.dialogs.network_status_dialog import NetworkStatusDialog
+
+# Import models
+from src.models.pydantic_models import DownloadItem, UIState, UIMessage
+from src.models.enums import MessageLevel
+from src.models.enums.status import NetworkStatus, InstagramAuthStatus
+from src.models.pydantic_models.options import DownloadOptions, VideoQuality
+
+# Import managers/controllers
+from src.controllers.download_manager import DownloadManager
+from src.controllers.auth_manager import AuthenticationManager
+
+# Import utils
+from src.utils.message_queue import MessageQueue, Message
+from src.utils.common import (
+    check_internet_connection, 
+    check_site_connection, 
+    check_all_services,
+    get_problem_services,
+    is_service_connected
+)
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
+# Set theme
 ctk.set_appearance_mode("dark")
+SUPPORTED_PLATFORMS = ['YouTube', 'Twitter', 'Instagram', 'Pinterest']
 ctk.set_default_color_theme("blue")
 
-class PasswordDialog(ctk.CTkToplevel):
-    def __init__(self, parent, title="Password Entry", message="Enter your password:"):
-        super().__init__(parent)
-        self.geometry("400x150")
-        self.title(title)
-        self.grab_set()
-        self.configure(bg="#2a2d2e")
-        self.password = None
-
-        self.resizable(False, False)
-        self.center_window(parent)
-
-        self.label = ctk.CTkLabel(self, text=message, font=("Roboto", 14))
-        self.label.pack(pady=10)
-
-        self.password_entry = ctk.CTkEntry(self, show="*", font=("Roboto", 15), width=280)
-        self.password_entry.pack(pady=5)
-
-        self.password_entry.bind("<Return>", lambda event: self.on_ok())
-
-        self.ok_button = ctk.CTkButton(self, text="OK", command=self.on_ok)
-        self.ok_button.pack(pady=10)
-        self.password_entry.focus_force()
-
-    def center_window(self, parent):
-        parent_x = parent.winfo_x()
-        parent_y = parent.winfo_y()
-        parent_width = parent.winfo_width()
-        parent_height = parent.winfo_height()
-
-        dialog_width = 400
-        dialog_height = 150
-
-        new_x = parent_x + (parent_width // 2) - (dialog_width // 2)
-        new_y = parent_y + (parent_height // 2) - (dialog_height // 2)
-
-        self.geometry(f"{dialog_width}x{dialog_height}+{new_x}+{new_y}")
-
-    def on_ok(self):
-        self.password = self.password_entry.get()
-        self.destroy()
-
-def get_password(parent):
-    dialog = PasswordDialog(parent)
-    parent.wait_window(dialog)
-    return dialog.password
-
-class DownloadItem:
-    def __init__(self, name, url, status="Pending"):
-        self.name = name
-        self.url = url
-        self.status = status
 
 class MediaDownloader(ctk.CTk):
+    """Main application window for Media Downloader."""
+
     def __init__(self):
         super().__init__()
+        
+        # Instagram auth status
+        self.instagram_auth_status = InstagramAuthStatus.FAILED
 
+        # Initialize state
+        self.ui_state = UIState()
+        self.downloads_folder = os.path.expanduser("~/Downloads")
+        os.makedirs(self.downloads_folder, exist_ok=True)
+        self.message_queue = MessageQueue(self)
+
+        # Initialize controllers
+        self.auth_manager = AuthenticationManager()
+        self.download_manager = DownloadManager()
+        self.download_manager.auth_manager = self.auth_manager
+
+        # Configure window
         self.title("Media Downloader")
         self.geometry("1000x700")
 
+        # Create main frame
+        self.main_frame = ctk.CTkFrame(self, fg_color="transparent")
+
+        # Initialize UI components
+        self.init_components()
+        self.setup_grid()
+        self.create_widgets()
+        self.setup_menu()
+
+        # Bind close handler
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+        logger.info("MediaDownloader initialized")
+        
+        # Check internet connectivity immediately during initialization
+        self.check_internet_connectivity()
+
+    def init_components(self):
+        """Initialize all UI components."""
+        # Title
+        self.title_label = ctk.CTkLabel(
+            self.main_frame,
+            text="Media Downloader",
+            font=("Roboto", 32, "bold")
+        )
+
+        # URL Entry
+        self.url_entry = URLEntryFrame(
+            self.main_frame,
+            on_add=self.handle_add_url
+        )
+
+        # Options Bar
+        self.options_bar = OptionsBar(
+            self.main_frame,
+            on_instagram_login=self.handle_instagram_login,
+            on_quality_change=self.handle_quality_change,
+            on_option_change=self.handle_option_change
+        )
+
+        # Download List
+        self.download_list = DownloadListView(
+            self.main_frame,
+            on_selection_change=self.handle_selection_change
+        )
+
+        # Action Buttons
+        self.action_buttons = ActionButtonBar(
+            self.main_frame,
+            on_remove=self.handle_remove,
+            on_clear=self.handle_clear,
+            on_download=self.handle_download,
+            on_manage_files=self.handle_manage_files
+        )
+
+        # Status Bar
+        self.status_bar = StatusBar(self.main_frame)
+
+    def setup_grid(self):
+        """Configure the main grid layout."""
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        self.main_frame = ctk.CTkFrame(self, fg_color="transparent")
+        # Main container frame
         self.main_frame.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
         self.main_frame.grid_columnconfigure(0, weight=1)
         self.main_frame.grid_rowconfigure(3, weight=1)
 
-        self.title_label = ctk.CTkLabel(self.main_frame, text="Media Downloader", font=("Roboto", 32, "bold"))
+    def create_widgets(self):
+        """Create and arrange all UI widgets."""
+        # Title
         self.title_label.grid(row=0, column=0, pady=(0, 20))
 
-        self.url_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
-        self.url_frame.grid(row=1, column=0, sticky="ew", pady=(0, 10))
-        self.url_frame.grid_columnconfigure(0, weight=1)
+        # URL Entry
+        self.url_entry.grid(row=1, column=0, sticky="ew", pady=(0, 10))
 
-        self.url_entry = ctk.CTkEntry(self.url_frame, placeholder_text="Enter a URL", height=40, font=("Roboto", 14))
-        self.url_entry.grid(row=0, column=0, sticky="ew", padx=(0, 10))
+        # Options Bar
+        self.options_bar.grid(row=2, column=0, sticky="ew", pady=(0, 10))
 
-        self.add_button = ctk.CTkButton(self.url_frame, text="Add", command=self.add_entry, width=100, height=40,
-                                        font=("Roboto", 14))
-        self.add_button.grid(row=0, column=1)
-
-        self.options_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
-        self.options_frame.grid(row=2, column=0, sticky="ew", pady=(0, 10))
-
-        self.playlist_var = ctk.StringVar(value="off")
-        self.playlist_checkbox = ctk.CTkCheckBox(self.options_frame, text="Download YouTube Playlist",
-                                                 variable=self.playlist_var, onvalue="on", offvalue="off",
-                                                 font=("Roboto", 12))
-        self.playlist_checkbox.pack(side=tk.LEFT, padx=(0, 20))
-
-        self.audio_only_var = ctk.StringVar(value="off")
-        self.audio_only_checkbox = ctk.CTkCheckBox(self.options_frame, text="Audio Only",
-                                                   variable=self.audio_only_var, onvalue="on", offvalue="off",
-                                                   font=("Roboto", 12))
-        self.audio_only_checkbox.pack(side=tk.LEFT, padx=(0, 20))
-
-        self.quality_var = ctk.StringVar(value="720p")
-        self.quality_dropdown = ctk.CTkOptionMenu(self.options_frame, values=["360p", "480p", "720p", "1080p"],
-                                                  variable=self.quality_var, font=("Roboto", 12))
-        self.quality_dropdown.pack(side=tk.LEFT)
-
-        self.insta_login_button = ctk.CTkButton(self.options_frame, text="Instagram Login",
-                                                command=self.instagram_login, font=("Roboto", 12))
-        self.insta_login_button.pack(side=tk.LEFT, padx=(20, 0))
-
-        self.download_list = ctk.CTkTextbox(self.main_frame, activate_scrollbars=True, height=300, font=("Roboto", 12))
+        # Download List
         self.download_list.grid(row=3, column=0, sticky="nsew", pady=(0, 10))
 
-        self.button_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
-        self.button_frame.grid(row=4, column=0, sticky="ew", pady=(0, 10))
-        self.button_frame.grid_columnconfigure((0, 1, 2, 3), weight=1)
+        # Action Buttons
+        self.action_buttons.grid(row=4, column=0, sticky="ew", pady=(0, 10))
 
-        button_style = {"font": ("Roboto", 14), "height": 40, "corner_radius": 10}
-
-        self.remove_button = ctk.CTkButton(self.button_frame, text="Remove Selected", command=self.remove_entry,
-                                           **button_style)
-        self.remove_button.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
-
-        self.clear_button = ctk.CTkButton(self.button_frame, text="Clear All", command=self.clear_all, **button_style)
-        self.clear_button.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
-
-        self.download_button = ctk.CTkButton(self.button_frame, text="Download All", command=self.on_download_click,
-                                             **button_style)
-        self.download_button.grid(row=0, column=2, padx=5, pady=5, sticky="ew")
-
-        self.manage_files_button = ctk.CTkButton(self.button_frame, text="Manage Files", command=self.manage_files,
-                                                 **button_style)
-        self.manage_files_button.grid(row=0, column=3, padx=5, pady=5, sticky="ew")
-
-        self.status_label = ctk.CTkLabel(self.main_frame, text="Ready", font=("Roboto", 12))
-        self.status_label.grid(row=5, column=0, pady=(0, 10))
-
-        self.progress_bar = ctk.CTkProgressBar(self.main_frame, height=15)
-        self.progress_bar.grid(row=6, column=0, sticky="ew", pady=(0, 10))
-        self.progress_bar.set(0)
-
-        self.download_queue = queue.Queue()
-        self.download_items = []
-
-        self.downloads_folder = os.path.expanduser("~/Downloads")
-        if not os.path.exists(self.downloads_folder):
-            os.makedirs(self.downloads_folder)
-
-        self.instagram_authenticated = False
-
-    def center_window(self, window, width, height):
-        parent_x = self.winfo_x()
-        parent_y = self.winfo_y()
-        parent_width = self.winfo_width()
-        parent_height = self.winfo_height()
-
-        new_x = parent_x + (parent_width // 2) - (width // 2)
-        new_y = parent_y + (parent_height // 2) - (height // 2)
-
-        window.geometry(f"{width}x{height}+{new_x}+{new_y}")
-        window.focus_force()
-    def manage_files(self):
-        logger.info("Opening file manager")
-        file_browser = ctk.CTkToplevel(self)
-        file_browser.title("File Browser")
-        file_browser.geometry("600x400")
-
-        file_browser.resizable(False, False)
-        self.center_window(file_browser, 600, 400)
-
-        file_browser.focus_force()
-        file_browser.lift()
-        file_browser.grab_set()
-
-        file_browser.grid_columnconfigure(0, weight=1)
-        file_browser.grid_rowconfigure(1, weight=1)
-
-        current_path_var = ctk.StringVar(value=self.downloads_folder)
-        path_entry = ctk.CTkEntry(file_browser, textvariable=current_path_var, width=400, height=40,
-                                  font=("Roboto", 14))
-        path_entry.grid(row=0, column=0, padx=(20, 10), pady=20, sticky="ew")
-
-        def update_file_list():
-            file_listbox.delete(0, tk.END)
-            try:
-                for item in os.listdir(current_path_var.get()):
-                    file_listbox.insert(tk.END, item)
-            except OSError as oe:
-                logger.error(f"Error accessing directory: {oe}")
-                self.show_status("Error: Unable to access the specified directory.")
-
-        go_button = ctk.CTkButton(file_browser, text="Go", width=60, command=update_file_list, height=40,
-                                  font=("Roboto", 14))
-        go_button.grid(row=0, column=1, padx=(0, 20), pady=20)
-
-        file_listbox = tk.Listbox(file_browser, bg="#2a2d2e", fg="white", selectbackground="#1f538d",
-                                  font=("Roboto", 12))
-        file_listbox.grid(row=1, column=0, columnspan=2, padx=20, pady=(0, 20), sticky="nsew")
-
-        def on_double_click(event):
-            selection = file_listbox.curselection()
-            if selection:
-                item = file_listbox.get(selection[0])
-                new_path = os.path.join(current_path_var.get(), item)
-                if os.path.isdir(new_path):
-                    current_path_var.set(new_path)
-                    update_file_list()
-
-        file_listbox.bind('<Double-1>', on_double_click)
-
-        button_frame = ctk.CTkFrame(file_browser, fg_color="transparent")
-        button_frame.grid(row=2, column=0, columnspan=2, padx=20, pady=(0, 20), sticky="ew")
-        button_frame.grid_columnconfigure((0, 1, 2), weight=1)
-
-        def change_directory():
-            self.downloads_folder = current_path_var.get()
-            logger.info(f"Download directory changed to: {self.downloads_folder}")
-            self.show_status(f"Download directory changed to: {self.downloads_folder}")
-            file_browser.destroy()
-
-        change_dir_button = ctk.CTkButton(button_frame, text="Set as Download Directory", command=change_directory,
-                                          height=40, font=("Roboto", 14))
-        change_dir_button.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
-
-        def create_folder():
-            dialog = ctk.CTkInputDialog(title="Create Folder", text="Enter folder name:")
-            folder_name = dialog.get_input()
-            if folder_name:
-                new_folder_path = os.path.join(current_path_var.get(), folder_name)
-                try:
-                    os.mkdir(new_folder_path)
-                    logger.info(f"Created new folder: {new_folder_path}")
-                    update_file_list()
-                except OSError as oe:
-                    logger.error(f"Error creating folder: {oe}")
-                    self.show_status("Error: Unable to create the folder.")
-
-        create_folder_button = ctk.CTkButton(button_frame, text="Create Folder", command=create_folder, height=40,
-                                             font=("Roboto", 14))
-        create_folder_button.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
-
-        cancel_button = ctk.CTkButton(button_frame, text="Cancel", command=file_browser.destroy, height=40,
-                                      font=("Roboto", 14))
-        cancel_button.grid(row=0, column=2, padx=5, pady=5, sticky="ew")
-
-        update_file_list()
-
-    def instagram_login(self):
-        logger.info("Attempting Instagram login")
-
-        # Disable the login button during the login process
-        self.insta_login_button.configure(state="disabled")
-
-        dialog = ctk.CTkInputDialog(text="Enter your Instagram username:", title="Instagram Login")
-        self.center_window(dialog, 400, 200)
-        username = dialog.get_input()
-
-        if username:
-            password = get_password(self)
-            if password:
-                # Run the authentication process in a separate thread to avoid blocking the UI
-                def authenticate_and_update():
-                    try:
-                        logger.info("Instagram login thread started.")
-                        if authenticate_instagram(username, password):
-                            logger.info("Successfully logged in to Instagram")
-                            self.show_status("Successfully logged in to Instagram")
-                            self.insta_login_button.configure(text="Instagram: Logged In",
-                                                              state="disabled")  # Disable button
-                            self.instagram_authenticated = True
-                        else:
-                            logger.warning("Instagram login failed. Invalid credentials.")
-                            self.show_status("Failed to log in to Instagram. Please check your credentials.")
-                            messagebox.showerror("Login Failed",
-                                                 "Failed to log in to Instagram. Please check your username and password.")
-                            self.insta_login_button.configure(state="normal")  # Re-enable if login fails
-                    except Exception as e:
-                        logger.error(f"Error during Instagram authentication: {str(e)}")
-                        self.show_status("An error occurred during Instagram login.")
-                        messagebox.showerror("Login Error", f"An error occurred during Instagram login: {str(e)}")
-                        self.insta_login_button.configure(state="normal")  # Re-enable in case of error
-                    finally:
-                        logger.info("Instagram login thread finished.")
-                        if not self.instagram_authenticated:
-                            self.insta_login_button.configure(state="normal")  # Re-enable if not logged in
-
-                # Start the thread
-                thread = threading.Thread(target=authenticate_and_update, daemon=True)
-                thread.start()
-
-                # Optionally, monitor if the thread is still alive (not necessary but useful in larger apps)
-                def monitor_thread():
-                    if not thread.is_alive():
-                        logger.info("Thread finished successfully.")
-                    else:
-                        logger.info("Thread still running.")
-
-                self.after(1000, monitor_thread)  # Check after 1 second if the thread is done (non-blocking)
-            else:
-                # Re-enable the button if no password was entered
-                self.insta_login_button.configure(state="normal")
+        # Status Bar
+        self.status_bar.grid(row=5, column=0, sticky="ew")
+    
+    def setup_menu(self):
+        """Set up application menu."""
+        from tkinter import Menu
+        
+        menubar = Menu(self)
+        self.configure(menu=menubar)
+        
+        # Tools menu
+        tools_menu = Menu(menubar, tearoff=0)
+        tools_menu.add_command(label="Network Status", command=self.show_network_status)
+        menubar.add_cascade(label="Tools", menu=tools_menu)
+    
+    def show_network_status(self):
+        """Show network status dialog."""
+        NetworkStatusDialog(self)
+        
+    def check_internet_connectivity(self):
+        """Check internet connectivity at startup."""
+        # Show checking message in status bar
+        self.status_bar.show_message("Checking network connectivity...")
+        
+        # Run check in background thread
+        def check_worker():
+            # First check if internet is connected
+            internet_connected, error_msg = check_internet_connection()
+            
+            # Check individual services
+            service_results = check_all_services()
+            
+            # Get services with problems
+            problem_services = [
+                service for service, (connected, _) in service_results.items() 
+                if not connected
+            ]
+            
+            # Update UI from main thread
+            self.after(0, lambda: self.handle_connectivity_check(
+                internet_connected, error_msg, problem_services
+            ))
+        
+        threading.Thread(target=check_worker, daemon=True).start()
+    
+    def handle_connectivity_check(self, internet_connected: bool, error_msg: str, problem_services: List[str]):
+        """Handle the results of the connectivity check."""
+        if not internet_connected:
+            # Show a warning message box immediately at startup if connectivity issues
+            messagebox.showwarning(
+                "Network Connectivity Issue",
+                f"There are network connectivity issues:\n\n{error_msg}\n\n"
+                "You can view detailed network status from Tools > Network Status."
+            )
+            self.status_bar.show_warning("Network connectivity issues detected")
+        elif problem_services:
+            problem_list = ", ".join(problem_services)
+            messagebox.showwarning(
+                "Service Connection Issues",
+                f"Cannot connect to the following services: {problem_list}\n\n"
+                "You can view detailed network status from Tools > Network Status."
+            )
+            self.status_bar.show_warning(f"Connection issues with: {problem_list}")
         else:
-            # Re-enable the button if no username was entered
-            self.insta_login_button.configure(state="normal")
+            self.status_bar.show_message("Ready - All services connected")
 
-    def add_entry(self):
-        link = self.url_entry.get().strip()
-        if not link:
-            self.show_status("Please enter a URL to add.")
-            return
-
-        dialog = ctk.CTkInputDialog(text="Enter a name for this link:", title="Link Name")
-        name = dialog.get_input()
-        if name:
-            item = DownloadItem(name, link)
-            self.download_items.append(item)
-            self.update_download_list()
-            self.url_entry.delete(0, tk.END)
-            logger.info(f"Added new download item: {name} - {link}")
-        else:
-            self.show_status("A name is required to add the link.")
-
-    def update_download_list(self):
-        self.download_list.delete("1.0", tk.END)
-        for item in self.download_items:
-            self.download_list.insert(tk.END, f"{item.name} | {item.url} | {item.status}\n")
-
-    def remove_entry(self):
+    def handle_add_url(self, url: str, name: str):
+        """Handle adding new download item."""
         try:
-            sel_start = self.download_list.index(tk.SEL_FIRST)
-            sel_end = self.download_list.index(tk.SEL_LAST)
-            selected_text = self.download_list.get(sel_start, sel_end)
+            # Validate URL
+            if not url.startswith('http'):
+                raise ValueError("Invalid URL format. URL must start with http:// or https://")
 
-            for item in self.download_items[:]:
-                if f"{item.name} | {item.url}" in selected_text:
-                    self.download_items.remove(item)
-                    logger.info(f"Removed download item: {item.name} - {item.url}")
-
-            self.update_download_list()
-        except tk.TclError:
-            self.show_status("Please select a link to remove.")
-
-    def clear_all(self):
-        self.download_items.clear()
-        self.update_download_list()
-        self.show_status("All items cleared.")
-        logger.info("Cleared all download items")
-
-    def on_download_click(self):
-        if not self.download_items:
-            self.show_status("Please add at least one URL to download.")
-            return
-
-        self.download_button.configure(state="disabled")
-        self.status_label.configure(text="Downloading...")
-        self.progress_bar.set(0)
-
-        for item in self.download_items:
-            self.download_queue.put(item)
-
-        threading.Thread(target=self.process_downloads, daemon=True).start()
-
-    def process_downloads(self):
-        total_items = len(self.download_items)
-        completed_items = 0
-
-        while not self.download_queue.empty():
-            item = self.download_queue.get()
-            self.perform_download(item)
-            completed_items += 1
-            self.progress_bar.set(completed_items / total_items)
-            self.update_download_list()
-
-        self.update_ui_after_downloads()
-
-    def perform_download(self, item):
-        parsed_url = urlparse(item.url)
-        domain = parsed_url.netloc
-        download_mapping = {
-            'youtube.com': lambda item: download_youtube_video(item.url,
-                                                               os.path.join(self.downloads_folder, item.name),
-                                                               self.quality_var.get(),
-                                                               self.playlist_var.get() == "on",
-                                                               audio_only=self.audio_only_var.get() == "on"),
-            'twitter.com': lambda item: download_twitter_media(item.url,
-                                                               os.path.join(self.downloads_folder, item.name)),
-            'x.com': lambda item: download_twitter_media(item.url, os.path.join(self.downloads_folder, item.name)),
-            'instagram.com': lambda item: download_instagram_media(item.url,
-                                                                   os.path.join(self.downloads_folder, item.name)),
-            'pinterest.com': lambda item: download_pinterest_image(item.url,
-                                                                   os.path.join(self.downloads_folder, item.name)),
-            'pin.it': lambda item: download_pinterest_image(item.url,
-                                                            os.path.join(self.downloads_folder, item.name))
-        }
-        try:
-            success = False
-            for key, download_func in download_mapping.items():
-                if key in domain:
-                    logger.info(f"Attempting to download from {key}: {item.url}")
-                    if key == 'instagram.com' and not self.instagram_authenticated:
-                        raise ValueError("Instagram authentication required. Please log in first.")
-                    success = download_func(item)
-                    item.status = "Downloaded" if success else "Failed"
-                    logger.info(f"Download status for {item.name}: {item.status}")
+            # Check if URL is from supported platform
+            domain = urlparse(url).netloc.lower()
+            supported = False
+            site_name = None
+            
+            for platform in ['youtube.com', 'youtu.be']:
+                if platform in domain:
+                    supported = True
+                    site_name = "YouTube"
                     break
-            else:
-                raise ValueError(f"Unsupported domain: {domain}")
+                    
+            for platform in ['twitter.com', 'x.com']:
+                if platform in domain:
+                    supported = True
+                    site_name = "Twitter"
+                    break
+                    
+            for platform in ['instagram.com']:
+                if platform in domain:
+                    supported = True
+                    site_name = "Instagram"
+                    break
+                    
+            for platform in ['pinterest.com', 'pin.it']:
+                if platform in domain:
+                    supported = True
+                    site_name = "Pinterest"
+                    break
 
-            item.status = "Downloaded" if success else "Failed"
-            logger.info(f"Download status for {item.name}: {item.status}")
+            if not supported:
+                raise ValueError(
+                    "Unsupported platform. Currently supported: YouTube, Twitter, Instagram, and Pinterest")
+            
+            # Check connectivity to the site
+            if site_name:
+                connected, error_msg = check_site_connection(site_name)
+                if not connected:
+                    raise ValueError(f"Cannot connect to {site_name}: {error_msg}")
 
-        except Exception as xe:
-            item.status = "Failed"
-            error_message = f"Error downloading {item.name}: {str(xe)}"
-            logger.error(error_message)
-            self.show_status(error_message)
-            messagebox.showerror("Download Error", error_message)
+            # Create and add item
+            item = DownloadItem(name=name, url=url)
+            self.download_manager.add_item(item)
+            self.download_list.refresh_items(self.download_manager.items)
+            self.message_queue.add_message(Message(
+                level=MessageLevel.SUCCESS,
+                text=f"Added: {name}"
+            ))
+            logger.info(f"Added download item: {name} - {url}")
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"Error adding URL: {error_msg}")
+            self.message_queue.add_message(Message(
+                level=MessageLevel.ERROR,
+                text=f"Error adding URL: {error_msg}"
+            ))
 
-    def update_ui_after_downloads(self):
-        self.download_button.configure(state="normal")
-        self.status_label.configure(text="All downloads completed")
-        self.progress_bar.set(1)
-        self.update_download_list()
-        self.show_status("All downloads have been completed.")
-        logger.info("All downloads completed")
+    def handle_instagram_login(self):
+        """Handle Instagram login process."""
+        try:
+            # Update status immediately to indicate we're trying to log in
+            self.instagram_auth_status = InstagramAuthStatus.LOGGING_IN
+            self.options_bar.set_instagram_status(self.instagram_auth_status)
+            
+            # Check connectivity to Instagram first
+            connected, error_msg = check_site_connection("Instagram")
+            if not connected:
+                self.instagram_auth_status = InstagramAuthStatus.FAILED
+                self.options_bar.set_instagram_status(self.instagram_auth_status)
+                self.status_bar.show_error(f"Cannot connect to Instagram: {error_msg}")
+                messagebox.showerror(
+                    "Instagram Connection Error",
+                    f"Cannot connect to Instagram: {error_msg}\n\n"
+                    "Please check your internet connection and try again."
+                )
+                return
+                
+            def on_auth_complete(success: bool):
+                if success:
+                    self.instagram_auth_status = InstagramAuthStatus.AUTHENTICATED
+                    self.options_bar.set_instagram_status(self.instagram_auth_status)
+                    self.status_bar.show_message("Instagram login successful")
+                else:
+                    self.instagram_auth_status = InstagramAuthStatus.FAILED
+                    self.options_bar.set_instagram_status(self.instagram_auth_status)
+                    self.status_bar.show_error("Instagram login failed")
+                    messagebox.showerror(
+                        "Instagram Login Failed",
+                        "Login to Instagram failed. Please check your username and password.\n\n"
+                        "If you're sure your credentials are correct, Instagram might be temporarily "
+                        "limiting login attempts from your IP address."
+                    )
 
-    def show_status(self, message):
-        self.status_label.configure(text=message)
-        self.after(5000, lambda: self.status_label.configure(text="Ready"))
-        logger.info(f"Status message: {message}")
+            self.auth_manager.authenticate_instagram(
+                parent_window=self,
+                callback=on_auth_complete
+            )
+        except Exception as e:
+            logger.error(f"Error during Instagram login: {str(e)}")
+            self.instagram_auth_status = InstagramAuthStatus.FAILED
+            self.options_bar.set_instagram_status(self.instagram_auth_status)
+            self.status_bar.show_error("Instagram login error")
+
+    def handle_quality_change(self, quality: str):
+        """Handle video quality change."""
+        self.download_manager.quality = quality
+
+    def handle_option_change(self, option: str, value: bool):
+        """Handle download option changes."""
+        self.download_manager.set_option(option, value)
+
+    def handle_selection_change(self, selected_indices: List[int]):
+        """Handle download item selection changes."""
+        self.ui_state.selected_indices = selected_indices
+        self.ui_state.update_button_states(
+            has_selection=bool(selected_indices),
+            has_items=self.download_manager.has_items(),
+            is_downloading=self.download_manager.has_active_downloads()
+        )
+        self.action_buttons.update_states(self.ui_state.button_states)
+
+    def handle_remove(self):
+        """Handle removing selected items."""
+        try:
+            if not self.ui_state.selected_indices:
+                self.status_bar.show_message("Please select items to remove")
+                return
+
+            self.download_manager.remove_items(self.ui_state.selected_indices)
+            self.download_list.refresh_items(self.download_manager.items)
+            self.status_bar.show_message("Selected items removed")
+        except Exception as e:
+            logger.error(f"Error removing items: {str(e)}")
+            self.status_bar.show_error("Error removing items")
+
+    def handle_clear(self):
+        """Handle clearing all items."""
+        try:
+            if not self.download_manager.has_items():
+                self.status_bar.show_message("No items to clear")
+                return
+
+            self.download_manager.clear_items()
+            self.download_list.refresh_items([])
+            self.status_bar.show_message("All items cleared")
+        except Exception as e:
+            logger.error(f"Error clearing items: {str(e)}")
+            self.status_bar.show_error("Error clearing items")
+
+    def handle_download(self):
+        """Handle starting downloads."""
+        try:
+            if not self.download_manager.has_items():
+                self.message_queue.add_message(Message(
+                    level=MessageLevel.INFO,
+                    text="Please add items to download"
+                ))
+                return
+
+            # Check if Instagram items exist and we're authenticated
+            has_instagram = any('instagram.com' in item.url for item in self.download_manager.items)
+            if has_instagram and self.instagram_auth_status != InstagramAuthStatus.AUTHENTICATED:
+                self.message_queue.add_message(Message(
+                    level=MessageLevel.ERROR,
+                    text="Please log in to Instagram first to download Instagram content"
+                ))
+                return
+            
+            # Check internet connectivity before starting downloads
+            problem_services = get_problem_services()
+            if problem_services:
+                problem_list = ", ".join(problem_services)
+                self.message_queue.add_message(Message(
+                    level=MessageLevel.ERROR,
+                    text=f"Network connectivity issue with: {problem_list}"
+                ))
+                messagebox.showerror(
+                    "Network Error",
+                    f"Cannot start downloads due to connection issues with: {problem_list}\n\n"
+                    "Please check your internet connection and try again."
+                )
+                return
+
+            def progress_callback(item: DownloadItem, progress: float):
+                self.download_list.update_item_progress(item, progress)
+                self.ui_state.update_button_states(
+                    has_selection=bool(self.ui_state.selected_indices),
+                    has_items=self.download_manager.has_items(),
+                    is_downloading=True
+                )
+                self.action_buttons.update_states(self.ui_state.button_states)
+
+            def completion_callback(success: bool, error: Optional[str] = None):
+                if success:
+                    self.status_bar.show_message("Downloads completed")
+                else:
+                    self.status_bar.show_error(f"Download error: {error}")
+                
+                # Make sure to update button states on completion
+                self.ui_state.update_button_states(
+                    has_selection=bool(self.ui_state.selected_indices),
+                    has_items=self.download_manager.has_items(),
+                    is_downloading=self.download_manager.has_active_downloads()
+                )
+                self.action_buttons.update_states(self.ui_state.button_states)
+
+            self.download_manager.start_downloads(
+                self.downloads_folder,
+                progress_callback,
+                completion_callback
+            )
+        except Exception as e:
+            logger.error(f"Error starting downloads: {str(e)}")
+            self.status_bar.show_error("Error starting downloads")
+
+    def handle_manage_files(self):
+        """Handle opening file manager dialog."""
+        try:
+            dialog = FileManagerDialog(
+                self, 
+                self.downloads_folder,
+                self.on_directory_change,
+                self.status_bar.show_message
+            )
+            self.wait_window(dialog)
+        except Exception as e:
+            logger.error(f"Error opening file manager: {str(e)}")
+            self.status_bar.show_error("Error opening file manager")
+            
+    def on_directory_change(self, new_directory: str):
+        """Handle directory change from file manager."""
+        self.downloads_folder = new_directory
+        logger.info(f"Download directory changed to: {new_directory}")
+
+    def on_closing(self):
+        """Handle application closing."""
+        try:
+            # Clean up resources
+            self.download_manager.cleanup()
+            self.auth_manager.cleanup()
+            self.destroy()
+        except Exception as e:
+            logger.error(f"Error during cleanup: {str(e)}")
+            self.destroy()
+
 
 if __name__ == "__main__":
-    try:
-        app = MediaDownloader()
-        logger.info("Application started")
-        app.mainloop()
-    except Exception as e:
-        logger.critical(f"Critical error in main application: {str(e)}")
-        messagebox.showerror("Critical Error", f"An unexpected error occurred: {str(e)}")
+    app = MediaDownloader()
+    app.mainloop()

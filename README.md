@@ -42,50 +42,57 @@ The Media Downloader is a sophisticated, cross-platform application designed to 
 
 ### Windows Installation
 
-Follow these steps to install the  Media Downloader Toolkit on Windows:
+1. **Verify Python installation**
+Open Command Prompt and run:
+```bash
+   python --version
+```
+Ensure you have Python 3.6 or higher installed.
 
-1. **Download the installer**
-   - Go to our [releases page]https://github.com/MSC72m/media_downloader/releases/download/v0.1.0/MediaDownloaderSetup.zip).
-   - Download the latest `.zip` file.
-   - Extract the .zip file in the same directory(folder)
+2. **Install Git (if not already installed)**
 
-   ![Download Installer](guide/step-1.png)
+Download Git from git-scm.com
+Follow the installation wizard
 
-2. **Run the installer**
-   - Locate the downloaded `.exe` file in your Downloads folder.
-   - Double-click the file to start the installation process(run as admin)
+3. **Clone the repository**
+```bash
+   git clone https://github.com/MSC72m/media_downloader.git
+   cd media_downloader
+```
 
-   ![Run Installer](guide/step-2.png)
+4. **Set up a virtual environment (recommended)**
+```bash
+   python -m venv venv
+   venv\Scripts\activate
+```
 
-3. **Navigate the installation wizard**
-   - Click "Next" to proceed through the welcome screen.
+5. **Install dependencies**
+```bash
+   pip install -r requirements.txt
+```
+6. **Launch the application**
+```bash
+   python -m src.main
+```
 
-   ![Welcome Screen](guide/step-3.png)
+7. **Quick Launch Setup (Windows)**
 
-4. **Choose installation location**
-   - Select where you want to install the program or use the default location.
-   - Click "Next" to continue.
+Create a batch file
+Create a new file named media_downloader.bat with the following content:
+```bash
+   @echo off
+   cd "C:\path\to\media_downloader"
+   call venv\Scripts\activate
+   python -m src.main
+```
+Replace C:\path\to\media_downloader with your actual installation path.
 
-   ![Choose Location](guide/step-4.png)
-
-5. **Select additional tasks**
-   - Choose whether to create a desktop shortcut.
-   - Click "Next" to proceed.
-
-   ![Additional Tasks](guide/step-5.png)
-
-6. **Complete the installation**
-   - Review your choices and click "Install" to begin the installation.
-   - Wait for the installation to complete.
-
-   ![Complete Installation](guide/step-6.png)
-
-7. **Finish the setup**
-   - Click "Finish" to exit the installer.
-   - The Media Downloader is now installed on your system.
-
-8. **Launch the application**
-   - Use the desktop shortcut or find the application in your Start menu.
+8. **Create a shortcut**
+```text
+   Right-click the batch file and select "Create shortcut"
+   Move the shortcut to your desired location (Desktop, Start Menu, etc.)
+   Optional: Right-click the shortcut, select "Properties", and set an icon
+```
 
 ### Linux Installation
 
@@ -150,11 +157,13 @@ Ensure you have Python 3.6 or higher installed.
 
 - Paste the media URL into the input field.
 - Click "Add" and provide a custom name if desired.
+- (Downloading instagram media requires being logged in with the Instagram Login button)
 
 ### Configuring Options:
 
 - YouTube: Select quality, enable playlist download, or choose audio-only.
 - Instagram: Use the "Instagram Login" for authenticated access.
+- Set download path
 
 ### Managing Queue:
 
@@ -217,5 +226,9 @@ We welcome contributions! To contribute:
 This project is licensed under the MIT License. See LICENSE for details.
 
 ## Disclaimer
-
-The Media Downloader Toolkit is intended for personal use only. Users are responsible for adhering to the terms of service of the respective platforms and all applicable copyright laws. The developers assume no liability for misuse of this software.
+```text
+    The Media Downloader Toolkit is intended for personal use only. 
+    Users are responsible for adhering to the terms of service of the respective platforms and all applicable copyright laws. 
+    The developers assume no liability for misuse of this software.
+    Your Instagram account may be banned if you use this tool for unauthorized purposes or too much usage it is always recommended to use it with caution and create a new account for testing purposes.'
+```

@@ -3,6 +3,6 @@ customtkinter
 instaloader
 requests
 yt-dlp
-logging
 urllib3
+pydantic
 
