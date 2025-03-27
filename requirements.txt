@@ -4,4 +4,5 @@ instaloader
 requests
 yt-dlp
 urllib3
+pydantic
 

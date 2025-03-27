@@ -1,25 +1,27 @@
+"""Message queue for displaying UI messages."""
 import queue
 import threading
 import tkinter as tk
 from typing import Optional
-from dataclasses import dataclass
-from enum import Enum
+from pydantic import BaseModel, Field
+from src.models.enums.message import MessageLevel
 
 
-class MessageType(Enum):
-    SUCCESS = "success"
-    ERROR = "error"
-    INFO = "info"
-
-
-@dataclass
-class Message:
-    type: MessageType
+class Message(BaseModel):
+    """Message to display in the UI."""
     text: str
-    title: Optional[str] = None
+    level: MessageLevel = Field(default=MessageLevel.INFO)
+    title: Optional[str] = Field(default=None)
+    duration: int = Field(default=5000, description="How long to display the message (ms)")
+    
+    class Config:
+        """Pydantic model configuration."""
+        validate_assignment = True
 
 
 class MessageQueue:
+    """Queue for managing UI messages."""
+
     def __init__(self, root: tk.Tk):
         self.queue = queue.Queue()
         self.root = root
@@ -63,9 +65,9 @@ class MessageQueue:
         """Show the message dialog."""
         from tkinter import messagebox
 
-        if message.type == MessageType.ERROR:
+        if message.level == MessageLevel.ERROR:
             messagebox.showerror(message.title or "Error", message.text)
-        elif message.type == MessageType.SUCCESS:
+        elif message.level == MessageLevel.SUCCESS:
             messagebox.showinfo(message.title or "Success", message.text)
         else:
-            messagebox.showinfo(message.title or "Information", message.text)
+            messagebox.showinfo(message.title or "Information", message.text) 

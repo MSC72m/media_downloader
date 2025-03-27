@@ -40,6 +40,10 @@ class StatusBar(ctk.CTkFrame):
         """Show error message."""
         self.status_label.configure(text=f"Error: {message}")
 
+    def show_warning(self, message: str):
+        """Show warning message."""
+        self.status_label.configure(text=f"Warning: {message}")
+
     def update_progress(self, progress: float):
         """Update progress display."""
         self.progress_bar.set(progress / 100)

@@ -2,6 +2,8 @@ import customtkinter as ctk
 import tkinter as tk
 from typing import Callable
 
+from src.models.enums.status import InstagramAuthStatus
+
 
 class OptionsBar(ctk.CTkFrame):
     """Frame for download options and controls."""
@@ -18,6 +20,9 @@ class OptionsBar(ctk.CTkFrame):
         self.on_instagram_login = on_instagram_login
         self.on_quality_change = on_quality_change
         self.on_option_change = on_option_change
+        
+        # Current Instagram auth status
+        self.instagram_status = InstagramAuthStatus.FAILED
 
         # YouTube Playlist Option
         self.playlist_var = ctk.StringVar(value="off")
@@ -67,24 +72,36 @@ class OptionsBar(ctk.CTkFrame):
 
     def _handle_instagram_login(self):
         """Handle Instagram login button state and callback."""
-        self.insta_login_button.configure(
-            state="disabled",
-            text="Logging in..."
-        )
-        self.on_instagram_login()  # Remove the callback parameter
+        self.set_instagram_status(InstagramAuthStatus.LOGGING_IN)
+        self.on_instagram_login()
 
-    def set_instagram_authenticated(self, authenticated: bool):
-        """Update Instagram button state."""
-        if authenticated:
+    def set_instagram_status(self, status: InstagramAuthStatus):
+        """Update Instagram button state based on auth status."""
+        self.instagram_status = status
+        
+        if status == InstagramAuthStatus.LOGGING_IN:
+            self.insta_login_button.configure(
+                text="Logging in...",
+                state="disabled"
+            )
+        elif status == InstagramAuthStatus.AUTHENTICATED:
             self.insta_login_button.configure(
                 text="Instagram: Logged In",
                 state="disabled"
             )
-        else:
+        elif status == InstagramAuthStatus.FAILED:
             self.insta_login_button.configure(
                 text="Instagram Login",
                 state="normal"
             )
+
+    # Keeping this for backward compatibility
+    def set_instagram_authenticated(self, authenticated: bool):
+        """Update Instagram button state - legacy method."""
+        if authenticated:
+            self.set_instagram_status(InstagramAuthStatus.AUTHENTICATED)
+        else:
+            self.set_instagram_status(InstagramAuthStatus.FAILED)
 
     def get_youtube_options(self) -> dict:
         """Get current YouTube download options."""
