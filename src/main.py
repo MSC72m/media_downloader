@@ -273,7 +273,47 @@ class MediaDownloaderRefactored(ctk.CTk):
 
     def handle_download(self):
         """Handle starting downloads."""
-        self.app_controller.get_ui_event_handler().handle_download_start()
+        try:
+            if not self.download_handler.has_items():
+                self._show_message("Please add items to download", "info")
+                return
+
+            # Check for Instagram items that need authentication
+            items = self.download_handler.get_items()
+            has_instagram = any('instagram.com' in item.url for item in items)
+
+            if has_instagram and not self.auth_handler.is_authenticated(ServiceType.INSTAGRAM):
+                self._show_error("Please log in to Instagram first")
+                return
+
+            # Check network connectivity
+            problem_services = self.network_checker.get_problem_services()
+            if problem_services:
+                problem_list = ", ".join(problem_services)
+                self._show_error(f"Network connectivity issues with: {problem_list}")
+                return
+
+            # Start downloads with proper UI callbacks
+            def progress_callback(item: DownloadItem, progress: float):
+                self.download_list.update_item_progress(item, progress)
+                self._update_button_states()
+
+            def completion_callback(success: bool, error: str = None):
+                if success:
+                    self._show_message("Downloads completed", "success")
+                else:
+                    self._show_error(f"Download error: {error}")
+                self._update_button_states()
+
+            self.download_handler.start_downloads(
+                self.downloads_folder,
+                progress_callback,
+                completion_callback
+            )
+
+        except Exception as e:
+            logger.error(f"Error starting downloads: {str(e)}")
+            self._show_error("Error starting downloads")
 
     def handle_selection_change(self, selected_indices: List[int]):
         """Handle download item selection changes."""
