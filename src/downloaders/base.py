@@ -1,6 +1,6 @@
 """Base downloader classes and interfaces."""
 from abc import ABC, abstractmethod
-from typing import Callable, Optional, List, Tuple
+from typing import Callable, Optional
 
 
 class BaseDownloader(ABC):

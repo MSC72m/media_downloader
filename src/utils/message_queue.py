@@ -1,6 +1,5 @@
 """Message queue for displaying UI messages."""
 import queue
-import threading
 import tkinter as tk
 from typing import Optional
 from pydantic import BaseModel, Field

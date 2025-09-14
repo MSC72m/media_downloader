@@ -5,7 +5,6 @@ from typing import Dict
 
 from src.utils.common import (
     SERVICE_URLS, 
-    check_site_connection, 
     check_all_services, 
     check_internet_connection
 )

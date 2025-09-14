@@ -1,7 +1,6 @@
 """Pydantic models for download options."""
 from pydantic import BaseModel, Field
 from enum import Enum
-from typing import Optional
 
 
 class VideoQuality(str, Enum):

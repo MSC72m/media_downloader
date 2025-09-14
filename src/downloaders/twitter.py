@@ -2,7 +2,6 @@ import requests
 import re
 import logging
 from typing import Optional, List, Callable
-from urllib.parse import urlparse
 import os
 
 from src.utils.common import download_file, sanitize_filename

@@ -4,9 +4,7 @@ from typing import List, Callable, Optional, Dict, Any
 from urllib.parse import urlparse
 import os
 
-from src.models.pydantic_models import DownloadItem
-from src.models.enums import DownloadStatus
-from src.models.pydantic_models.options import DownloadOptions, VideoQuality
+from src.models import DownloadItem, DownloadOptions, VideoQuality, DownloadStatus, ServiceType
 from src.downloaders.youtube import YouTubeDownloader
 from src.downloaders.twitter import TwitterDownloader
 from src.downloaders.instagram import InstagramDownloader
@@ -24,19 +22,32 @@ class DownloadManager:
         self._options = DownloadOptions()
         self._lock = threading.Lock()
         self._auth_manager = None
+
+        # Initialize downloaders
         self._youtube_downloader = YouTubeDownloader()
         self._twitter_downloader = TwitterDownloader()
+        self._instagram_downloader = InstagramDownloader()
         self._pinterest_downloader = PinterestDownloader()
 
+        # Flat domain to service mapping for O(1) lookup - consistent with main.py
+        self._domain_to_service = {
+            'youtube.com': ServiceType.YOUTUBE,
+            'youtu.be': ServiceType.YOUTUBE,
+            'twitter.com': ServiceType.TWITTER,
+            'x.com': ServiceType.TWITTER,
+            'instagram.com': ServiceType.INSTAGRAM,
+            'pinterest.com': ServiceType.PINTEREST,
+            'pin.it': ServiceType.PINTEREST
+        }
 
     @property
-    def downloaders_domain_dict(self) -> Dict[str, BaseDownloader]:
-        """Get a dictionary of downloaders by domain."""
+    def downloaders_service_dict(self) -> Dict[ServiceType, BaseDownloader]:
+        """Get a dictionary of downloaders by service type."""
         return {
-            'youtube.com': self._youtube_downloader,
-            'twitter.com': self._twitter_downloader,
-            'pinterest.com': self._pinterest_downloader,
-            'instagram.com': self._instagram_downloader
+            ServiceType.YOUTUBE: self._youtube_downloader,
+            ServiceType.TWITTER: self._twitter_downloader,
+            ServiceType.INSTAGRAM: self._instagram_downloader,
+            ServiceType.PINTEREST: self._pinterest_downloader
         }
     
     @property
@@ -129,7 +140,22 @@ class DownloadManager:
     def _get_downloader_for_url(self, url: str) -> Optional[BaseDownloader]:
         """Get the appropriate downloader for a URL."""
         domain = urlparse(url).netloc.lower()
-        return self.downloaders_domain_dict.get(domain, None)
+        logger.debug(f"Checking URL: {url}, domain: {domain}")
+
+        # Check if domain is in our mapping
+        service_type = self._domain_to_service.get(domain)
+        if service_type:
+            logger.debug(f"Found direct match: {domain} -> {service_type}")
+            return self.downloaders_service_dict.get(service_type)
+
+        # Fallback: check if any domain pattern matches
+        for domain_pattern, service_type in self._domain_to_service.items():
+            if domain_pattern in domain:
+                logger.debug(f"Found pattern match: {domain_pattern} in {domain} -> {service_type}")
+                return self.downloaders_service_dict.get(service_type)
+
+        logger.debug(f"No downloader found for domain: {domain}")
+        return None
 
 
     def _download_item(

@@ -4,7 +4,6 @@ import logging
 import os
 import time
 from typing import Callable, Optional, Dict, Any
-from pathlib import Path
 
 from src.utils.common import sanitize_filename, check_site_connection
 

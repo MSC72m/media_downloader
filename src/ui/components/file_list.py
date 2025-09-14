@@ -46,7 +46,7 @@ class FileListBox(tk.Listbox):
             for file in sorted(files):
                 self.insert(tk.END, f"📄 {file}")
 
-        except OSError as e:
+        except OSError:
             # Handle directory access errors
             pass
 

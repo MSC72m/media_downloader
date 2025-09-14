@@ -1,6 +1,29 @@
-"""Enums package for the application."""
-from src.models.enums.status import DownloadStatus
-from src.models.enums.message import MessageLevel
-from src.models.enums.theme import UITheme
+"""Core enums for the media downloader application."""
+from .core import (
+    DownloadStatus,
+    InstagramAuthStatus,
+    NetworkStatus,
+    UITheme,
+    MessageLevel,
+    VideoQuality,
+    ServiceType,
+    ButtonState,
+    # Backward compatibility
+    DownloadStatusEnum,
+    NetworkStatusEnum,
+    InstagramAuthStatusEnum
+)
 
-__all__ = ['DownloadStatus', 'MessageLevel', 'UITheme'] 
+__all__ = [
+    "DownloadStatus",
+    "InstagramAuthStatus",
+    "NetworkStatus",
+    "UITheme",
+    "MessageLevel",
+    "VideoQuality",
+    "ServiceType",
+    "ButtonState",
+    "DownloadStatusEnum",
+    "NetworkStatusEnum",
+    "InstagramAuthStatusEnum"
+] 

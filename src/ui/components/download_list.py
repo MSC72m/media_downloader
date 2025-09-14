@@ -1,7 +1,7 @@
 import customtkinter as ctk
 import tkinter as tk
-from typing import List, Callable
-from src.models.download_item import DownloadItem
+from typing import List, Callable, Dict
+from src.models import DownloadItem, DownloadStatus
 
 
 class DownloadListView(ctk.CTkFrame):
@@ -11,6 +11,7 @@ class DownloadListView(ctk.CTkFrame):
         super().__init__(master)
 
         self.on_selection_change = on_selection_change
+        self._item_line_mapping: Dict[str, int] = {}  # Maps item name to line number
 
         # Create text widget for displaying downloads
         self.list_view = ctk.CTkTextbox(
@@ -30,32 +31,53 @@ class DownloadListView(ctk.CTkFrame):
     def refresh_items(self, items: List[DownloadItem]):
         """Refresh the displayed items."""
         self.list_view.delete("1.0", tk.END)
-        for item in items:
+        self._item_line_mapping.clear()
+
+        for i, item in enumerate(items):
             status_text = self._format_status(item)
             self.list_view.insert(tk.END, f"{item.name} | {item.url} | {status_text}\n")
+            self._item_line_mapping[item.name] = i + 1  # Line numbers are 1-based
 
     def update_item_progress(self, item: DownloadItem, progress: float):
-        """Update progress for a specific item."""
-        content = self.list_view.get("1.0", tk.END)
-        lines = content.split('\n')
+        """Update progress for a specific item efficiently."""
+        line_num = self._item_line_mapping.get(item.name)
+        if not line_num:
+            return
 
-        for i, line in enumerate(lines):
-            if line.startswith(f"{item.name} |"):
-                status_text = self._format_status(item)
-                lines[i] = f"{item.name} | {item.url} | {status_text}"
-                break
+        # Update the item's progress
+        item.progress = progress
+        status_text = self._format_status(item)
 
-        self.list_view.delete("1.0", tk.END)
-        self.list_view.insert("1.0", '\n'.join(lines))
+        # Replace only the status part of the line
+        line_start = f"{line_num}.0"
+        line_end = f"{line_num}.end"
+
+        current_line = self.list_view.get(line_start, line_end).strip()
+        if current_line:
+            # Find the status part (after the second "|")
+            parts = current_line.split(" | ")
+            if len(parts) >= 3:
+                # Update only the status part
+                new_line = f"{parts[0]} | {parts[1]} | {status_text}"
+
+                # Store current scroll position
+                current_scroll = self.list_view.yview()
+
+                # Replace the line content
+                self.list_view.delete(line_start, line_end)
+                self.list_view.insert(line_start, new_line)
+
+                # Restore scroll position
+                self.list_view.yview_moveto(current_scroll[0])
 
     @staticmethod
     def _format_status(item: DownloadItem) -> str:
         """Format item status for display."""
-        if item.status == "Downloading":
+        if item.status == DownloadStatus.DOWNLOADING:
             return f"Downloading ({item.progress:.1f}%)"
-        elif item.status == "Failed":
+        elif item.status == DownloadStatus.FAILED:
             return f"Failed: {item.error_message}"
-        return item.status
+        return item.status.value
 
     def get_selected_indices(self) -> List[int]:
         """Get indices of selected items."""

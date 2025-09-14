@@ -1,5 +1,6 @@
 import customtkinter as ctk
-from typing import Callable
+from typing import Callable, Dict
+from src.models import ButtonState
 
 
 class ActionButtonBar(ctk.CTkFrame):
@@ -84,3 +85,19 @@ class ActionButtonBar(ctk.CTkFrame):
         self.remove_button.configure(state="normal" if has_selection else "disabled")
         self.clear_button.configure(state="normal" if has_items else "disabled")
         self.download_button.configure(state="normal" if has_items else "disabled")
+
+    def update_states(self, button_states: Dict[ButtonState, bool]):
+        """Update button states using the new enum-based system."""
+        # Map ButtonState to actual buttons - only handle buttons that exist in this UI
+        button_mapping = {
+            ButtonState.REMOVE: self.remove_button,
+            ButtonState.CLEAR: self.clear_button,
+            ButtonState.DOWNLOAD: self.download_button,
+            ButtonState.SETTINGS: self.manage_files_button  # Map settings to manage files
+        }
+
+        # Only update states for buttons that exist in this component
+        for button_state, button in button_mapping.items():
+            if button_state in button_states:
+                state = "normal" if button_states[button_state] else "disabled"
+                button.configure(state=state)
