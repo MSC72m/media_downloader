@@ -1,28 +1,32 @@
-from .base import BaseDownloader
-import yt_dlp
-import logging
-import os
-import time
-from typing import Callable, Optional, Dict, Any
+"""YouTube downloader service implementation."""
 
-from src.utils.common import sanitize_filename, check_site_connection
+import logging
+import time
+import os
+from typing import Optional, Callable, Dict, Any
+import yt_dlp
+
+from ...downloaders.base import BaseDownloader
+from ...utils.common import sanitize_filename, check_site_connection
+from .cookies import YouTubeCookieManager
 
 logger = logging.getLogger(__name__)
 
+
 class YouTubeDownloader(BaseDownloader):
-    """Downloader for YouTube videos."""
+    """YouTube downloader service with cookie support."""
 
     def __init__(
-            self,
-            quality: str = "720p",
-            download_playlist: bool = False,
-            audio_only: bool = False,
-            cookie_info: Optional[dict] = None
+        self,
+        quality: str = "720p",
+        download_playlist: bool = False,
+        audio_only: bool = False,
+        cookie_manager: Optional[YouTubeCookieManager] = None
     ):
         self.quality = quality
         self.download_playlist = download_playlist
         self.audio_only = audio_only
-        self.cookie_info = cookie_info
+        self.cookie_manager = cookie_manager
         self.ytdl_opts = self._get_ytdl_options()
 
     def _get_ytdl_options(self) -> Dict[str, Any]:
@@ -39,14 +43,15 @@ class YouTubeDownloader(BaseDownloader):
             'extractor_retries': 3,
             'hls_prefer_native': True,
             'nocheckcertificate': True,
-            # Add a user agent to avoid some blocks
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         }
 
         # Add cookie information if available
-        if self.cookie_info:
-            options.update(self.cookie_info)
-            logger.info("Using cookies for YouTube download")
+        if self.cookie_manager:
+            cookie_info = self.cookie_manager.get_youtube_cookie_info()
+            if cookie_info:
+                options.update(cookie_info)
+                logger.info("Using cookies for YouTube download")
 
         # Set format based on quality and audio_only options
         if self.audio_only:
@@ -79,19 +84,19 @@ class YouTubeDownloader(BaseDownloader):
         return options
 
     def download(
-            self,
-            url: str,
-            save_path: str,
-            progress_callback: Optional[Callable[[float, float], None]] = None
+        self,
+        url: str,
+        save_path: str,
+        progress_callback: Optional[Callable[[float, float], None]] = None
     ) -> bool:
         """
         Download a YouTube video.
-        
+
         Args:
             url: YouTube URL to download
             save_path: Path to save the downloaded content
             progress_callback: Callback for progress updates
-            
+
         Returns:
             True if download was successful, False otherwise
         """
@@ -100,36 +105,36 @@ class YouTubeDownloader(BaseDownloader):
         if not connected:
             logger.error(f"Cannot download from YouTube: {error_msg}")
             return False
-            
+
         try:
             # Create the output directory if it doesn't exist
             save_dir = os.path.dirname(save_path)
             os.makedirs(save_dir, exist_ok=True)
-            
+
             # Create a filename
             base_filename = os.path.basename(save_path)
             sanitized_name = sanitize_filename(base_filename)
-            
+
             # Extension depends on audio_only setting
             ext = '.mp3' if self.audio_only else '.mp4'
             output_template = os.path.join(save_dir, sanitized_name)
-            
+
             # Prepare options with output path
             opts = self.ytdl_opts.copy()
             opts.update({
                 'outtmpl': {'default': output_template + ext},
             })
-            
+
             # Add progress hook if callback provided
             if progress_callback:
                 opts['progress_hooks'] = [self._create_progress_hook(progress_callback)]
-                
+
             logger.info(f"Downloading from YouTube: {url}")
-            
+
             # Retry mechanism for network issues
             max_retries = 3
             retry_wait = 3  # seconds
-            
+
             for attempt in range(max_retries):
                 try:
                     with yt_dlp.YoutubeDL(opts) as ydl:
@@ -137,23 +142,23 @@ class YouTubeDownloader(BaseDownloader):
                         if not info:
                             logger.error("No video information extracted from YouTube")
                             return False
-                        
-                        # Success    
+
+                        # Success
                         logger.info(f"Successfully downloaded YouTube content to {output_template}{ext}")
                         return True
-                        
+
                 except yt_dlp.utils.DownloadError as e:
                     error_msg = str(e)
                     logger.debug(f"YouTube download error: {error_msg}")
-                    
+
                     if "HTTP Error 429" in error_msg:
                         # Rate limiting - wait longer between retries
                         wait_time = retry_wait * (2 ** attempt)
                         logger.warning(f"YouTube rate limit hit, waiting {wait_time} seconds before retry")
                         time.sleep(wait_time)
                         continue
-                    elif ("Connection refused" in error_msg or 
-                          "Network Error" in error_msg or 
+                    elif ("Connection refused" in error_msg or
+                          "Network Error" in error_msg or
                           "Unable to download" in error_msg or
                           "Errno 111" in error_msg):
                         # Network-related errors
@@ -176,13 +181,13 @@ class YouTubeDownloader(BaseDownloader):
                         else:
                             logger.error(f"YouTube download error: {error_msg}")
                         return False
-                        
+
                 except Exception as e:
                     logger.error(f"Error downloading from YouTube: {str(e)}")
                     return False
-                    
+
             return False  # If we get here, all retries failed
-                
+
         except Exception as e:
             logger.error(f"Unexpected error downloading from YouTube: {str(e)}")
             return False
@@ -191,23 +196,23 @@ class YouTubeDownloader(BaseDownloader):
     def _create_progress_hook(callback: Callable[[float, float], None]):
         """Create a progress hook function for yt-dlp."""
         start_time = time.time()
-        
+
         def hook(d):
             if d['status'] == 'downloading':
                 downloaded = d.get('downloaded_bytes', 0)
                 total = d.get('total_bytes') or d.get('total_bytes_estimate', 0)
-                
+
                 if total > 0:
                     progress = (downloaded / total) * 100
                 else:
                     progress = 0
-                    
+
                 elapsed = time.time() - start_time
                 speed = downloaded / elapsed if elapsed > 0 else 0
-                
+
                 callback(progress, speed)
-                
+
             elif d['status'] == 'finished':
                 callback(100, 0)
-                
+
         return hook

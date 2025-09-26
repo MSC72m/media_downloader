@@ -10,11 +10,13 @@ class URLEntryFrame(ctk.CTkFrame):
     def __init__(
             self,
             master,
-            on_add: Callable[[str, str], None]  # Callback signature: (url: str, name: str) -> None
+            on_add: Callable[[str, str], None],  # Callback signature: (url: str, name: str) -> None
+            on_youtube_detected: Optional[Callable[[str], None]] = None
     ):
         super().__init__(master, fg_color="transparent")
 
         self.on_add = on_add
+        self.on_youtube_detected = on_youtube_detected
 
         # Configure grid
         self.grid_columnconfigure(0, weight=1)
@@ -44,6 +46,10 @@ class URLEntryFrame(ctk.CTkFrame):
         """Handle add button click."""
         url = self.url_entry.get().strip()
         if url:
+            # Check if it's a YouTube URL
+            if self.on_youtube_detected and ('youtube.com' in url or 'youtu.be' in url):
+                self.on_youtube_detected(url)
+
             dialog = CenteredInputDialog(
                 text="Enter a name for this link:",
                 title="Link Name"

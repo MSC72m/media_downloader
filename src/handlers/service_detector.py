@@ -3,7 +3,7 @@
 import logging
 from typing import Optional
 from urllib.parse import urlparse
-from ..abstractions import IServiceDetector, IHandler
+from ..interfaces import IServiceDetector, IHandler
 from src.models import ServiceType
 from src.utils import check_site_connection
 

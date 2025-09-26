@@ -22,6 +22,7 @@ class DownloadManager:
         self._options = DownloadOptions()
         self._lock = threading.Lock()
         self._auth_manager = None
+        self._cookie_handler = None
 
         # Initialize downloaders
         self._youtube_downloader = YouTubeDownloader()
@@ -88,10 +89,15 @@ class DownloadManager:
     
     def _update_youtube_downloader(self) -> None:
         """Update the YouTube downloader with current options."""
+        cookie_info = None
+        if hasattr(self, '_cookie_handler') and self._cookie_handler:
+            cookie_info = self._cookie_handler.get_cookie_info_for_ytdlp()
+
         self._youtube_downloader = YouTubeDownloader(
             quality=self._options.quality.value,
             download_playlist=self._options.playlist,
-            audio_only=self._options.audio_only
+            audio_only=self._options.audio_only,
+            cookie_info=cookie_info
         )
     
     def set_option(self, option: str, value: bool) -> None:

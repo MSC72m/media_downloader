@@ -2,7 +2,7 @@
 
 import logging
 from typing import List, Callable, Optional
-from ..abstractions import IDownloadHandler, IHandler
+from ..interfaces import IDownloadHandler, IHandler
 from src.models import DownloadItem, DownloadOptions
 from src.controllers.download_manager import DownloadManager
 

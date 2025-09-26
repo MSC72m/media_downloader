@@ -38,12 +38,14 @@ from src.utils import (
 )
 
 # Import new architecture
-from src.abstractions import IApplicationController
+from src.interfaces import IApplicationController
 from src.handlers import (
     ApplicationController, DefaultUIEventHandler,
     DownloadHandler, AuthenticationHandler,
     ServiceDetector, NetworkChecker
 )
+from src.handlers.cookie_handler import CookieHandler
+from src.ui.components.cookie_selector import CookieSelectorFrame
 
 # Configure logging
 logging.basicConfig(
@@ -69,6 +71,13 @@ class MediaDownloaderRefactored(ctk.CTk):
         os.makedirs(self.downloads_folder, exist_ok=True)
         self.message_queue = MessageQueue(self)
         self.instagram_auth_status = InstagramAuthStatus.FAILED
+
+        # Initialize cookie handler
+        self.cookie_handler = CookieHandler()
+        self.cookie_handler.initialize()
+
+        # Track if cookie selector is shown
+        self.cookie_selector_visible = False
 
         # Configure window
         self.title("Media Downloader")
@@ -100,6 +109,7 @@ class MediaDownloaderRefactored(ctk.CTk):
 
         # Set up auth manager reference
         download_manager.auth_manager = auth_manager
+        download_manager._cookie_handler = self.cookie_handler
 
         # Create new handlers that delegate to existing controllers
         download_handler = DownloadHandler(download_manager)
@@ -117,6 +127,9 @@ class MediaDownloaderRefactored(ctk.CTk):
             message_callback=self._show_message,
             error_callback=self._show_error
         )
+
+        # Add cookie handler to UI event handler
+        ui_event_handler._cookie_handler = self.cookie_handler
 
         # Create main application controller
         self.app_controller = ApplicationController(
@@ -151,7 +164,8 @@ class MediaDownloaderRefactored(ctk.CTk):
         # URL Entry - route to new architecture
         self.url_entry = URLEntryFrame(
             self.main_frame,
-            on_add=self.handle_add_url
+            on_add=self.handle_add_url,
+            on_youtube_detected=self.handle_youtube_detected
         )
 
         # Options Bar
@@ -179,6 +193,14 @@ class MediaDownloaderRefactored(ctk.CTk):
 
         # Status Bar
         self.status_bar = StatusBar(self.main_frame)
+
+        # Cookie Selector (initially hidden)
+        self.cookie_selector = CookieSelectorFrame(
+            self.main_frame,
+            cookie_handler=self.cookie_handler,
+            on_cookie_detected=self.handle_cookie_detected,
+            on_manual_select=self.handle_cookie_manual_select
+        )
 
     def setup_grid(self):
         """Configure the main grid layout."""
@@ -382,6 +404,34 @@ class MediaDownloaderRefactored(ctk.CTk):
         self.app_controller.ui_state.download_directory = new_directory
         logger.info(f"Download directory changed to: {new_directory}")
 
+    def handle_youtube_detected(self, url: str):
+        """Handle YouTube URL detection."""
+        if not self.cookie_selector_visible:
+            self._show_cookie_selector()
+
+    def _show_cookie_selector(self):
+        """Show the cookie selector UI."""
+        self.cookie_selector.pack(fill="x", pady=5)
+        self.cookie_selector_visible = True
+        # Refresh the display
+        self.update()
+
+    def _hide_cookie_selector(self):
+        """Hide the cookie selector UI."""
+        self.cookie_selector.pack_forget()
+        self.cookie_selector_visible = False
+
+    def handle_cookie_detected(self, has_cookies: bool):
+        """Handle cookie detection result."""
+        if has_cookies:
+            self._show_message("Cookies detected successfully!", "success")
+            self._hide_cookie_selector()
+
+    def handle_cookie_manual_select(self):
+        """Handle manual cookie file selection."""
+        self._show_message("Cookie file selected manually", "info")
+        self._hide_cookie_selector()
+
     # Helper methods for UI updates
     def _refresh_download_list(self):
         """Refresh the download list UI."""
@@ -418,6 +468,7 @@ class MediaDownloaderRefactored(ctk.CTk):
     def on_closing(self):
         """Handle application closing."""
         try:
+            self.cookie_handler.cleanup()
             self.app_controller.cleanup()
             self.destroy()
         except Exception as e:

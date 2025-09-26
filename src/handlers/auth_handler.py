@@ -2,7 +2,7 @@
 
 import logging
 from typing import Any, Callable
-from ..abstractions import IAuthenticationHandler, IHandler
+from ..interfaces import IAuthenticationHandler, IHandler
 from src.models import ServiceType
 from src.controllers.auth_manager import AuthenticationManager
 

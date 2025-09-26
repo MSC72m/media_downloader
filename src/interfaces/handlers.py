@@ -159,6 +159,11 @@ class IUIEventHandler(IHandler):
         """Handle option changes."""
         pass
 
+    @abstractmethod
+    def handle_cookie_detection(self, url: str) -> bool:
+        """Handle cookie detection for a URL."""
+        pass
+
 
 class IApplicationController(IHandler):
     """Main controller that orchestrates all handlers and manages application state."""

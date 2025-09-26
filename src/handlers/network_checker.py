@@ -2,7 +2,7 @@
 
 import logging
 from typing import List, Tuple
-from ..abstractions import INetworkChecker, IHandler
+from ..interfaces import INetworkChecker, IHandler
 from src.models import ServiceType
 from src.utils import check_internet_connection, check_all_services, get_problem_services
 

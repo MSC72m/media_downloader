@@ -2,7 +2,7 @@
 
 import logging
 from typing import Dict, Any, List, Callable
-from ..abstractions import (
+from ..interfaces import (
     IApplicationController,
     IDownloadHandler,
     IAuthenticationHandler,
@@ -278,3 +278,11 @@ class DefaultUIEventHandler(IUIEventHandler):
             options = self._download_handler.options
             setattr(options, option, value)
             self._download_handler.options = options
+
+    def handle_cookie_detection(self, url: str) -> bool:
+        """Handle cookie detection for a URL."""
+        # Check if we have a cookie handler available
+        if not hasattr(self, '_cookie_handler'):
+            return False
+
+        return self._cookie_handler.should_show_cookie_option(url)

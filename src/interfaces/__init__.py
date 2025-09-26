@@ -10,6 +10,13 @@ from .handlers import (
     IApplicationController
 )
 
+from .cookie_detection import (
+    ICookieDetector,
+    ICookieManager,
+    BrowserType,
+    PlatformType
+)
+
 from .ui_components import (
     IUIComponent,
     IURLEntryComponent,
@@ -32,6 +39,10 @@ __all__ = [
     "INetworkChecker",
     "IUIEventHandler",
     "IApplicationController",
+    "ICookieDetector",
+    "ICookieManager",
+    "BrowserType",
+    "PlatformType",
     "IUIComponent",
     "IURLEntryComponent",
     "IDownloadListComponent",
