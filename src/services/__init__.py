@@ -1,19 +1,29 @@
-"""Service layer components for the media downloader application."""
+"""Service layer for the media downloader application."""
 
-from .cookie_detector import (
-    CookieDetector,
-    CookieManager,
-    ICookieDetector,
-    ICookieManager,
-    BrowserType,
-    PlatformType
-)
+from .factory import ServiceFactory
+from .download import DownloadService
+from .repository import DownloadRepository, OptionsRepository
+from .cookie_detector import CookieManager, CookieDetector
+from .file import FileService, DownloadResult, FilenameSanitizer, FileDownloader
+from .youtube import YouTubeDownloader, YouTubeCookieManager
+from .twitter import TwitterDownloader
+from .instagram import InstagramDownloader
+from .pinterest import PinterestDownloader
 
 __all__ = [
-    "CookieDetector",
+    "ServiceFactory",
+    "DownloadService",
+    "DownloadRepository",
+    "OptionsRepository",
     "CookieManager",
-    "ICookieDetector",
-    "ICookieManager",
-    "BrowserType",
-    "PlatformType"
+    "CookieDetector",
+    "FileService",
+    "DownloadResult",
+    "FilenameSanitizer",
+    "FileDownloader",
+    "YouTubeDownloader",
+    "YouTubeCookieManager",
+    "TwitterDownloader",
+    "InstagramDownloader",
+    "PinterestDownloader"
 ]

@@ -6,8 +6,9 @@ import os
 from typing import Optional, Callable, Dict, Any
 import yt_dlp
 
-from ...downloaders.base import BaseDownloader
-from ...utils.common import sanitize_filename, check_site_connection
+from ...core.base import BaseDownloader
+from ...core.file import FilenameSanitizer
+from ...core.network import check_site_connection
 from .cookies import YouTubeCookieManager
 
 logger = logging.getLogger(__name__)
@@ -113,7 +114,8 @@ class YouTubeDownloader(BaseDownloader):
 
             # Create a filename
             base_filename = os.path.basename(save_path)
-            sanitized_name = sanitize_filename(base_filename)
+            sanitizer = FilenameSanitizer()
+            sanitized_name = sanitizer.sanitize_filename(base_filename)
 
             # Extension depends on audio_only setting
             ext = '.mp3' if self.audio_only else '.mp4'

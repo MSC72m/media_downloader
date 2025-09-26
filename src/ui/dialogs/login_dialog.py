@@ -2,7 +2,7 @@ import customtkinter as ctk
 from typing import Optional
 from tkinter import messagebox
 
-from  src.utils.window_utils import WindowCenterMixin
+from src.utils.window import WindowCenterMixin
 
 
 class LoginDialog(ctk.CTkToplevel, WindowCenterMixin):

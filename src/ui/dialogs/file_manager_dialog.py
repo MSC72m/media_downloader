@@ -9,7 +9,7 @@ from ..components.file_list import FileListBox
 from ..components.file_manager_buttons import FileManagerButtonBar
 from .input_dialog import CenteredInputDialog
 
-from src.utils.window_utils import WindowCenterMixin
+from src.utils.window import WindowCenterMixin
 
 logger = logging.getLogger(__name__)
 

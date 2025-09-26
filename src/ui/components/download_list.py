@@ -1,7 +1,7 @@
 import customtkinter as ctk
 import tkinter as tk
 from typing import List, Callable, Dict
-from src.models import DownloadItem, DownloadStatus
+from src.core import Download, DownloadStatus
 
 
 class DownloadListView(ctk.CTkFrame):
@@ -28,7 +28,7 @@ class DownloadListView(ctk.CTkFrame):
         # Enable text selection
         self.list_view.bind("<Control-a>", self._select_all)
 
-    def refresh_items(self, items: List[DownloadItem]):
+    def refresh_items(self, items: List[Download]):
         """Refresh the displayed items."""
         self.list_view.delete("1.0", tk.END)
         self._item_line_mapping.clear()
@@ -38,7 +38,7 @@ class DownloadListView(ctk.CTkFrame):
             self.list_view.insert(tk.END, f"{item.name} | {item.url} | {status_text}\n")
             self._item_line_mapping[item.name] = i + 1  # Line numbers are 1-based
 
-    def update_item_progress(self, item: DownloadItem, progress: float):
+    def update_item_progress(self, item: Download, progress: float):
         """Update progress for a specific item efficiently."""
         line_num = self._item_line_mapping.get(item.name)
         if not line_num:
@@ -71,7 +71,7 @@ class DownloadListView(ctk.CTkFrame):
                 self.list_view.yview_moveto(current_scroll[0])
 
     @staticmethod
-    def _format_status(item: DownloadItem) -> str:
+    def _format_status(item: Download) -> str:
         """Format item status for display."""
         if item.status == DownloadStatus.DOWNLOADING:
             return f"Downloading ({item.progress:.1f}%)"

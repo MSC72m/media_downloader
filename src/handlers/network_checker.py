@@ -3,8 +3,8 @@
 import logging
 from typing import List, Tuple
 from ..interfaces import INetworkChecker, IHandler
-from src.models import ServiceType
-from src.utils import check_internet_connection, check_all_services, get_problem_services
+from src.core.enums import ServiceType
+from src.core.network import check_internet_connection, check_site_connection, get_problem_services
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,6 @@ class NetworkChecker(INetworkChecker):
     def check_service_connection(self, service: ServiceType) -> Tuple[bool, str]:
         """Check connection to a specific service."""
         try:
-            from src.utils import check_site_connection
             return check_site_connection(service)
         except Exception as e:
             logger.error(f"Error checking service connection for {service.value}: {e}")

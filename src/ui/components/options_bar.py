@@ -2,7 +2,7 @@ import customtkinter as ctk
 import tkinter as tk
 from typing import Callable
 
-from src.models.enums.status import InstagramAuthStatus
+from src.core.enums import InstagramAuthStatus
 
 
 class OptionsBar(ctk.CTkFrame):

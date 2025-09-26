@@ -8,7 +8,7 @@ from src.utils.common import (
     check_all_services, 
     check_internet_connection
 )
-from src.models.enums.status import NetworkStatus
+from src.core.enums import NetworkStatus
 
 class NetworkStatusDialog(ctk.CTkToplevel):
     """Dialog to show network connectivity status."""
