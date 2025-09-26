@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from typing import List, Callable, Optional, Dict, Any
-from src.models import DownloadItem, DownloadOptions, ServiceType, UIState
+from src.core.models import Download, DownloadOptions, ServiceType, UIState
 
 
 class IHandler(ABC):
@@ -23,7 +23,7 @@ class IDownloadHandler(IHandler):
     """Lightweight interface for download operations - delegates to existing DownloadManager."""
 
     @abstractmethod
-    def add_item(self, item: DownloadItem) -> None:
+    def add_item(self, item: Download) -> None:
         """Add a download item to the queue."""
         pass
 
@@ -38,7 +38,7 @@ class IDownloadHandler(IHandler):
         pass
 
     @abstractmethod
-    def get_items(self) -> List[DownloadItem]:
+    def get_items(self) -> List[Download]:
         """Get all download items."""
         pass
 
@@ -51,7 +51,7 @@ class IDownloadHandler(IHandler):
     def start_downloads(
         self,
         download_dir: str,
-        progress_callback: Callable[[DownloadItem, float], None],
+        progress_callback: Callable[[Download, float], None],
         completion_callback: Callable[[bool, Optional[str]], None]
     ) -> None:
         """Start downloading all pending items."""

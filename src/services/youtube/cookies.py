@@ -5,7 +5,6 @@ from typing import Optional, Dict, Any
 from pathlib import Path
 import platform
 
-from ...interfaces.cookie_detection import ICookieManager, BrowserType, PlatformType
 
 logger = logging.getLogger(__name__)
 

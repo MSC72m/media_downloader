@@ -232,8 +232,6 @@ class CookieDetector(ICookieDetector):
             logger.error(f"Error validating cookie file {cookie_path}: {e}")
             return False
 
-        return False
-
 
 class CookieManager(ICookieManager):
     """Manager for cookie detection and integration."""

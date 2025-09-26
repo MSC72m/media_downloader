@@ -1,6 +1,6 @@
 import customtkinter as ctk
 from typing import Callable, Dict
-from src.models import ButtonState
+from src.core.models import ButtonState
 
 
 class ActionButtonBar(ctk.CTkFrame):

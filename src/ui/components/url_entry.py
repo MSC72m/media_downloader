@@ -1,6 +1,6 @@
 import customtkinter as ctk
 import tkinter as tk
-from typing import Callable
+from typing import Callable, Optional
 from ..dialogs.input_dialog import CenteredInputDialog
 
 

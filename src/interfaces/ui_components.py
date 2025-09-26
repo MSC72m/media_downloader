@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from typing import List, Callable, Optional, Any
-from src.models import UIState, DownloadItem, ServiceType
+from src.core.models import UIState, Download, ServiceType
 
 
 class IUIComponent(ABC):
@@ -47,7 +47,7 @@ class IDownloadListComponent(IUIComponent):
     """Interface for download list components."""
 
     @abstractmethod
-    def refresh_items(self, items: List[DownloadItem]) -> None:
+    def refresh_items(self, items: List[Download]) -> None:
         """Refresh the list with new items."""
         pass
 
@@ -57,7 +57,7 @@ class IDownloadListComponent(IUIComponent):
         pass
 
     @abstractmethod
-    def update_item_progress(self, item: DownloadItem, progress: float) -> None:
+    def update_item_progress(self, item: Download, progress: float) -> None:
         """Update progress for a specific item."""
         pass
 
