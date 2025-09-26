@@ -9,17 +9,8 @@ from tkinter import messagebox
 from .models import UIState
 from .message_queue import MessageQueue
 from .network import check_internet_connection, check_all_services
-from .handlers import UIEventHandler
 from .container import ServiceContainer
-
-# These will be registered in the container
-from ..services import ServiceFactory, DownloadService, CookieManager, CookieDetector
-from ..controllers.service_controller import ServiceController
-from ..handlers.cookie_handler import CookieHandler
-from ..handlers.auth_handler import AuthenticationHandler
-from ..handlers.network_checker import NetworkChecker
-from ..handlers.service_detector import ServiceDetector
-from ..controllers.auth_manager import AuthenticationManager
+from ..handlers.application_controller import ApplicationController
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +29,9 @@ class ApplicationOrchestrator:
         self.container = ServiceContainer()
         self._initialize_services()
 
-        # Initialize event handler
-        self.event_handler = UIEventHandler(self)
+        # Initialize application controller
+        self.app_controller = ApplicationController(self)
+        self.app_controller.initialize()
 
         # UI components (will be set by the main entrypoint)
         self.ui_components = {}
@@ -53,37 +45,45 @@ class ApplicationOrchestrator:
         self.container.register('message_queue', self.message_queue, singleton=True)
         self.container.register('downloads_folder', self.downloads_folder, singleton=True)
 
-        # Initialize and register core services
-        cookie_detector = CookieDetector()
+        # Register service factories
+        self.container.register_factory('cookie_detector', lambda: CookieDetector())
+        self.container.register_factory('auth_manager', lambda: AuthenticationManager())
+        self.container.register_factory('network_checker', lambda: NetworkChecker())
+        self.container.register_factory('service_detector', lambda: ServiceDetector())
+
+        # Initialize core services
+        cookie_detector = self.container.get('cookie_detector')
         cookie_manager = CookieManager(cookie_detector)
         cookie_manager.initialize()
 
         service_factory = ServiceFactory(cookie_manager)
         download_service = DownloadService(service_factory)
 
-        # Register services
-        self.container.register('cookie_detector', cookie_detector)
+        # Register core services
         self.container.register('cookie_manager', cookie_manager, singleton=True)
         self.container.register('service_factory', service_factory, singleton=True)
         self.container.register('download_service', download_service, singleton=True)
 
-        # Initialize and register handlers
-        auth_manager = AuthenticationManager()
+        # Initialize and register handlers using dependency injection
+        auth_manager = self.container.get('auth_manager')
         self.container.register('auth_manager', auth_manager, singleton=True)
 
         self.cookie_handler = CookieHandler(cookie_manager)
         self.auth_handler = AuthenticationHandler(auth_manager)
-        self.network_checker = NetworkChecker()
-        self.service_detector = ServiceDetector()
+        self.download_handler = DownloadHandler(self.container)
+        self.network_checker = self.container.get('network_checker')
+        self.service_detector = self.container.get('service_detector')
 
         # Initialize handlers
         self.auth_handler.initialize()
         self.network_checker.initialize()
         self.service_detector.initialize()
+        self.download_handler.initialize()
 
         # Register handlers
         self.container.register('cookie_handler', self.cookie_handler, singleton=True)
         self.container.register('auth_handler', self.auth_handler, singleton=True)
+        self.container.register('download_handler', self.download_handler, singleton=True)
         self.container.register('network_checker', self.network_checker, singleton=True)
         self.container.register('service_detector', self.service_detector, singleton=True)
 
@@ -95,6 +95,9 @@ class ApplicationOrchestrator:
         )
         self.container.register('service_controller', service_controller, singleton=True)
 
+        # Register application controller
+        self.container.register('app_controller', self.app_controller, singleton=True)
+
         logger.info("All services registered in container")
 
     def set_ui_components(self, **components):
@@ -103,8 +106,8 @@ class ApplicationOrchestrator:
         logger.debug("UI components registered")
 
     def handle(self, event_name: str, *args, **kwargs):
-        """Handle an event through the event handler."""
-        return self.event_handler.handle(event_name, *args, **kwargs)
+        """Handle an event through the application controller."""
+        return self.app_controller.handle_event(event_name, *args, **kwargs)
 
     def get_service(self, service_name: str):
         """Get a service from the container."""
@@ -167,14 +170,20 @@ class ApplicationOrchestrator:
             # Clean up services that need cleanup
             cookie_handler = self.container.get('cookie_handler')
             auth_handler = self.container.get('auth_handler')
+            download_handler = self.container.get('download_handler')
             network_checker = self.container.get('network_checker')
+            app_controller = self.container.get('app_controller')
 
             if cookie_handler:
                 cookie_handler.cleanup()
             if auth_handler:
                 auth_handler.cleanup()
+            if download_handler:
+                download_handler.cleanup()
             if network_checker:
                 network_checker.cleanup()
+            if app_controller:
+                app_controller.cleanup()
 
             self.container.clear()
             logger.info("Application cleanup completed")

@@ -2,287 +2,203 @@
 
 import logging
 from typing import Dict, Any, List, Callable
-from ..interfaces import (
-    IApplicationController,
-    IDownloadHandler,
-    IAuthenticationHandler,
-    IServiceDetector,
-    INetworkChecker,
-    IUIEventHandler
-)
-from src.models import DownloadItem, ServiceType, UIState, DownloadOptions
+from src.core.models import Download, ServiceType, UIState, DownloadOptions
+from src.core.container import ServiceContainer
 
 logger = logging.getLogger(__name__)
 
 
-class ApplicationController(IApplicationController):
+class ApplicationController:
     """Main controller that orchestrates all business logic handlers."""
 
-    def __init__(
-        self,
-        download_handler: IDownloadHandler,
-        auth_handler: IAuthenticationHandler,
-        service_detector: IServiceDetector,
-        network_checker: INetworkChecker,
-        ui_event_handler: IUIEventHandler
-    ):
-        self._download_handler = download_handler
-        self._auth_handler = auth_handler
-        self._service_detector = service_detector
-        self._network_checker = network_checker
-        self._ui_event_handler = ui_event_handler
-
-        self._ui_state = UIState()
+    def __init__(self, orchestrator):
+        self.orchestrator = orchestrator
+        self.container = orchestrator.container
         self._initialized = False
 
     def initialize(self) -> None:
-        """Initialize all handlers."""
+        """Initialize the application controller."""
         if self._initialized:
             return
-
-        try:
-            self._download_handler.initialize()
-            self._auth_handler.initialize()
-            self._service_detector.initialize()
-            self._network_checker.initialize()
-            self._ui_event_handler.initialize()
-
-            self._initialized = True
-            logger.info("Application controller initialized successfully")
-        except Exception as e:
-            logger.error(f"Failed to initialize application controller: {e}")
-            raise
-
-    def cleanup(self) -> None:
-        """Clean up all handlers."""
-        try:
-            self._download_handler.cleanup()
-            self._auth_handler.cleanup()
-            self._network_checker.cleanup()
-            self._ui_event_handler.cleanup()
-
-            self._initialized = False
-            logger.info("Application controller cleaned up successfully")
-        except Exception as e:
-            logger.error(f"Error during cleanup: {e}")
-
-    def get_download_handler(self) -> IDownloadHandler:
-        """Get the download handler."""
-        return self._download_handler
-
-    def get_auth_handler(self) -> IAuthenticationHandler:
-        """Get the authentication handler."""
-        return self._auth_handler
-
-    def get_service_detector(self) -> IServiceDetector:
-        """Get the service detector."""
-        return self._service_detector
-
-    def get_network_checker(self) -> INetworkChecker:
-        """Get the network checker."""
-        return self._network_checker
-
-    def get_ui_event_handler(self) -> IUIEventHandler:
-        """Get the UI event handler."""
-        return self._ui_event_handler
-
-    @property
-    def ui_state(self) -> UIState:
-        """Get the current UI state."""
-        return self._ui_state
-
-    def update_button_states(self, has_selection: bool, has_items: bool, is_downloading: bool = False):
-        """Update button states in the UI state."""
-        self._ui_state.update_button_states(has_selection, has_items, is_downloading)
-
-
-class DefaultUIEventHandler(IUIEventHandler):
-    """Default implementation of UI event handler."""
-
-    def __init__(
-        self,
-        download_handler: IDownloadHandler,
-        auth_handler: IAuthenticationHandler,
-        service_detector: IServiceDetector,
-        network_checker: INetworkChecker,
-        app_controller: ApplicationController,
-        message_callback: Callable[[str, str], None],
-        error_callback: Callable[[str], None]
-    ):
-        self._download_handler = download_handler
-        self._auth_handler = auth_handler
-        self._service_detector = service_detector
-        self._network_checker = network_checker
-        self._app_controller = app_controller
-        self._message_callback = message_callback
-        self._error_callback = error_callback
-
-    def initialize(self) -> None:
-        """Initialize the handler."""
-        pass
+        self._initialized = True
+        logger.info("Application controller initialized")
 
     def cleanup(self) -> None:
         """Clean up resources."""
-        pass
+        self._initialized = False
+        logger.info("Application controller cleaned up")
 
-    def handle_url_add(self, url: str, name: str) -> None:
+    def handle_event(self, event_name: str, *args, **kwargs):
+        """Handle UI events through the appropriate handler."""
+        try:
+            if event_name == 'add_url':
+                return self._handle_add_url(*args, **kwargs)
+            elif event_name == 'remove_selected':
+                return self._handle_remove_selected()
+            elif event_name == 'clear_all':
+                return self._handle_clear_all()
+            elif event_name == 'download_start':
+                return self._handle_download_start()
+            elif event_name == 'selection_change':
+                return self._handle_selection_change(*args, **kwargs)
+            elif event_name == 'quality_change':
+                return self._handle_quality_change(*args, **kwargs)
+            elif event_name == 'instagram_login':
+                return self._handle_instagram_login(*args, **kwargs)
+            elif event_name == 'youtube_detected':
+                return self._handle_youtube_detected(*args, **kwargs)
+            elif event_name == 'cookie_detected':
+                return self._handle_cookie_detected(*args, **kwargs)
+            elif event_name == 'cookie_manual_select':
+                return self._handle_cookie_manual_select(*args, **kwargs)
+            elif event_name == 'manage_files':
+                return self._handle_manage_files()
+            else:
+                logger.warning(f"Unknown event: {event_name}")
+                return None
+        except Exception as e:
+            logger.error(f"Error handling event {event_name}: {e}")
+            status_bar = self.orchestrator.status_bar
+            if status_bar:
+                status_bar.show_error(f"Error: {str(e)}")
+
+    def _handle_add_url(self, url: str, name: str = None):
         """Handle adding a new URL."""
-        try:
-            # Validate URL
-            if not url.startswith('http'):
-                raise ValueError("Invalid URL format. URL must start with http:// or https://")
+        from src.core.models import Download
 
-            # Detect service type
-            service_type = self._service_detector.detect_service(url)
-            if not service_type:
-                raise ValueError(
-                    "Unsupported platform. Currently supported: YouTube, Twitter, Instagram, and Pinterest"
-                )
+        # Validate URL
+        if not url.startswith('http'):
+            raise ValueError("Invalid URL format. URL must start with http:// or https://")
 
-            # Check service accessibility
-            if not self._service_detector.is_service_accessible(service_type):
-                raise ValueError(
-                    f"Cannot connect to {service_type.value}. Please check your internet connection."
-                )
+        # Detect service type
+        service_detector = self.container.get('service_detector')
+        service_type = service_detector.detect_service(url)
+        if not service_type:
+            raise ValueError("Unsupported platform")
 
-            # Add download item
-            item = DownloadItem(name=name, url=url)
-            self._download_handler.add_item(item)
+        # Check service accessibility
+        if not service_detector.is_service_accessible(service_type):
+            raise ValueError(f"Cannot connect to {service_type.value}")
 
-            # Update UI state
-            self._app_controller.update_button_states(
-                has_selection=bool(self._app_controller.ui_state.selected_indices),
-                has_items=self._download_handler.has_items(),
-                is_downloading=self._download_handler.has_active_downloads()
-            )
+        # Create download item
+        if not name:
+            name = f"Media from {service_type.value}"
 
-            self._message_callback(f"Added: {name}", "success")
+        download = Download(name=name, url=url, service_type=service_type)
 
-        except Exception as e:
-            self._error_callback(f"Error adding URL: {str(e)}")
+        # Add to download list
+        download_list = self.orchestrator.download_list
+        if download_list:
+            download_list.add_download(download)
 
-    def handle_remove_selected(self) -> None:
+        status_bar = self.orchestrator.status_bar
+        if status_bar:
+            status_bar.show_message(f"Added: {name}")
+
+    def _handle_remove_selected(self):
         """Handle removing selected items."""
-        try:
-            selected_indices = self._app_controller.ui_state.selected_indices
-            if not selected_indices:
-                self._message_callback("Please select items to remove", "info")
-                return
+        download_list = self.orchestrator.download_list
+        if not download_list:
+            return
 
-            self._download_handler.remove_items(selected_indices)
+        selected_indices = download_list.get_selected_indices()
+        if not selected_indices:
+            status_bar = self.orchestrator.status_bar
+            if status_bar:
+                status_bar.show_message("Please select items to remove")
+            return
 
-            # Update UI state
-            self._app_controller.ui_state.selected_indices = []
-            self._app_controller.update_button_states(
-                has_selection=False,
-                has_items=self._download_handler.has_items(),
-                is_downloading=self._download_handler.has_active_downloads()
-            )
+        download_list.remove_downloads(selected_indices)
 
-            self._message_callback("Selected items removed", "success")
+        status_bar = self.orchestrator.status_bar
+        if status_bar:
+            status_bar.show_message("Selected items removed")
 
-        except Exception as e:
-            self._error_callback(f"Error removing items: {str(e)}")
-
-    def handle_clear_all(self) -> None:
+    def _handle_clear_all(self):
         """Handle clearing all items."""
-        try:
-            if not self._download_handler.has_items():
-                self._message_callback("No items to clear", "info")
-                return
+        download_list = self.orchestrator.download_list
+        if not download_list:
+            return
 
-            self._download_handler.clear_items()
+        download_list.clear_downloads()
 
-            # Update UI state
-            self._app_controller.ui_state.selected_indices = []
-            self._app_controller.update_button_states(
-                has_selection=False,
-                has_items=False,
-                is_downloading=False
-            )
+        status_bar = self.orchestrator.status_bar
+        if status_bar:
+            status_bar.show_message("All items cleared")
 
-            self._message_callback("All items cleared", "success")
-
-        except Exception as e:
-            self._error_callback(f"Error clearing items: {str(e)}")
-
-    def handle_download_start(self) -> None:
+    def _handle_download_start(self):
         """Handle starting downloads."""
-        try:
-            if not self._download_handler.has_items():
-                self._message_callback("Please add items to download", "info")
-                return
+        download_list = self.orchestrator.download_list
+        if not download_list or not download_list.has_items():
+            status_bar = self.orchestrator.status_bar
+            if status_bar:
+                status_bar.show_message("Please add items to download")
+            return
 
-            # Check for Instagram items that need authentication
-            items = self._download_handler.get_items()
-            has_instagram = any('instagram.com' in item.url for item in items)
+        # Get service controller and start downloads
+        service_controller = self.container.get('service_controller')
+        if service_controller:
+            downloads = download_list.get_downloads()
+            service_controller.start_downloads(downloads)
 
-            if has_instagram and not self._auth_handler.is_authenticated(ServiceType.INSTAGRAM):
-                self._error_callback("Please log in to Instagram first")
-                return
-
-            # Check network connectivity
-            problem_services = self._network_checker.get_problem_services()
-            if problem_services:
-                problem_list = ", ".join(problem_services)
-                self._error_callback(f"Network connectivity issues with: {problem_list}")
-                return
-
-            # Start downloads
-            def progress_callback(item: DownloadItem, progress: float):
-                self._app_controller.update_button_states(
-                    has_selection=bool(self._app_controller.ui_state.selected_indices),
-                    has_items=True,
-                    is_downloading=True
-                )
-
-            def completion_callback(success: bool, error: str = None):
-                if success:
-                    self._message_callback("Downloads completed", "success")
-                else:
-                    self._error_callback(f"Download error: {error}")
-
-                self._app_controller.update_button_states(
-                    has_selection=bool(self._app_controller.ui_state.selected_indices),
-                    has_items=self._download_handler.has_items(),
-                    is_downloading=self._download_handler.has_active_downloads()
-                )
-
-            self._download_handler.start_downloads(
-                self._app_controller.ui_state.download_directory,
-                progress_callback,
-                completion_callback
-            )
-
-        except Exception as e:
-            self._error_callback(f"Error starting downloads: {str(e)}")
-
-    def handle_selection_change(self, selected_indices: List[int]) -> None:
+    def _handle_selection_change(self, selected_indices: list):
         """Handle selection changes."""
-        self._app_controller.ui_state.selected_indices = selected_indices
-        self._app_controller.update_button_states(
-            has_selection=bool(selected_indices),
-            has_items=self._download_handler.has_items(),
-            is_downloading=self._download_handler.has_active_downloads()
-        )
+        action_buttons = self.orchestrator.action_buttons
+        if action_buttons:
+            has_selection = bool(selected_indices)
+            action_buttons.update_remove_button_state(has_selection)
 
-    def handle_option_change(self, option: str, value: Any) -> None:
-        """Handle option changes."""
-        if option == 'quality':
-            # Update download options with new quality
-            options = self._download_handler.options
-            options.quality = value
-            self._download_handler.options = options
-        elif option in ['playlist', 'audio_only']:
-            # Update download options
-            options = self._download_handler.options
-            setattr(options, option, value)
-            self._download_handler.options = options
+    def _handle_quality_change(self, quality: str):
+        """Handle quality changes."""
+        ui_state = self.container.get('ui_state')
+        if ui_state:
+            ui_state.quality = quality
 
-    def handle_cookie_detection(self, url: str) -> bool:
-        """Handle cookie detection for a URL."""
-        # Check if we have a cookie handler available
-        if not hasattr(self, '_cookie_handler'):
-            return False
+    def _handle_instagram_login(self, parent_window=None):
+        """Handle Instagram login."""
+        auth_handler = self.container.get('auth_handler')
+        if auth_handler:
+            auth_handler.authenticate_instagram(parent_window, lambda success: None)
 
-        return self._cookie_handler.should_show_cookie_option(url)
+    def _handle_youtube_detected(self, url: str):
+        """Handle YouTube URL detection."""
+        cookie_handler = self.container.get('cookie_handler')
+        cookie_selector = self.orchestrator.cookie_selector
+
+        if cookie_handler and cookie_selector:
+            should_show = cookie_handler.should_show_cookie_option(url)
+            cookie_selector.set_visible(should_show)
+
+    def _handle_cookie_detected(self, browser_type: str, cookie_path: str):
+        """Handle cookie detection."""
+        cookie_handler = self.container.get('cookie_handler')
+        if cookie_handler:
+            success = cookie_handler.set_cookie_file(cookie_path)
+            status_bar = self.orchestrator.status_bar
+            if status_bar:
+                if success:
+                    status_bar.show_message(f"Cookies loaded from {browser_type}")
+                else:
+                    status_bar.show_error("Failed to load cookies")
+
+    def _handle_cookie_manual_select(self):
+        """Handle manual cookie selection."""
+        from src.ui.dialogs.file_manager_dialog import FileManagerDialog
+        file_dialog = FileManagerDialog(self.orchestrator.root)
+        cookie_path = file_dialog.select_file()
+
+        if cookie_path:
+            cookie_handler = self.container.get('cookie_handler')
+            if cookie_handler:
+                success = cookie_handler.set_cookie_file(cookie_path)
+                status_bar = self.orchestrator.status_bar
+                if status_bar:
+                    if success:
+                        status_bar.show_message("Cookie file loaded successfully")
+                    else:
+                        status_bar.show_error("Failed to load cookie file")
+
+    def _handle_manage_files(self):
+        """Handle file management."""
+        from src.ui.dialogs.file_manager_dialog import FileManagerDialog
+        FileManagerDialog(self.orchestrator.root)

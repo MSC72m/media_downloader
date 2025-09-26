@@ -2,9 +2,9 @@
 
 import logging
 from typing import Optional, Callable, Any
-from ..interfaces.cookie_detection import ICookieManager, BrowserType, PlatformType
-from ..services.cookie_detector import CookieManager
-from .service_detector import ServiceDetector
+from src.core.models import ServiceType
+from src.services.cookie_detector import CookieManager
+from src.interfaces.cookie_detection import BrowserType, PlatformType
 
 logger = logging.getLogger(__name__)
 

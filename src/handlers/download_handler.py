@@ -2,18 +2,17 @@
 
 import logging
 from typing import List, Callable, Optional
-from ..interfaces import IDownloadHandler, IHandler
-from src.models import DownloadItem, DownloadOptions
-from src.controllers.download_manager import DownloadManager
+from src.core.models import Download, DownloadOptions
+from src.core.container import ServiceContainer
 
 logger = logging.getLogger(__name__)
 
 
-class DownloadHandler(IDownloadHandler):
-    """Lightweight handler that delegates to existing DownloadManager."""
+class DownloadHandler:
+    """Download handler using service container."""
 
-    def __init__(self, download_manager: DownloadManager = None):
-        self._download_manager = download_manager or DownloadManager()
+    def __init__(self, container: ServiceContainer):
+        self.container = container
         self._initialized = False
 
     def initialize(self) -> None:
@@ -24,51 +23,73 @@ class DownloadHandler(IDownloadHandler):
 
     def cleanup(self) -> None:
         """Clean up resources."""
-        self._download_manager.cleanup()
         self._initialized = False
 
-    def add_item(self, item: DownloadItem) -> None:
-        """Delegate to existing DownloadManager."""
-        self._download_manager.add_item(item)
+    def add_download(self, download: Download) -> None:
+        """Add a download item."""
+        download_service = self.container.get('download_service')
+        if download_service:
+            download_service.add_download(download)
 
-    def remove_items(self, indices: List[int]) -> None:
-        """Delegate to existing DownloadManager."""
-        self._download_manager.remove_items(indices)
+    def remove_downloads(self, indices: List[int]) -> None:
+        """Remove download items by indices."""
+        download_service = self.container.get('download_service')
+        if download_service:
+            download_service.remove_downloads(indices)
 
-    def clear_items(self) -> None:
-        """Delegate to existing DownloadManager."""
-        self._download_manager.clear_items()
+    def clear_downloads(self) -> None:
+        """Clear all download items."""
+        download_service = self.container.get('download_service')
+        if download_service:
+            download_service.clear_downloads()
 
-    def get_items(self) -> List[DownloadItem]:
-        """Delegate to existing DownloadManager."""
-        return self._download_manager.items
+    def get_downloads(self) -> List[Download]:
+        """Get all download items."""
+        download_service = self.container.get('download_service')
+        if download_service:
+            return download_service.get_downloads()
+        return []
 
     def has_items(self) -> bool:
-        """Delegate to existing DownloadManager."""
-        return self._download_manager.has_items()
+        """Check if there are any download items."""
+        downloads = self.get_downloads()
+        return len(downloads) > 0
 
     def start_downloads(
         self,
-        download_dir: str,
-        progress_callback: Callable[[DownloadItem, float], None],
-        completion_callback: Callable[[bool, Optional[str]], None]
+        downloads: List[Download],
+        progress_callback: Optional[Callable[[Download, float], None]] = None,
+        completion_callback: Optional[Callable[[bool, Optional[str]], None]] = None
     ) -> None:
-        """Delegate to existing DownloadManager."""
-        self._download_manager.start_downloads(download_dir, progress_callback, completion_callback)
+        """Start downloads."""
+        service_controller = self.container.get('service_controller')
+        if service_controller:
+            service_controller.start_downloads(downloads, progress_callback, completion_callback)
 
     def has_active_downloads(self) -> bool:
-        """Delegate to existing DownloadManager."""
-        return self._download_manager.has_active_downloads()
+        """Check if there are active downloads."""
+        service_controller = self.container.get('service_controller')
+        if service_controller:
+            return service_controller.has_active_downloads()
+        return False
 
-    @property
-    def options(self) -> DownloadOptions:
-        """Delegate to existing DownloadManager."""
-        return self._download_manager.options
+    def get_options(self) -> DownloadOptions:
+        """Get current download options."""
+        ui_state = self.container.get('ui_state')
+        if ui_state:
+            return DownloadOptions(
+                quality=getattr(ui_state, 'quality', '720p'),
+                playlist=getattr(ui_state, 'playlist', False),
+                audio_only=getattr(ui_state, 'audio_only', False),
+                save_directory=getattr(ui_state, 'download_directory', '~/Downloads')
+            )
+        return DownloadOptions()
 
-    @options.setter
-    def options(self, value: DownloadOptions) -> None:
-        """Delegate to existing DownloadManager."""
-        # Map properties to existing manager
-        self._download_manager.quality = value.quality.value
-        self._download_manager.set_option('playlist', value.playlist)
-        self._download_manager.set_option('audio_only', value.audio_only)
+    def set_options(self, options: DownloadOptions) -> None:
+        """Set download options."""
+        ui_state = self.container.get('ui_state')
+        if ui_state:
+            ui_state.quality = options.quality
+            ui_state.playlist = options.playlist
+            ui_state.audio_only = options.audio_only
+            ui_state.download_directory = options.save_directory
