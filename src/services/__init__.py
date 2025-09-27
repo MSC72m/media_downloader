@@ -5,7 +5,7 @@ from .download import DownloadService
 from .repository import DownloadRepository, OptionsRepository
 from .cookie_detector import CookieManager, CookieDetector
 from .file import FileService, DownloadResult, FilenameSanitizer, FileDownloader
-from .youtube import YouTubeDownloader, YouTubeCookieManager
+from .youtube import YouTubeDownloader
 from .twitter import TwitterDownloader
 from .instagram import InstagramDownloader
 from .pinterest import PinterestDownloader
@@ -22,7 +22,6 @@ __all__ = [
     "FilenameSanitizer",
     "FileDownloader",
     "YouTubeDownloader",
-    "YouTubeCookieManager",
     "TwitterDownloader",
     "InstagramDownloader",
     "PinterestDownloader"

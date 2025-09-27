@@ -9,7 +9,7 @@ import yt_dlp
 from ...core.base import BaseDownloader
 from ...core.file import FilenameSanitizer
 from ...core.network import check_site_connection
-from .cookies import YouTubeCookieManager
+from .cookie_detector import CookieManager
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class YouTubeDownloader(BaseDownloader):
         quality: str = "720p",
         download_playlist: bool = False,
         audio_only: bool = False,
-        cookie_manager: Optional[YouTubeCookieManager] = None
+        cookie_manager: Optional[CookieManager] = None
     ):
         self.quality = quality
         self.download_playlist = download_playlist
