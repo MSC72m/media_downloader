@@ -1,16 +1,21 @@
-"""Dialog for YouTube video downloads."""
+"""Enhanced dialog for YouTube video downloads with metadata fetching."""
 
 import customtkinter as ctk
-from typing import Optional, Callable, Dict, Any
+from typing import Optional, Callable, Dict, Any, List
 import json
 import os
+import threading
 from pathlib import Path
+from ...interfaces.youtube_metadata import YouTubeMetadata, SubtitleInfo
 from ...interfaces.cookie_detection import BrowserType
 from ...utils.window import WindowCenterMixin
+from ..components.simple_loading_dialog import SimpleLoadingDialog
+from ..components.multi_select_dropdown import SubtitleMultiSelect
+from .browser_cookie_dialog import BrowserCookieDialog
 
 
 class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
-    """Enhanced dialog for downloading YouTube videos with comprehensive options."""
+    """Enhanced dialog for downloading YouTube videos with metadata support."""
 
     # Class variables for cookie caching
     _cached_cookies = {}
@@ -21,20 +26,30 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         parent,
         url: str,
         cookie_handler,
-        on_download: Optional[Callable[[str, str, Dict[str, Any]], None]] = None
+        on_download: Optional[Callable[[str, str, Dict[str, Any]], None]] = None,
+        metadata_service=None,
+        pre_fetched_metadata: Optional[YouTubeMetadata] = None,
+        initial_cookie_path: Optional[str] = None,
+        initial_browser: Optional[str] = None
     ):
         super().__init__(parent)
 
         self.url = url
         self.cookie_handler = cookie_handler
         self.on_download = on_download
+        self.metadata_service = metadata_service
         self.browser_buttons = {}
+        self.video_metadata = pre_fetched_metadata  # Use pre-fetched metadata if provided
+        self.loading_overlay: Optional[SimpleLoadingDialog] = None
+        self.selected_cookie_path = initial_cookie_path
+        self.selected_browser = initial_browser
+        self.widgets_created = False
 
         # Configure window
         self.title("YouTube Video Downloader")
-        self.geometry("700x800")
+        self.geometry("700x900")
         self.resizable(True, True)
-        self.minsize(600, 600)
+        self.minsize(600, 700)
 
         # Make window modal
         self.transient(parent)
@@ -43,29 +58,220 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         # Center the window using mixin
         self.center_window()
 
-        self._create_widgets()
-        self._load_cached_selections()
+        # Hide the main window initially
+        self.withdraw()
+
+        # Show cookie selection dialog first
+        self._show_cookie_selection()
+
+    def _start_metadata_fetch_with_cookie(self):
+        """Start metadata fetching with the provided cookie information."""
+        if self.selected_browser:
+            # If browser was selected, get cookies from browser
+            self._get_browser_cookies(self.selected_browser)
+        else:
+            # Use manual cookie path or proceed without cookies
+            self._start_metadata_fetch()
+
+    def _show_cookie_selection(self):
+        """Show cookie selection dialog before metadata fetching."""
+        def on_cookie_selected(cookie_path: Optional[str], browser: Optional[str]):
+            print(f"Cookie selection callback: path={cookie_path}, browser={browser}")
+            self.selected_cookie_path = cookie_path
+            self.selected_browser = browser
+
+            # If manual path was provided, use it directly
+            if cookie_path:
+                print("Starting metadata fetch with manual cookie path")
+                self._start_metadata_fetch()
+            elif browser:
+                print(f"Getting cookies from browser: {browser}")
+                # If browser was selected, get cookies from browser
+                self._get_browser_cookies(browser)
+            else:
+                print("No cookies selected, proceeding without cookies")
+                # No cookies selected, proceed without
+                self._start_metadata_fetch()
+
+        try:
+            cookie_dialog = BrowserCookieDialog(self, on_cookie_selected)
+            cookie_dialog.wait_window()  # Wait for selection
+        except Exception as e:
+            print(f"Error showing cookie dialog: {e}")
+            # If cookie dialog fails, proceed without cookies
+            self._start_metadata_fetch()
+
+    def _get_browser_cookies(self, browser: str):
+        """Get cookies from selected browser."""
+        if not self.cookie_handler:
+            self._create_loading_overlay()
+            self._fetch_metadata_async()
+            return
+
+        def cookie_worker():
+            try:
+                # Map browser string to BrowserType enum
+                browser_type_map = {
+                    'chrome': BrowserType.CHROME,
+                    'firefox': BrowserType.FIREFOX,
+                    'safari': BrowserType.SAFARI
+                }
+
+                browser_type = browser_type_map.get(browser.lower())
+                if browser_type:
+                    cookie_file = self.cookie_handler.detect_cookies_for_browser(browser_type)
+                    self.selected_cookie_path = cookie_file
+
+                # Start metadata fetching after getting cookies
+                self.after(0, self._start_metadata_fetch)
+
+            except Exception as e:
+                print(f"Error getting browser cookies: {e}")
+                # Proceed without cookies
+                self.after(0, self._start_metadata_fetch)
+
+        threading.Thread(target=cookie_worker, daemon=True).start()
+
+    def _start_metadata_fetch(self):
+        """Start metadata fetching after cookie selection."""
+        self._create_loading_overlay()
+        self._fetch_metadata_async()
+
+    def _create_loading_overlay(self):
+        """Create loading overlay for metadata fetching."""
+        self.loading_overlay = SimpleLoadingDialog(self, "Fetching YouTube metadata", timeout=90)
+
+    def _fetch_metadata_async(self):
+        """Fetch metadata asynchronously."""
+        def fetch_worker():
+            try:
+                if self.metadata_service:
+                    # Use selected cookie path
+                    cookie_path = self.selected_cookie_path
+
+                    # Fetch metadata with cookies
+                    self.video_metadata = self.metadata_service.fetch_metadata(self.url, cookie_path)
+
+                    # Check if metadata fetch failed
+                    if self.video_metadata and self.video_metadata.error:
+                        self.after(0, self._handle_metadata_error)
+                        return
+                else:
+                    # No metadata service available
+                    self.after(0, self._handle_metadata_error)
+                    return
+
+                # Update UI in main thread
+                self.after(0, self._handle_metadata_fetched)
+
+            except Exception as e:
+                print(f"Error fetching metadata: {e}")
+                # Close the dialog if metadata fetch fails
+                self.after(0, self._handle_metadata_error)
+
+        threading.Thread(target=fetch_worker, daemon=True).start()
+
+    def _handle_metadata_error(self):
+        """Handle metadata fetch error by closing the dialog."""
+        # Hide loading overlay
+        if self.loading_overlay:
+            self.loading_overlay.close()
+
+        # Show error message and close dialog
+        import tkinter as tk
+        from tkinter import messagebox
+
+        messagebox.showerror("Metadata Error", "Failed to fetch video metadata. Please check the URL and try again.")
+        self.destroy()
+
+    def _handle_metadata_fetched(self):
+        """Handle metadata fetch completion."""
+        # Check if metadata has an error
+        if self.video_metadata and self.video_metadata.error:
+            self._handle_metadata_error()
+            return
+
+        # Hide loading overlay
+        if self.loading_overlay:
+            self.loading_overlay.close()
+
+        # Create main interface only after metadata is successfully fetched
+        if not self.widgets_created:
+            self._create_widgets()
+            self._load_cached_selections()
+            self.widgets_created = True
+
+        # Show main interface
+        if hasattr(self, 'main_frame'):
+            self.main_frame.pack(fill="both", expand=True)
+
+        # Show the main window now that everything is ready
+        self.deiconify()
+        self.lift()
+
+        # Update UI with metadata
+        self._update_ui_with_metadata()
+
+    def _update_ui_with_metadata(self):
+        """Update UI components with fetched metadata."""
+        if not self.video_metadata:
+            return
+
+        # Auto-fill name with video title
+        if self.video_metadata.title:
+            self.name_entry.delete(0, 'end')
+            self.name_entry.insert(0, self.video_metadata.title)
+
+        # Update quality options
+        if self.video_metadata.available_qualities:
+            self.quality_var.set(self.video_metadata.available_qualities[0])
+            self.quality_menu.configure(values=self.video_metadata.available_qualities)
+
+        # Update format options
+        if self.video_metadata.available_formats:
+            self.format_var.set(self.video_metadata.available_formats[0])
+            self.format_menu.configure(values=self.video_metadata.available_formats)
+
+        # Update subtitle options
+        if self.video_metadata.available_subtitles:
+            subtitle_options = [
+                {
+                    'language_code': sub['language_code'],
+                    'language_name': sub['language_name'],
+                    'is_auto_generated': sub['is_auto_generated'],
+                    'url': sub['url']
+                }
+                for sub in self.video_metadata.available_subtitles
+            ]
+            self.subtitle_dropdown.set_subtitle_options(subtitle_options)
+            self.subtitle_frame.pack(fill="x", pady=(0, 20), after=self.format_frame)
+        else:
+            self.subtitle_frame.pack_forget()
+
+        # Update format callback
+        self._on_format_change()
 
     def _create_widgets(self):
         """Create dialog widgets with scrolling support."""
-        # Create scrollable frame
+        # Create scrollable frame using grid
         self.scrollable_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
-        self.scrollable_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        self.scrollable_frame.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_columnconfigure(0, weight=1)
 
-        # Main container
-        main_frame = ctk.CTkFrame(self.scrollable_frame, fg_color="transparent")
-        main_frame.pack(fill="both", expand=True)
+        # Main container (initially hidden)
+        self.main_frame = ctk.CTkFrame(self.scrollable_frame, fg_color="transparent")
 
         # Title
         title_label = ctk.CTkLabel(
-            main_frame,
+            self.main_frame,
             text="YouTube Video Downloader",
             font=("Roboto", 24, "bold")
         )
         title_label.pack(pady=(0, 20))
 
         # URL display
-        url_frame = ctk.CTkFrame(main_frame)
+        url_frame = ctk.CTkFrame(self.main_frame)
         url_frame.pack(fill="x", pady=(0, 20))
 
         url_label = ctk.CTkLabel(
@@ -84,7 +290,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         url_display.pack(fill="x", padx=10, pady=(0, 10))
 
         # Video name input
-        name_frame = ctk.CTkFrame(main_frame)
+        name_frame = ctk.CTkFrame(self.main_frame)
         name_frame.pack(fill="x", pady=(0, 20))
 
         name_label = ctk.CTkLabel(
@@ -102,7 +308,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.name_entry.pack(fill="x", padx=10, pady=(0, 10))
 
         # Cookie selection
-        cookie_frame = ctk.CTkFrame(main_frame)
+        cookie_frame = ctk.CTkFrame(self.main_frame)
         cookie_frame.pack(fill="x", pady=(0, 20))
 
         cookie_label = ctk.CTkLabel(
@@ -125,9 +331,9 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         browser_button_frame.pack(fill="x", padx=10, pady=10)
 
         browser_info = {
-            BrowserType.CHROME: ("Chrome", "#4285F4", "#FFD700"),
-            BrowserType.FIREFOX: ("Firefox", "#FF9500", "#FFD700"),
-            BrowserType.SAFARI: ("Safari", "#007AFF", "#FFD700")
+            BrowserType.CHROME: ("Chrome", "#4285F4", "#FFA500"),
+            BrowserType.FIREFOX: ("Firefox", "#4169E1", "#FFA500"),
+            BrowserType.SAFARI: ("Safari", "#007AFF", "#FFA500")
         }
 
         for browser, (name, color, selected_color) in browser_info.items():
@@ -152,7 +358,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.cookie_status_label.pack(anchor="w", padx=10, pady=5)
 
         # Download options
-        options_frame = ctk.CTkFrame(main_frame)
+        options_frame = ctk.CTkFrame(self.main_frame)
         options_frame.pack(fill="x", pady=(0, 20))
 
         options_label = ctk.CTkLabel(
@@ -172,30 +378,49 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.quality_var = ctk.StringVar(value="720p")
         quality_options = ["144p", "240p", "360p", "480p", "720p", "1080p", "1440p", "4K", "8K"]
 
-        quality_menu = ctk.CTkOptionMenu(
+        self.quality_menu = ctk.CTkOptionMenu(
             quality_frame,
             variable=self.quality_var,
             values=quality_options,
             width=120,
             font=("Roboto", 10)
         )
-        quality_menu.pack(side="left", padx=(0, 20))
+        self.quality_menu.pack(side="left", padx=(0, 20))
 
-        # Format selection
+        # Format selection (controls audio/video)
         format_label = ctk.CTkLabel(quality_frame, text="Format:", font=("Roboto", 11))
         format_label.pack(side="left", padx=(0, 10))
 
         self.format_var = ctk.StringVar(value="video")
-        format_options = ["video", "audio", "both"]
+        format_options = ["video", "audio", "video_only"]
 
-        format_menu = ctk.CTkOptionMenu(
+        self.format_menu = ctk.CTkOptionMenu(
             quality_frame,
             variable=self.format_var,
             values=format_options,
             width=100,
-            font=("Roboto", 10)
+            font=("Roboto", 10),
+            command=lambda x: self._on_format_change()
         )
-        format_menu.pack(side="left")
+        self.format_menu.pack(side="left")
+
+        # Store reference for later updates
+        self.format_frame = quality_frame
+
+        # Subtitle selection (initially hidden)
+        self.subtitle_frame = ctk.CTkFrame(options_frame, fg_color="transparent")
+        self.subtitle_frame.pack(fill="x", padx=10, pady=8)
+
+        subtitle_label = ctk.CTkLabel(self.subtitle_frame, text="Subtitles:", font=("Roboto", 11))
+        subtitle_label.pack(anchor="w", pady=(0, 5))
+
+        self.subtitle_dropdown = SubtitleMultiSelect(
+            self.subtitle_frame,
+            placeholder="Select subtitles...",
+            width=280,
+            height=35
+        )
+        self.subtitle_dropdown.pack(fill="x")
 
         # Advanced options
         advanced_frame = ctk.CTkFrame(options_frame, fg_color="transparent")
@@ -210,16 +435,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             font=("Roboto", 11)
         )
         playlist_check.pack(anchor="w", pady=2)
-
-        # Audio only option
-        self.audio_only_var = ctk.BooleanVar(value=False)
-        audio_only_check = ctk.CTkCheckBox(
-            advanced_frame,
-            text="Audio Only (extract audio)",
-            variable=self.audio_only_var,
-            font=("Roboto", 11)
-        )
-        audio_only_check.pack(anchor="w", pady=2)
 
         # Subtitle options
         self.subtitle_var = ctk.BooleanVar(value=False)
@@ -252,7 +467,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         metadata_check.pack(anchor="w", pady=2)
 
         # Advanced yt-dlp options
-        advanced_options_frame = ctk.CTkFrame(main_frame)
+        advanced_options_frame = ctk.CTkFrame(self.main_frame)
         advanced_options_frame.pack(fill="x", pady=(0, 20))
 
         advanced_label = ctk.CTkLabel(
@@ -309,7 +524,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         concurrent_entry.pack(side="left")
 
         # Buttons
-        button_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        button_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
         button_frame.pack(fill="x", pady=(30, 0))
 
         # Add to downloads button
@@ -336,28 +551,27 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         )
         cancel_button.pack(side="right", padx=5)
 
-        # Set focus and auto-detect name
+        # Set focus
         self.name_entry.focus()
-        self._auto_fill_name()
 
-    def _auto_fill_name(self):
-        """Auto-fill the name based on URL."""
-        try:
-            if "youtube.com" in self.url:
-                if "watch?v=" in self.url:
-                    # Single video
-                    video_id = self.url.split("watch?v=")[1].split("&")[0]
-                    self.name_entry.insert(0, f"YouTube Video ({video_id[:8]}...)")
-                elif "playlist" in self.url:
-                    # Playlist
-                    playlist_id = self.url.split("list=")[1].split("&")[0]
-                    self.name_entry.insert(0, f"YouTube Playlist ({playlist_id[:8]}...)")
-            elif "youtu.be" in self.url:
-                # Shortened URL
-                video_id = self.url.split("/")[-1].split("?")[0]
-                self.name_entry.insert(0, f"YouTube Video ({video_id[:8]}...)")
-        except:
-            self.name_entry.insert(0, "YouTube Media")
+    def _on_format_change(self):
+        """Handle format selection change."""
+        format_value = self.format_var.get()
+
+        # Update format label text to show what it means
+        format_descriptions = {
+            "video": "Video + Audio",
+            "audio": "Audio Only",
+            "video_only": "Video Only"
+        }
+
+        # Update audio_only checkbox based on format
+        if format_value == "audio":
+            # Audio format means audio only
+            pass  # No checkbox anymore
+        else:
+            # Video or video_only means include video
+            pass
 
     def _darken_color(self, hex_color: str) -> str:
         """Darken a hex color for hover effect."""
@@ -373,13 +587,13 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             if btn_browser == BrowserType.CHROME:
                 button.configure(fg_color="#4285F4")
             elif btn_browser == BrowserType.FIREFOX:
-                button.configure(fg_color="#FF9500")
+                button.configure(fg_color="#4169E1")
             elif btn_browser == BrowserType.SAFARI:
                 button.configure(fg_color="#007AFF")
 
-        # Set selected button to yellow
+        # Set selected button to orange
         if browser in self.browser_buttons:
-            self.browser_buttons[browser].configure(fg_color="#FFD700")
+            self.browser_buttons[browser].configure(fg_color="#FFA500")
 
         # Try to use cached cookies first
         if browser in self._cached_cookies:
@@ -478,13 +692,23 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             self._show_error("Please enter valid numbers for advanced options")
             return
 
+        # Get format-specific settings
+        format_value = self.format_var.get()
+        audio_only = format_value == "audio"
+        video_only = format_value == "video_only"
+
+        # Get selected subtitles
+        selected_subtitles = self.subtitle_dropdown.get_selected_subtitles()
+
         # Create comprehensive download options
         download_options = {
             'quality': self.quality_var.get(),
-            'format': self.format_var.get(),
-            'audio_only': self.audio_only_var.get(),
+            'format': format_value,
+            'audio_only': audio_only,
+            'video_only': video_only,
             'download_playlist': self.playlist_var.get(),
-            'download_subtitles': self.subtitle_var.get(),
+            'download_subtitles': self.subtitle_var.get() and bool(selected_subtitles),
+            'selected_subtitles': selected_subtitles,
             'download_thumbnail': self.thumbnail_var.get(),
             'embed_metadata': self.metadata_var.get(),
             'cookie_path': getattr(self, 'selected_cookie_path', None),

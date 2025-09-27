@@ -10,6 +10,7 @@ from ...core.base import BaseDownloader
 from ..file.sanitizer import FilenameSanitizer
 from ...core.network import check_site_connection
 from .cookie_detector import CookieManager
+from .metadata_service import YouTubeMetadataService
 
 logger = logging.getLogger(__name__)
 
@@ -28,15 +29,15 @@ class YouTubeDownloader(BaseDownloader):
         self.download_playlist = download_playlist
         self.audio_only = audio_only
         self.cookie_manager = cookie_manager
-        self.ytdl_opts = self._get_ytdl_options()
+        self.metadata_service = YouTubeMetadataService()
+        self.ytdl_opts = self._get_simple_ytdl_options()
 
-    def _get_ytdl_options(self) -> Dict[str, Any]:
-        """Generate yt-dlp options based on current settings."""
+    def _get_simple_ytdl_options(self) -> Dict[str, Any]:
+        """Generate simple yt-dlp options without format specifications."""
         options = {
             'quiet': True,
             'no_warnings': True,
             'ignoreerrors': True,
-            'format_sort': ['res'],
             'retries': 3,
             'fragment_retries': 3,
             'retry_sleep_functions': {'fragment': lambda x: 3 * (x + 1)},
@@ -45,6 +46,7 @@ class YouTubeDownloader(BaseDownloader):
             'hls_prefer_native': True,
             'nocheckcertificate': True,
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            # NO format specifications - let yt-dlp choose automatically
         }
 
         # Add cookie information if available
@@ -53,29 +55,6 @@ class YouTubeDownloader(BaseDownloader):
             if cookie_info:
                 options.update(cookie_info)
                 logger.info("Using cookies for YouTube download")
-
-        # Set format based on quality and audio_only options
-        if self.audio_only:
-            options['format'] = 'bestaudio/best'
-            options['postprocessors'] = [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }]
-        else:
-            if self.quality == "highest":
-                options['format'] = 'bestvideo+bestaudio/best'
-            elif self.quality == "lowest":
-                options['format'] = 'worstvideo+worstaudio/worst'
-            else:
-                # Try to match requested quality
-                res = self.quality.replace('p', '')
-                try:
-                    height = int(res)
-                    options['format'] = f'bestvideo[height<={height}]+bestaudio/best[height<={height}]'
-                except ValueError:
-                    # Default to 720p if quality is not a valid number
-                    options['format'] = 'bestvideo[height<=720]+bestaudio/best[height<=720]'
 
         # Handle playlists
         if not self.download_playlist:
@@ -126,6 +105,25 @@ class YouTubeDownloader(BaseDownloader):
             opts.update({
                 'outtmpl': {'default': output_template + ext},
             })
+
+            # Add format selection based on quality and audio settings
+            if self.audio_only:
+                opts['format'] = 'bestaudio'
+                opts['postprocessors'] = [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                    'preferredquality': '192',
+                }]
+            else:
+                # Use simple quality-based format selection
+                if self.quality == "highest":
+                    opts['format'] = 'best'
+                elif self.quality == "lowest":
+                    opts['format'] = 'worst'
+                else:
+                    # For specific qualities like 720p, 1080p, etc.
+                    # Use a simple format that won't cause errors
+                    opts['format'] = 'best'
 
             # Add progress hook if callback provided
             if progress_callback:

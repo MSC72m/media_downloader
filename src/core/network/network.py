@@ -49,6 +49,28 @@ class HTTPNetworkChecker(BaseNetworkChecker):
         ServiceType.PINTEREST: "www.pinterest.com"
     }
 
+    # Service-specific configurations
+    SERVICE_CONFIGS = {
+        ServiceType.TWITTER: {
+            'requires_js': True,
+            'fallback_urls': ['api.x.com', 'mobile.x.com'],
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'check_endpoints': ['/', '/i/flow/login']
+        },
+        ServiceType.YOUTUBE: {
+            'requires_js': True,
+            'fallback_urls': ['www.youtube.com', 'm.youtube.com', 'music.youtube.com'],
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'check_endpoints': ['/', '/watch', '/feed/trending']
+        },
+        ServiceType.INSTAGRAM: {
+            'requires_js': True,
+            'fallback_urls': ['www.instagram.com', 'm.instagram.com', 'graph.instagram.com'],
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'check_endpoints': ['/', '/explore/', '/accounts/login/']
+        }
+    }
+
     def __init__(self, timeout: int = DEFAULT_TIMEOUT):
         self.timeout = timeout
 
@@ -82,6 +104,14 @@ class HTTPNetworkChecker(BaseNetworkChecker):
                 response_time=time.time() - start_time,
                 service_type=service
             )
+
+        # Use service-specific checking for Twitter/X, YouTube, and Instagram
+        if service == ServiceType.TWITTER:
+            return self._check_twitter_connectivity(start_time)
+        elif service == ServiceType.YOUTUBE:
+            return self._check_youtube_connectivity(start_time)
+        elif service == ServiceType.INSTAGRAM:
+            return self._check_instagram_connectivity(start_time)
 
         url = self.SERVICE_URLS[service]
 
@@ -164,6 +194,197 @@ class HTTPNetworkChecker(BaseNetworkChecker):
                     response_time=response_time,
                     service_type=service
                 )
+
+    def _check_twitter_connectivity(self, start_time: float) -> ConnectionResult:
+        """Specialized connectivity checking for Twitter/X."""
+        config = self.SERVICE_CONFIGS.get(ServiceType.TWITTER, {})
+        primary_url = self.SERVICE_URLS[ServiceType.TWITTER]
+
+        # Try primary domain first
+        result = self._try_twitter_urls([primary_url], start_time, config)
+        if result.is_connected:
+            return result
+
+        # Try fallback URLs if primary fails
+        fallback_urls = config.get('fallback_urls', [])
+        if fallback_urls:
+            result = self._try_twitter_urls(fallback_urls, start_time, config)
+            if result.is_connected:
+                return result
+
+        # If all else fails, try a more lenient check
+        return self._lenient_twitter_check(start_time)
+
+    def _try_service_urls(self, urls: List[str], start_time: float, config: dict, service_type: ServiceType) -> ConnectionResult:
+        """Generic method to try multiple URLs for any service connectivity."""
+        user_agent = config.get('user_agent', 'Mozilla/5.0')
+        service_name = service_type.value if hasattr(service_type, 'value') else str(service_type)
+
+        for url in urls:
+            try:
+                # Step 1: DNS resolution
+                socket.gethostbyname(url)
+
+                # Step 2: Try socket connection
+                try:
+                    sock = socket.create_connection((url, 443), timeout=self.timeout)
+                    sock.close()
+                    socket_time = time.time() - start_time
+                    return ConnectionResult(
+                        is_connected=True,
+                        response_time=socket_time,
+                        service_type=service_type
+                    )
+                except Exception:
+                    pass
+
+                # Step 3: Try HTTP with specific endpoints
+                endpoints = config.get('check_endpoints', ['/'])
+                for endpoint in endpoints:
+                    try:
+                        conn = http.client.HTTPSConnection(url, timeout=self.timeout)
+                        conn.request("HEAD", endpoint, headers={
+                            "User-Agent": user_agent,
+                            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                            "Accept-Language": "en-US,en;q=0.5",
+                            "Accept-Encoding": "gzip, deflate",
+                            "DNT": "1",
+                            "Connection": "keep-alive",
+                            "Upgrade-Insecure-Requests": "1"
+                        })
+                        response = conn.getresponse()
+                        conn.close()
+
+                        http_time = time.time() - start_time
+
+                        # Check for successful response codes
+                        if response.status in [200, 301, 302, 307, 308]:
+                            return ConnectionResult(
+                                is_connected=True,
+                                response_time=http_time,
+                                service_type=service_type
+                            )
+                        elif response.status in [401, 403]:
+                            # Auth required but service is reachable
+                            return ConnectionResult(
+                                is_connected=True,
+                                response_time=http_time,
+                                service_type=service_type
+                            )
+                        elif response.status == 429:
+                            return ConnectionResult(
+                                is_connected=False,
+                                error_message=f"{service_name} is rate limiting requests",
+                                response_time=http_time,
+                                service_type=service_type
+                            )
+
+                    except Exception:
+                        continue
+
+            except socket.gaierror:
+                # DNS failed for this URL, try next one
+                continue
+            except Exception:
+                # Other error, try next URL
+                continue
+
+        # All URLs failed
+        response_time = time.time() - start_time
+        return ConnectionResult(
+            is_connected=False,
+            error_message=f"Cannot connect to {service_name} - service may be down or restricted in your region",
+            response_time=response_time,
+            service_type=service_type
+        )
+
+    def _try_twitter_urls(self, urls: List[str], start_time: float, config: dict) -> ConnectionResult:
+        """Try multiple URLs for Twitter connectivity."""
+        return self._try_service_urls(urls, start_time, config, ServiceType.TWITTER)
+
+    def _lenient_service_check(self, start_time: float, service_type: ServiceType, primary_domain: str) -> ConnectionResult:
+        """Generic lenient check for service connectivity using DNS resolution."""
+        service_name = service_type.value if hasattr(service_type, 'value') else str(service_type)
+        try:
+            # Try to resolve DNS for the primary domain as a basic check
+            socket.gethostbyname(primary_domain)
+            response_time = time.time() - start_time
+
+            # If DNS resolves, assume service is accessible even if HTTP fails
+            # This is more lenient but works better for services with complex routing
+            return ConnectionResult(
+                is_connected=True,
+                response_time=response_time,
+                service_type=service_type
+            )
+        except Exception as e:
+            response_time = time.time() - start_time
+            return ConnectionResult(
+                is_connected=False,
+                error_message=f"{service_name} DNS resolution failed: {str(e)}",
+                response_time=response_time,
+                service_type=service_type
+            )
+
+    def _lenient_twitter_check(self, start_time: float) -> ConnectionResult:
+        """More lenient check for Twitter/X connectivity."""
+        return self._lenient_service_check(start_time, ServiceType.TWITTER, "x.com")
+
+    def _check_youtube_connectivity(self, start_time: float) -> ConnectionResult:
+        """Specialized connectivity checking for YouTube."""
+        config = self.SERVICE_CONFIGS.get(ServiceType.YOUTUBE, {})
+        primary_url = self.SERVICE_URLS[ServiceType.YOUTUBE]
+
+        # Try primary domain first
+        result = self._try_youtube_urls([primary_url], start_time, config)
+        if result.is_connected:
+            return result
+
+        # Try fallback URLs if primary fails
+        fallback_urls = config.get('fallback_urls', [])
+        if fallback_urls:
+            result = self._try_youtube_urls(fallback_urls, start_time, config)
+            if result.is_connected:
+                return result
+
+        # If all else fails, try a more lenient check
+        return self._lenient_youtube_check(start_time)
+
+    def _check_instagram_connectivity(self, start_time: float) -> ConnectionResult:
+        """Specialized connectivity checking for Instagram."""
+        config = self.SERVICE_CONFIGS.get(ServiceType.INSTAGRAM, {})
+        primary_url = self.SERVICE_URLS[ServiceType.INSTAGRAM]
+
+        # Try primary domain first
+        result = self._try_instagram_urls([primary_url], start_time, config)
+        if result.is_connected:
+            return result
+
+        # Try fallback URLs if primary fails
+        fallback_urls = config.get('fallback_urls', [])
+        if fallback_urls:
+            result = self._try_instagram_urls(fallback_urls, start_time, config)
+            if result.is_connected:
+                return result
+
+        # If all else fails, try a more lenient check
+        return self._lenient_instagram_check(start_time)
+
+    def _try_youtube_urls(self, urls: List[str], start_time: float, config: dict) -> ConnectionResult:
+        """Try multiple URLs for YouTube connectivity."""
+        return self._try_service_urls(urls, start_time, config, ServiceType.YOUTUBE)
+
+    def _try_instagram_urls(self, urls: List[str], start_time: float, config: dict) -> ConnectionResult:
+        """Try multiple URLs for Instagram connectivity."""
+        return self._try_service_urls(urls, start_time, config, ServiceType.INSTAGRAM)
+
+    def _lenient_youtube_check(self, start_time: float) -> ConnectionResult:
+        """More lenient check for YouTube connectivity."""
+        return self._lenient_service_check(start_time, ServiceType.YOUTUBE, "youtube.com")
+
+    def _lenient_instagram_check(self, start_time: float) -> ConnectionResult:
+        """More lenient check for Instagram connectivity."""
+        return self._lenient_service_check(start_time, ServiceType.INSTAGRAM, "instagram.com")
 
     def check_all_services(self) -> Dict[ServiceType, ConnectionResult]:
         """Check connectivity to all supported services."""

@@ -51,11 +51,13 @@ class ApplicationOrchestrator:
 
         # Register service factories
         from ..services.youtube.cookie_detector import CookieManager, CookieDetector
+        from ..services.youtube.metadata_service import YouTubeMetadataService
         from ..handlers.network_checker import NetworkChecker
         from ..handlers.service_detector import ServiceDetector
 
         self.container.register_factory('cookie_detector', lambda: self._create_simple_cookie_detector())
         self.container.register_factory('auth_manager', lambda: self._create_auth_manager())
+        self.container.register_factory('youtube_metadata', lambda: YouTubeMetadataService())
         self.container.register_factory('network_checker', lambda: NetworkChecker())
         self.container.register_factory('service_detector', lambda: ServiceDetector())
 
@@ -337,7 +339,8 @@ class ApplicationOrchestrator:
         action_buttons = self.action_buttons
         if action_buttons:
             has_selection = bool(selected_indices)
-            action_buttons.update_button_states(has_selection)
+            has_items = bool(self.download_list) if hasattr(self, 'download_list') else False
+            action_buttons.update_button_states(has_selection, has_items)
 
     def handle_quality_change(self, quality: str):
         """Handle quality changes."""
@@ -361,16 +364,37 @@ class ApplicationOrchestrator:
             auth_handler.authenticate_instagram(parent_window, lambda success: None)
 
     def handle_youtube_detected(self, url: str):
-        """Handle YouTube URL detection by opening new dialog."""
+        """Handle YouTube URL detection by showing cookie selection first."""
+        from ..ui.dialogs.browser_cookie_dialog import BrowserCookieDialog
         from ..ui.dialogs.youtube_downloader_dialog import YouTubeDownloaderDialog
-        cookie_handler = self.container.get('cookie_handler')
 
-        dialog = YouTubeDownloaderDialog(
-            self.root,
-            url=url,
-            cookie_handler=cookie_handler,
-            on_download=self._handle_youtube_download
-        )
+        cookie_handler = self.container.get('cookie_handler')
+        metadata_service = self.container.get('youtube_metadata')
+
+        # Show cookie selection dialog first
+        def on_cookie_selected(cookie_path: Optional[str], browser: Optional[str]):
+            # Create YouTube dialog after cookie selection
+            dialog = YouTubeDownloaderDialog(
+                self.root,
+                url=url,
+                cookie_handler=cookie_handler,
+                metadata_service=metadata_service,
+                on_download=self._handle_youtube_download,
+                pre_fetched_metadata=None,
+                initial_cookie_path=cookie_path,
+                initial_browser=browser
+            )
+
+        cookie_dialog = BrowserCookieDialog(self.root, on_cookie_selected)
+        cookie_dialog.wait_window()  # Wait for dialog to close
+
+    # Note: _open_youtube_dialog removed since we now create dialogs directly in handle_youtube_detected
+
+    def _show_metadata_error(self, error_message: str):
+        """Show metadata fetch error message."""
+        import tkinter.messagebox as messagebox
+        messagebox.showerror("Metadata Error",
+                           f"Failed to fetch YouTube metadata:\n{error_message}\n\nPlease try again later.")
 
     def handle_cookie_detected(self, browser_type: str, cookie_path: str):
         """Handle cookie detection."""
@@ -418,8 +442,10 @@ class ApplicationOrchestrator:
             quality=options.get('quality', '720p'),
             format=options.get('format', 'video'),
             audio_only=options.get('audio_only', False),
+            video_only=options.get('video_only', False),
             download_playlist=options.get('download_playlist', False),
             download_subtitles=options.get('download_subtitles', False),
+            selected_subtitles=options.get('selected_subtitles'),
             download_thumbnail=options.get('download_thumbnail', True),
             embed_metadata=options.get('embed_metadata', True),
             cookie_path=options.get('cookie_path'),

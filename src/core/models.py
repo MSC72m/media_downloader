@@ -47,8 +47,10 @@ class Download(BaseModel):
         quality: Optional[str] = Field(default="720p")
         format: Optional[str] = Field(default="video")
         audio_only: bool = Field(default=False)
+        video_only: bool = Field(default=False)
         download_playlist: bool = Field(default=False)
         download_subtitles: bool = Field(default=False)
+        selected_subtitles: Optional[List[Dict[str, str]]] = None
         download_thumbnail: bool = Field(default=True)
         embed_metadata: bool = Field(default=True)
         cookie_path: Optional[str] = None
@@ -76,8 +78,10 @@ class Download(BaseModel):
             self.quality = kwargs.get('quality', '720p')
             self.format = kwargs.get('format', 'video')
             self.audio_only = kwargs.get('audio_only', False)
+            self.video_only = kwargs.get('video_only', False)
             self.download_playlist = kwargs.get('download_playlist', False)
             self.download_subtitles = kwargs.get('download_subtitles', False)
+            self.selected_subtitles = kwargs.get('selected_subtitles')
             self.download_thumbnail = kwargs.get('download_thumbnail', True)
             self.embed_metadata = kwargs.get('embed_metadata', True)
             self.cookie_path = kwargs.get('cookie_path')
