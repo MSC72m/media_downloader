@@ -27,7 +27,9 @@ class CookieSelectorFrame(ctk.CTkFrame):
         self.on_cookie_detected = on_cookie_detected
         self.on_manual_select = on_manual_select
         self.platform = cookie_handler.get_platform()
-        self.supported_browsers = cookie_handler.get_supported_browsers()
+        # Always show all three browser options
+        from ...interfaces.cookie_detection import BrowserType
+        self.supported_browsers = [BrowserType.CHROME, BrowserType.FIREFOX, BrowserType.SAFARI]
 
         self.current_cookie_status = "No cookies detected"
         self._create_widgets()
@@ -214,3 +216,10 @@ class CookieSelectorFrame(ctk.CTkFrame):
         else:
             self.current_cookie_status = "No cookies detected"
             self.status_label.configure(text=self.current_cookie_status)
+
+    def set_visible(self, visible: bool):
+        """Set the visibility of the cookie selector frame."""
+        if visible:
+            self.grid(row=6, column=0, sticky="ew", pady=(10, 0))
+        else:
+            self.grid_forget()

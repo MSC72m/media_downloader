@@ -7,7 +7,7 @@ import time
 from typing import Callable, Optional
 from urllib.parse import urlparse
 
-from ...downloaders.base import BaseDownloader
+from ...core import BaseDownloader
 from ...utils.common import download_file, sanitize_filename, check_site_connection
 
 logger = logging.getLogger(__name__)

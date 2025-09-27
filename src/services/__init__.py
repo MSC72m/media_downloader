@@ -3,7 +3,7 @@
 from .factory import ServiceFactory
 from .download import DownloadService
 from .repository import DownloadRepository, OptionsRepository
-from .cookie_detector import CookieManager, CookieDetector
+from .youtube.cookie_detector import CookieManager, CookieDetector
 from .file import FileService, DownloadResult, FilenameSanitizer, FileDownloader
 from .youtube import YouTubeDownloader
 from .twitter import TwitterDownloader

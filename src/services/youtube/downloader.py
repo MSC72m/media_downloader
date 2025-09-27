@@ -7,7 +7,7 @@ from typing import Optional, Callable, Dict, Any
 import yt_dlp
 
 from ...core.base import BaseDownloader
-from ...core.file import FilenameSanitizer
+from ..file.sanitizer import FilenameSanitizer
 from ...core.network import check_site_connection
 from .cookie_detector import CookieManager
 

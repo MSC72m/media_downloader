@@ -3,8 +3,9 @@
 import logging
 from typing import Optional, Callable, Any
 from src.core.models import ServiceType
-from src.services.cookie_detector import CookieManager
-from src.interfaces.cookie_detection import BrowserType, PlatformType
+from src.services.youtube.cookie_detector import CookieManager
+from src.interfaces.cookie_detection import BrowserType, PlatformType, ICookieManager
+from src.handlers.service_detector import ServiceDetector
 
 logger = logging.getLogger(__name__)
 
@@ -70,15 +71,4 @@ class CookieHandler:
 
     def get_cookie_info_for_ytdlp(self) -> Optional[dict]:
         """Get cookie information for yt-dlp integration."""
-        if not self.has_valid_cookies():
-            return None
-
-        cookie_path = self.get_current_cookie_path()
-        if not cookie_path:
-            return None
-
-        # Return format compatible with yt-dlp
-        if cookie_path.endswith('.txt'):
-            return {'cookiefile': cookie_path}
-        else:
-            return {'cookies': cookie_path}
+        return self._cookie_manager.get_cookie_info_for_ytdlp()

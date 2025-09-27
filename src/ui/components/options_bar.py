@@ -12,8 +12,8 @@ class OptionsBar(ctk.CTkFrame):
             self,
             master,
             on_instagram_login: Callable,
-            on_quality_change: Callable,
-            on_option_change: Callable
+            on_quality_change: Callable = None,
+            on_option_change: Callable = None
     ):
         super().__init__(master, fg_color="transparent")
 
@@ -24,43 +24,7 @@ class OptionsBar(ctk.CTkFrame):
         # Current Instagram auth status
         self.instagram_status = InstagramAuthStatus.FAILED
 
-        # YouTube Playlist Option
-        self.playlist_var = ctk.StringVar(value="off")
-        self.playlist_checkbox = ctk.CTkCheckBox(
-            self,
-            text="Download YouTube Playlist",
-            variable=self.playlist_var,
-            onvalue="on",
-            offvalue="off",
-            font=("Roboto", 12),
-            command=lambda: self.on_option_change("playlist", self.playlist_var.get() == "on")
-        )
-        self.playlist_checkbox.pack(side=tk.LEFT, padx=(0, 20))
-
-        # Audio Only Option
-        self.audio_var = ctk.StringVar(value="off")
-        self.audio_checkbox = ctk.CTkCheckBox(
-            self,
-            text="Audio Only",
-            variable=self.audio_var,
-            onvalue="on",
-            offvalue="off",
-            font=("Roboto", 12),
-            command=lambda: self.on_option_change("audio_only", self.audio_var.get() == "on")
-        )
-        self.audio_checkbox.pack(side=tk.LEFT, padx=(0, 20))
-
-        # Quality Selection
-        self.quality_var = ctk.StringVar(value="720p")
-        self.quality_dropdown = ctk.CTkOptionMenu(
-            self,
-            values=["360p", "480p", "720p", "1080p"],
-            variable=self.quality_var,
-            font=("Roboto", 12),
-            command=self.on_quality_change
-        )
-        self.quality_dropdown.pack(side=tk.LEFT)
-
+        # Note: YouTube options (playlist, audio only, quality) have been moved to the YouTube-specific dialog
         # Instagram Login Button
         self.insta_login_button = ctk.CTkButton(
             self,
@@ -68,7 +32,7 @@ class OptionsBar(ctk.CTkFrame):
             command=self._handle_instagram_login,
             font=("Roboto", 12)
         )
-        self.insta_login_button.pack(side=tk.LEFT, padx=(20, 0))
+        self.insta_login_button.pack(side=tk.LEFT, padx=(0, 0))
 
     def _handle_instagram_login(self):
         """Handle Instagram login button state and callback."""
@@ -103,10 +67,4 @@ class OptionsBar(ctk.CTkFrame):
         else:
             self.set_instagram_status(InstagramAuthStatus.FAILED)
 
-    def get_youtube_options(self) -> dict:
-        """Get current YouTube download options."""
-        return {
-            'quality': self.quality_var.get(),
-            'playlist': self.playlist_var.get() == "on",
-            'audio_only': self.audio_var.get() == "on"
-        }
+    # Note: YouTube options are now handled individually per download item in the YouTube dialog

@@ -80,8 +80,8 @@ class MediaDownloaderApp(ctk.CTk):
         self.options_bar = OptionsBar(
             self.main_frame,
             on_instagram_login=self.orchestrator.handle_instagram_login,
-            on_quality_change=self.orchestrator.handle_quality_change,
-            on_option_change=self.orchestrator.handle_option_change
+            on_quality_change=None,  # YouTube quality is now handled per-download
+            on_option_change=None    # YouTube options are now handled per-download
         )
 
         # Download List
@@ -106,7 +106,7 @@ class MediaDownloaderApp(ctk.CTk):
         self.cookie_selector = CookieSelectorFrame(
             self.main_frame,
             cookie_handler=self.orchestrator.cookie_handler,
-            on_cookie_detected=self.orchestrator.handle_cookie_detected,
+            on_cookie_detected=lambda success: self.orchestrator.handle_cookie_detected("chrome", "/tmp/cookies") if success else None,
             on_manual_select=self.orchestrator.handle_cookie_manual_select
         )
 

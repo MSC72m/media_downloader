@@ -7,7 +7,7 @@ from typing import Optional, Callable
 import requests
 
 from .models import DownloadResult
-from ...interfaces.cookie_detection import ServiceType
+from ...core.models import ServiceType
 
 logger = logging.getLogger(__name__)
 

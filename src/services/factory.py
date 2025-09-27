@@ -8,7 +8,7 @@ from .youtube import YouTubeDownloader
 from .twitter import TwitterDownloader
 from .instagram import InstagramDownloader
 from .pinterest import PinterestDownloader
-from .cookie_detector import CookieManager
+from .youtube.cookie_detector import CookieManager
 from .file import FileService
 
 logger = logging.getLogger(__name__)

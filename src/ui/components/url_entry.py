@@ -46,9 +46,10 @@ class URLEntryFrame(ctk.CTkFrame):
         """Handle add button click."""
         url = self.url_entry.get().strip()
         if url:
-            # Check if it's a YouTube URL
+            # Check if it's a YouTube URL and open in new window
             if self.on_youtube_detected and ('youtube.com' in url or 'youtu.be' in url):
                 self.on_youtube_detected(url)
+                return  # Don't continue with normal flow for YouTube URLs
 
             dialog = CenteredInputDialog(
                 text="Enter a name for this link:",

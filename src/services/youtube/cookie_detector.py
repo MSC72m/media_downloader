@@ -9,7 +9,7 @@ import sqlite3
 import shutil
 import tempfile
 
-from ..interfaces.cookie_detection import ICookieDetector, ICookieManager, BrowserType, PlatformType
+from ...interfaces.cookie_detection import ICookieDetector, ICookieManager, BrowserType, PlatformType
 
 logger = logging.getLogger(__name__)
 
@@ -93,13 +93,21 @@ class CookieDetector(ICookieDetector):
 
         return None
 
+    def detect_cookies_for_browser(self, browser: BrowserType) -> Optional[str]:
+        """Detect cookies for a specific browser."""
+        return self.detect_cookies(browser)
+
+    def get_current_cookie_path(self) -> Optional[str]:
+        """Get the current cookie path."""
+        return None
+
     def _detect_chrome_cookies(self) -> Optional[str]:
         """Detect Chrome cookies."""
         paths = self._browser_paths[BrowserType.CHROME]
 
         # Check default profile first
         default_path = paths["default"]
-        if default_path.exists() and self._validate_cookie_file(str(default_path)):
+        if default_path.exists() and self.validate_cookie_file(str(default_path)):
             return str(default_path)
 
         # Check other profiles
@@ -109,7 +117,7 @@ class CookieDetector(ICookieDetector):
 
         for profile_dir in base_dir.glob("Profile *"):
             cookie_path = profile_dir / "Cookies"
-            if cookie_path.exists() and self._validate_cookie_file(str(cookie_path)):
+            if cookie_path.exists() and self.validate_cookie_file(str(cookie_path)):
                 return str(cookie_path)
 
         return None
@@ -304,3 +312,22 @@ class CookieManager(ICookieManager):
     def get_current_cookie_path(self) -> Optional[str]:
         """Get the current cookie path."""
         return self._current_cookie_path
+
+    def get_cookie_info_for_ytdlp(self) -> Optional[Dict[str, Any]]:
+        """Get cookie information for yt-dlp integration."""
+        if not self.has_valid_cookies():
+            return None
+
+        cookie_path = self.get_current_cookie_path()
+        if not cookie_path:
+            return None
+
+        # Return format compatible with yt-dlp
+        if cookie_path.endswith('.txt'):
+            return {'cookiefile': cookie_path}
+        else:
+            return {'cookies': cookie_path}
+
+    def get_youtube_cookie_info(self) -> Optional[Dict[str, Any]]:
+        """Get YouTube cookie information for yt-dlp integration."""
+        return self.get_cookie_info_for_ytdlp()

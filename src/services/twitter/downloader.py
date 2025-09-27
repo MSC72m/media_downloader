@@ -6,7 +6,7 @@ import logging
 from typing import Optional, List, Callable
 import os
 
-from ...downloaders.base import BaseDownloader
+from ...core import BaseDownloader
 from ...utils.common import download_file, sanitize_filename
 
 logger = logging.getLogger(__name__)

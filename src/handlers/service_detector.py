@@ -58,7 +58,19 @@ class ServiceDetector(IServiceDetector):
     def is_service_accessible(self, service: ServiceType) -> bool:
         """Check if a service is accessible."""
         try:
-            connected, error_msg = check_site_connection(service)
+            # Convert ServiceType to service name for check_site_connection
+            service_name_map = {
+                ServiceType.YOUTUBE: "YouTube",
+                ServiceType.TWITTER: "Twitter",
+                ServiceType.INSTAGRAM: "Instagram",
+                ServiceType.PINTEREST: "Pinterest"
+            }
+            service_name = service_name_map.get(service)
+            if not service_name:
+                logger.warning(f"Unknown service type: {service.value}")
+                return False
+
+            connected, error_msg = check_site_connection(service_name)
             if not connected:
                 logger.warning(f"Service {service.value} not accessible: {error_msg}")
             return connected
