@@ -9,9 +9,12 @@ from pathlib import Path
 from ...interfaces.youtube_metadata import YouTubeMetadata, SubtitleInfo
 from ...interfaces.cookie_detection import BrowserType
 from ...utils.window import WindowCenterMixin
+from ...utils.logger import get_logger
 from ..components.simple_loading_dialog import SimpleLoadingDialog
 from ..components.multi_select_dropdown import SubtitleMultiSelect
 from .browser_cookie_dialog import BrowserCookieDialog
+
+logger = get_logger(__name__)
 
 
 class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
@@ -61,8 +64,8 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         # Hide the main window initially
         self.withdraw()
 
-        # Show cookie selection dialog first
-        self._show_cookie_selection()
+        # Start metadata fetch directly since cookie selection is already handled
+        self._start_metadata_fetch()
 
     def _start_metadata_fetch_with_cookie(self):
         """Start metadata fetching with the provided cookie information."""
@@ -75,29 +78,34 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
     def _show_cookie_selection(self):
         """Show cookie selection dialog before metadata fetching."""
+        print("DEBUG: _show_cookie_selection called")
+
         def on_cookie_selected(cookie_path: Optional[str], browser: Optional[str]):
-            print(f"Cookie selection callback: path={cookie_path}, browser={browser}")
+            print(f"DEBUG: Cookie selection callback: path={cookie_path}, browser={browser}")
             self.selected_cookie_path = cookie_path
             self.selected_browser = browser
 
             # If manual path was provided, use it directly
             if cookie_path:
-                print("Starting metadata fetch with manual cookie path")
+                print("DEBUG: Starting metadata fetch with manual cookie path")
                 self._start_metadata_fetch()
             elif browser:
-                print(f"Getting cookies from browser: {browser}")
+                print(f"DEBUG: Getting cookies from browser: {browser}")
                 # If browser was selected, get cookies from browser
                 self._get_browser_cookies(browser)
             else:
-                print("No cookies selected, proceeding without cookies")
+                print("DEBUG: No cookies selected, proceeding without cookies")
                 # No cookies selected, proceed without
                 self._start_metadata_fetch()
 
         try:
+            print("DEBUG: Creating BrowserCookieDialog from YouTube dialog...")
             cookie_dialog = BrowserCookieDialog(self, on_cookie_selected)
-            cookie_dialog.wait_window()  # Wait for selection
+            print("DEBUG: BrowserCookieDialog created from YouTube dialog")
+            # No need to wait_window() as the callback will be called after the dialog is destroyed
         except Exception as e:
-            print(f"Error showing cookie dialog: {e}")
+            print(f"DEBUG: Error showing cookie dialog: {e}")
+            logger.error(f"Error showing cookie dialog: {e}")
             # If cookie dialog fails, proceed without cookies
             self._start_metadata_fetch()
 
@@ -165,7 +173,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                 self.after(0, self._handle_metadata_fetched)
 
             except Exception as e:
-                print(f"Error fetching metadata: {e}")
+                logger.error(f"Error fetching metadata: {e}")
                 # Close the dialog if metadata fetch fails
                 self.after(0, self._handle_metadata_error)
 
@@ -181,7 +189,11 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         import tkinter as tk
         from tkinter import messagebox
 
-        messagebox.showerror("Metadata Error", "Failed to fetch video metadata. Please check the URL and try again.")
+        error_msg = "Failed to fetch video metadata. Please check the URL and try again."
+        if self.video_metadata and self.video_metadata.error:
+            error_msg = f"Failed to fetch video metadata: {self.video_metadata.error}"
+
+        messagebox.showerror("Metadata Error", error_msg)
         self.destroy()
 
     def _handle_metadata_fetched(self):

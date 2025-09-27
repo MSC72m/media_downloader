@@ -386,7 +386,7 @@ class ApplicationOrchestrator:
             )
 
         cookie_dialog = BrowserCookieDialog(self.root, on_cookie_selected)
-        cookie_dialog.wait_window()  # Wait for dialog to close
+        # No need to wait_window() as the callback will be called after the dialog is destroyed
 
     # Note: _open_youtube_dialog removed since we now create dialogs directly in handle_youtube_detected
 

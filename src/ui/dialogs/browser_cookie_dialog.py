@@ -285,15 +285,22 @@ class BrowserCookieDialog(ctk.CTkToplevel, WindowCenterMixin):
 
     def _finish(self):
         """Finish the dialog and call callback."""
-        print(f"Finishing dialog: cookie_path={self.cookie_path}, browser={self.selected_browser}")
+        logger.info(f"Finishing dialog: cookie_path={self.cookie_path}, browser={self.selected_browser}")
+        # Store callback and parameters before destroying the window
+        callback = self.on_cookie_selected
+        cookie_path = self.cookie_path
+        selected_browser = self.selected_browser
+        
         # Release grab set before destroying
         self.grab_release()
-        print("Grab released, destroying dialog...")
+        logger.info("Grab released, destroying dialog...")
         self.destroy()
-        print("Dialog destroyed, calling callback...")
-        if self.on_cookie_selected:
-            self.on_cookie_selected(self.cookie_path, self.selected_browser)
-            print("Callback called successfully")
+        logger.info("Dialog destroyed, calling callback...")
+        
+        # Call callback after window is destroyed
+        if callback:
+            self.after(100, lambda: callback(cookie_path, selected_browser))
+            logger.info("Callback scheduled successfully")
 
     def _show_error(self, message: str):
         """Show error message."""
