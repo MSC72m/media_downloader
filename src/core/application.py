@@ -144,9 +144,13 @@ class ApplicationOrchestrator:
                         logger.info(f"[SERVICE_CONTROLLER] Starting download of {download.name}")
                         logger.info(f"[SERVICE_CONTROLLER] download_dir: {download_dir}")
 
-                        # Create download directory if it doesn't exist
-                        download_path = Path(download_dir).expanduser()
-                        download_path.mkdir(parents=True, exist_ok=True)
+                        # Create sanitized directory name
+                        import re
+                        sanitized_name = re.sub(r'[^\w\s-]', '', download.name).strip()
+                        sanitized_name = re.sub(r'[-\s]+', '-', sanitized_name)
+                        video_dir = Path(download_dir).expanduser() / sanitized_name
+                        video_dir.mkdir(parents=True, exist_ok=True)
+                        logger.info(f"[SERVICE_CONTROLLER] Created video directory: {video_dir}")
 
                         # Build yt-dlp command
                         cmd = ['.venv/bin/yt-dlp']
@@ -186,16 +190,27 @@ class ApplicationOrchestrator:
                         elif getattr(download, 'selected_browser', None):
                             cmd.extend(['--cookies-from-browser', download.selected_browser])
 
-                        # Add output path
-                        cmd.extend(['-o', str(download_path / f"{download.name}.%(ext)s")])
+                        # Add output path - use sanitized directory
+                        cmd.extend(['-o', str(video_dir / f"{download.name}.%(ext)s")])
 
                         # Add the URL
                         cmd.append(download.url)
 
                         print(f"DEBUG: Running command: {' '.join(cmd)}")
 
+                        # Simulate progress updates since subprocess.run is blocking
+                        import time
+                        for progress in range(0, 101, 10):
+                            if progress_cb:
+                                progress_cb(download, progress)
+                            time.sleep(0.5)  # Simulate progress
+
                         # Run yt-dlp with proper encoding handling
                         result = subprocess.run(cmd, capture_output=True, timeout=3600)
+
+                        # Final progress update
+                        if progress_cb:
+                            progress_cb(download, 100)
 
                         if result.returncode == 0:
                             logger.info(f"[SERVICE_CONTROLLER] Download completed successfully: {download.name}")

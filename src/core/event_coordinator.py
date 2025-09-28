@@ -157,6 +157,13 @@ class EventCoordinator(
                         logger.info(f"[EVENT_COORDINATOR] Re-enabling action buttons")
                         self.action_buttons.set_enabled(True)
 
+                    # Clear completed downloads if successful
+                    if success and self.download_list:
+                        logger.info(f"[EVENT_COORDINATOR] Clearing completed downloads")
+                        self.download_list.clear_downloads()
+                        # Update button states after clearing
+                        self.update_button_states(False, False)
+
                     # Show completion message
                     if success:
                         self.update_status("Downloads completed successfully!")
