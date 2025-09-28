@@ -122,6 +122,9 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                 try:
                     lines = result.stdout.strip().split('\n')
                     if len(lines) >= 7:
+                        # Get REAL subtitle data
+                        subtitles_data = self._get_real_subtitles(url, cookie_path, browser)
+
                         info = {
                             'title': lines[0] if lines[0] != 'NA' else '',
                             'duration': int(lines[1]) if lines[1] != 'NA' else 0,
@@ -130,14 +133,8 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                             'channel': lines[4] if lines[4] != 'NA' else '',
                             'description': lines[5] if lines[5] != 'NA' else '',
                             'thumbnail': lines[6] if lines[6] != 'NA' else '',
-                            'subtitles': {
-                                'en': [{'url': ''}],
-                                'es': [{'url': ''}]
-                            },
-                            'automatic_captions': {
-                                'en': [{'url': ''}],
-                                'en-US': [{'url': ''}]
-                            }
+                            'subtitles': subtitles_data.get('subtitles', {}),
+                            'automatic_captions': subtitles_data.get('automatic_captions', {})
                         }
                         print("DEBUG: Successfully fetched video info via command line")
                         logger.info("Successfully fetched basic video info")
@@ -185,6 +182,9 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                     try:
                         lines = result.stdout.strip().split('\n')
                         if len(lines) >= 7:
+                            # Get REAL subtitle data for fallback too
+                            subtitles_data = self._get_real_subtitles(url, None, None)
+
                             info = {
                                 'title': lines[0] if lines[0] != 'NA' else '',
                                 'duration': int(lines[1]) if lines[1] != 'NA' else 0,
@@ -193,14 +193,8 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                                 'channel': lines[4] if lines[4] != 'NA' else '',
                                 'description': lines[5] if lines[5] != 'NA' else '',
                                 'thumbnail': lines[6] if lines[6] != 'NA' else '',
-                                'subtitles': {
-                                    'en': [{'url': ''}],
-                                    'es': [{'url': ''}]
-                                },
-                                'automatic_captions': {
-                                    'en': [{'url': ''}],
-                                    'en-US': [{'url': ''}]
-                                }
+                                'subtitles': subtitles_data.get('subtitles', {}),
+                                'automatic_captions': subtitles_data.get('automatic_captions', {})
                             }
                             print("DEBUG: Successfully fetched video info via fallback command")
                             logger.info("Successfully fetched basic video info without cookies")
@@ -219,6 +213,103 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                 print(f"DEBUG: Fallback command line error: {e}")
 
         return None
+
+    def _get_real_subtitles(self, url: str, cookie_path: Optional[str] = None, browser: Optional[str] = None) -> Dict[str, Any]:
+        """Get REAL subtitle data from yt-dlp."""
+        try:
+            # Build command for subtitle info only
+            cmd = ['.venv/bin/yt-dlp']
+
+            # Add cookies if available
+            if browser:
+                cmd.extend(['--cookies-from-browser', browser])
+            elif cookie_path and os.path.exists(cookie_path):
+                cmd.extend(['--cookies', cookie_path])
+
+            # Add subtitle-specific options
+            cmd.extend([
+                '--quiet',
+                '--no-warnings',
+                '--skip-download',
+                '--no-playlist',
+                '--list-subs',
+                url
+            ])
+
+            print(f"DEBUG: Running subtitle command: {' '.join(cmd)}")
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+
+            if result.returncode == 0:
+                return self._parse_subtitle_output(result.stdout)
+            else:
+                print(f"DEBUG: Subtitle command failed: {result.stderr}")
+
+        except Exception as e:
+            print(f"DEBUG: Error getting subtitles: {e}")
+
+        # Return empty data on failure
+        return {'subtitles': {}, 'automatic_captions': {}}
+
+    def _parse_subtitle_output(self, output: str) -> Dict[str, Any]:
+        """Parse yt-dlp --list-subs output."""
+        subtitles = {}
+        automatic_captions = {}
+
+        try:
+            lines = output.strip().split('\n')
+
+            # Parse the subtitle format
+            # Example output:
+            # Language Name                  Formats
+            # en                             vtt, srt, ttml, srv3, srv2, srv1, json3
+            # en-US                          vtt, srt, ttml, srv3, srv2, srv1, json3 (auto)
+
+            current_section = None  # 'subtitles' or 'automatic_captions'
+
+            for line in lines:
+                line = line.strip()
+
+                if line.startswith('Language formats available'):
+                    continue
+                elif line.startswith('Available automatic captions'):
+                    current_section = 'automatic_captions'
+                    continue
+                elif line.startswith('Available subtitles'):
+                    current_section = 'subtitles'
+                    continue
+                elif not line or line.startswith('-') or line.startswith('Formats'):
+                    continue
+
+                # Parse language line
+                if '  ' in line and any(fmt in line for fmt in ['vtt', 'srt', 'ttml']):
+                    parts = line.split('  ')
+                    if len(parts) >= 2:
+                        lang_code = parts[0].strip()
+                        formats_info = ' '.join(parts[1:]).strip()
+
+                        # Check if it's auto-generated
+                        is_auto = '(auto)' in formats_info
+
+                        # Create entry
+                        entry = [{'url': ''}]  # We don't need real URLs for selection
+
+                        if is_auto:
+                            automatic_captions[lang_code] = entry
+                        else:
+                            subtitles[lang_code] = entry
+
+                        print(f"DEBUG: Found subtitle: {lang_code} (auto: {is_auto})")
+
+            print(f"DEBUG: Parsed {len(subtitles)} manual subtitles, {len(automatic_captions)} auto captions")
+
+        except Exception as e:
+            print(f"DEBUG: Error parsing subtitle output: {e}")
+            print(f"DEBUG: Raw subtitle output: {output[:500]}...")
+
+        return {
+            'subtitles': subtitles,
+            'automatic_captions': automatic_captions
+        }
 
     def get_available_qualities(self, url: str) -> List[str]:
         """Get available video qualities for a YouTube URL."""
@@ -356,25 +447,27 @@ class YouTubeMetadataService(IYouTubeMetadataService):
             'url': ''
         })
 
-        # Since we're not getting real subtitle data from the command line,
-        # provide some common language options as mock data
-        mock_subtitles = [
-            {'language_code': 'en', 'language_name': 'English', 'is_auto_generated': False},
-            {'language_code': 'es', 'language_name': 'Spanish', 'is_auto_generated': False},
-            {'language_code': 'fr', 'language_name': 'French', 'is_auto_generated': False},
-            {'language_code': 'de', 'language_name': 'German', 'is_auto_generated': False},
-            {'language_code': 'en-US', 'language_name': 'English (US)', 'is_auto_generated': True},
-            {'language_code': 'en-GB', 'language_name': 'English (UK)', 'is_auto_generated': True},
-        ]
+        # Get manual subtitles from REAL data
+        manual_subs = info.get('subtitles', {})
+        for lang_code, sub_list in manual_subs.items():
+            if sub_list:
+                subtitles.append({
+                    'language_code': lang_code,
+                    'language_name': self._get_language_name(lang_code),
+                    'is_auto_generated': False,
+                    'url': sub_list[0].get('url', '')
+                })
 
-        # Add mock subtitles
-        for sub in mock_subtitles:
-            subtitles.append({
-                'language_code': sub['language_code'],
-                'language_name': sub['language_name'],
-                'is_auto_generated': sub['is_auto_generated'],
-                'url': ''
-            })
+        # Get automatic subtitles from REAL data
+        auto_subs = info.get('automatic_captions', {})
+        for lang_code, sub_list in auto_subs.items():
+            if sub_list:
+                subtitles.append({
+                    'language_code': lang_code,
+                    'language_name': f"{self._get_language_name(lang_code)} (Auto)",
+                    'is_auto_generated': True,
+                    'url': sub_list[0].get('url', '')
+                })
 
         return subtitles
 

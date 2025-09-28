@@ -432,6 +432,21 @@ class ApplicationOrchestrator:
         if download_list:
             download_list.add_download(download)
 
+        # Reset URL entry field
+        url_entry = self.url_entry
+        if url_entry:
+            try:
+                # Access the internal CTkEntry widget, not the frame
+                if hasattr(url_entry, 'url_entry'):
+                    url_entry.url_entry.delete(0, 'end')
+                    url_entry.url_entry.insert(0, '')
+                else:
+                    # Fallback for direct entry widget
+                    url_entry.delete(0, 'end')
+                    url_entry.insert(0, '')
+            except Exception as e:
+                print(f"Error resetting URL entry: {e}")
+
         status_bar = self.status_bar
         if status_bar:
             # Create a descriptive message

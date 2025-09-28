@@ -237,8 +237,11 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         if self.video_metadata.available_subtitles:
             subtitle_options = [
                 {
+                    'id': sub['language_code'],  # Use language code as ID
+                    'display': sub['language_name'],  # Use language name for display
                     'language_code': sub['language_code'],
                     'language_name': sub['language_name'],
+                    'is_auto': sub['is_auto_generated'],
                     'is_auto_generated': sub['is_auto_generated'],
                     'url': sub['url']
                 }
