@@ -12,6 +12,7 @@ class DownloadListView(ctk.CTkFrame):
 
         self.on_selection_change = on_selection_change
         self._item_line_mapping: Dict[str, int] = {}  # Maps item name to line number
+        self._downloads: List[Download] = []  # Store actual Download objects
 
         # Create text widget for displaying downloads
         self.list_view = ctk.CTkTextbox(
@@ -101,6 +102,9 @@ class DownloadListView(ctk.CTkFrame):
 
     def add_download(self, download: 'Download'):
         """Add a new download to the list."""
+        # Store the actual Download object
+        self._downloads.append(download)
+
         # Get current content
         current_content = self.list_view.get("1.0", tk.END)
 
@@ -120,32 +124,9 @@ class DownloadListView(ctk.CTkFrame):
 
     def has_items(self) -> bool:
         """Check if the download list has any items."""
-        return len(self._item_line_mapping) > 0
+        return len(self._downloads) > 0
 
     def get_downloads(self) -> List['Download']:
         """Get all downloads from the list."""
-        # This is a simple implementation - you may need to adjust based on your actual Download model
-        from src.core import Download
-
-        downloads = []
-        try:
-            # Get all text from the list view
-            content = self.list_view.get("1.0", tk.END).strip()
-            if content:
-                lines = content.split('\n')
-                for line in lines:
-                    if line.strip():
-                        # Parse the line to extract download info
-                        parts = line.split(' | ')
-                        if len(parts) >= 3:
-                            # Create a mock Download object
-                            download = Download(
-                                name=parts[0].strip(),
-                                url=parts[1].strip(),
-                                output_path="/downloads"  # Default path
-                            )
-                            downloads.append(download)
-        except Exception as e:
-            print(f"Error getting downloads: {e}")
-
-        return downloads
+        # Return the stored Download objects instead of parsing text
+        return self._downloads.copy()

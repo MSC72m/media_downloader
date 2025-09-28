@@ -294,6 +294,14 @@ class ApplicationOrchestrator:
     def handle_download(self):
         """Handle starting downloads."""
         download_list = self.download_list
+        print(f"DEBUG: download_list exists: {download_list is not None}")
+        if download_list:
+            print(f"DEBUG: has_items(): {download_list.has_items()}")
+            downloads = download_list.get_downloads()
+            print(f"DEBUG: Found {len(downloads)} downloads")
+            for i, download in enumerate(downloads):
+                print(f"DEBUG: Download {i}: {download.name} - {download.url}")
+
         if not download_list or not download_list.has_items():
             status_bar = self.status_bar
             if status_bar:
@@ -302,9 +310,12 @@ class ApplicationOrchestrator:
 
         # Get service controller and start downloads
         service_controller = self.container.get('service_controller')
+        print(f"DEBUG: service_controller exists: {service_controller is not None}")
         if service_controller:
             downloads = download_list.get_downloads()
+            print(f"DEBUG: Starting {len(downloads)} downloads")
             service_controller.start_downloads(downloads)
+            print(f"DEBUG: Downloads started")
 
     def handle_selection_change(self, selected_indices: list):
         """Handle selection changes."""

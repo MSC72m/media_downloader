@@ -236,7 +236,7 @@ class SubtitleChecklist(ctk.CTkFrame):
                     selected_dicts.append({
                         'language_code': option.get('language_code', option_id),
                         'language_name': option.get('display', option_id),
-                        'is_auto_generated': option.get('is_auto', False),
+                        'is_auto_generated': str(option.get('is_auto', False)),
                         'url': option.get('url', '')
                     })
                     break
