@@ -2,11 +2,13 @@
 
 import os
 import logging
+import threading
 from typing import Optional, Any
 import customtkinter as ctk
 from tkinter import messagebox
 
 from .models import UIState
+from .enums.download_status import DownloadStatus
 from .message_queue import MessageQueue
 from .network import check_internet_connection, check_all_services
 from .container import ServiceContainer
@@ -32,13 +34,23 @@ class ApplicationOrchestrator:
 
         # Initialize service container
         self.container = ServiceContainer()
+
+        # Initialize event coordinator and link detection system
+        from .event_coordinator import EventCoordinator
+        from .link_detection import LinkDetector
+        from .service_accessor import ServiceAccessor
+        self.event_coordinator = EventCoordinator(self.root, self.container)
+        self.link_detector = LinkDetector()
+        self.service_accessor = ServiceAccessor(self.container)
+
+        # UI components (will be set by the main entrypoint)
+        self.ui_components = {}
+
+        # Initialize services after event coordinator is created
         self._initialize_services()
 
         # Initialize event handling directly
         self._setup_event_handlers()
-
-        # UI components (will be set by the main entrypoint)
-        self.ui_components = {}
 
         logger.info("Application orchestrator initialized")
 
@@ -98,29 +110,144 @@ class ApplicationOrchestrator:
         self.container.register('network_checker', network_checker, singleton=True)
         self.container.register('service_detector', service_detector, singleton=True)
 
-        # Create a simple service controller for now
-        class SimpleServiceController:
-            def __init__(self, download_service, service_factory, cookie_manager):
+        # Create a real service controller that handles downloads properly
+        class RealServiceController:
+            def __init__(self, download_service, cookie_manager):
                 self.download_service = download_service
-                self.service_factory = service_factory
                 self.cookie_manager = cookie_manager
+                self._active_downloads = 0
+                self._lock = threading.Lock()
 
             def start_downloads(self, downloads, progress_callback=None, completion_callback=None):
-                # Simple implementation for now
-                if completion_callback:
-                    completion_callback(True, "Downloads completed")
+                """Start downloads with proper UI feedback using yt-dlp directly."""
+                print(f"DEBUG: RealServiceController.start_downloads called with {len(downloads)} downloads")
+
+                if not downloads:
+                    print("DEBUG: No downloads to start")
+                    if completion_callback:
+                        completion_callback(True, "No downloads to process")
+                    return
+
+                import subprocess
+                import threading
+                import os
+                from pathlib import Path
+
+                def download_worker(download, download_dir, progress_cb, completion_cb):
+                    """Worker function to handle a single download."""
+                    try:
+                        print(f"DEBUG: Starting download of {download.name}")
+
+                        # Create download directory if it doesn't exist
+                        download_path = Path(download_dir).expanduser()
+                        download_path.mkdir(parents=True, exist_ok=True)
+
+                        # Build yt-dlp command
+                        cmd = ['.venv/bin/yt-dlp']
+
+                        # Add quality/format options
+                        if download.quality and download.quality != '720p':
+                            cmd.extend(['-f', f"bestvideo[height<={download.quality[:-1]}]+bestaudio/best[height<={download.quality[:-1]}]"])
+
+                        # Add audio-only option
+                        if getattr(download, 'audio_only', False):
+                            cmd.extend(['-x', '--audio-format', 'mp3'])
+
+                        # Add playlist option
+                        if getattr(download, 'download_playlist', False):
+                            cmd.append('--yes-playlist')
+                        else:
+                            cmd.append('--no-playlist')
+
+                        # Add subtitle options
+                        if getattr(download, 'download_subtitles', False) and getattr(download, 'selected_subtitles'):
+                            # Add selected subtitles
+                            for sub in download.selected_subtitles:
+                                lang = sub.get('language_code', 'en')
+                                cmd.extend(['--write-subs', '--sub-lang', lang])
+
+                        # Add thumbnail option
+                        if getattr(download, 'download_thumbnail', True):
+                            cmd.append('--write-thumbnail')
+
+                        # Add metadata option
+                        if getattr(download, 'embed_metadata', True):
+                            cmd.append('--embed-metadata')
+
+                        # Add cookie options
+                        if getattr(download, 'cookie_path', None):
+                            cmd.extend(['--cookies', download.cookie_path])
+                        elif getattr(download, 'selected_browser', None):
+                            cmd.extend(['--cookies-from-browser', download.selected_browser])
+
+                        # Add output path
+                        cmd.extend(['-o', str(download_path / f"{download.name}.%(ext)s")])
+
+                        # Add the URL
+                        cmd.append(download.url)
+
+                        print(f"DEBUG: Running command: {' '.join(cmd)}")
+
+                        # Run yt-dlp
+                        result = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
+
+                        if result.returncode == 0:
+                            print(f"DEBUG: Download completed successfully: {download.name}")
+                            if completion_cb:
+                                completion_cb(True, f"Download completed: {download.name}")
+                        else:
+                            print(f"DEBUG: Download failed: {download.name}")
+                            print(f"DEBUG: Error output: {result.stderr}")
+                            if completion_cb:
+                                completion_cb(False, f"Download failed: {result.stderr}")
+
+                    except Exception as e:
+                        print(f"DEBUG: Download error for {download.name}: {e}")
+                        if completion_cb:
+                            completion_cb(False, f"Download error: {str(e)}")
+
+                try:
+                    # Start each download in a separate thread
+                    for download in downloads:
+                        download_dir = getattr(download, 'output_path', '~/Downloads') or '~/Downloads'
+
+                        # Start download thread
+                        thread = threading.Thread(
+                            target=download_worker,
+                            args=(download, download_dir, progress_callback, completion_callback),
+                            daemon=True
+                        )
+                        thread.start()
+                        print(f"DEBUG: Started download thread for {download.name}")
+
+                    print(f"DEBUG: All download threads started")
+
+                except Exception as e:
+                    print(f"DEBUG: Error starting downloads: {e}")
+                    if completion_callback:
+                        completion_callback(False, f"Error starting downloads: {e}")
 
             def has_active_downloads(self):
-                return False
+                """Check if there are active downloads."""
+                with self._lock:
+                    return self._active_downloads > 0
 
-        self.container.register('service_controller', SimpleServiceController(
+        self.container.register('service_controller', RealServiceController(
             download_service=download_service,
-            service_factory=service_factory,
             cookie_manager=cookie_manager
         ), singleton=True)
 
         # Register orchestrator as event handler
         self.container.register('event_handler', self, singleton=True)
+
+        # Register event coordinator
+        self.container.register('event_coordinator', self.event_coordinator, singleton=True)
+
+        # Register UI components to event coordinator
+        self.event_coordinator.download_list = self.ui_components.get('download_list')
+        self.event_coordinator.status_bar = self.ui_components.get('status_bar')
+        self.event_coordinator.action_buttons = self.ui_components.get('action_buttons')
+        self.event_coordinator.url_entry = self.ui_components.get('url_entry')
 
         logger.info("All services registered in container")
 
@@ -139,21 +266,20 @@ class ApplicationOrchestrator:
     def set_ui_components(self, **components):
         """Set UI component references."""
         self.ui_components.update(components)
+
+        # Update event coordinator with new UI components
+        if hasattr(self, 'event_coordinator'):
+            self.event_coordinator.download_list = components.get('download_list')
+            self.event_coordinator.status_bar = components.get('status_bar')
+            self.event_coordinator.action_buttons = components.get('action_buttons')
+            self.event_coordinator.url_entry = components.get('url_entry')
+
         logger.debug("UI components registered")
-
-    def handle(self, event_name: str, *args, **kwargs):
-        """Handle an event through the application controller."""
-        return self.app_controller.handle_event(event_name, *args, **kwargs)
-
-    def get_service(self, service_name: str):
-        """Get a service from the container."""
-        return self.container.get(service_name)
 
     def check_connectivity(self):
         """Check internet connectivity at startup."""
-        status_bar = self.ui_components.get('status_bar')
-        if status_bar:
-            status_bar.show_message("Checking network connectivity...")
+        if hasattr(self, 'event_coordinator'):
+            self.event_coordinator.update_status("Checking network connectivity...")
 
         def check_worker():
             internet_connected, error_msg = check_internet_connection()
@@ -172,16 +298,14 @@ class ApplicationOrchestrator:
 
     def _handle_connectivity_check(self, internet_connected: bool, error_msg: str, problem_services: list):
         """Handle the results of the connectivity check."""
-        status_bar = self.ui_components.get('status_bar')
-
         if not internet_connected:
             messagebox.showwarning(
                 "Network Connectivity Issue",
                 f"There are network connectivity issues:\n\n{error_msg}\n\n"
                 "You can view detailed network status from Tools > Network Status."
             )
-            if status_bar:
-                status_bar.show_warning("Network connectivity issues detected")
+            if hasattr(self, 'event_coordinator'):
+                self.event_coordinator.update_status("Network connectivity issues detected", is_error=True)
         elif problem_services:
             problem_list = ", ".join(problem_services)
             messagebox.showwarning(
@@ -189,16 +313,20 @@ class ApplicationOrchestrator:
                 f"Cannot connect to the following services: {problem_list}\n\n"
                 "You can view detailed network status from Tools > Network Status."
             )
-            if status_bar:
-                status_bar.show_warning(f"Connection issues with: {problem_list}")
+            if hasattr(self, 'event_coordinator'):
+                self.event_coordinator.update_status(f"Connection issues with: {problem_list}", is_error=True)
         else:
-            if status_bar:
-                status_bar.show_message("Ready - All services connected")
+            if hasattr(self, 'event_coordinator'):
+                self.event_coordinator.update_status("Ready - All services connected")
 
     def show_network_status(self):
         """Show network status dialog."""
-        from ..ui.dialogs.network_status_dialog import NetworkStatusDialog
-        NetworkStatusDialog(self.root)
+        if hasattr(self, 'event_coordinator'):
+            self.event_coordinator.show_network_status()
+        else:
+            # Fallback for backward compatibility
+            from ..ui.dialogs.network_status_dialog import NetworkStatusDialog
+            NetworkStatusDialog(self.root)
 
     def cleanup(self):
         """Clean up all services."""
@@ -228,305 +356,66 @@ class ApplicationOrchestrator:
         logger.info("Event handlers initialized")
 
     def handle_add_url(self, url: str, name: str = None):
-        """Handle adding a new URL."""
-        from ..core.models import Download
-
-        # Validate URL
-        if not url.startswith('http'):
-            raise ValueError("Invalid URL format. URL must start with http:// or https://")
-
-        # Detect service type
-        service_detector = self.container.get('service_detector')
-        service_type = service_detector.detect_service(url)
-        if not service_type:
-            raise ValueError("Unsupported platform")
-
-        # Check service accessibility
-        if not service_detector.is_service_accessible(service_type):
-            raise ValueError(f"Cannot connect to {service_type.value}")
-
-        # Create download item
-        if not name:
-            name = f"Media from {service_type.value}"
-
-        download = Download(name=name, url=url, service_type=service_type)
-
-        # Add to download list
-        download_list = self.download_list
-        if download_list:
-            download_list.add_download(download)
-
-        status_bar = self.status_bar
-        if status_bar:
-            status_bar.show_message(f"Added: {name}")
+        """Handle adding a new URL using the new detection system."""
+        # Use the new link detection system
+        self.link_detector.detect_and_handle(url, self.event_coordinator)
 
     def handle_remove(self):
         """Handle removing selected items."""
-        download_list = self.download_list
+        download_list = self.ui_components.get('download_list')
         if not download_list:
             return
 
         selected_indices = download_list.get_selected_indices()
-        if not selected_indices:
-            status_bar = self.status_bar
-            if status_bar:
-                status_bar.show_message("Please select items to remove")
-            return
-
-        download_list.remove_downloads(selected_indices)
-
-        status_bar = self.status_bar
-        if status_bar:
-            status_bar.show_message("Selected items removed")
+        self.event_coordinator.remove_downloads(selected_indices)
 
     def handle_clear(self):
         """Handle clearing all items."""
-        download_list = self.download_list
-        if not download_list:
-            return
-
-        download_list.clear_downloads()
-
-        status_bar = self.status_bar
-        if status_bar:
-            status_bar.show_message("All items cleared")
+        self.event_coordinator.clear_downloads()
 
     def handle_download(self):
         """Handle starting downloads."""
-        download_list = self.download_list
-        print(f"DEBUG: download_list exists: {download_list is not None}")
-        if download_list:
-            print(f"DEBUG: has_items(): {download_list.has_items()}")
-            downloads = download_list.get_downloads()
-            print(f"DEBUG: Found {len(downloads)} downloads")
-            for i, download in enumerate(downloads):
-                print(f"DEBUG: Download {i}: {download.name} - {download.url}")
-
-        if not download_list or not download_list.has_items():
-            status_bar = self.status_bar
-            if status_bar:
-                status_bar.show_message("Please add items to download")
-            return
-
-        # Get service controller and start downloads
-        service_controller = self.container.get('service_controller')
-        print(f"DEBUG: service_controller exists: {service_controller is not None}")
-        if service_controller:
-            downloads = download_list.get_downloads()
-            print(f"DEBUG: Starting {len(downloads)} downloads")
-            service_controller.start_downloads(downloads)
-            print(f"DEBUG: Downloads started")
+        self.event_coordinator.start_downloads()
 
     def handle_selection_change(self, selected_indices: list):
         """Handle selection changes."""
-        action_buttons = self.action_buttons
-        if action_buttons:
-            has_selection = bool(selected_indices)
-            has_items = bool(self.download_list) if hasattr(self, 'download_list') else False
-            action_buttons.update_button_states(has_selection, has_items)
+        download_list = self.ui_components.get('download_list')
+        has_items = download_list.has_items() if download_list else False
+        self.event_coordinator.update_button_states(bool(selected_indices), has_items)
 
-    def handle_quality_change(self, quality: str):
-        """Handle quality changes."""
-        ui_state = self.container.get('ui_state')
-        if ui_state:
-            ui_state.quality = quality
-
-    def handle_option_change(self, option_name: str, value: Any):
-        """Handle option changes."""
-        ui_state = self.container.get('ui_state')
-        if ui_state:
-            if option_name == 'audio_only':
-                ui_state.audio_only = value
-            elif option_name == 'download_playlist':
-                ui_state.download_playlist = value
-
+    
     def handle_instagram_login(self, parent_window=None):
         """Handle Instagram login."""
-        auth_handler = self.container.get('auth_handler')
-        if auth_handler:
-            auth_handler.authenticate_instagram(parent_window, lambda success: None)
+        self.event_coordinator.authenticate_instagram(parent_window)
 
     def handle_youtube_detected(self, url: str):
-        """Handle YouTube URL detection by showing cookie selection first."""
-        from ..ui.dialogs.browser_cookie_dialog import BrowserCookieDialog
-        from ..ui.dialogs.youtube_downloader_dialog import YouTubeDownloaderDialog
-
-        cookie_handler = self.container.get('cookie_handler')
-        metadata_service = self.container.get('youtube_metadata')
-
-        # Show cookie selection dialog first
-        def on_cookie_selected(cookie_path: Optional[str], browser: Optional[str]):
-            # Create YouTube dialog after cookie selection
-            dialog = YouTubeDownloaderDialog(
-                self.root,
-                url=url,
-                cookie_handler=cookie_handler,
-                metadata_service=metadata_service,
-                on_download=self._handle_youtube_download,
-                pre_fetched_metadata=None,
-                initial_cookie_path=cookie_path,
-                initial_browser=browser
-            )
-
-        cookie_dialog = BrowserCookieDialog(self.root, on_cookie_selected)
-        # No need to wait_window() as the callback will be called after the dialog is destroyed
-
-    # Note: _open_youtube_dialog removed since we now create dialogs directly in handle_youtube_detected
-
-    def _show_metadata_error(self, error_message: str):
-        """Show metadata fetch error message."""
-        import tkinter.messagebox as messagebox
-        messagebox.showerror("Metadata Error",
-                           f"Failed to fetch YouTube metadata:\n{error_message}\n\nPlease try again later.")
+        """Handle YouTube URL detection using the new detection system."""
+        # Use the new link detection system
+        self.link_detector.detect_and_handle(url, self.event_coordinator)
 
     def handle_cookie_detected(self, browser_type: str, cookie_path: str):
         """Handle cookie detection."""
-        cookie_handler = self.container.get('cookie_handler')
-        if cookie_handler:
-            success = cookie_handler.set_cookie_file(cookie_path)
-            status_bar = self.status_bar
-            if status_bar:
-                if success:
-                    status_bar.show_message(f"Cookies loaded from {browser_type}")
-                else:
-                    status_bar.show_error("Failed to load cookies")
+        self.event_coordinator.handle_cookie_detection(browser_type, cookie_path)
 
     def handle_cookie_manual_select(self):
         """Handle manual cookie selection."""
-        from ..ui.dialogs.file_manager_dialog import FileManagerDialog
-        file_dialog = FileManagerDialog(self.root)
-        cookie_path = file_dialog.select_file()
-
+        cookie_path = self.event_coordinator.browse_files(['txt', 'cookies'])
         if cookie_path:
-            cookie_handler = self.container.get('cookie_handler')
-            if cookie_handler:
-                success = cookie_handler.set_cookie_file(cookie_path)
-                status_bar = self.status_bar
-                if status_bar:
-                    if success:
-                        status_bar.show_message("Cookie file loaded successfully")
-                    else:
-                        status_bar.show_error("Failed to load cookie file")
+            self.event_coordinator.handle_cookie_detection("manual", cookie_path)
 
     def handle_manage_files(self):
         """Handle file management."""
-        from ..ui.dialogs.file_manager_dialog import FileManagerDialog
-        FileManagerDialog(self.root)
+        self.event_coordinator.show_file_manager()
 
-    def _handle_youtube_download(self, url: str, name: str, options: dict):
-        """Handle YouTube download from the dialog with comprehensive options."""
-        from ..core.models import Download, ServiceType
+    # Core service access methods
+    def get_service(self, service_name: str):
+        """Get a service from the container."""
+        return self.service_accessor.get_service(service_name)
 
-        # Create download item with all individual options
-        download = Download(
-            name=name,
-            url=url,
-            service_type=ServiceType.YOUTUBE,
-            quality=options.get('quality', '720p'),
-            format=options.get('format', 'video'),
-            audio_only=options.get('audio_only', False),
-            video_only=options.get('video_only', False),
-            download_playlist=options.get('download_playlist', False),
-            download_subtitles=options.get('download_subtitles', False),
-            selected_subtitles=options.get('selected_subtitles'),
-            download_thumbnail=options.get('download_thumbnail', True),
-            embed_metadata=options.get('embed_metadata', True),
-            cookie_path=options.get('cookie_path'),
-            selected_browser=options.get('selected_browser'),
-            speed_limit=options.get('speed_limit'),
-            retries=options.get('retries', 3),
-            concurrent_downloads=options.get('concurrent_downloads', 1)
-        )
+    def get_ui_component(self, component_name: str):
+        """Get a UI component by name."""
+        return self.service_accessor.get_ui_component(component_name, self.ui_components)
 
-        # Add to download list
-        download_list = self.download_list
-        if download_list:
-            download_list.add_download(download)
-
-        # Reset URL entry field
-        url_entry = self.url_entry
-        if url_entry:
-            try:
-                # Access the internal CTkEntry widget, not the frame
-                if hasattr(url_entry, 'url_entry'):
-                    url_entry.url_entry.delete(0, 'end')
-                    url_entry.url_entry.insert(0, '')
-                else:
-                    # Fallback for direct entry widget
-                    url_entry.delete(0, 'end')
-                    url_entry.insert(0, '')
-            except Exception as e:
-                print(f"Error resetting URL entry: {e}")
-
-        status_bar = self.status_bar
-        if status_bar:
-            # Create a descriptive message
-            config_desc = []
-            if options.get('audio_only'):
-                config_desc.append("Audio Only")
-            if options.get('download_playlist'):
-                config_desc.append("Playlist")
-            if options.get('quality') and options.get('quality') != '720p':
-                config_desc.append(f"{options.get('quality')}")
-            if options.get('selected_browser'):
-                config_desc.append(f"{options.get('selected_browser')} cookies")
-
-            desc = f"YouTube {config_desc[0]}" if config_desc else "YouTube video"
-            status_bar.show_message(f"{desc} added: {name}")
-
-    # Convenience properties for common services
-    @property
-    def service_controller(self):
-        """Get the service controller."""
-        return self.container.get('service_controller')
-
-    @property
-    def cookie_handler(self):
-        """Get the cookie handler."""
-        return self.container.get('cookie_handler')
-
-    @property
-    def auth_handler(self):
-        """Get the auth handler."""
-        return self.container.get('auth_handler')
-
-    @property
-    def network_checker(self):
-        """Get the network checker."""
-        return self.container.get('network_checker')
-
-    @property
-    def service_detector(self):
-        """Get the service detector."""
-        return self.container.get('service_detector')
-
-    # Convenience properties for UI components
-    @property
-    def url_entry(self):
-        """Get the URL entry component."""
-        return self.ui_components.get('url_entry')
-
-    @property
-    def options_bar(self):
-        """Get the options bar component."""
-        return self.ui_components.get('options_bar')
-
-    @property
-    def download_list(self):
-        """Get the download list component."""
-        return self.ui_components.get('download_list')
-
-    @property
-    def action_buttons(self):
-        """Get the action buttons component."""
-        return self.ui_components.get('action_buttons')
-
-    @property
-    def status_bar(self):
-        """Get the status bar component."""
-        return self.ui_components.get('status_bar')
-
-    @property
-    def cookie_selector(self):
-        """Get the cookie selector component."""
-        return self.ui_components.get('cookie_selector')
+    def get_event_coordinator(self):
+        """Get the event coordinator."""
+        return self.service_accessor.event_coordinator

@@ -78,9 +78,6 @@ class DownloadHandler:
         ui_state = self.container.get('ui_state')
         if ui_state:
             return DownloadOptions(
-                quality=getattr(ui_state, 'quality', '720p'),
-                playlist=getattr(ui_state, 'playlist', False),
-                audio_only=getattr(ui_state, 'audio_only', False),
                 save_directory=getattr(ui_state, 'download_directory', '~/Downloads')
             )
         return DownloadOptions()
@@ -89,7 +86,4 @@ class DownloadHandler:
         """Set download options."""
         ui_state = self.container.get('ui_state')
         if ui_state:
-            ui_state.quality = options.quality
-            ui_state.playlist = options.playlist
-            ui_state.audio_only = options.audio_only
             ui_state.download_directory = options.save_directory

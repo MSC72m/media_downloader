@@ -121,9 +121,6 @@ class DownloadOptions(BaseModel):
         if PYDANTIC_AVAILABLE:
             super().__init__(**kwargs)
         else:
-            self.quality = kwargs.get('quality', "720p")
-            self.playlist = kwargs.get('playlist', False)
-            self.audio_only = kwargs.get('audio_only', False)
             self.save_directory = kwargs.get('save_directory', "~/Downloads")
 
 
@@ -134,9 +131,6 @@ class UIState(BaseModel):
         download_directory: str = Field(default="~/Downloads")
         show_options_panel: bool = Field(default=False)
         selected_indices: list = Field(default_factory=list)
-        quality: str = Field(default="720p")
-        audio_only: bool = Field(default=False)
-        download_playlist: bool = Field(default=False)
 
     def __init__(self, **kwargs):
         if PYDANTIC_AVAILABLE:
@@ -145,9 +139,6 @@ class UIState(BaseModel):
             self.download_directory = kwargs.get('download_directory', "~/Downloads")
             self.show_options_panel = kwargs.get('show_options_panel', False)
             self.selected_indices = kwargs.get('selected_indices', [])
-            self.quality = kwargs.get('quality', "720p")
-            self.audio_only = kwargs.get('audio_only', False)
-            self.download_playlist = kwargs.get('download_playlist', False)
 
 
 class AuthState(BaseModel):

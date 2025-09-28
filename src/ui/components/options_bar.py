@@ -11,20 +11,16 @@ class OptionsBar(ctk.CTkFrame):
     def __init__(
             self,
             master,
-            on_instagram_login: Callable,
-            on_quality_change: Callable = None,
-            on_option_change: Callable = None
+            on_instagram_login: Callable
     ):
         super().__init__(master, fg_color="transparent")
 
         self.on_instagram_login = on_instagram_login
-        self.on_quality_change = on_quality_change
-        self.on_option_change = on_option_change
         
         # Current Instagram auth status
         self.instagram_status = InstagramAuthStatus.FAILED
 
-        # Note: YouTube options (playlist, audio only, quality) have been moved to the YouTube-specific dialog
+        # Note: YouTube-specific options are handled in the YouTube download dialog
         # Instagram Login Button
         self.insta_login_button = ctk.CTkButton(
             self,
