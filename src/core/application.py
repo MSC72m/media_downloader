@@ -120,11 +120,15 @@ class ApplicationOrchestrator:
 
             def start_downloads(self, downloads, progress_callback=None, completion_callback=None):
                 """Start downloads with proper UI feedback using yt-dlp directly."""
-                print(f"DEBUG: RealServiceController.start_downloads called with {len(downloads)} downloads")
+                logger.info(f"[SERVICE_CONTROLLER] start_downloads called with {len(downloads)} downloads")
+                logger.info(f"[SERVICE_CONTROLLER] downloads: {downloads}")
+                logger.info(f"[SERVICE_CONTROLLER] progress_callback: {progress_callback}")
+                logger.info(f"[SERVICE_CONTROLLER] completion_callback: {completion_callback}")
 
                 if not downloads:
-                    print("DEBUG: No downloads to start")
+                    logger.warning(f"[SERVICE_CONTROLLER] No downloads to start")
                     if completion_callback:
+                        logger.info(f"[SERVICE_CONTROLLER] Calling completion_callback with no downloads message")
                         completion_callback(True, "No downloads to process")
                     return
 
@@ -135,8 +139,10 @@ class ApplicationOrchestrator:
 
                 def download_worker(download, download_dir, progress_cb, completion_cb):
                     """Worker function to handle a single download."""
+                    logger.info(f"[SERVICE_CONTROLLER] download_worker called for: {download.name}")
                     try:
-                        print(f"DEBUG: Starting download of {download.name}")
+                        logger.info(f"[SERVICE_CONTROLLER] Starting download of {download.name}")
+                        logger.info(f"[SERVICE_CONTROLLER] download_dir: {download_dir}")
 
                         # Create download directory if it doesn't exist
                         download_path = Path(download_dir).expanduser()
@@ -188,18 +194,24 @@ class ApplicationOrchestrator:
 
                         print(f"DEBUG: Running command: {' '.join(cmd)}")
 
-                        # Run yt-dlp
-                        result = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
+                        # Run yt-dlp with proper encoding handling
+                        result = subprocess.run(cmd, capture_output=True, timeout=3600)
 
                         if result.returncode == 0:
-                            print(f"DEBUG: Download completed successfully: {download.name}")
+                            logger.info(f"[SERVICE_CONTROLLER] Download completed successfully: {download.name}")
                             if completion_cb:
                                 completion_cb(True, f"Download completed: {download.name}")
                         else:
-                            print(f"DEBUG: Download failed: {download.name}")
-                            print(f"DEBUG: Error output: {result.stderr}")
+                            # Handle error output with proper encoding
+                            try:
+                                error_output = result.stderr.decode('utf-8', errors='replace')
+                            except:
+                                error_output = str(result.stderr)
+
+                            logger.error(f"[SERVICE_CONTROLLER] Download failed: {download.name}")
+                            logger.error(f"[SERVICE_CONTROLLER] Error output: {error_output}")
                             if completion_cb:
-                                completion_cb(False, f"Download failed: {result.stderr}")
+                                completion_cb(False, f"Download failed: {error_output}")
 
                     except Exception as e:
                         print(f"DEBUG: Download error for {download.name}: {e}")
@@ -265,16 +277,44 @@ class ApplicationOrchestrator:
 
     def set_ui_components(self, **components):
         """Set UI component references."""
+        logger.info(f"[ORCHESTRATOR] set_ui_components called with: {list(components.keys())}")
+        logger.info(f"[ORCHESTRATOR] components: {components}")
         self.ui_components.update(components)
 
         # Update event coordinator with new UI components
         if hasattr(self, 'event_coordinator'):
-            self.event_coordinator.download_list = components.get('download_list')
-            self.event_coordinator.status_bar = components.get('status_bar')
-            self.event_coordinator.action_buttons = components.get('action_buttons')
-            self.event_coordinator.url_entry = components.get('url_entry')
+            logger.info(f"[ORCHESTRATOR] Updating event coordinator with UI components")
+            logger.info(f"[ORCHESTRATOR] event_coordinator before: {self.event_coordinator}")
 
-        logger.debug("UI components registered")
+            self.event_coordinator.download_list = components.get('download_list')
+            logger.info(f"[ORCHESTRATOR] Set download_list: {self.event_coordinator.download_list}")
+
+            self.event_coordinator.status_bar = components.get('status_bar')
+            logger.info(f"[ORCHESTRATOR] Set status_bar: {self.event_coordinator.status_bar}")
+
+            self.event_coordinator.action_buttons = components.get('action_buttons')
+            logger.info(f"[ORCHESTRATOR] Set action_buttons: {self.event_coordinator.action_buttons}")
+
+            self.event_coordinator.url_entry = components.get('url_entry')
+            logger.info(f"[ORCHESTRATOR] Set url_entry: {self.event_coordinator.url_entry}")
+
+            # Also set up the container with UI components
+            logger.info(f"[ORCHESTRATOR] Setting up container with UI components")
+            self.container.register('download_list', components.get('download_list'))
+            self.container.register('status_bar', components.get('status_bar'))
+            self.container.register('action_buttons', components.get('action_buttons'))
+            self.container.register('url_entry', components.get('url_entry'))
+
+            logger.info(f"[ORCHESTRATOR] Container updated with UI components")
+
+            # Refresh handlers after UI components are registered
+            logger.info(f"[ORCHESTRATOR] Refreshing event coordinator handlers")
+            self.event_coordinator.refresh_handlers()
+            logger.info(f"[ORCHESTRATOR] Event coordinator handlers refreshed")
+        else:
+            logger.warning(f"[ORCHESTRATOR] event_coordinator not found, cannot update UI components")
+
+        logger.info(f"[ORCHESTRATOR] UI components registered successfully")
 
     def check_connectivity(self):
         """Check internet connectivity at startup."""
@@ -375,13 +415,26 @@ class ApplicationOrchestrator:
 
     def handle_download(self):
         """Handle starting downloads."""
-        self.event_coordinator.start_downloads()
+        logger.info(f"[ORCHESTRATOR] handle_download called")
+        logger.info(f"[ORCHESTRATOR] event_coordinator: {self.event_coordinator}")
+        try:
+            self.event_coordinator.start_downloads()
+            logger.info(f"[ORCHESTRATOR] event_coordinator.start_downloads() called successfully")
+        except Exception as e:
+            logger.error(f"[ORCHESTRATOR] Error calling event_coordinator.start_downloads(): {e}", exc_info=True)
 
     def handle_selection_change(self, selected_indices: list):
         """Handle selection changes."""
+        logger.info(f"[ORCHESTRATOR] handle_selection_change called with: {selected_indices}")
         download_list = self.ui_components.get('download_list')
+        logger.info(f"[ORCHESTRATOR] download_list: {download_list}")
         has_items = download_list.has_items() if download_list else False
-        self.event_coordinator.update_button_states(bool(selected_indices), has_items)
+        logger.info(f"[ORCHESTRATOR] has_items: {has_items}, has_selection: {bool(selected_indices)}")
+        try:
+            self.event_coordinator.update_button_states(bool(selected_indices), has_items)
+            logger.info(f"[ORCHESTRATOR] update_button_states called successfully")
+        except Exception as e:
+            logger.error(f"[ORCHESTRATOR] Error calling update_button_states: {e}", exc_info=True)
 
     
     def handle_instagram_login(self, parent_window=None):

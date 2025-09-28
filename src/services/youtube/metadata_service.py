@@ -96,7 +96,7 @@ class YouTubeMetadataService(IYouTubeMetadataService):
             else:
                 print("DEBUG: No cookies will be used")
 
-            # Add other options
+            # Add other options - simplified to avoid timeouts
             cmd.extend([
                 '--quiet',
                 '--no-warnings',
@@ -104,35 +104,31 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                 '--no-playlist',
                 '--print', 'title',
                 '--print', 'duration',
-                '--print', 'view_count',
-                '--print', 'upload_date',
-                '--print', 'channel',
-                '--print', 'description',
-                '--print', 'thumbnail',
                 url
             ])
 
             print(f"DEBUG: Running command: {' '.join(cmd)}")
 
-            # Run the command
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            # Run the command with reduced timeout
+            result = subprocess.run(cmd, capture_output=True, timeout=30)
 
             if result.returncode == 0:
-                # Parse multi-line output
+                # Parse multi-line output with proper encoding
                 try:
-                    lines = result.stdout.strip().split('\n')
-                    if len(lines) >= 7:
+                    stdout = result.stdout.decode('utf-8', errors='replace')
+                    lines = stdout.strip().split('\n')
+                    if len(lines) >= 2:
                         # Get REAL subtitle data
                         subtitles_data = self._get_real_subtitles(url, cookie_path, browser)
 
                         info = {
                             'title': lines[0] if lines[0] != 'NA' else '',
                             'duration': int(lines[1]) if lines[1] != 'NA' else 0,
-                            'view_count': int(lines[2]) if lines[2] != 'NA' else 0,
-                            'upload_date': lines[3] if lines[3] != 'NA' else '',
-                            'channel': lines[4] if lines[4] != 'NA' else '',
-                            'description': lines[5] if lines[5] != 'NA' else '',
-                            'thumbnail': lines[6] if lines[6] != 'NA' else '',
+                            'view_count': 0,
+                            'upload_date': '',
+                            'channel': '',
+                            'description': '',
+                            'thumbnail': '',
                             'subtitles': subtitles_data.get('subtitles', {}),
                             'automatic_captions': subtitles_data.get('automatic_captions', {})
                         }
@@ -167,32 +163,28 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                     '--no-playlist',
                     '--print', 'title',
                     '--print', 'duration',
-                    '--print', 'view_count',
-                    '--print', 'upload_date',
-                    '--print', 'channel',
-                    '--print', 'description',
-                    '--print', 'thumbnail',
                     url
                 ]
 
                 print(f"DEBUG: Running fallback command: {' '.join(cmd_fallback)}")
-                result = subprocess.run(cmd_fallback, capture_output=True, text=True, timeout=60)
+                result = subprocess.run(cmd_fallback, capture_output=True, timeout=20)
 
                 if result.returncode == 0:
                     try:
-                        lines = result.stdout.strip().split('\n')
-                        if len(lines) >= 7:
+                        stdout = result.stdout.decode('utf-8', errors='replace')
+                        lines = stdout.strip().split('\n')
+                        if len(lines) >= 2:
                             # Get REAL subtitle data for fallback too
                             subtitles_data = self._get_real_subtitles(url, None, None)
 
                             info = {
                                 'title': lines[0] if lines[0] != 'NA' else '',
                                 'duration': int(lines[1]) if lines[1] != 'NA' else 0,
-                                'view_count': int(lines[2]) if lines[2] != 'NA' else 0,
-                                'upload_date': lines[3] if lines[3] != 'NA' else '',
-                                'channel': lines[4] if lines[4] != 'NA' else '',
-                                'description': lines[5] if lines[5] != 'NA' else '',
-                                'thumbnail': lines[6] if lines[6] != 'NA' else '',
+                                'view_count': 0,
+                                'upload_date': '',
+                                'channel': '',
+                                'description': '',
+                                'thumbnail': '',
                                 'subtitles': subtitles_data.get('subtitles', {}),
                                 'automatic_captions': subtitles_data.get('automatic_captions', {})
                             }
@@ -211,6 +203,38 @@ class YouTubeMetadataService(IYouTubeMetadataService):
             except Exception as e:
                 logger.error(f"Fallback command line extraction failed: {e}")
                 print(f"DEBUG: Fallback command line error: {e}")
+
+            # Final fallback: Just get the title
+            print("DEBUG: Trying final fallback for title only...")
+            try:
+                cmd_final = ['.venv/bin/yt-dlp',
+                    '--quiet',
+                    '--no-warnings',
+                    '--skip-download',
+                    '--no-playlist',
+                    '--print', 'title',
+                    url
+                ]
+
+                result = subprocess.run(cmd_final, capture_output=True, timeout=15)
+                if result.returncode == 0:
+                    stdout = result.stdout.decode('utf-8', errors='replace')
+                    title = stdout.strip()
+                    if title and title != 'NA':
+                        print("DEBUG: Successfully fetched title via final fallback")
+                        return {
+                            'title': title,
+                            'duration': 0,
+                            'view_count': 0,
+                            'upload_date': '',
+                            'channel': '',
+                            'description': '',
+                            'thumbnail': '',
+                            'subtitles': {},
+                            'automatic_captions': {}
+                        }
+            except Exception as e:
+                print(f"DEBUG: Final fallback also failed: {e}")
 
         return None
 
@@ -237,10 +261,11 @@ class YouTubeMetadataService(IYouTubeMetadataService):
             ])
 
             print(f"DEBUG: Running subtitle command: {' '.join(cmd)}")
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            result = subprocess.run(cmd, capture_output=True, timeout=30)
 
             if result.returncode == 0:
-                return self._parse_subtitle_output(result.stdout)
+                stdout = result.stdout.decode('utf-8', errors='replace')
+                return self._parse_subtitle_output(stdout)
             else:
                 print(f"DEBUG: Subtitle command failed: {result.stderr}")
 

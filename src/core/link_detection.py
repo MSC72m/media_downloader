@@ -1,9 +1,14 @@
 """Extensible link detection system with automatic registration."""
 
 import re
+import logging
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Type, Callable, Any
 from dataclasses import dataclass
+
+# Set up comprehensive logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -54,29 +59,49 @@ class LinkDetectionRegistry:
     def register(cls, handler_class: Type[LinkHandlerInterface]):
         """Register a link handler class."""
         handler_name = handler_class.__name__
+        logger.info(f"[REGISTRATION] Attempting to register handler: {handler_name}")
+
+        if handler_name in cls._handlers:
+            logger.warning(f"[REGISTRATION] Handler {handler_name} already registered, replacing")
+
         cls._handlers[handler_name] = handler_class
+        logger.info(f"[REGISTRATION] Successfully registered handler: {handler_name}")
+        logger.info(f"[REGISTRATION] Total handlers registered: {len(cls._handlers)}")
+        logger.info(f"[REGISTRATION] Registered handlers: {list(cls._handlers.keys())}")
 
         # Compile patterns for faster matching
         if hasattr(handler_class, 'get_patterns'):
             patterns = handler_class.get_patterns()
             cls._compiled_patterns[handler_name] = [re.compile(pattern) for pattern in patterns]
+            logger.info(f"[REGISTRATION] Compiled {len(patterns)} patterns for {handler_name}: {patterns}")
+        else:
+            logger.warning(f"[REGISTRATION] Handler {handler_name} has no get_patterns method")
 
     @classmethod
     def detect_handler(cls, url: str) -> Optional[LinkHandlerInterface]:
         """Detect the appropriate handler for a URL."""
+        logger.info(f"[DETECTION] Starting URL detection for: {url}")
+        logger.info(f"[DETECTION] Available handlers: {list(cls._handlers.keys())}")
+
         best_handler = None
         best_confidence = 0.0
 
         for handler_name, handler_class in cls._handlers.items():
             try:
+                logger.debug(f"[DETECTION] Testing handler: {handler_name}")
                 handler = handler_class()
+                logger.debug(f"[DETECTION] Created handler instance: {handler}")
                 result = handler.can_handle(url)
+                logger.debug(f"[DETECTION] Handler {handler_name} result: confidence={result.confidence}, service_type={result.service_type}")
+
                 if result.confidence > best_confidence:
                     best_confidence = result.confidence
                     best_handler = handler
+                    logger.info(f"[DETECTION] New best handler: {handler_name} with confidence {best_confidence}")
             except Exception as e:
-                print(f"Error testing handler {handler_name}: {e}")
+                logger.error(f"[DETECTION] Error testing handler {handler_name}: {e}", exc_info=True)
 
+        logger.info(f"[DETECTION] Detection complete. Best handler: {best_handler.__class__.__name__ if best_handler else 'None'} with confidence {best_confidence}")
         return best_handler if best_confidence > 0.5 else None
 
     @classmethod
@@ -108,15 +133,30 @@ class LinkDetector:
 
     def detect_and_handle(self, url: str, ui_context: Any = None) -> bool:
         """Detect URL type and trigger appropriate handling."""
+        logger.info(f"[LINK_DETECTOR] Starting detect_and_handle for URL: {url}")
+        logger.info(f"[LINK_DETECTOR] UI context: {ui_context}")
+        logger.info(f"[LINK_DETECTOR] UI context type: {type(ui_context)}")
+
         handler = self.registry.detect_handler(url)
+        logger.info(f"[LINK_DETECTOR] Detected handler: {handler.__class__.__name__ if handler else 'None'}")
+
         if handler:
             try:
+                logger.info(f"[LINK_DETECTOR] Getting UI callback from handler: {handler.__class__.__name__}")
                 callback = handler.get_ui_callback()
+                logger.info(f"[LINK_DETECTOR] Got UI callback: {callback}")
+
                 if callback and ui_context:
+                    logger.info(f"[LINK_DETECTOR] Executing callback with URL: {url} and context: {ui_context}")
                     callback(url, ui_context)
+                    logger.info(f"[LINK_DETECTOR] Callback executed successfully")
                     return True
+                else:
+                    logger.warning(f"[LINK_DETECTOR] Missing callback or ui_context. callback={callback}, ui_context={ui_context}")
             except Exception as e:
-                print(f"Error handling URL with {handler.__class__.__name__}: {e}")
+                logger.error(f"[LINK_DETECTOR] Error handling URL with {handler.__class__.__name__}: {e}", exc_info=True)
+        else:
+            logger.warning(f"[LINK_DETECTOR] No handler found for URL: {url}")
         return False
 
     def get_url_info(self, url: str) -> Optional[DetectionResult]:
@@ -132,5 +172,10 @@ class LinkDetector:
 
 def auto_register_handler(handler_class: Type[LinkHandlerInterface]):
     """Decorator for automatic handler registration."""
-    LinkDetectionRegistry.register(handler_class)
+    logger.info(f"[DECORATOR] Auto-registering handler: {handler_class.__name__}")
+    try:
+        LinkDetectionRegistry.register(handler_class)
+        logger.info(f"[DECORATOR] Successfully auto-registered handler: {handler_class.__name__}")
+    except Exception as e:
+        logger.error(f"[DECORATOR] Failed to auto-register handler {handler_class.__name__}: {e}", exc_info=True)
     return handler_class

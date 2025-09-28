@@ -1,6 +1,9 @@
 import customtkinter as ctk
+import logging
 from typing import Callable, Dict
 from src.core.models import ButtonState
+
+logger = logging.getLogger(__name__)
 
 
 class ActionButtonBar(ctk.CTkFrame):
@@ -45,10 +48,19 @@ class ActionButtonBar(ctk.CTkFrame):
         self.clear_button.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
 
         # Download Button
+        def on_download_with_logging():
+            logger.info(f"[ACTION_BUTTONS] Download All button clicked")
+            logger.info(f"[ACTION_BUTTONS] on_download callback: {on_download}")
+            try:
+                on_download()
+                logger.info(f"[ACTION_BUTTONS] on_download callback executed successfully")
+            except Exception as e:
+                logger.error(f"[ACTION_BUTTONS] Error in on_download callback: {e}", exc_info=True)
+
         self.download_button = ctk.CTkButton(
             self,
             text="Download All",
-            command=on_download,
+            command=on_download_with_logging,
             **self.button_style
         )
         self.download_button.grid(row=0, column=2, padx=5, pady=5, sticky="ew")
@@ -75,16 +87,29 @@ class ActionButtonBar(ctk.CTkFrame):
 
     def set_enabled(self, enabled: bool):
         """Enable or disable all buttons."""
+        logger.info(f"[ACTION_BUTTONS] set_enabled called with: {enabled}")
         state = "normal" if enabled else "disabled"
+        logger.info(f"[ACTION_BUTTONS] Setting button state to: {state}")
         for button in [self.remove_button, self.clear_button,
                        self.download_button, self.manage_files_button]:
             button.configure(state=state)
+        logger.info(f"[ACTION_BUTTONS] All buttons configured with state: {state}")
 
     def update_button_states(self, has_selection: bool, has_items: bool):
         """Update button states based on selection and items."""
-        self.remove_button.configure(state="normal" if has_selection else "disabled")
-        self.clear_button.configure(state="normal" if has_items else "disabled")
-        self.download_button.configure(state="normal" if has_items else "disabled")
+        logger.info(f"[ACTION_BUTTONS] update_button_states called: has_selection={has_selection}, has_items={has_items}")
+        remove_state = "normal" if has_selection else "disabled"
+        clear_state = "normal" if has_items else "disabled"
+        download_state = "normal" if has_items else "disabled"
+
+        logger.info(f"[ACTION_BUTTONS] Setting remove_button to: {remove_state}")
+        self.remove_button.configure(state=remove_state)
+
+        logger.info(f"[ACTION_BUTTONS] Setting clear_button to: {clear_state}")
+        self.clear_button.configure(state=clear_state)
+
+        logger.info(f"[ACTION_BUTTONS] Setting download_button to: {download_state}")
+        self.download_button.configure(state=download_state)
 
     def update_states(self, button_states: Dict[ButtonState, bool]):
         """Update button states using the new enum-based system."""

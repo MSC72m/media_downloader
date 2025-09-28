@@ -23,7 +23,7 @@ from src.core.application import ApplicationOrchestrator
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
@@ -89,6 +89,8 @@ class MediaDownloaderApp(ctk.CTk):
         )
 
         # Action Buttons
+        logger.info(f"[MAIN_APP] Creating ActionButtonBar")
+        logger.info(f"[MAIN_APP] on_download callback: {self.orchestrator.handle_download}")
         self.action_buttons = ActionButtonBar(
             self.main_frame,
             on_remove=self.orchestrator.handle_remove,
@@ -96,6 +98,7 @@ class MediaDownloaderApp(ctk.CTk):
             on_download=self.orchestrator.handle_download,
             on_manage_files=self.orchestrator.handle_manage_files
         )
+        logger.info(f"[MAIN_APP] ActionButtonBar created successfully")
 
         # Status Bar
         self.status_bar = StatusBar(self.main_frame)
@@ -109,6 +112,7 @@ class MediaDownloaderApp(ctk.CTk):
         )
 
         # Pass UI components to orchestrator
+        logger.info(f"[MAIN_APP] Passing UI components to orchestrator")
         self.orchestrator.set_ui_components(
             url_entry=self.url_entry,
             options_bar=self.options_bar,
@@ -117,6 +121,7 @@ class MediaDownloaderApp(ctk.CTk):
             status_bar=self.status_bar,
             cookie_selector=self.cookie_selector
         )
+        logger.info(f"[MAIN_APP] UI components passed to orchestrator successfully")
 
     def _setup_layout(self):
         """Configure the main layout."""

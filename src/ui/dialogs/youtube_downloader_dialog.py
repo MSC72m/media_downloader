@@ -201,8 +201,17 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         if hasattr(self, 'main_frame'):
             self.main_frame.pack(fill="both", expand=True)
 
-        # Small delay to ensure loading window is fully closed
-        self.after(500, self._show_main_window)
+        # Wait for loading overlay to close completely, then show main window
+        self._schedule_main_window_show()
+
+    def _schedule_main_window_show(self):
+        """Schedule showing main window after loading overlay is completely gone."""
+        if self.loading_overlay and hasattr(self.loading_overlay, 'winfo_exists') and self.loading_overlay.winfo_exists():
+            # Loading overlay still exists, wait a bit more
+            self.after(100, self._schedule_main_window_show)
+        else:
+            # Loading overlay is gone, show main window
+            self.after(200, self._show_main_window)
 
     def _show_main_window(self):
         """Show the main window after loading is complete."""
