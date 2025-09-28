@@ -101,8 +101,8 @@ class BrowserCookieDialog(ctk.CTkToplevel, WindowCenterMixin):
             width=150,
             height=40,
             font=("Roboto", 12, "bold"),
-            fg_color="#2196F3",
-            hover_color="#1976D2",
+            fg_color="#28a745",
+            hover_color="#218838",
             corner_radius=8
         )
         continue_btn.pack(side="left")

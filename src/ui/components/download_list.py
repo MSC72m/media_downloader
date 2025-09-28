@@ -98,3 +98,54 @@ class DownloadListView(ctk.CTkFrame):
         self.list_view.mark_set(tk.INSERT, "1.0")
         self.list_view.see(tk.INSERT)
         return "break"  # Prevent default handling
+
+    def add_download(self, download: 'Download'):
+        """Add a new download to the list."""
+        # Get current content
+        current_content = self.list_view.get("1.0", tk.END)
+
+        # Format the new download entry
+        status_text = self._format_status(download)
+        new_entry = f"{download.name} | {download.url} | {status_text}\n"
+
+        # Add the new download
+        self.list_view.insert(tk.END, new_entry)
+
+        # Update the line mapping
+        line_num = current_content.count('\n') + 1
+        self._item_line_mapping[download.name] = line_num
+
+        # Scroll to the bottom to show the new download
+        self.list_view.see(tk.END)
+
+    def has_items(self) -> bool:
+        """Check if the download list has any items."""
+        return len(self._item_line_mapping) > 0
+
+    def get_downloads(self) -> List['Download']:
+        """Get all downloads from the list."""
+        # This is a simple implementation - you may need to adjust based on your actual Download model
+        from src.core import Download
+
+        downloads = []
+        try:
+            # Get all text from the list view
+            content = self.list_view.get("1.0", tk.END).strip()
+            if content:
+                lines = content.split('\n')
+                for line in lines:
+                    if line.strip():
+                        # Parse the line to extract download info
+                        parts = line.split(' | ')
+                        if len(parts) >= 3:
+                            # Create a mock Download object
+                            download = Download(
+                                name=parts[0].strip(),
+                                url=parts[1].strip(),
+                                output_path="/downloads"  # Default path
+                            )
+                            downloads.append(download)
+        except Exception as e:
+            print(f"Error getting downloads: {e}")
+
+        return downloads

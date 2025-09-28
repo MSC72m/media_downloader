@@ -11,7 +11,7 @@ from ...interfaces.cookie_detection import BrowserType
 from ...utils.window import WindowCenterMixin
 from ...utils.logger import get_logger
 from ..components.simple_loading_dialog import SimpleLoadingDialog
-from ..components.multi_select_dropdown import SubtitleMultiSelect
+from ..components.subtitle_checklist import SubtitleChecklist
 from .browser_cookie_dialog import BrowserCookieDialog
 
 logger = get_logger(__name__)
@@ -201,6 +201,11 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         if hasattr(self, 'main_frame'):
             self.main_frame.pack(fill="both", expand=True)
 
+        # Small delay to ensure loading window is fully closed
+        self.after(500, self._show_main_window)
+
+    def _show_main_window(self):
+        """Show the main window after loading is complete."""
         # Show the main window now that everything is ready
         self.deiconify()
         self.lift()
@@ -410,13 +415,13 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         subtitle_label = ctk.CTkLabel(self.subtitle_frame, text="Subtitles:", font=("Roboto", 11))
         subtitle_label.pack(anchor="w", pady=(0, 5))
 
-        self.subtitle_dropdown = SubtitleMultiSelect(
+        self.subtitle_dropdown = SubtitleChecklist(
             self.subtitle_frame,
-            placeholder="Select subtitles...",
-            width=280,
-            height=35
+            placeholder="No subtitles available",
+            height=120,
+            on_change=self._on_subtitle_change
         )
-        self.subtitle_dropdown.pack(fill="x")
+        self.subtitle_dropdown.pack(fill="both", expand=True)
 
         # Advanced options
         advanced_frame = ctk.CTkFrame(options_frame, fg_color="transparent")
@@ -432,15 +437,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         )
         playlist_check.pack(anchor="w", pady=2)
 
-        # Subtitle options
-        self.subtitle_var = ctk.BooleanVar(value=False)
-        subtitle_check = ctk.CTkCheckBox(
-            advanced_frame,
-            text="Download Subtitles",
-            variable=self.subtitle_var,
-            font=("Roboto", 11)
-        )
-        subtitle_check.pack(anchor="w", pady=2)
+        # Subtitle selection is handled by the dropdown above
 
         # Thumbnail options
         self.thumbnail_var = ctk.BooleanVar(value=True)
@@ -524,7 +521,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         button_frame.pack(fill="x", pady=(30, 0))
 
         # Add to downloads button
-        add_button = ctk.CTkButton(
+        self.add_button = ctk.CTkButton(
             button_frame,
             text="Add to Downloads",
             command=self._handle_add_to_downloads,
@@ -534,7 +531,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             fg_color="#28a745",
             hover_color="#218838"
         )
-        add_button.pack(side="right", padx=5)
+        self.add_button.pack(side="right", padx=5)
 
         # Cancel button
         cancel_button = ctk.CTkButton(
@@ -549,6 +546,12 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         # Set focus
         self.name_entry.focus()
+
+    def _on_subtitle_change(self, selected_subtitles: List[str]):
+        """Handle subtitle selection change."""
+        # This method is called when subtitle selection changes
+        # You can add custom logic here if needed
+        pass
 
     def _on_format_change(self):
         """Handle format selection change."""
@@ -671,55 +674,82 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
     def _handle_add_to_downloads(self):
         """Handle add to downloads button click."""
-        name = self.name_entry.get().strip()
-        if not name:
-            self._show_error("Please enter a name for this download")
-            return
-
-        # Validate options
         try:
-            if self.speed_limit_var.get():
-                int(self.speed_limit_var.get())
-            if self.retries_var.get():
-                int(self.retries_var.get())
-            if self.concurrent_var.get():
-                int(self.concurrent_var.get())
-        except ValueError:
-            self._show_error("Please enter valid numbers for advanced options")
-            return
+            # Disable button to prevent multiple clicks
+            self.add_button.configure(state="disabled")
 
-        # Get format-specific settings
-        format_value = self.format_var.get()
-        audio_only = format_value == "audio"
-        video_only = format_value == "video_only"
+            # Use after to prevent UI blocking
+            self.after(10, self._process_add_to_downloads)
 
-        # Get selected subtitles
-        selected_subtitles = self.subtitle_dropdown.get_selected_subtitles()
+        except Exception as e:
+            print(f"Error in add to downloads: {e}")
+            import traceback
+            traceback.print_exc()
+            # Re-enable button on error
+            if hasattr(self, 'add_button'):
+                self.add_button.configure(state="normal")
 
-        # Create comprehensive download options
-        download_options = {
-            'quality': self.quality_var.get(),
-            'format': format_value,
-            'audio_only': audio_only,
-            'video_only': video_only,
-            'download_playlist': self.playlist_var.get(),
-            'download_subtitles': self.subtitle_var.get() and bool(selected_subtitles),
-            'selected_subtitles': selected_subtitles,
-            'download_thumbnail': self.thumbnail_var.get(),
-            'embed_metadata': self.metadata_var.get(),
-            'cookie_path': getattr(self, 'selected_cookie_path', None),
-            'selected_browser': self._selected_browser,
-            'speed_limit': self.speed_limit_var.get() or None,
-            'retries': int(self.retries_var.get()) if self.retries_var.get() else 3,
-            'concurrent_downloads': int(self.concurrent_var.get()) if self.concurrent_var.get() else 1
-        }
+    def _process_add_to_downloads(self):
+        """Process add to downloads in a non-blocking way."""
+        try:
+            name = self.name_entry.get().strip()
+            if not name:
+                self._show_error("Please enter a name for this download")
+                return
 
-        # Call download callback
-        if self.on_download:
-            self.on_download(self.url, name, download_options)
+            # Validate options
+            try:
+                if self.speed_limit_var.get():
+                    int(self.speed_limit_var.get())
+                if self.retries_var.get():
+                    int(self.retries_var.get())
+                if self.concurrent_var.get():
+                    int(self.concurrent_var.get())
+            except ValueError:
+                self._show_error("Please enter valid numbers for advanced options")
+                return
 
-        # Close dialog
-        self.destroy()
+            # Get format-specific settings
+            format_value = self.format_var.get()
+            audio_only = format_value == "audio"
+            video_only = format_value == "video_only"
+
+            # Get selected subtitles
+            selected_subtitles = self.subtitle_dropdown.get_selected_subtitles()
+
+            # Create comprehensive download options
+            download_options = {
+                'quality': self.quality_var.get(),
+                'format': format_value,
+                'audio_only': audio_only,
+                'video_only': video_only,
+                'download_playlist': self.playlist_var.get(),
+                'download_subtitles': bool(selected_subtitles),
+                'selected_subtitles': selected_subtitles,
+                'download_thumbnail': self.thumbnail_var.get(),
+                'embed_metadata': self.metadata_var.get(),
+                'cookie_path': getattr(self, 'selected_cookie_path', None),
+                'selected_browser': self._selected_browser,
+                'speed_limit': self.speed_limit_var.get() or None,
+                'retries': int(self.retries_var.get()) if self.retries_var.get() else 3,
+                'concurrent_downloads': int(self.concurrent_var.get()) if self.concurrent_var.get() else 1
+            }
+
+            # Call download callback
+            if self.on_download:
+                self.on_download(self.url, name, download_options)
+
+            # Close dialog after a small delay
+            self.after(100, self.destroy)
+
+        except Exception as e:
+            print(f"Error processing add to downloads: {e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            # Re-enable button if dialog still exists
+            if hasattr(self, 'add_button') and self.winfo_exists():
+                self.add_button.configure(state="normal")
 
     def _show_error(self, message: str):
         """Show error message temporarily."""
