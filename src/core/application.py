@@ -55,7 +55,8 @@ class ApplicationOrchestrator:
         from ..handlers.network_checker import NetworkChecker
         from ..handlers.service_detector import ServiceDetector
 
-        self.container.register_factory('cookie_detector', lambda: self._create_simple_cookie_detector())
+        from ..services.youtube.cookie_detector import CookieDetector
+        self.container.register_factory('cookie_detector', lambda: CookieDetector())
         self.container.register_factory('auth_manager', lambda: self._create_auth_manager())
         self.container.register_factory('youtube_metadata', lambda: YouTubeMetadataService())
         self.container.register_factory('network_checker', lambda: NetworkChecker())
@@ -134,35 +135,6 @@ class ApplicationOrchestrator:
                 pass
 
         return SimpleAuthManager()
-
-    def _create_simple_cookie_detector(self):
-        """Create a simple cookie detector for now."""
-        from ..interfaces.cookie_detection import ICookieDetector, BrowserType, PlatformType
-
-        class SimpleCookieDetector(ICookieDetector):
-            def __init__(self):
-                self._platform = self._detect_platform()
-
-            def _detect_platform(self):
-                import platform
-                system = platform.system().lower()
-                if system == "windows":
-                    return PlatformType.WINDOWS
-                elif system == "darwin":
-                    return PlatformType.MACOS
-                else:
-                    return PlatformType.LINUX
-
-            def get_supported_browsers(self):
-                return [BrowserType.CHROME, BrowserType.FIREFOX]
-
-            def detect_cookies_for_browser(self, browser: BrowserType):
-                return None
-
-            def get_current_cookie_path(self):
-                return None
-
-        return SimpleCookieDetector()
 
     def set_ui_components(self, **components):
         """Set UI component references."""

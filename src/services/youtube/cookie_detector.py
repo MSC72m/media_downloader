@@ -102,25 +102,135 @@ class CookieDetector(ICookieDetector):
         return None
 
     def _detect_chrome_cookies(self) -> Optional[str]:
-        """Detect Chrome cookies."""
+        """Detect Chrome cookies and convert to Netscape format."""
         paths = self._browser_paths[BrowserType.CHROME]
+
+        # Find Chrome cookies database
+        cookie_db = None
 
         # Check default profile first
         default_path = paths["default"]
         if default_path.exists() and self.validate_cookie_file(str(default_path)):
-            return str(default_path)
+            cookie_db = str(default_path)
+        else:
+            # Check other profiles
+            profile_pattern = paths["profile"]
+            base_dir = profile_pattern.parent
 
-        # Check other profiles
-        profile_pattern = paths["profile"]
-        base_dir = profile_pattern.parent
-        profile_pattern_str = profile_pattern.name
+            for profile_dir in base_dir.glob("Profile *"):
+                cookie_path = profile_dir / "Cookies"
+                if cookie_path.exists() and self.validate_cookie_file(str(cookie_path)):
+                    cookie_db = str(cookie_path)
+                    break
 
-        for profile_dir in base_dir.glob("Profile *"):
-            cookie_path = profile_dir / "Cookies"
-            if cookie_path.exists() and self.validate_cookie_file(str(cookie_path)):
-                return str(cookie_path)
+        if not cookie_db:
+            logger.info("Chrome cookies database not found")
+            return None
 
-        return None
+        # Convert Chrome cookies to Netscape format
+        return self._convert_chrome_cookies(cookie_db)
+
+    def _convert_chrome_cookies(self, chrome_db_path: str) -> Optional[str]:
+        """Convert Chrome SQLite cookies to Netscape format."""
+        try:
+            # Create temporary file for Netscape format cookies
+            temp_file = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt')
+            temp_path = temp_file.name
+
+            # Create a temporary copy of the database to avoid locking issues
+            temp_db = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
+            temp_db.close()
+
+            try:
+                shutil.copy2(chrome_db_path, temp_db.name)
+
+                # Connect to Chrome cookies database
+                conn = sqlite3.connect(temp_db.name)
+                cursor = conn.cursor()
+
+                # Check if cookies are encrypted (modern macOS Chrome)
+                cursor.execute("PRAGMA table_info(cookies)")
+                columns = [row[1] for row in cursor.fetchall()]
+
+                # If encrypted_value column exists, cookies are encrypted
+                if 'encrypted_value' in columns:
+                    logger.warning("Chrome cookies are encrypted. On macOS, cookies may not be accessible due to system encryption.")
+                    # Try to get any unencrypted cookies first
+                    cursor.execute("""
+                        SELECT name, value, host_key, path, expires_utc, is_secure, is_httponly
+                        FROM cookies
+                        WHERE (host_key LIKE '%.youtube.com' OR host_key LIKE '%.google.com')
+                        AND value IS NOT NULL AND value != ''
+                        ORDER BY creation_utc DESC
+                    """)
+                else:
+                    # Older Chrome without encryption
+                    cursor.execute("""
+                        SELECT name, value, host_key, path, expires_utc, is_secure, is_httponly
+                        FROM cookies
+                        WHERE host_key LIKE '%.youtube.com' OR host_key LIKE '%.google.com'
+                        ORDER BY creation_utc DESC
+                    """)
+
+                # Write Netscape format header
+                temp_file.write("# Netscape HTTP Cookie File\n")
+                temp_file.write("# This is a generated file! Do not edit.\n\n")
+
+                cookie_count = 0
+                for name, value, host_key, path, expires_utc, is_secure, is_httponly in cursor.fetchall():
+                    # Skip cookies without names or values
+                    if not name:
+                        continue
+
+                    # For encrypted cookies, the value might be empty but we should include the name
+                    # with a placeholder value to indicate the cookie exists but is encrypted
+                    if not value:
+                        value = "encrypted"
+                        logger.info(f"Cookie '{name}' appears to be encrypted, using placeholder")
+
+                    # Convert Chrome expires_utc to Unix timestamp
+                    # Chrome uses Windows epoch (1601-01-01) in microseconds
+                    if expires_utc:
+                        # Convert to Unix timestamp (seconds since 1970-01-01)
+                        unix_timestamp = (expires_utc - 11644473600000000) // 1000000
+                    else:
+                        unix_timestamp = 0
+
+                    # Netscape format: host, include_subdomains, path, is_secure, expires, name, value
+                    domain_flag = "TRUE" if host_key.startswith(".") else "FALSE"
+                    secure_flag = "TRUE" if is_secure else "FALSE"
+                    httponly_flag = "FALSE" if is_httponly else "TRUE"  # Inverted for Netscape format
+
+                    line = f"{host_key}\t{domain_flag}\t{path}\t{secure_flag}\t{unix_timestamp}\t{name}\t{value}\n"
+                    temp_file.write(line)
+                    cookie_count += 1
+
+                conn.close()
+                temp_file.close()
+
+                if cookie_count > 0:
+                    logger.info(f"Extracted {cookie_count} YouTube/Google cookies from Chrome")
+                    return temp_path
+                else:
+                    logger.info("No YouTube/Google cookies found in Chrome")
+                    os.unlink(temp_path)
+                    return None
+
+            except Exception as e:
+                logger.error(f"Error reading Chrome cookies database: {e}")
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
+                return None
+            finally:
+                # Clean up temporary database
+                try:
+                    os.unlink(temp_db.name)
+                except:
+                    pass
+
+        except Exception as e:
+            logger.error(f"Error converting Chrome cookies: {e}")
+            return None
 
     def _detect_firefox_cookies(self) -> Optional[str]:
         """Detect Firefox cookies and create compatible file."""

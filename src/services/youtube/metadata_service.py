@@ -3,6 +3,8 @@
 import yt_dlp
 import json
 import re
+import subprocess
+import os
 from typing import List, Optional, Dict, Any
 from urllib.parse import urlparse, parse_qs
 
@@ -30,7 +32,7 @@ class YouTubeMetadataService(IYouTubeMetadataService):
             # Don't fetch formats by default to avoid storyboard noise
         }
 
-    def fetch_metadata(self, url: str, cookie_path: Optional[str] = None) -> Optional[YouTubeMetadata]:
+    def fetch_metadata(self, url: str, cookie_path: Optional[str] = None, browser: Optional[str] = None) -> Optional[YouTubeMetadata]:
         """Fetch basic metadata for a YouTube URL without fetching formats."""
         try:
             logger.info(f"Fetching metadata for URL: {url}")
@@ -39,7 +41,7 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                 return YouTubeMetadata(error="Invalid YouTube URL")
 
             # Get basic video info without fetching formats to avoid storyboard noise
-            info = self._get_basic_video_info(url, cookie_path)
+            info = self._get_basic_video_info(url, cookie_path, browser)
             if not info:
                 return YouTubeMetadata(error="Failed to fetch video information")
 
@@ -68,63 +70,141 @@ class YouTubeMetadataService(IYouTubeMetadataService):
             logger.error(f"Error fetching metadata: {error_msg}")
             return YouTubeMetadata(error=f"Failed to fetch metadata: {error_msg}")
 
-    def _get_basic_video_info(self, url: str, cookie_path: Optional[str] = None) -> Optional[Dict[str, Any]]:
-        """Get basic video info without ANY format fetching."""
+    def _get_basic_video_info(self, url: str, cookie_path: Optional[str] = None, browser: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Get basic video info using command line yt-dlp instead of Python API."""
         try:
-            # Minimal options to get only basic video info and subtitles, NO FORMAT SELECTION
-            basic_options = {
-                'quiet': True,
-                'no_warnings': True,
-                'skip_download': True,
-                'writesubtitles': False,  # Don't write subtitle files
-                'writeautomaticsub': False,  # Don't write auto subtitle files
-                'noplaylist': True,
-                'extract_flat': 'discard_in_playlist',  # Don't extract playlist items
-                'playlistend': 0,  # Don't process playlist
-            }
+            # Build command line arguments
+            cmd = ['.venv/bin/yt-dlp']
 
-            # Add cookies if available and file is readable
-            if cookie_path:
+            # Add cookies if available
+            print(f"DEBUG: Metadata service received cookie_path: {cookie_path}")
+            print(f"DEBUG: Browser parameter: {browser}")
+
+            # Priority 1: Use browser parameter if provided
+            if browser:
+                cmd.extend(['--cookies-from-browser', browser])
+                print(f"DEBUG: Using cookies-from-browser: {browser}")
+
+            # Priority 2: Use manual cookie path if provided
+            elif cookie_path:
+                if os.path.exists(cookie_path):
+                    cmd.extend(['--cookies', cookie_path])
+                    print(f"DEBUG: Using cookies file: {cookie_path}")
+                else:
+                    print(f"DEBUG: Cookie file does not exist: {cookie_path}")
+
+            else:
+                print("DEBUG: No cookies will be used")
+
+            # Add other options
+            cmd.extend([
+                '--quiet',
+                '--no-warnings',
+                '--skip-download',
+                '--no-playlist',
+                '--print', 'title',
+                '--print', 'duration',
+                '--print', 'view_count',
+                '--print', 'upload_date',
+                '--print', 'channel',
+                '--print', 'description',
+                '--print', 'thumbnail',
+                url
+            ])
+
+            print(f"DEBUG: Running command: {' '.join(cmd)}")
+
+            # Run the command
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+
+            if result.returncode == 0:
+                # Parse multi-line output
                 try:
-                    # Check if cookie file exists and is readable
-                    with open(cookie_path, 'r', encoding='utf-8') as f:
-                        # Try to read first few bytes to check if it's valid
-                        f.read(100)
-                    basic_options['cookiefile'] = cookie_path
+                    lines = result.stdout.strip().split('\n')
+                    if len(lines) >= 8:
+                        info = {
+                            'title': lines[0] if lines[0] != 'NA' else '',
+                            'duration': int(lines[1]) if lines[1] != 'NA' else 0,
+                            'view_count': int(lines[2]) if lines[2] != 'NA' else 0,
+                            'upload_date': lines[3] if lines[3] != 'NA' else '',
+                            'channel': lines[4] if lines[4] != 'NA' else '',
+                            'description': lines[5] if lines[5] != 'NA' else '',
+                            'thumbnail': lines[6] if lines[6] != 'NA' else '',
+                            'subtitles': {},
+                            'automatic_captions': {}
+                        }
+                        print("DEBUG: Successfully fetched video info via command line")
+                        logger.info("Successfully fetched basic video info")
+                        return info
+                    else:
+                        print(f"DEBUG: Unexpected output format: {len(lines)} lines")
+                        print(f"DEBUG: Raw output: {result.stdout[:500]}...")
                 except Exception as e:
-                    logger.warning(f"Cookie file not readable, proceeding without cookies: {e}")
+                    print(f"DEBUG: Failed to parse output: {e}")
+                    print(f"DEBUG: Raw output: {result.stdout[:500]}...")
+            else:
+                print(f"DEBUG: Command failed with return code {result.returncode}")
+                print(f"DEBUG: Error output: {result.stderr}")
 
-            with yt_dlp.YoutubeDL(basic_options) as ydl:
-                info = ydl.extract_info(url, download=False)
-                if info:
-                    logger.info("Successfully fetched basic video info")
-                    return info
-
+        except subprocess.TimeoutExpired:
+            print("DEBUG: Command timed out")
+            logger.warning("Command line yt-dlp timed out")
         except Exception as e:
-            logger.warning(f"Basic extraction failed: {e}")
+            logger.warning(f"Command line extraction failed: {e}")
+            print(f"DEBUG: Command line error: {e}")
 
         # Fallback without cookies if cookies failed
-        if cookie_path:
+        if cookie_path or browser:
+            print("DEBUG: Trying fallback without cookies...")
             try:
-                basic_options_no_cookies = {
-                    'quiet': True,
-                    'no_warnings': True,
-                    'skip_download': True,
-                    'writesubtitles': False,  # Don't write subtitle files
-                    'writeautomaticsub': False,  # Don't write auto subtitle files
-                    'noplaylist': True,
-                    'extract_flat': 'discard_in_playlist',
-                    'playlistend': 0,
-                }
+                cmd_fallback = ['.venv/bin/yt-dlp',
+                    '--quiet',
+                    '--no-warnings',
+                    '--skip-download',
+                    '--no-playlist',
+                    '--print', 'title',
+                    '--print', 'duration',
+                    '--print', 'view_count',
+                    '--print', 'upload_date',
+                    '--print', 'channel',
+                    '--print', 'description',
+                    '--print', 'thumbnail',
+                    url
+                ]
 
-                with yt_dlp.YoutubeDL(basic_options_no_cookies) as ydl:
-                    info = ydl.extract_info(url, download=False)
-                    if info:
-                        logger.info("Successfully fetched basic video info without cookies")
-                        return info
+                print(f"DEBUG: Running fallback command: {' '.join(cmd_fallback)}")
+                result = subprocess.run(cmd_fallback, capture_output=True, text=True, timeout=60)
+
+                if result.returncode == 0:
+                    try:
+                        lines = result.stdout.strip().split('\n')
+                        if len(lines) >= 8:
+                            info = {
+                                'title': lines[0] if lines[0] != 'NA' else '',
+                                'duration': int(lines[1]) if lines[1] != 'NA' else 0,
+                                'view_count': int(lines[2]) if lines[2] != 'NA' else 0,
+                                'upload_date': lines[3] if lines[3] != 'NA' else '',
+                                'channel': lines[4] if lines[4] != 'NA' else '',
+                                'description': lines[5] if lines[5] != 'NA' else '',
+                                'thumbnail': lines[6] if lines[6] != 'NA' else '',
+                                'subtitles': {},
+                                'automatic_captions': {}
+                            }
+                            print("DEBUG: Successfully fetched video info via fallback command")
+                            logger.info("Successfully fetched basic video info without cookies")
+                            return info
+                        else:
+                            print(f"DEBUG: Unexpected fallback output format: {len(lines)} lines")
+                            print(f"DEBUG: Raw fallback output: {result.stdout[:500]}...")
+                    except Exception as e:
+                        print(f"DEBUG: Failed to parse fallback output: {e}")
+                else:
+                    print(f"DEBUG: Fallback command failed with return code {result.returncode}")
+                    print(f"DEBUG: Fallback error output: {result.stderr}")
 
             except Exception as e:
-                logger.error(f"Fallback extraction failed: {e}")
+                logger.error(f"Fallback command line extraction failed: {e}")
+                print(f"DEBUG: Fallback command line error: {e}")
 
         return None
 

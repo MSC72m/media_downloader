@@ -78,76 +78,55 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
     def _show_cookie_selection(self):
         """Show cookie selection dialog before metadata fetching."""
-        print("DEBUG: _show_cookie_selection called")
+        logger.info("Showing cookie selection dialog")
 
         def on_cookie_selected(cookie_path: Optional[str], browser: Optional[str]):
-            print(f"DEBUG: Cookie selection callback: path={cookie_path}, browser={browser}")
+            logger.info(f"Cookie selection callback: path={cookie_path}, browser={browser}")
             self.selected_cookie_path = cookie_path
             self.selected_browser = browser
 
             # If manual path was provided, use it directly
             if cookie_path:
-                print("DEBUG: Starting metadata fetch with manual cookie path")
+                logger.info("Starting metadata fetch with manual cookie path")
                 self._start_metadata_fetch()
             elif browser:
-                print(f"DEBUG: Getting cookies from browser: {browser}")
+                logger.info(f"Getting cookies from browser: {browser}")
                 # If browser was selected, get cookies from browser
                 self._get_browser_cookies(browser)
             else:
-                print("DEBUG: No cookies selected, proceeding without cookies")
+                logger.info("No cookies selected, proceeding without cookies")
                 # No cookies selected, proceed without
                 self._start_metadata_fetch()
 
         try:
-            print("DEBUG: Creating BrowserCookieDialog from YouTube dialog...")
+            logger.info("Creating BrowserCookieDialog")
             cookie_dialog = BrowserCookieDialog(self, on_cookie_selected)
-            print("DEBUG: BrowserCookieDialog created from YouTube dialog")
+            logger.info("BrowserCookieDialog created successfully")
             # No need to wait_window() as the callback will be called after the dialog is destroyed
         except Exception as e:
-            print(f"DEBUG: Error showing cookie dialog: {e}")
             logger.error(f"Error showing cookie dialog: {e}")
             # If cookie dialog fails, proceed without cookies
             self._start_metadata_fetch()
 
     def _get_browser_cookies(self, browser: str):
-        """Get cookies from selected browser."""
-        if not self.cookie_handler:
-            self._create_loading_overlay()
-            self._fetch_metadata_async()
-            return
+        """Handle browser cookie selection - just pass browser type to yt-dlp."""
+        # yt-dlp handles cookie extraction directly, no manual extraction needed
+        print(f"DEBUG: Using browser cookies: {browser}")
 
-        def cookie_worker():
-            try:
-                # Map browser string to BrowserType enum
-                browser_type_map = {
-                    'chrome': BrowserType.CHROME,
-                    'firefox': BrowserType.FIREFOX,
-                    'safari': BrowserType.SAFARI
-                }
-
-                browser_type = browser_type_map.get(browser.lower())
-                if browser_type:
-                    cookie_file = self.cookie_handler.detect_cookies_for_browser(browser_type)
-                    self.selected_cookie_path = cookie_file
-
-                # Start metadata fetching after getting cookies
-                self.after(0, self._start_metadata_fetch)
-
-            except Exception as e:
-                print(f"Error getting browser cookies: {e}")
-                # Proceed without cookies
-                self.after(0, self._start_metadata_fetch)
-
-        threading.Thread(target=cookie_worker, daemon=True).start()
+        # Start metadata fetching immediately
+        self.after(0, self._start_metadata_fetch)
 
     def _start_metadata_fetch(self):
         """Start metadata fetching after cookie selection."""
+        logger.info("Starting metadata fetch process")
         self._create_loading_overlay()
         self._fetch_metadata_async()
 
     def _create_loading_overlay(self):
         """Create loading overlay for metadata fetching."""
+        logger.info("Creating loading overlay")
         self.loading_overlay = SimpleLoadingDialog(self, "Fetching YouTube metadata", timeout=90)
+        logger.info("Loading overlay created successfully")
 
     def _fetch_metadata_async(self):
         """Fetch metadata asynchronously."""
@@ -157,8 +136,13 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                     # Use selected cookie path
                     cookie_path = self.selected_cookie_path
 
+                    # Debug output
+                    print(f"DEBUG: YouTube dialog fetch_metadata - url: {self.url}")
+                    print(f"DEBUG: YouTube dialog fetch_metadata - cookie_path: {cookie_path}")
+                    print(f"DEBUG: YouTube dialog fetch_metadata - selected_browser: {self.selected_browser}")
+
                     # Fetch metadata with cookies
-                    self.video_metadata = self.metadata_service.fetch_metadata(self.url, cookie_path)
+                    self.video_metadata = self.metadata_service.fetch_metadata(self.url, cookie_path, self.selected_browser)
 
                     # Check if metadata fetch failed
                     if self.video_metadata and self.video_metadata.error:
