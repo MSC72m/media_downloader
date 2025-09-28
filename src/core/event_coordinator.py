@@ -58,10 +58,15 @@ class EventCoordinator(
 
     # DownloadManagementHandler implementation
     def add_download(self, download: Download) -> bool:
-        """Add a download to the system - delegated to dialog system."""
-        # Downloads are added through the dialog system
-        self.update_status(f"Download added: {download.name}")
-        return True
+        """Add a download to the system."""
+        try:
+            if self.download_list:
+                self.download_list.add_download(download)
+                self.update_status(f"Download added: {download.name}")
+                return True
+        except Exception as e:
+            self.show_error("Add Error", f"Failed to add download: {str(e)}")
+        return False
 
     def remove_downloads(self, indices: List[int]) -> bool:
         """Remove downloads by indices."""
