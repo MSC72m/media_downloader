@@ -2,17 +2,17 @@
 
 import sys
 import os
+import subprocess
+from unittest.mock import Mock, patch
 
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-def test_utf8_decoding_fallback():
-    """Test the UTF-8 decoding fallback mechanism."""
-    # Import the service controller
+def test_service_controller_safe_decode_bytes():
+    """Test the ServiceController _safe_decode_bytes method."""
     from core.service_controller import ServiceController
     from unittest.mock import Mock
 
-    # Create a service controller instance
     controller = ServiceController(Mock(), Mock())
 
     # Test cases with problematic byte sequences
@@ -20,7 +20,7 @@ def test_utf8_decoding_fallback():
         # Valid UTF-8
         (b'Normal text', 'Normal text'),
         # UTF-8 with special characters
-        ('Text with special chars: \xa7 \xb3 \xb4'.encode('utf-8'), 'Text with special chars: § ³ ´'),
+        ('Text with special chars: \xa7 \xb0 \xb3'.encode('utf-8'), 'Text with special chars: § ° ³'),
         # Invalid UTF-8 that should fallback to latin-1
         (b'Text with invalid UTF-8: \xdb\xef', 'Text with invalid UTF-8: Ûï'),
         # More problematic bytes
@@ -35,12 +35,9 @@ def test_utf8_decoding_fallback():
         result = controller._safe_decode_bytes(test_bytes)
         assert result == expected, f"Test {i+1} failed: expected {expected!r}, got {result!r}"
 
-def test_problematic_ytdlp_output():
-    """Test decoding of problematic yt-dlp output."""
-    from core.service_controller import ServiceController
-    from unittest.mock import Mock
-
-    controller = ServiceController(Mock(), Mock())
+def test_metadata_service_safe_decode_bytes():
+    """Test the YouTubeMetadataService _safe_decode_bytes method."""
+    from services.youtube.metadata_service import _safe_decode_bytes
 
     # Simulate actual yt-dlp error output that caused issues
     problematic_outputs = [
@@ -55,10 +52,138 @@ def test_problematic_ytdlp_output():
          '[download] 100% of 10.00MiB'),
         # Mixed content
         (b'[info] Video title: \xa7 Special \xb3 Characters \xb4',
-         '[info] Video title: § Special ³ Characters ´')
+         '[info] Video title: § Special ³ Characters ´'),
+        # The specific 0xb0 byte that was causing the issue
+        (b'Some text with problematic byte: \xb0 and more',
+         'Some text with problematic byte: ° and more'),
+        # More problematic bytes
+        (b'Error: \xb0\xb1\xb2\xb3\xb4\xb5',
+         'Error: °±²³´µ')
     ]
 
     for i, (test_bytes, expected) in enumerate(problematic_outputs):
-        result = controller._safe_decode_bytes(test_bytes)
+        result = _safe_decode_bytes(test_bytes)
         assert result == expected, f"Output test {i+1} failed: expected {expected!r}, got {result!r}"
 
+def test_subprocess_encoding_parameters():
+    """Test that subprocess calls use proper encoding parameters."""
+    from core.service_controller import ServiceController
+    from unittest.mock import Mock
+
+    controller = ServiceController(Mock(), Mock())
+
+    # Mock the subprocess.run call
+    with patch('subprocess.run') as mock_subprocess:
+        mock_result = Mock()
+        mock_result.returncode = 0
+        mock_result.stdout = "Success"
+        mock_result.stderr = ""
+        mock_subprocess.return_value = mock_result
+
+        # Create a mock download
+        download = Mock()
+        download.name = "Test Video"
+        download.url = "https://youtube.com/watch?v=test"
+        download.quality = "720p"
+        download.output_path = "~/Downloads"
+        download.audio_only = False
+        download.download_playlist = False
+        download.download_subtitles = False
+        download.selected_subtitles = []
+        download.download_thumbnail = True
+        download.embed_metadata = True
+        download.cookie_path = None
+        download.selected_browser = None
+
+        # Call the download worker
+        controller._download_worker(download, "~/Downloads", None, None)
+
+        # Verify subprocess was called with encoding parameters
+        mock_subprocess.assert_called_once()
+        call_kwargs = mock_subprocess.call_args[1]
+
+        assert 'encoding' in call_kwargs, "subprocess.run should be called with encoding parameter"
+        assert call_kwargs['encoding'] == 'utf-8', f"Expected UTF-8 encoding, got {call_kwargs.get('encoding')}"
+        assert 'errors' in call_kwargs, "subprocess.run should be called with errors parameter"
+        assert call_kwargs['errors'] == 'replace', f"Expected 'replace' error handling, got {call_kwargs.get('errors')}"
+
+def test_metadata_service_subprocess_encoding():
+    """Test that YouTubeMetadataService subprocess calls use proper encoding."""
+    from services.youtube.metadata_service import YouTubeMetadataService
+
+    service = YouTubeMetadataService()
+
+    # Test all subprocess calls in the metadata service
+    with patch('subprocess.run') as mock_subprocess:
+        mock_result = Mock()
+        mock_result.returncode = 0
+        mock_result.stdout = "Title\n120"
+        mock_result.stderr = ""
+        mock_subprocess.return_value = mock_result
+
+        # This should call subprocess.run with encoding parameters
+        result = service._get_basic_video_info("https://youtube.com/watch?v=test")
+
+        # Verify the call
+        mock_subprocess.assert_called()
+        call_kwargs = mock_subprocess.call_args[1]
+
+        assert 'encoding' in call_kwargs, "subprocess.run should be called with encoding parameter"
+        assert call_kwargs['encoding'] == 'utf-8', f"Expected UTF-8 encoding, got {call_kwargs.get('encoding')}"
+        assert 'errors' in call_kwargs, "subprocess.run should be called with errors parameter"
+        assert call_kwargs['errors'] == 'replace', f"Expected 'replace' error handling, got {call_kwargs.get('errors')}"
+
+def test_original_0xb0_error_scenario():
+    """Test the exact scenario that caused the original 0xb0 error."""
+    from core.service_controller import ServiceController
+    from unittest.mock import Mock
+
+    controller = ServiceController(Mock(), Mock())
+
+    # Simulate the exact error scenario
+    with patch('subprocess.run') as mock_subprocess:
+        mock_result = Mock()
+        mock_result.returncode = 1
+        # This is the exact error message from the original issue
+        mock_result.stdout = "Some normal output"
+        mock_result.stderr = "ERROR: 'utf-8' codec can't decode byte 0xb0 in position 31: invalid start byte"
+        mock_subprocess.return_value = mock_result
+
+        download = Mock()
+        download.name = "Test Video"
+        download.url = "https://youtube.com/watch?v=test"
+        download.quality = "720p"
+        download.output_path = "~/Downloads"
+        download.audio_only = False
+        download.download_playlist = False
+        download.download_subtitles = False
+        download.selected_subtitles = []
+        download.download_thumbnail = True
+        download.embed_metadata = True
+        download.cookie_path = None
+        download.selected_browser = None
+
+        completion_callback = Mock()
+
+        # This should NOT raise an exception
+        controller._download_worker(download, "~/Downloads", None, completion_callback)
+
+        # Verify the error was handled gracefully
+        completion_callback.assert_called_once()
+        args = completion_callback.call_args[0]
+        assert args[0] is False, "Download should fail gracefully"
+        assert "0xb0" in args[1], "Error message should contain the problematic byte reference"
+
+def test_subprocess_returns_strings_not_bytes():
+    """Test that subprocess.run with encoding returns strings, not bytes."""
+    import subprocess
+
+    # Test with a simple command that should work
+    result = subprocess.run(['echo', 'test'], capture_output=True, encoding='utf-8', errors='replace')
+
+    # Result should be strings, not bytes
+    assert isinstance(result.stdout, str), f"Expected string, got {type(result.stdout)}"
+    assert isinstance(result.stderr, str), f"Expected string, got {type(result.stderr)}"
+
+    # Should not raise UnicodeDecodeError
+    assert result.stdout == "test\n", f"Expected 'test\\n', got {result.stdout}"

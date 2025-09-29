@@ -5,6 +5,8 @@ import os
 import threading
 import subprocess
 import re
+import locale
+import codecs
 from pathlib import Path
 from typing import List, Callable, Optional
 
@@ -65,13 +67,43 @@ class ServiceController:
             # Build yt-dlp command
             cmd = ['.venv/bin/yt-dlp']
 
-            # Add quality/format options
-            if download.quality and download.quality != '720p':
-                cmd.extend(['-f', f"bestvideo[height<={download.quality[:-1]}]+bestaudio/best[height<={download.quality[:-1]}]"])
+            # Add encoding-friendly options first - avoid encoding issues
+            cmd.extend([
+                '--no-check-certificate',  # Avoid SSL issues that might cause encoding problems
+                '--ignore-errors',  # Continue on errors
+                '--no-warnings',  # Reduce noise in output
+                '--restrict-filenames',  # Avoid special characters in filenames
+                '--no-progress',  # Avoid progress bar control sequences
+                '--newline',  # Use consistent newlines
+            ])
 
-            # Add audio-only option
+            # Add quality/format options - handle video_audio format more carefully
+            format_type = getattr(download, 'format_type', 'video_audio')
+            
             if getattr(download, 'audio_only', False):
                 cmd.extend(['-x', '--audio-format', 'mp3'])
+            elif format_type == 'video_audio':
+                # For video_audio, use a simpler format selection that's less likely to cause encoding issues
+                if download.quality and download.quality != '720p':
+                    cmd.extend(['-f', f"best[height<={download.quality[:-1]}]/best"])
+                else:
+                    cmd.extend(['-f', 'best'])
+            elif format_type == 'video_only':
+                if download.quality and download.quality != '720p':
+                    cmd.extend(['-f', f"bestvideo[height<={download.quality[:-1]}]"])
+                else:
+                    cmd.extend(['-f', 'bestvideo'])
+            elif format_type == 'separate':
+                if download.quality and download.quality != '720p':
+                    cmd.extend(['-f', f"bestvideo[height<={download.quality[:-1]}]+bestaudio"])
+                else:
+                    cmd.extend(['-f', 'bestvideo+bestaudio'])
+            else:
+                # Default fallback
+                if download.quality and download.quality != '720p':
+                    cmd.extend(['-f', f"best[height<={download.quality[:-1]}]"])
+                else:
+                    cmd.extend(['-f', 'best'])
 
             # Add playlist option
             if getattr(download, 'download_playlist', False):
@@ -113,20 +145,47 @@ class ServiceController:
                     progress_callback(download, progress)
                 time.sleep(0.1)  # Reduced sleep time for faster simulation
 
-            # Run yt-dlp with proper encoding handling
+            # Run yt-dlp with comprehensive encoding handling
             env = os.environ.copy()
             env['PYTHONIOENCODING'] = 'utf-8'
             env['PYTHONUTF8'] = '1'
             env['LANG'] = 'en_US.UTF-8'
             env['LC_ALL'] = 'en_US.UTF-8'
+            env['LC_CTYPE'] = 'en_US.UTF-8'
+            env['LC_NUMERIC'] = 'en_US.UTF-8'
+            env['LC_TIME'] = 'en_US.UTF-8'
+            env['LC_COLLATE'] = 'en_US.UTF-8'
+            env['LC_MONETARY'] = 'en_US.UTF-8'
+            env['LC_MESSAGES'] = 'en_US.UTF-8'
+            env['LC_PAPER'] = 'en_US.UTF-8'
+            env['LC_NAME'] = 'en_US.UTF-8'
+            env['LC_ADDRESS'] = 'en_US.UTF-8'
+            env['LC_TELEPHONE'] = 'en_US.UTF-8'
+            env['LC_MEASUREMENT'] = 'en_US.UTF-8'
+            env['LC_IDENTIFICATION'] = 'en_US.UTF-8'
+            # Force UTF-8 for all text processing
+            env['PYTHONLEGACYWINDOWSSTDIO'] = '0'
+            env['PYTHONIOENCODING'] = 'utf-8'
 
             try:
+                # Use bytes approach first, then decode manually to avoid encoding issues
                 result = subprocess.run(
                     cmd,
                     capture_output=True,
                     timeout=3600,
                     env=env
                 )
+
+                # Get system preferred encoding and decode with surrogateescape
+                try:
+                    encoding = locale.getpreferredencoding(False)
+                    stdout = result.stdout.decode(encoding, errors='surrogateescape')
+                    stderr = result.stderr.decode(encoding, errors='surrogateescape')
+                except Exception:
+                    # Fallback to safe decode if locale approach fails
+                    stdout = self._safe_decode_bytes(result.stdout)
+                    stderr = self._safe_decode_bytes(result.stderr)
+
             except subprocess.TimeoutExpired:
                 error_msg = "Download timed out after 1 hour"
                 logger.error(f"[SERVICE_CONTROLLER] {error_msg}")
@@ -149,8 +208,46 @@ class ServiceController:
                 if completion_callback:
                     completion_callback(True, f"Download completed: {download.name}")
             else:
-                # Handle error output - decode with proper error handling
-                error_output = self._safe_decode_bytes(result.stderr)
+                # Handle error output - already decoded safely
+                stderr_output = stderr if stderr else ""
+                stdout_output = stdout if stdout else ""
+
+                # Check if this is a UTF-8 encoding error and try alternative clients
+                if "0xb0" in stderr_output or "utf-8" in stderr_output.lower() or "invalid start byte" in stderr_output:
+                    logger.warning(f"[SERVICE_CONTROLLER] UTF-8 encoding error detected, trying alternative approach: {download.name}")
+
+                    # Try with different clients that handle encoding better
+                    for client in ['ios', 'android', 'tv_embedded', 'web']:
+                        try:
+                            cmd_alt = self._build_alternative_command(cmd, download, video_dir, client)
+                            logger.info(f"[SERVICE_CONTROLLER] Trying {client} client for: {download.name}")
+
+                            result_alt = subprocess.run(
+                                cmd_alt,
+                                capture_output=True,
+                                timeout=3600,
+                                env=env
+                            )
+
+                            if result_alt.returncode == 0:
+                                logger.info(f"[SERVICE_CONTROLLER] Download completed successfully with {client} client: {download.name}")
+                                if completion_callback:
+                                    completion_callback(True, f"Download completed: {download.name}")
+                                return
+                            else:
+                                # Decode alternative result safely
+                                try:
+                                    alt_stderr = result_alt.stderr.decode(locale.getpreferredencoding(False), errors='surrogateescape')
+                                except Exception:
+                                    alt_stderr = self._safe_decode_bytes(result_alt.stderr)
+                                logger.warning(f"[SERVICE_CONTROLLER] {client} client failed: {alt_stderr[:200]}")
+                        except Exception as client_e:
+                            logger.warning(f"[SERVICE_CONTROLLER] {client} client attempt failed: {client_e}")
+
+                # Combine both outputs for complete error information
+                error_output = f"STDERR: {stderr_output}"
+                if stdout_output.strip():
+                    error_output += f"\nSTDOUT: {stdout_output}"
 
                 logger.error(f"[SERVICE_CONTROLLER] Download failed: {download.name}")
                 logger.error(f"[SERVICE_CONTROLLER] Error output: {error_output}")
@@ -161,6 +258,46 @@ class ServiceController:
             logger.error(f"[SERVICE_CONTROLLER] Download error for {download.name}: {e}")
             if completion_callback:
                 completion_callback(False, f"Download error: {str(e)}")
+
+    def _build_alternative_command(self, original_cmd, download, video_dir, client):
+        """Build an alternative command with different client."""
+        cmd_alt = ['.venv/bin/yt-dlp']
+
+        # Basic encoding-friendly options
+        cmd_alt.extend([
+            '--no-check-certificate',
+            '--ignore-errors',
+            '--no-warnings',
+            '--extractor-args', f'youtube:player_client={client}',
+            '--extractor-args', 'youtube:player_skip=webpage',
+            '--extractor-args', 'youtube:skip=dash',
+            '-f', 'best',  # Use simplest format selection
+        ])
+
+        # Add the same options as before
+        if getattr(download, 'audio_only', False):
+            cmd_alt.extend(['-x', '--audio-format', 'mp3'])
+
+        if getattr(download, 'download_playlist', False):
+            cmd_alt.append('--yes-playlist')
+        else:
+            cmd_alt.append('--no-playlist')
+
+        if getattr(download, 'download_thumbnail', True):
+            cmd_alt.append('--write-thumbnail')
+
+        if getattr(download, 'embed_metadata', True):
+            cmd_alt.append('--embed-metadata')
+
+        if getattr(download, 'cookie_path', None):
+            cmd_alt.extend(['--cookies', download.cookie_path])
+        elif getattr(download, 'selected_browser', None):
+            cmd_alt.extend(['--cookies-from-browser', download.selected_browser])
+
+        cmd_alt.extend(['-o', str(video_dir / f"{download.name}.%(ext)s")])
+        cmd_alt.append(download.url)
+
+        return cmd_alt
 
     def _safe_decode_bytes(self, byte_data: bytes) -> str:
         """Safely decode bytes with multiple fallback encodings."""
@@ -176,6 +313,12 @@ class ServiceController:
         # Try latin-1 (handles all byte values)
         try:
             return byte_data.decode('latin-1')
+        except UnicodeDecodeError:
+            pass
+
+        # Try cp1252 (common on Windows systems)
+        try:
+            return byte_data.decode('cp1252')
         except UnicodeDecodeError:
             pass
 

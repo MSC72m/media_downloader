@@ -16,6 +16,31 @@ from ...utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+def _safe_decode_bytes(byte_data: bytes) -> str:
+    """Safely decode bytes with multiple fallback encodings."""
+    if not byte_data:
+        return ""
+
+    # Try UTF-8 first (most common)
+    try:
+        return byte_data.decode('utf-8')
+    except UnicodeDecodeError:
+        pass
+
+    # Try latin-1 (handles all byte values)
+    try:
+        return byte_data.decode('latin-1')
+    except UnicodeDecodeError:
+        pass
+
+    # Final fallback: replace problematic characters
+    try:
+        return byte_data.decode('utf-8', errors='replace')
+    except Exception:
+        # Last resort: use repr to show raw bytes
+        return repr(byte_data)
+
+
 class YouTubeMetadataService(IYouTubeMetadataService):
     """Service for fetching YouTube video metadata."""
 
@@ -96,7 +121,7 @@ class YouTubeMetadataService(IYouTubeMetadataService):
             else:
                 print("DEBUG: No cookies will be used")
 
-            # Add other options - simplified to avoid timeouts
+            # Add other options - simplified to avoid timeouts, start with web client
             cmd.extend([
                 '--quiet',
                 '--no-warnings',
@@ -109,13 +134,21 @@ class YouTubeMetadataService(IYouTubeMetadataService):
 
             print(f"DEBUG: Running command: {' '.join(cmd)}")
 
-            # Run the command with reduced timeout
-            result = subprocess.run(cmd, capture_output=True, timeout=30)
+            # Run the command with reduced timeout and proper encoding
+            env = os.environ.copy()
+            env['PYTHONIOENCODING'] = 'utf-8'
+            env['PYTHONUTF8'] = '1'
+            env['LANG'] = 'en_US.UTF-8'
+            env['LC_ALL'] = 'en_US.UTF-8'
+            env['LC_CTYPE'] = 'en_US.UTF-8'
+            env['PYTHONLEGACYWINDOWSSTDIO'] = '0'
+            
+            result = subprocess.run(cmd, capture_output=True, timeout=30, encoding='utf-8', errors='replace', env=env, text=True)
 
             if result.returncode == 0:
-                # Parse multi-line output with proper encoding
+                # Parse multi-line output (subprocess.run with encoding already returns strings)
                 try:
-                    stdout = result.stdout.decode('utf-8', errors='replace')
+                    stdout = result.stdout if result.stdout else ""
                     lines = stdout.strip().split('\n')
                     if len(lines) >= 2:
                         # Get REAL subtitle data
@@ -161,17 +194,18 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                     '--no-warnings',
                     '--skip-download',
                     '--no-playlist',
+                    '--extractor-args', 'youtube:player_client=web',  # Use web client for fallback
                     '--print', 'title',
                     '--print', 'duration',
                     url
                 ]
 
                 print(f"DEBUG: Running fallback command: {' '.join(cmd_fallback)}")
-                result = subprocess.run(cmd_fallback, capture_output=True, timeout=20)
+                result = subprocess.run(cmd_fallback, capture_output=True, timeout=20, encoding='utf-8', errors='replace', env=env, text=True)
 
                 if result.returncode == 0:
                     try:
-                        stdout = result.stdout.decode('utf-8', errors='replace')
+                        stdout = result.stdout if result.stdout else ""
                         lines = stdout.strip().split('\n')
                         if len(lines) >= 2:
                             # Get REAL subtitle data for fallback too
@@ -204,37 +238,45 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                 logger.error(f"Fallback command line extraction failed: {e}")
                 print(f"DEBUG: Fallback command line error: {e}")
 
-            # Final fallback: Just get the title
-            print("DEBUG: Trying final fallback for title only...")
-            try:
-                cmd_final = ['.venv/bin/yt-dlp',
-                    '--quiet',
-                    '--no-warnings',
-                    '--skip-download',
-                    '--no-playlist',
-                    '--print', 'title',
-                    url
-                ]
+            # Final fallback: Try different client types
+            print("DEBUG: Trying final fallback with different clients...")
+            clients_to_try = ['android', 'ios', 'tv_embedded', 'web']
 
-                result = subprocess.run(cmd_final, capture_output=True, timeout=15)
-                if result.returncode == 0:
-                    stdout = result.stdout.decode('utf-8', errors='replace')
-                    title = stdout.strip()
-                    if title and title != 'NA':
-                        print("DEBUG: Successfully fetched title via final fallback")
-                        return {
-                            'title': title,
-                            'duration': 0,
-                            'view_count': 0,
-                            'upload_date': '',
-                            'channel': '',
-                            'description': '',
-                            'thumbnail': '',
-                            'subtitles': {},
-                            'automatic_captions': {}
-                        }
-            except Exception as e:
-                print(f"DEBUG: Final fallback also failed: {e}")
+            for client in clients_to_try:
+                try:
+                    cmd_final = ['.venv/bin/yt-dlp',
+                        '--quiet',
+                        '--no-warnings',
+                        '--skip-download',
+                        '--no-playlist',
+                        '--extractor-args', f'youtube:player_client={client}',
+                        '--print', 'title',
+                        url
+                    ]
+
+                    print(f"DEBUG: Trying {client} client: {' '.join(cmd_final)}")
+                    result = subprocess.run(cmd_final, capture_output=True, timeout=15, encoding='utf-8', errors='replace', env=env, text=True)
+
+                    if result.returncode == 0:
+                        stdout = result.stdout if result.stdout else ""
+                        title = stdout.strip()
+                        if title and title != 'NA':
+                            print(f"DEBUG: Successfully fetched title with {client} client")
+                            return {
+                                'title': title,
+                                'duration': 0,
+                                'view_count': 0,
+                                'upload_date': '',
+                                'channel': '',
+                                'description': '',
+                                'thumbnail': '',
+                                'subtitles': {},
+                                'automatic_captions': {}
+                            }
+                    else:
+                        print(f"DEBUG: {client} client failed: {result.stderr}")
+                except Exception as e:
+                    print(f"DEBUG: {client} client error: {e}")
 
         return None
 
@@ -250,21 +292,30 @@ class YouTubeMetadataService(IYouTubeMetadataService):
             elif cookie_path and os.path.exists(cookie_path):
                 cmd.extend(['--cookies', cookie_path])
 
-            # Add subtitle-specific options
+            # Add subtitle-specific options with mobile client
             cmd.extend([
                 '--quiet',
                 '--no-warnings',
                 '--skip-download',
                 '--no-playlist',
+                '--extractor-args', 'youtube:player_client=android',  # Use mobile client for subtitles
                 '--list-subs',
                 url
             ])
 
             print(f"DEBUG: Running subtitle command: {' '.join(cmd)}")
-            result = subprocess.run(cmd, capture_output=True, timeout=30)
+            env = os.environ.copy()
+            env['PYTHONIOENCODING'] = 'utf-8'
+            env['PYTHONUTF8'] = '1'
+            env['LANG'] = 'en_US.UTF-8'
+            env['LC_ALL'] = 'en_US.UTF-8'
+            env['LC_CTYPE'] = 'en_US.UTF-8'
+            env['PYTHONLEGACYWINDOWSSTDIO'] = '0'
+            
+            result = subprocess.run(cmd, capture_output=True, timeout=30, encoding='utf-8', errors='replace', env=env, text=True)
 
             if result.returncode == 0:
-                stdout = result.stdout.decode('utf-8', errors='replace')
+                stdout = result.stdout if result.stdout else ""
                 return self._parse_subtitle_output(stdout)
             else:
                 print(f"DEBUG: Subtitle command failed: {result.stderr}")
