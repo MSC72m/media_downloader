@@ -18,6 +18,7 @@ from ..handlers.download_handler import DownloadHandler
 from ..services.youtube.cookie_detector import CookieManager
 from ..services.factory import ServiceFactory
 from ..services.download import DownloadService
+from .service_controller import ServiceController
 
 logger = logging.getLogger(__name__)
 
@@ -110,156 +111,8 @@ class ApplicationOrchestrator:
         self.container.register('network_checker', network_checker, singleton=True)
         self.container.register('service_detector', service_detector, singleton=True)
 
-        # Create a real service controller that handles downloads properly
-        class RealServiceController:
-            def __init__(self, download_service, cookie_manager):
-                self.download_service = download_service
-                self.cookie_manager = cookie_manager
-                self._active_downloads = 0
-                self._lock = threading.Lock()
-
-            def start_downloads(self, downloads, progress_callback=None, completion_callback=None):
-                """Start downloads with proper UI feedback using yt-dlp directly."""
-                logger.info(f"[SERVICE_CONTROLLER] start_downloads called with {len(downloads)} downloads")
-                logger.info(f"[SERVICE_CONTROLLER] downloads: {downloads}")
-                logger.info(f"[SERVICE_CONTROLLER] progress_callback: {progress_callback}")
-                logger.info(f"[SERVICE_CONTROLLER] completion_callback: {completion_callback}")
-
-                if not downloads:
-                    logger.warning(f"[SERVICE_CONTROLLER] No downloads to start")
-                    if completion_callback:
-                        logger.info(f"[SERVICE_CONTROLLER] Calling completion_callback with no downloads message")
-                        completion_callback(True, "No downloads to process")
-                    return
-
-                import subprocess
-                import threading
-                import os
-                from pathlib import Path
-
-                def download_worker(download, download_dir, progress_cb, completion_cb):
-                    """Worker function to handle a single download."""
-                    logger.info(f"[SERVICE_CONTROLLER] download_worker called for: {download.name}")
-                    try:
-                        logger.info(f"[SERVICE_CONTROLLER] Starting download of {download.name}")
-                        logger.info(f"[SERVICE_CONTROLLER] download_dir: {download_dir}")
-
-                        # Create sanitized directory name
-                        import re
-                        sanitized_name = re.sub(r'[^\w\s-]', '', download.name).strip()
-                        sanitized_name = re.sub(r'[-\s]+', '-', sanitized_name)
-                        video_dir = Path(download_dir).expanduser() / sanitized_name
-                        video_dir.mkdir(parents=True, exist_ok=True)
-                        logger.info(f"[SERVICE_CONTROLLER] Created video directory: {video_dir}")
-
-                        # Build yt-dlp command
-                        cmd = ['.venv/bin/yt-dlp']
-
-                        # Add quality/format options
-                        if download.quality and download.quality != '720p':
-                            cmd.extend(['-f', f"bestvideo[height<={download.quality[:-1]}]+bestaudio/best[height<={download.quality[:-1]}]"])
-
-                        # Add audio-only option
-                        if getattr(download, 'audio_only', False):
-                            cmd.extend(['-x', '--audio-format', 'mp3'])
-
-                        # Add playlist option
-                        if getattr(download, 'download_playlist', False):
-                            cmd.append('--yes-playlist')
-                        else:
-                            cmd.append('--no-playlist')
-
-                        # Add subtitle options
-                        if getattr(download, 'download_subtitles', False) and getattr(download, 'selected_subtitles'):
-                            # Add selected subtitles
-                            for sub in download.selected_subtitles:
-                                lang = sub.get('language_code', 'en')
-                                cmd.extend(['--write-subs', '--sub-lang', lang])
-
-                        # Add thumbnail option
-                        if getattr(download, 'download_thumbnail', True):
-                            cmd.append('--write-thumbnail')
-
-                        # Add metadata option
-                        if getattr(download, 'embed_metadata', True):
-                            cmd.append('--embed-metadata')
-
-                        # Add cookie options
-                        if getattr(download, 'cookie_path', None):
-                            cmd.extend(['--cookies', download.cookie_path])
-                        elif getattr(download, 'selected_browser', None):
-                            cmd.extend(['--cookies-from-browser', download.selected_browser])
-
-                        # Add output path - use sanitized directory
-                        cmd.extend(['-o', str(video_dir / f"{download.name}.%(ext)s")])
-
-                        # Add the URL
-                        cmd.append(download.url)
-
-                        print(f"DEBUG: Running command: {' '.join(cmd)}")
-
-                        # Simulate progress updates since subprocess.run is blocking
-                        import time
-                        for progress in range(0, 101, 10):
-                            if progress_cb:
-                                progress_cb(download, progress)
-                            time.sleep(0.5)  # Simulate progress
-
-                        # Run yt-dlp with proper encoding handling
-                        result = subprocess.run(cmd, capture_output=True, timeout=3600)
-
-                        # Final progress update
-                        if progress_cb:
-                            progress_cb(download, 100)
-
-                        if result.returncode == 0:
-                            logger.info(f"[SERVICE_CONTROLLER] Download completed successfully: {download.name}")
-                            if completion_cb:
-                                completion_cb(True, f"Download completed: {download.name}")
-                        else:
-                            # Handle error output with proper encoding
-                            try:
-                                error_output = result.stderr.decode('utf-8', errors='replace')
-                            except:
-                                error_output = str(result.stderr)
-
-                            logger.error(f"[SERVICE_CONTROLLER] Download failed: {download.name}")
-                            logger.error(f"[SERVICE_CONTROLLER] Error output: {error_output}")
-                            if completion_cb:
-                                completion_cb(False, f"Download failed: {error_output}")
-
-                    except Exception as e:
-                        print(f"DEBUG: Download error for {download.name}: {e}")
-                        if completion_cb:
-                            completion_cb(False, f"Download error: {str(e)}")
-
-                try:
-                    # Start each download in a separate thread
-                    for download in downloads:
-                        download_dir = getattr(download, 'output_path', '~/Downloads') or '~/Downloads'
-
-                        # Start download thread
-                        thread = threading.Thread(
-                            target=download_worker,
-                            args=(download, download_dir, progress_callback, completion_callback),
-                            daemon=True
-                        )
-                        thread.start()
-                        print(f"DEBUG: Started download thread for {download.name}")
-
-                    print(f"DEBUG: All download threads started")
-
-                except Exception as e:
-                    print(f"DEBUG: Error starting downloads: {e}")
-                    if completion_callback:
-                        completion_callback(False, f"Error starting downloads: {e}")
-
-            def has_active_downloads(self):
-                """Check if there are active downloads."""
-                with self._lock:
-                    return self._active_downloads > 0
-
-        self.container.register('service_controller', RealServiceController(
+        # Create service controller
+        self.container.register('service_controller', ServiceController(
             download_service=download_service,
             cookie_manager=cookie_manager
         ), singleton=True)

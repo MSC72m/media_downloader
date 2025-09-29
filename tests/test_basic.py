@@ -4,10 +4,7 @@ import pytest
 import sys
 from pathlib import Path
 
-# Add project root to path
-sys.path.append(str(Path(__file__).parent.parent))
-
-from src.core.models import Download, DownloadStatus, ServiceType
+from core.models import Download, DownloadStatus, ServiceType
 
 
 def test_download_model_creation():
@@ -42,7 +39,7 @@ def test_download_model_with_optional_fields():
         embed_metadata=True,
         cookie_path="/path/to/cookies",
         selected_browser="chrome",
-        speed_limit="1M",
+        speed_limit=1000000,
         retries=5,
         concurrent_downloads=2
     )

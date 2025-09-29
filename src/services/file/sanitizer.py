@@ -25,7 +25,12 @@ class FilenameSanitizer:
         filename = valid_chars.sub('_', filename)
 
         # Normalize unicode characters
-        filename = unicodedata.normalize('NFKD', filename).encode('ASCII', 'ignore').decode('ASCII')
+        try:
+            filename = unicodedata.normalize('NFKD', filename).encode('ASCII', 'ignore').decode('ASCII')
+        except UnicodeError:
+            # Fallback: replace problematic characters
+            filename = unicodedata.normalize('NFKC', filename)
+            filename = re.sub(r'[^\w\s.\-]', '_', filename)
 
         # Limit length
         if len(filename) > self.MAX_FILENAME_LENGTH:

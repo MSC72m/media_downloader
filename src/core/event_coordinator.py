@@ -244,7 +244,13 @@ class EventCoordinator(
     # FileManagementHandler implementation
     def show_file_manager(self) -> None:
         """Show file manager dialog."""
-        FileManagerDialog(self.root)
+        initial_path = self.get_download_directory()
+        FileManagerDialog(
+            self.root,
+            initial_path,
+            self.set_download_directory,
+            self.update_status
+        )
 
     def browse_files(self, file_types: List[str]) -> Optional[str]:
         """Browse for files."""
@@ -265,6 +271,14 @@ class EventCoordinator(
             ui_state = self.container.get('ui_state')
             if ui_state:
                 ui_state.download_directory = directory
+
+                # Refresh button states after directory change
+                if hasattr(self, 'download_list') and self.download_list:
+                    has_items = self.download_list.has_items()
+                    selected_indices = self.download_list.get_selected_indices()
+                    has_selection = bool(selected_indices)
+                    self.update_button_states(has_selection, has_items)
+
                 return True
         except Exception as e:
             self.show_error("Configuration Error", f"Failed to set download directory: {str(e)}")

@@ -4,8 +4,7 @@
 from .youtube_handler import YouTubeHandler
 from .instagram_handler import InstagramHandler
 
-# Original application handlers
-from .application_controller import ApplicationController
+# Application handlers
 from .download_handler import DownloadHandler
 from .auth_handler import AuthenticationHandler
 from .service_detector import ServiceDetector
@@ -16,6 +15,6 @@ __all__ = [
     # Link handlers
     "YouTubeHandler", "InstagramHandler",
     # Application handlers
-    "ApplicationController", "DownloadHandler", "AuthenticationHandler",
+    "DownloadHandler", "AuthenticationHandler",
     "ServiceDetector", "NetworkChecker", "CookieHandler"
 ]
