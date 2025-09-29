@@ -125,9 +125,7 @@ class ServiceController:
                     cmd,
                     capture_output=True,
                     timeout=3600,
-                    env=env,
-                    encoding='utf-8',
-                    errors='replace'
+                    env=env
                 )
             except subprocess.TimeoutExpired:
                 error_msg = "Download timed out after 1 hour"
@@ -151,8 +149,8 @@ class ServiceController:
                 if completion_callback:
                     completion_callback(True, f"Download completed: {download.name}")
             else:
-                # Handle error output (already decoded by subprocess.run)
-                error_output = result.stderr
+                # Handle error output - decode with proper error handling
+                error_output = self._safe_decode_bytes(result.stderr)
 
                 logger.error(f"[SERVICE_CONTROLLER] Download failed: {download.name}")
                 logger.error(f"[SERVICE_CONTROLLER] Error output: {error_output}")
@@ -163,6 +161,30 @@ class ServiceController:
             logger.error(f"[SERVICE_CONTROLLER] Download error for {download.name}: {e}")
             if completion_callback:
                 completion_callback(False, f"Download error: {str(e)}")
+
+    def _safe_decode_bytes(self, byte_data: bytes) -> str:
+        """Safely decode bytes with multiple fallback encodings."""
+        if not byte_data:
+            return ""
+
+        # Try UTF-8 first (most common)
+        try:
+            return byte_data.decode('utf-8')
+        except UnicodeDecodeError:
+            pass
+
+        # Try latin-1 (handles all byte values)
+        try:
+            return byte_data.decode('latin-1')
+        except UnicodeDecodeError:
+            pass
+
+        # Final fallback: replace problematic characters
+        try:
+            return byte_data.decode('utf-8', errors='replace')
+        except Exception:
+            # Last resort: use repr to show raw bytes
+            return repr(byte_data)
 
     def has_active_downloads(self):
         """Check if there are active downloads."""

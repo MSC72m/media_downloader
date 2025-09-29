@@ -22,6 +22,9 @@ class ActionButtonBar(ctk.CTkFrame):
         # Configure grid
         self.grid_columnconfigure((0, 1, 2, 3), weight=1)
 
+        # Track download state
+        self._download_in_progress = False
+
         # Common button style
         self.button_style = {
             "height": 40,
@@ -90,6 +93,10 @@ class ActionButtonBar(ctk.CTkFrame):
         logger.info(f"[ACTION_BUTTONS] set_enabled called with: {enabled}")
         state = "normal" if enabled else "disabled"
         logger.info(f"[ACTION_BUTTONS] Setting button state to: {state}")
+
+        # Track download state
+        self._download_in_progress = not enabled
+
         for button in [self.remove_button, self.clear_button,
                        self.download_button, self.manage_files_button]:
             button.configure(state=state)
@@ -98,6 +105,13 @@ class ActionButtonBar(ctk.CTkFrame):
     def update_button_states(self, has_selection: bool, has_items: bool):
         """Update button states based on selection and items."""
         logger.info(f"[ACTION_BUTTONS] update_button_states called: has_selection={has_selection}, has_items={has_items}")
+        logger.info(f"[ACTION_BUTTONS] Download in progress: {self._download_in_progress}")
+
+        # If download is in progress, don't change button states
+        if self._download_in_progress:
+            logger.info(f"[ACTION_BUTTONS] Download in progress, keeping current button states")
+            return
+
         remove_state = "normal" if has_selection else "disabled"
         clear_state = "normal" if has_items else "disabled"
         download_state = "normal" if has_items else "disabled"
