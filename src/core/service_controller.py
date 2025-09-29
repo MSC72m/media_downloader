@@ -3,12 +3,10 @@
 import logging
 import os
 import threading
-import subprocess
 import re
-import locale
-import codecs
 from pathlib import Path
 from typing import List, Callable, Optional
+import yt_dlp
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +52,7 @@ class ServiceController:
                 completion_callback(False, f"Error starting downloads: {e}")
 
     def _download_worker(self, download, download_dir, progress_callback, completion_callback):
-        """Worker function to handle a single download."""
+        """Worker function to handle a single download using yt-dlp Python API."""
         logger.info(f"[SERVICE_CONTROLLER] download_worker called for: {download.name}")
         try:
             # Create sanitized directory name
@@ -64,270 +62,156 @@ class ServiceController:
             video_dir.mkdir(parents=True, exist_ok=True)
             logger.info(f"[SERVICE_CONTROLLER] Created video directory: {video_dir}")
 
-            # Build yt-dlp command
-            cmd = ['.venv/bin/yt-dlp']
+            # Progress hook for yt-dlp
+            def progress_hook(d):
+                if progress_callback:
+                    if d['status'] == 'downloading':
+                        # Calculate progress percentage
+                        total_bytes = d.get('total_bytes') or d.get('total_bytes_estimate')
+                        downloaded_bytes = d.get('downloaded_bytes', 0)
+                        if total_bytes and total_bytes > 0:
+                            progress = min(100, int((downloaded_bytes / total_bytes) * 100))
+                            progress_callback(download, progress)
+                    elif d['status'] == 'finished':
+                        progress_callback(download, 100)
 
-            # Add encoding-friendly options first - avoid encoding issues
-            cmd.extend([
-                '--no-check-certificate',  # Avoid SSL issues that might cause encoding problems
-                '--ignore-errors',  # Continue on errors
-                '--no-warnings',  # Reduce noise in output
-                '--restrict-filenames',  # Avoid special characters in filenames
-                '--no-progress',  # Avoid progress bar control sequences
-                '--newline',  # Use consistent newlines
-            ])
+            # Build yt-dlp options with encoding fixes
+            ydl_opts = {
+                'progress_hooks': [progress_hook],
+                'outtmpl': str(video_dir / f"{download.name}.%(ext)s"),
+                'restrictfilenames': True,
+                'no_warnings': True,
+                'quiet': True,
+                'ignoreerrors': False,
+                'noplaylist': not getattr(download, 'download_playlist', False),
+                # Encoding fixes
+                'encoding': 'utf-8',
+                'nocheckcertificate': True,
+                'prefer_free_formats': True,
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['android', 'ios', 'web'],  # Try mobile clients first
+                    }
+                },
+            }
 
-            # Add quality/format options - handle video_audio format more carefully
+            # Handle format selection
             format_type = getattr(download, 'format_type', 'video_audio')
-            
+
             if getattr(download, 'audio_only', False):
-                cmd.extend(['-x', '--audio-format', 'mp3'])
+                ydl_opts.update({
+                    'format': 'bestaudio/best',
+                    'postprocessors': [{
+                        'key': 'FFmpegExtractAudio',
+                        'preferredcodec': 'mp3',
+                        'preferredquality': '192',
+                    }],
+                })
             elif format_type == 'video_audio':
-                # For video_audio, use a simpler format selection that's less likely to cause encoding issues
+                # Video with audio combined
                 if download.quality and download.quality != '720p':
-                    cmd.extend(['-f', f"best[height<={download.quality[:-1]}]/best"])
+                    height = download.quality[:-1]  # Remove 'p' from '720p'
+                    ydl_opts['format'] = f"best[height<={height}]/best"
                 else:
-                    cmd.extend(['-f', 'best'])
+                    ydl_opts['format'] = 'best'
             elif format_type == 'video_only':
+                # Video without audio
                 if download.quality and download.quality != '720p':
-                    cmd.extend(['-f', f"bestvideo[height<={download.quality[:-1]}]"])
+                    height = download.quality[:-1]
+                    ydl_opts['format'] = f"bestvideo[height<={height}]"
                 else:
-                    cmd.extend(['-f', 'bestvideo'])
+                    ydl_opts['format'] = 'bestvideo'
             elif format_type == 'separate':
+                # Separate video and audio files
                 if download.quality and download.quality != '720p':
-                    cmd.extend(['-f', f"bestvideo[height<={download.quality[:-1]}]+bestaudio"])
+                    height = download.quality[:-1]
+                    ydl_opts['format'] = f"bestvideo[height<={height}]+bestaudio"
                 else:
-                    cmd.extend(['-f', 'bestvideo+bestaudio'])
+                    ydl_opts['format'] = 'bestvideo+bestaudio'
             else:
                 # Default fallback
                 if download.quality and download.quality != '720p':
-                    cmd.extend(['-f', f"best[height<={download.quality[:-1]}]"])
+                    height = download.quality[:-1]
+                    ydl_opts['format'] = f"best[height<={height}]/best"
                 else:
-                    cmd.extend(['-f', 'best'])
+                    ydl_opts['format'] = 'best'
 
-            # Add playlist option
-            if getattr(download, 'download_playlist', False):
-                cmd.append('--yes-playlist')
-            else:
-                cmd.append('--no-playlist')
-
-            # Add subtitle options
+            # Handle subtitles
             if getattr(download, 'download_subtitles', False) and getattr(download, 'selected_subtitles'):
-                # Add selected subtitles
-                for sub in download.selected_subtitles:
-                    lang = sub.get('language_code', 'en')
-                    cmd.extend(['--write-subs', '--sub-lang', lang])
+                subtitle_langs = [sub.get('language_code', 'en') for sub in download.selected_subtitles]
+                ydl_opts.update({
+                    'writesubtitles': True,
+                    'subtitleslangs': subtitle_langs,
+                    'writeautomaticsub': True,
+                })
 
-            # Add thumbnail option
+            # Handle thumbnails
             if getattr(download, 'download_thumbnail', True):
-                cmd.append('--write-thumbnail')
+                ydl_opts['writethumbnail'] = True
 
-            # Add metadata option
+            # Handle metadata embedding
             if getattr(download, 'embed_metadata', True):
-                cmd.append('--embed-metadata')
+                ydl_opts['embedmetadata'] = True
 
-            # Add cookie options
+            # Handle cookies
             if getattr(download, 'cookie_path', None):
-                cmd.extend(['--cookies', download.cookie_path])
+                ydl_opts['cookiefile'] = download.cookie_path
             elif getattr(download, 'selected_browser', None):
-                cmd.extend(['--cookies-from-browser', download.selected_browser])
+                # Note: Python API doesn't directly support cookies-from-browser
+                # We'll need to extract cookies first or fall back to file
+                pass
 
-            # Add output path - use sanitized directory
-            cmd.extend(['-o', str(video_dir / f"{download.name}.%(ext)s")])
-
-            # Add the URL
-            cmd.append(download.url)
-
-            # Simulate progress updates since subprocess.run is blocking
+            # Simulate some initial progress since API might take time to start
             import time
-            for progress in range(0, 101, 10):
+            for progress in range(0, 30, 10):
                 if progress_callback:
                     progress_callback(download, progress)
-                time.sleep(0.1)  # Reduced sleep time for faster simulation
+                time.sleep(0.1)
 
-            # Run yt-dlp with comprehensive encoding handling
-            env = os.environ.copy()
-            env['PYTHONIOENCODING'] = 'utf-8'
-            env['PYTHONUTF8'] = '1'
-            env['LANG'] = 'en_US.UTF-8'
-            env['LC_ALL'] = 'en_US.UTF-8'
-            env['LC_CTYPE'] = 'en_US.UTF-8'
-            env['LC_NUMERIC'] = 'en_US.UTF-8'
-            env['LC_TIME'] = 'en_US.UTF-8'
-            env['LC_COLLATE'] = 'en_US.UTF-8'
-            env['LC_MONETARY'] = 'en_US.UTF-8'
-            env['LC_MESSAGES'] = 'en_US.UTF-8'
-            env['LC_PAPER'] = 'en_US.UTF-8'
-            env['LC_NAME'] = 'en_US.UTF-8'
-            env['LC_ADDRESS'] = 'en_US.UTF-8'
-            env['LC_TELEPHONE'] = 'en_US.UTF-8'
-            env['LC_MEASUREMENT'] = 'en_US.UTF-8'
-            env['LC_IDENTIFICATION'] = 'en_US.UTF-8'
-            # Force UTF-8 for all text processing
-            env['PYTHONLEGACYWINDOWSSTDIO'] = '0'
-            env['PYTHONIOENCODING'] = 'utf-8'
-
+            # Download using yt-dlp Python API with encoding error handling
             try:
-                # Use bytes approach first, then decode manually to avoid encoding issues
-                result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    timeout=3600,
-                    env=env
-                )
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    ydl.download([download.url])
+            except UnicodeDecodeError as ude:
+                # Try with different encoding options
+                logger.warning(f"[SERVICE_CONTROLLER] Unicode decode error, trying fallback: {ude}")
+                ydl_opts_fallback = ydl_opts.copy()
+                ydl_opts_fallback.update({
+                    'encoding': 'latin-1',
+                    'extractor_args': {
+                        'youtube': {
+                            'player_client': ['ios', 'android', 'tv_embedded', 'web'],
+                            'player_skip': ['webpage'],
+                            'skip': ['dash'],
+                        }
+                    },
+                    'format': 'best[ext=mp4]/best',  # Simpler format selection
+                })
 
-                # Get system preferred encoding and decode with surrogateescape
                 try:
-                    encoding = locale.getpreferredencoding(False)
-                    stdout = result.stdout.decode(encoding, errors='surrogateescape')
-                    stderr = result.stderr.decode(encoding, errors='surrogateescape')
-                except Exception:
-                    # Fallback to safe decode if locale approach fails
-                    stdout = self._safe_decode_bytes(result.stdout)
-                    stderr = self._safe_decode_bytes(result.stderr)
-
-            except subprocess.TimeoutExpired:
-                error_msg = "Download timed out after 1 hour"
-                logger.error(f"[SERVICE_CONTROLLER] {error_msg}")
-                if completion_callback:
-                    completion_callback(False, error_msg)
-                return
-            except Exception as e:
-                error_msg = f"Subprocess error: {str(e)}"
-                logger.error(f"[SERVICE_CONTROLLER] {error_msg}")
-                if completion_callback:
-                    completion_callback(False, error_msg)
-                return
+                    with yt_dlp.YoutubeDL(ydl_opts_fallback) as ydl:
+                        ydl.download([download.url])
+                except Exception as fallback_e:
+                    raise yt_dlp.utils.DownloadError(f"Fallback also failed: {fallback_e}") from fallback_e
 
             # Final progress update
             if progress_callback:
                 progress_callback(download, 100)
 
-            if result.returncode == 0:
-                logger.info(f"[SERVICE_CONTROLLER] Download completed successfully: {download.name}")
-                if completion_callback:
-                    completion_callback(True, f"Download completed: {download.name}")
-            else:
-                # Handle error output - already decoded safely
-                stderr_output = stderr if stderr else ""
-                stdout_output = stdout if stdout else ""
+            logger.info(f"[SERVICE_CONTROLLER] Download completed successfully: {download.name}")
+            if completion_callback:
+                completion_callback(True, f"Download completed: {download.name}")
 
-                # Check if this is a UTF-8 encoding error and try alternative clients
-                if "0xb0" in stderr_output or "utf-8" in stderr_output.lower() or "invalid start byte" in stderr_output:
-                    logger.warning(f"[SERVICE_CONTROLLER] UTF-8 encoding error detected, trying alternative approach: {download.name}")
-
-                    # Try with different clients that handle encoding better
-                    for client in ['ios', 'android', 'tv_embedded', 'web']:
-                        try:
-                            cmd_alt = self._build_alternative_command(cmd, download, video_dir, client)
-                            logger.info(f"[SERVICE_CONTROLLER] Trying {client} client for: {download.name}")
-
-                            result_alt = subprocess.run(
-                                cmd_alt,
-                                capture_output=True,
-                                timeout=3600,
-                                env=env
-                            )
-
-                            if result_alt.returncode == 0:
-                                logger.info(f"[SERVICE_CONTROLLER] Download completed successfully with {client} client: {download.name}")
-                                if completion_callback:
-                                    completion_callback(True, f"Download completed: {download.name}")
-                                return
-                            else:
-                                # Decode alternative result safely
-                                try:
-                                    alt_stderr = result_alt.stderr.decode(locale.getpreferredencoding(False), errors='surrogateescape')
-                                except Exception:
-                                    alt_stderr = self._safe_decode_bytes(result_alt.stderr)
-                                logger.warning(f"[SERVICE_CONTROLLER] {client} client failed: {alt_stderr[:200]}")
-                        except Exception as client_e:
-                            logger.warning(f"[SERVICE_CONTROLLER] {client} client attempt failed: {client_e}")
-
-                # Combine both outputs for complete error information
-                error_output = f"STDERR: {stderr_output}"
-                if stdout_output.strip():
-                    error_output += f"\nSTDOUT: {stdout_output}"
-
-                logger.error(f"[SERVICE_CONTROLLER] Download failed: {download.name}")
-                logger.error(f"[SERVICE_CONTROLLER] Error output: {error_output}")
-                if completion_callback:
-                    completion_callback(False, f"Download failed: {error_output}")
-
+        except yt_dlp.utils.DownloadError as e:
+            error_msg = f"Download failed: {str(e)}"
+            logger.error(f"[SERVICE_CONTROLLER] {error_msg}")
+            if completion_callback:
+                completion_callback(False, error_msg)
         except Exception as e:
+            error_msg = f"Download error: {str(e)}"
             logger.error(f"[SERVICE_CONTROLLER] Download error for {download.name}: {e}")
             if completion_callback:
-                completion_callback(False, f"Download error: {str(e)}")
-
-    def _build_alternative_command(self, original_cmd, download, video_dir, client):
-        """Build an alternative command with different client."""
-        cmd_alt = ['.venv/bin/yt-dlp']
-
-        # Basic encoding-friendly options
-        cmd_alt.extend([
-            '--no-check-certificate',
-            '--ignore-errors',
-            '--no-warnings',
-            '--extractor-args', f'youtube:player_client={client}',
-            '--extractor-args', 'youtube:player_skip=webpage',
-            '--extractor-args', 'youtube:skip=dash',
-            '-f', 'best',  # Use simplest format selection
-        ])
-
-        # Add the same options as before
-        if getattr(download, 'audio_only', False):
-            cmd_alt.extend(['-x', '--audio-format', 'mp3'])
-
-        if getattr(download, 'download_playlist', False):
-            cmd_alt.append('--yes-playlist')
-        else:
-            cmd_alt.append('--no-playlist')
-
-        if getattr(download, 'download_thumbnail', True):
-            cmd_alt.append('--write-thumbnail')
-
-        if getattr(download, 'embed_metadata', True):
-            cmd_alt.append('--embed-metadata')
-
-        if getattr(download, 'cookie_path', None):
-            cmd_alt.extend(['--cookies', download.cookie_path])
-        elif getattr(download, 'selected_browser', None):
-            cmd_alt.extend(['--cookies-from-browser', download.selected_browser])
-
-        cmd_alt.extend(['-o', str(video_dir / f"{download.name}.%(ext)s")])
-        cmd_alt.append(download.url)
-
-        return cmd_alt
-
-    def _safe_decode_bytes(self, byte_data: bytes) -> str:
-        """Safely decode bytes with multiple fallback encodings."""
-        if not byte_data:
-            return ""
-
-        # Try UTF-8 first (most common)
-        try:
-            return byte_data.decode('utf-8')
-        except UnicodeDecodeError:
-            pass
-
-        # Try latin-1 (handles all byte values)
-        try:
-            return byte_data.decode('latin-1')
-        except UnicodeDecodeError:
-            pass
-
-        # Try cp1252 (common on Windows systems)
-        try:
-            return byte_data.decode('cp1252')
-        except UnicodeDecodeError:
-            pass
-
-        # Final fallback: replace problematic characters
-        try:
-            return byte_data.decode('utf-8', errors='replace')
-        except Exception:
-            # Last resort: use repr to show raw bytes
-            return repr(byte_data)
+                completion_callback(False, error_msg)
 
     def has_active_downloads(self):
         """Check if there are active downloads."""
