@@ -130,3 +130,9 @@ class DownloadListView(ctk.CTkFrame):
         """Get all downloads from the list."""
         # Return the stored Download objects instead of parsing text
         return self._downloads.copy()
+
+    def clear_downloads(self) -> None:
+        """Clear all downloads from the list."""
+        self.list_view.delete("1.0", tk.END)
+        self._item_line_mapping.clear()
+        self._downloads.clear()

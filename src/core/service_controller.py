@@ -90,7 +90,7 @@ class ServiceController:
                 'prefer_free_formats': True,
                 'extractor_args': {
                     'youtube': {
-                        'player_client': ['android', 'ios', 'web'],  # Try mobile clients first
+                        'player_client': ['android', 'ios', 'web'],  
                     }
                 },
             }
