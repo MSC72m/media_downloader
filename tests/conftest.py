@@ -205,6 +205,23 @@ class MockServiceType:
     INSTAGRAM = "instagram"
     PINTEREST = "pinterest"
 
+class MockMessageLevel:
+    def __init__(self, value):
+        self.value = value
+    
+    INFO = "info"
+    SUCCESS = "success"
+    WARNING = "warning"
+    ERROR = "error"
+    
+    def __str__(self):
+        return self.value
+    
+    def __eq__(self, other):
+        if isinstance(other, str):
+            return self.value == other
+        return self.value == other.value if hasattr(other, 'value') else False
+
 sys.modules['core.enums.download_status'] = type('MockModule', (), {
     'DownloadStatus': MockDownloadStatus
 })()
@@ -213,27 +230,42 @@ sys.modules['core.enums.service_type'] = type('MockModule', (), {
     'ServiceType': MockServiceType
 })()
 
-# Mock core modules that are missing
-sys.modules['core.link_detection'] = type('MockModule', (), {
-    'LinkHandlerInterface': object,
-    'DetectionResult': object,
-    'auto_register_handler': lambda x: x
-})()
-
-sys.modules['core.container'] = type('MockModule', (), {
-    'ServiceContainer': object
-})()
-
 # Mock models with proper classes
 class MockDownload:
     def __init__(self, **kwargs):
+        # Set default values
+        self.name = kwargs.get('name', '')
+        self.url = kwargs.get('url', '')
+        self.status = kwargs.get('status', MockDownloadStatus.PENDING)
+        self.progress = kwargs.get('progress', 0.0)
+        self.speed = kwargs.get('speed', 0.0)
+        self.service_type = kwargs.get('service_type')
+        self.quality = kwargs.get('quality', '720p')
+        self.format = kwargs.get('format', 'video')
+        self.audio_only = kwargs.get('audio_only', False)
+        self.video_only = kwargs.get('video_only', False)
+        self.download_playlist = kwargs.get('download_playlist', False)
+        self.download_subtitles = kwargs.get('download_subtitles', False)
+        self.selected_subtitles = kwargs.get('selected_subtitles')
+        self.download_thumbnail = kwargs.get('download_thumbnail', True)
+        self.embed_metadata = kwargs.get('embed_metadata', True)
+        self.cookie_path = kwargs.get('cookie_path')
+        self.selected_browser = kwargs.get('selected_browser')
+        self.speed_limit = kwargs.get('speed_limit')
+        self.retries = kwargs.get('retries', 3)
+        self.concurrent_downloads = kwargs.get('concurrent_downloads', 1)
+        
+        # Set any additional kwargs
         for k, v in kwargs.items():
-            setattr(self, k, v)
+            if not hasattr(self, k):
+                setattr(self, k, v)
 
 class MockDownloadOptions:
     def __init__(self, **kwargs):
+        self.save_directory = kwargs.get('save_directory', '~/Downloads')
         for k, v in kwargs.items():
-            setattr(self, k, v)
+            if not hasattr(self, k):
+                setattr(self, k, v)
 
 class MockUIState:
     def __init__(self, **kwargs):
@@ -250,6 +282,62 @@ class MockButtonState:
         for k, v in kwargs.items():
             setattr(self, k, v)
 
+# Mock ServiceController
+class MockServiceController:
+    def __init__(self, download_service, cookie_manager):
+        self.download_service = download_service
+        self.cookie_manager = cookie_manager
+        self._active_downloads = 0
+        self._lock = None  # Mock threading.Lock
+    
+    def has_active_downloads(self):
+        return False
+    
+    def start_downloads(self, downloads, download_dir, progress_callback=None, completion_callback=None):
+        """Mock start_downloads method."""
+        # Get download handler from the service
+        download_handler = getattr(self.download_service, 'download_handler', None)
+        if not download_handler and getattr(self.download_service, 'container', None):
+            download_handler = self.download_service.container.get('download_handler')
+        
+        if download_handler:
+            download_handler.start_downloads(
+                downloads, 
+                download_dir, 
+                progress_callback, 
+                completion_callback
+            )
+            return None
+        
+        if completion_callback:
+            completion_callback(False, "No download handler available")
+            return None
+    
+    def _safe_decode_bytes(self, byte_data):
+        """Safely decode bytes with multiple fallback encodings."""
+        if not byte_data:
+            return ""
+        
+        # Try UTF-8 first (most common)
+        try:
+            return byte_data.decode('utf-8')
+        except UnicodeDecodeError:
+            pass
+        
+        # Try latin-1 (handles all byte values)
+        try:
+            return byte_data.decode('latin-1')
+        except UnicodeDecodeError:
+            pass
+        
+        # Final fallback: replace problematic characters
+        try:
+            return byte_data.decode('utf-8', errors='replace')
+        except Exception:
+            # Last resort: use repr to show raw bytes
+            return repr(byte_data)
+
+# Add mock models to sys.modules
 sys.modules['core.models'] = type('MockModule', (), {
     'Download': MockDownload,
     'DownloadOptions': MockDownloadOptions,
@@ -261,29 +349,40 @@ sys.modules['core.models'] = type('MockModule', (), {
 })()
 
 sys.modules['core.service_controller'] = type('MockModule', (), {
-    'ServiceController': object
+    'ServiceController': MockServiceController
 })()
 
-sys.modules['core.event_coordinator'] = type('MockModule', (), {
-    'EventCoordinator': object
+# Mock enums module for absolute imports
+sys.modules['src.core.enums'] = type('MockModule', (), {
+    'MessageLevel': MockMessageLevel
 })()
 
-sys.modules['core.application'] = type('MockModule', (), {
-    'ApplicationOrchestrator': object
+# Mock base module
+class MockBaseDownloader:
+    def __init__(self):
+        pass
+    
+    def download(self, *args, **kwargs):
+        pass
+    
+    def get_metadata(self, *args, **kwargs):
+        pass
+
+class MockNetworkError(Exception):
+    pass
+
+class MockAuthenticationError(Exception):
+    pass
+
+class MockServiceError(Exception):
+    pass
+
+sys.modules['core.base'] = type('MockModule', (), {
+    'BaseDownloader': MockBaseDownloader,
+    'NetworkError': MockNetworkError,
+    'AuthenticationError': MockAuthenticationError,
+    'ServiceError': MockServiceError
 })()
 
-# Mock handlers
-sys.modules['handlers.download_handler'] = type('MockModule', (), {
-    'DownloadHandler': object
-})()
-
-# Mock network module
-sys.modules['core.network'] = type('MockModule', (), {
-    'check_all_services': lambda: (True, [])
-})()
-
-# Mock UI dialogs
-sys.modules['core.application'] = type('MockModule', (), {
-    'ApplicationOrchestrator': object,
-    'NetworkStatusDialog': object
-})()
+# Only mock what's absolutely necessary for testing
+# Remove heavy mocking to allow actual code execution

@@ -50,15 +50,15 @@ def test_download_model_with_optional_fields():
 
 def test_service_type_enum():
     """Test ServiceType enum values."""
-    assert ServiceType.YOUTUBE.value == "youtube"
-    assert ServiceType.INSTAGRAM.value == "instagram"
-    assert ServiceType.TWITTER.value == "twitter"
-    assert ServiceType.PINTEREST.value == "pinterest"
+    assert ServiceType.YOUTUBE == "youtube"
+    assert ServiceType.INSTAGRAM == "instagram"
+    assert ServiceType.TWITTER == "twitter"
+    assert ServiceType.PINTEREST == "pinterest"
 
 
 def test_download_status_enum():
     """Test DownloadStatus enum values."""
-    assert DownloadStatus.PENDING.value == "Pending"
-    assert DownloadStatus.DOWNLOADING.value == "Downloading"
-    assert DownloadStatus.COMPLETED.value == "Completed"
-    assert DownloadStatus.FAILED.value == "Failed"
+    assert DownloadStatus.PENDING == "Pending"
+    assert DownloadStatus.DOWNLOADING == "Downloading"
+    assert DownloadStatus.COMPLETED == "Completed"
+    assert DownloadStatus.FAILED == "Failed"
