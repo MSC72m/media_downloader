@@ -15,7 +15,7 @@ class ServiceController:
         self._active_downloads = 0
         self._lock = threading.Lock()
 
-    def start_downloads(self, downloads, download_dir, progress_callback=None, completion_callback=None):
+    def start_downloads(self, downloads, download_dir, progress_callback=None, completion_callback=None) -> None:
         """Start downloads by delegating to the download handler."""
         logger.info(f"[SERVICE_CONTROLLER] Starting {len(downloads)} downloads")
         
@@ -31,10 +31,12 @@ class ServiceController:
                 progress_callback, 
                 completion_callback
             )
-        else:
-            logger.error("[SERVICE_CONTROLLER] No download handler available")
-            if completion_callback:
-                completion_callback(False, "No download handler available")
+            return None
+
+        logger.error("[SERVICE_CONTROLLER] No download handler available")
+        if completion_callback:
+            completion_callback(False, "No download handler available")
+            return None
 
     def has_active_downloads(self):
         """Check if there are active downloads."""
