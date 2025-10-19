@@ -4,6 +4,7 @@ import os
 import logging
 import customtkinter as ctk
 from tkinter import messagebox
+from typing import Any, Optional
 
 from .models import UIState
 from .message_queue import MessageQueue
@@ -46,7 +47,7 @@ class ApplicationOrchestrator:
         self.service_accessor = ServiceAccessor(self.container)
 
         # UI components (will be set by the main entrypoint)
-        self.ui_components = {}
+        self.ui_components: dict[str, Any] = {}
 
         # Initialize services after event coordinator is created
         self._initialize_services()
@@ -285,7 +286,7 @@ class ApplicationOrchestrator:
         """Set up direct event handling methods."""
         logger.info("Event handlers initialized")
 
-    def handle_add_url(self, url: str, name: str = None):
+    def handle_add_url(self, url: str, name: Optional[str] = None):
         """Handle adding a new URL using the new detection system."""
         # Use the new link detection system
         _ = name  # Unused parameter

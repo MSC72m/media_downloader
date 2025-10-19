@@ -27,27 +27,24 @@ class DownloadHandler:
 
     def add_download(self, download: Download) -> None:
         """Add a download item."""
-        download_service = self.container.get('download_service')
-        if download_service:
+        if download_service := self.container.get('download_service'):
             download_service.add_download(download)
 
     def remove_downloads(self, indices: List[int]) -> None:
         """Remove download items by indices."""
-        download_service = self.container.get('download_service')
-        if download_service:
+        if download_service := self.container.get('download_service'):
             download_service.remove_downloads(indices)
 
     def clear_downloads(self) -> None:
         """Clear all download items."""
-        download_service = self.container.get('download_service')
-        if download_service:
+        if download_service := self.container.get('download_service'):
             download_service.clear_downloads()
 
     def get_downloads(self) -> List[Download]:
         """Get all download items."""
-        download_service = self.container.get('download_service')
-        if download_service:
-            return download_service.get_downloads()
+        if download_service := self.container.get('download_service'):
+            if downloads := download_service.get_downloads():
+                return downloads
         return []
 
     def has_items(self) -> bool:
@@ -82,17 +79,18 @@ class DownloadHandler:
             # Determine service type and delegate to appropriate service
             service_type = getattr(download, 'service_type', 'youtube')
             
-            if service_type == 'youtube':
-                self._handle_youtube_download(download, download_dir, progress_callback, completion_callback)
-            elif service_type == 'twitter':
-                self._handle_twitter_download(download, download_dir, progress_callback, completion_callback)
-            elif service_type == 'instagram':
-                self._handle_instagram_download(download, download_dir, progress_callback, completion_callback)
-            else:
-                error_msg = f"Unsupported service type: {service_type}"
-                logger.error(f"[DOWNLOAD_HANDLER] {error_msg}")
-                if completion_callback:
-                    completion_callback(False, error_msg)
+            match service_type:
+                case 'youtube':
+                    self._handle_youtube_download(download, download_dir, progress_callback, completion_callback)
+                case 'twitter':
+                    self._handle_twitter_download(download, download_dir, progress_callback, completion_callback)
+                case 'instagram':
+                    self._handle_instagram_download(download, download_dir, progress_callback, completion_callback)
+                case _:
+                    error_msg = f"Unsupported service type: {service_type}"
+                    logger.error(f"[DOWNLOAD_HANDLER] {error_msg}")
+                    if completion_callback:
+                        completion_callback(False, error_msg)
                     
         except Exception as e:
             error_msg = f"Download error: {str(e)}"
@@ -244,15 +242,14 @@ class DownloadHandler:
 
     def has_active_downloads(self) -> bool:
         """Check if there are active downloads."""
-        service_controller = self.container.get('service_controller')
-        if service_controller:
-            return service_controller.has_active_downloads()
+        if service_controller := self.container.get('service_controller'):
+            if result := service_controller.has_active_downloads():
+                return result
         return False
 
     def get_options(self) -> DownloadOptions:
         """Get current download options."""
-        ui_state = self.container.get('ui_state')
-        if ui_state:
+        if ui_state := self.container.get('ui_state'):
             return DownloadOptions(
                 save_directory=getattr(ui_state, 'download_directory', '~/Downloads')
             )
@@ -260,6 +257,5 @@ class DownloadHandler:
 
     def set_options(self, options: DownloadOptions) -> None:
         """Set download options."""
-        ui_state = self.container.get('ui_state')
-        if ui_state:
+        if ui_state := self.container.get('ui_state'):
             ui_state.download_directory = options.save_directory

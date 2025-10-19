@@ -20,19 +20,11 @@ class ServiceController:
         logger.info(f"[SERVICE_CONTROLLER] Starting {len(downloads)} downloads")
         
         # Get download handler from the service
-        if hasattr(self.download_service, 'download_handler'):
-            download_handler = self.download_service.download_handler
-        else:
-            # Fallback: try to get from container if available
-            if hasattr(self.download_service, 'container'):
-                download_handler = self.download_service.container.get('download_handler')
-            else:
-                logger.error("[SERVICE_CONTROLLER] No download handler available")
-                if completion_callback:
-                    completion_callback(False, "No download handler available")
-                return
-
-        if download_handler:
+        if download_handler := (
+            getattr(self.download_service, 'download_handler', None) or
+            (getattr(self.download_service, 'container', None) and 
+             self.download_service.container.get('download_handler'))
+        ):
             download_handler.start_downloads(
                 downloads, 
                 download_dir, 
@@ -40,9 +32,9 @@ class ServiceController:
                 completion_callback
             )
         else:
-            logger.error("[SERVICE_CONTROLLER] Download handler not found")
+            logger.error("[SERVICE_CONTROLLER] No download handler available")
             if completion_callback:
-                completion_callback(False, "Download handler not found")
+                completion_callback(False, "No download handler available")
 
     def has_active_downloads(self):
         """Check if there are active downloads."""

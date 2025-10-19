@@ -342,7 +342,7 @@ class CookieDetector(ICookieDetector):
                 # Check if Netscape format file has content
                 with open(cookie_path, 'r') as f:
                     content = f.read().strip()
-                    return content and (not content.startswith('#') or len(content.split('\n')) > 2)
+                    return bool(content and (not content.startswith('#') or len(content.split('\n')) > 2))
             else:
                 # Check file size (Chrome cookies database)
                 return os.path.getsize(cookie_path) > 0

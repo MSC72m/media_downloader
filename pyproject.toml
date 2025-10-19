@@ -8,6 +8,7 @@ dependencies = [
     "beautifulsoup4>=4.13.5",
     "customtkinter>=5.2.2",
     "instaloader>=4.14.2",
+    "mypy>=1.18.2",
     "pydantic>=2.11.8",
     "pytest>=8.4.2",
     "requests>=2.32.5",

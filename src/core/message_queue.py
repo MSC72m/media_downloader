@@ -22,7 +22,7 @@ class MessageQueue:
     """Queue for managing UI messages."""
 
     def __init__(self, root: tk.Tk):
-        self.queue = queue.Queue()
+        self.queue: queue.Queue = queue.Queue()
         self.root = root
         self.processing = False
         self._start_processing()
