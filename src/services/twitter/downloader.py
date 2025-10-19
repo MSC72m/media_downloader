@@ -65,7 +65,7 @@ class TwitterDownloader(BaseDownloader):
         try:
             response = requests.get(
                 f'https://api.vxtwitter.com/Twitter/status/{tweet_id}',
-                verify=False,
+                verify=True,  # Enable SSL verification for security
                 timeout=10
             )
             response.raise_for_status()

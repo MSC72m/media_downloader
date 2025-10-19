@@ -3,7 +3,6 @@
 import sys
 import os
 import subprocess
-import json
 
 # Add src to path properly
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
@@ -18,7 +17,9 @@ def test_command_line_ytdlp():
     # Test 1: Without cookies
     print("\n1. Testing without cookies...")
     try:
-        cmd = ['.venv/bin/yt-dlp', '--quiet', '--no-warnings', '--skip-download', '--print', 'title', url]
+        import shutil
+        ytdlp_path = shutil.which('yt-dlp') or 'yt-dlp'
+        cmd = [ytdlp_path, '--quiet', '--no-warnings', '--skip-download', '--print', 'title', url]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
 
         if result.returncode == 0:
@@ -31,7 +32,7 @@ def test_command_line_ytdlp():
     # Test 2: With Chrome cookies (this should prompt for password)
     print("\n2. Testing with Chrome cookies...")
     try:
-        cmd = ['.venv/bin/yt-dlp', '--cookies-from-browser', 'chrome', '--quiet', '--no-warnings', '--skip-download', '--print', 'title', url]
+        cmd = [ytdlp_path, '--cookies-from-browser', 'chrome', '--quiet', '--no-warnings', '--skip-download', '--print', 'title', url]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
 
         if result.returncode == 0:
@@ -95,7 +96,7 @@ def test_metadata_service_direct():
                             'subtitles': {},
                             'automatic_captions': {}
                         }
-                        print(f"DEBUG: Successfully fetched video info via command line")
+                        print("DEBUG: Successfully fetched video info via command line")
                         return info
                     else:
                         print(f"DEBUG: Unexpected output format: {len(lines)} lines")

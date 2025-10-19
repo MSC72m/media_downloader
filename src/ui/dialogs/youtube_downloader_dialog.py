@@ -111,7 +111,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
     def _get_browser_cookies(self, browser: str):
         """Handle browser cookie selection - just pass browser type to yt-dlp."""
         # yt-dlp handles cookie extraction directly, no manual extraction needed
-        print(f"DEBUG: Using browser cookies: {browser}")
+        logger.debug(f"Using browser cookies: {browser}")
 
         # Start metadata fetching immediately
         self.after(0, self._start_metadata_fetch)

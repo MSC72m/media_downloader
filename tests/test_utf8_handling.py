@@ -2,7 +2,6 @@
 
 import sys
 import os
-import subprocess
 from unittest.mock import Mock, patch
 
 # Add src to path
@@ -127,7 +126,7 @@ def test_metadata_service_subprocess_encoding():
         mock_subprocess.return_value = mock_result
 
         # This should call subprocess.run with encoding parameters
-        result = service._get_basic_video_info("https://youtube.com/watch?v=test")
+        service._get_basic_video_info("https://youtube.com/watch?v=test")
 
         # Verify the call (only if the service actually uses subprocess)
         if mock_subprocess.called:

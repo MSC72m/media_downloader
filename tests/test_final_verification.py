@@ -20,13 +20,15 @@ def test_command_line_vs_api():
         # Test 1: Command line
         print("\n1. Testing command line...")
         try:
+            import shutil
+            ytdlp_path = shutil.which('yt-dlp') or 'yt-dlp'
             result = subprocess.run([
-                'source .venv/bin/activate && yt-dlp',
+                ytdlp_path,
                 '--cookies-from-browser', 'chrome',
                 '--quiet', '--skip-download', '--no-warnings',
                 '--print', 'title',
                 url
-            ], shell=True, capture_output=True, text=True, timeout=30)
+            ], capture_output=True, text=True, timeout=30)
 
             if result.returncode == 0:
                 print(f"   ✅ Command line success: {result.stdout.strip()}")
@@ -147,8 +149,6 @@ def test_alternative_approach():
 
         # Try to extract Chrome cookies to a file manually
         try:
-            import tempfile
-            import sqlite3
 
             # This would be a more complex approach
             print("   📝 Manual cookie extraction would require:")

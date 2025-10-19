@@ -1,8 +1,5 @@
 """Basic tests for the media downloader application."""
 
-import pytest
-import sys
-from pathlib import Path
 
 from core.models import Download, DownloadStatus, ServiceType
 

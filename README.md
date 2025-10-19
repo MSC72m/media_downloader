@@ -132,8 +132,7 @@ Ensure you have Python 3.6 or higher installed.
    ```
 6. **Launch the application**
    ```bash
-   cd /src
-   python main.py
+   python -m src.main
    ```
 7. **Create a desktop shortcut (optional)**
     Create a .desktop file in ~/.local/share/applications/:

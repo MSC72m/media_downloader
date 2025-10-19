@@ -96,28 +96,46 @@ class YouTubeMetadataService(IYouTubeMetadataService):
     def _get_basic_video_info(self, url: str, cookie_path: Optional[str] = None, browser: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Get basic video info using command line yt-dlp instead of Python API."""
         try:
-            # Build command line arguments
-            cmd = ['.venv/bin/yt-dlp']
+            # Build command line arguments - use system yt-dlp or find it in PATH
+            import shutil
+            ytdlp_path = shutil.which('yt-dlp')
+            if not ytdlp_path:
+                # Fallback to common installation paths
+                possible_paths = [
+                    'yt-dlp',  # In PATH
+                    '/usr/local/bin/yt-dlp',  # System installation
+                    '/usr/bin/yt-dlp',  # System installation
+                    'yt-dlp.exe' if os.name == 'nt' else 'yt-dlp'  # Windows
+                ]
+                for path in possible_paths:
+                    if shutil.which(path):
+                        ytdlp_path = path
+                        break
+                
+                if not ytdlp_path:
+                    raise RuntimeError("yt-dlp not found in PATH or common installation locations")
+            
+            cmd = [ytdlp_path]
 
             # Add cookies if available
-            print(f"DEBUG: Metadata service received cookie_path: {cookie_path}")
-            print(f"DEBUG: Browser parameter: {browser}")
+            logger.debug(f"Metadata service received cookie_path: {cookie_path}")
+            logger.debug(f"Browser parameter: {browser}")
 
             # Priority 1: Use browser parameter if provided
             if browser:
                 cmd.extend(['--cookies-from-browser', browser])
-                print(f"DEBUG: Using cookies-from-browser: {browser}")
+                logger.debug(f"Using cookies-from-browser: {browser}")
 
             # Priority 2: Use manual cookie path if provided
             elif cookie_path:
                 if os.path.exists(cookie_path):
                     cmd.extend(['--cookies', cookie_path])
-                    print(f"DEBUG: Using cookies file: {cookie_path}")
+                    logger.debug(f"Using cookies file: {cookie_path}")
                 else:
-                    print(f"DEBUG: Cookie file does not exist: {cookie_path}")
+                    logger.warning(f"Cookie file does not exist: {cookie_path}")
 
             else:
-                print("DEBUG: No cookies will be used")
+                logger.debug("No cookies will be used")
 
             # Add other options - simplified to avoid timeouts, start with web client
             cmd.extend([
@@ -130,7 +148,7 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                 url
             ])
 
-            print(f"DEBUG: Running command: {' '.join(cmd)}")
+            logger.debug(f"Running command: {' '.join(cmd)}")
 
             # Run the command with reduced timeout and proper encoding
             env = os.environ.copy()

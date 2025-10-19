@@ -4,7 +4,6 @@ import sys
 import os
 import subprocess
 from unittest.mock import Mock, patch
-import tempfile
 
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
@@ -22,7 +21,7 @@ def test_subprocess_mocking():
 
     # Test that mocking works
     with patch('subprocess.run', return_value=mock_result) as mock_run:
-        result = subprocess.run(['echo', 'test'], capture_output=True, text=True)
+        subprocess.run(['echo', 'test'], capture_output=True, text=True)
 
         assert mock_run.called
         print("✅ Subprocess mocking works correctly")
