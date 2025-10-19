@@ -87,15 +87,16 @@ class EventCoordinator(
         logger.info(f"[EVENT_COORDINATOR] download_list type: {type(self.download_list)}")
 
         try:
-            if self.download_list:
-                logger.info("[EVENT_COORDINATOR] Adding download to download_list")
-                self.download_list.add_download(download)
-                logger.info("[EVENT_COORDINATOR] Download added to download_list successfully")
-                self.update_status(f"Download added: {download.name}")
-                logger.info(f"[EVENT_COORDINATOR] Status updated: Download added: {download.name}")
-                return True
-            else:
+            if not self.download_list:
                 logger.error("[EVENT_COORDINATOR] download_list is None or falsy")
+                return False
+
+            logger.info("[EVENT_COORDINATOR] Adding download to download_list")
+            self.download_list.add_download(download)
+            logger.info("[EVENT_COORDINATOR] Download added to download_list successfully")
+            self.update_status(f"Download added: {download.name}")
+            logger.info(f"[EVENT_COORDINATOR] Status updated: Download added: {download.name}")
+            return True
         except Exception as e:
             logger.error(f"[EVENT_COORDINATOR] Failed to add download: {e}", exc_info=True)
             self.show_error("Add Error", f"Failed to add download: {str(e)}")
@@ -177,13 +178,13 @@ class EventCoordinator(
                 # Start downloads with callbacks using download handler directly
                 logger.info("[EVENT_COORDINATOR] Calling download_handler.start_downloads")
                 download_handler = self.container.get('download_handler')
-                if download_handler:
-                    download_handler.start_downloads(downloads, "~/Downloads", on_progress, on_completion)
-                    logger.info("[EVENT_COORDINATOR] download_handler.start_downloads called successfully")
-                else:
+                if not download_handler:
                     logger.error("[EVENT_COORDINATOR] download_handler not found")
                     self.show_error("Download Error", "Download handler not available")
                     return False
+
+                download_handler.start_downloads(downloads, "~/Downloads", on_progress, on_completion)
+                logger.info("[EVENT_COORDINATOR] download_handler.start_downloads called successfully")
                 return True
             else:
                 logger.error("[EVENT_COORDINATOR] service_controller is None")
@@ -201,11 +202,13 @@ class EventCoordinator(
     # UIUpdateHandler implementation
     def update_status(self, message: str, is_error: bool = False) -> None:
         """Update status bar message."""
-        if self.status_bar:
-            if is_error:
-                self.status_bar.show_error(message)
-            else:
-                self.status_bar.show_message(message)
+        if not self.status_bar:
+            return
+
+        if is_error:
+            self.status_bar.show_error(message)
+        else:
+            self.status_bar.show_message(message)
 
     def update_progress(self, download: Download, progress: float) -> None:
         """Update download progress."""

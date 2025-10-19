@@ -193,10 +193,11 @@ class ApplicationOrchestrator:
             logger.info("[ORCHESTRATOR] Refreshing event coordinator handlers")
             self.event_coordinator.refresh_handlers()
             logger.info("[ORCHESTRATOR] Event coordinator handlers refreshed")
-        else:
-            logger.warning(
-                "[ORCHESTRATOR] event_coordinator not found, cannot update UI components"
-            )
+            return
+
+        logger.warning(
+            "[ORCHESTRATOR] event_coordinator not found, cannot update UI components"
+        )
 
         logger.info("[ORCHESTRATOR] UI components registered successfully")
 
@@ -255,9 +256,10 @@ class ApplicationOrchestrator:
         """Show network status dialog."""
         if hasattr(self, 'event_coordinator'):
             self.event_coordinator.show_network_status()
-        else:
-            # Fallback for backward compatibility
-            NetworkStatusDialog(self.root)
+            return
+
+        # Fallback for backward compatibility
+        NetworkStatusDialog(self.root)
 
     def cleanup(self):
         """Clean up all services."""

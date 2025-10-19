@@ -140,15 +140,16 @@ class DownloadHandler:
                 progress_callback=progress_wrapper
             )
 
-            if success:
-                logger.info(f"[DOWNLOAD_HANDLER] Successfully downloaded: {download.name}")
-                if completion_callback:
-                    completion_callback(True, f"Downloaded: {download.name}")
-            else:
+            if not success:
                 error_msg = f"Failed to download: {download.name}"
                 logger.error(f"[DOWNLOAD_HANDLER] {error_msg}")
                 if completion_callback:
                     completion_callback(False, error_msg)
+                return
+
+            logger.info(f"[DOWNLOAD_HANDLER] Successfully downloaded: {download.name}")
+            if completion_callback:
+                completion_callback(True, f"Downloaded: {download.name}")
 
         except Exception as e:
             error_msg = f"YouTube download error: {str(e)}"
@@ -182,15 +183,16 @@ class DownloadHandler:
                 progress_callback=progress_callback
             )
 
-            if success:
-                logger.info(f"[DOWNLOAD_HANDLER] Successfully downloaded: {download.name}")
-                if completion_callback:
-                    completion_callback(True, f"Downloaded: {download.name}")
-            else:
+            if not success:
                 error_msg = f"Failed to download: {download.name}"
                 logger.error(f"[DOWNLOAD_HANDLER] {error_msg}")
                 if completion_callback:
                     completion_callback(False, error_msg)
+                return
+
+            logger.info(f"[DOWNLOAD_HANDLER] Successfully downloaded: {download.name}")
+            if completion_callback:
+                completion_callback(True, f"Downloaded: {download.name}")
 
         except Exception as e:
             error_msg = f"Twitter download error: {str(e)}"
@@ -224,15 +226,16 @@ class DownloadHandler:
                 progress_callback=progress_callback
             )
 
-            if success:
-                logger.info(f"[DOWNLOAD_HANDLER] Successfully downloaded: {download.name}")
-                if completion_callback:
-                    completion_callback(True, f"Downloaded: {download.name}")
-            else:
+            if not success:
                 error_msg = f"Failed to download: {download.name}"
                 logger.error(f"[DOWNLOAD_HANDLER] {error_msg}")
                 if completion_callback:
                     completion_callback(False, error_msg)
+                return
+
+            logger.info(f"[DOWNLOAD_HANDLER] Successfully downloaded: {download.name}")
+            if completion_callback:
+                completion_callback(True, f"Downloaded: {download.name}")
 
         except Exception as e:
             error_msg = f"Instagram download error: {str(e)}"
