@@ -174,10 +174,16 @@ class EventCoordinator(
                 else:
                     logger.warning("[EVENT_COORDINATOR] action_buttons is None, cannot disable buttons")
 
-                # Start downloads with callbacks
-                logger.info("[EVENT_COORDINATOR] Calling service_controller.start_downloads")
-                self.service_controller.start_downloads(downloads, on_progress, on_completion)
-                logger.info("[EVENT_COORDINATOR] service_controller.start_downloads called successfully")
+                # Start downloads with callbacks using download handler directly
+                logger.info("[EVENT_COORDINATOR] Calling download_handler.start_downloads")
+                download_handler = self.container.get('download_handler')
+                if download_handler:
+                    download_handler.start_downloads(downloads, "~/Downloads", on_progress, on_completion)
+                    logger.info("[EVENT_COORDINATOR] download_handler.start_downloads called successfully")
+                else:
+                    logger.error("[EVENT_COORDINATOR] download_handler not found")
+                    self.show_error("Download Error", "Download handler not available")
+                    return False
                 return True
             else:
                 logger.error("[EVENT_COORDINATOR] service_controller is None")

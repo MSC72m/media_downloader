@@ -1,16 +1,13 @@
-"""Service controller for handling download operations."""
+"""Service controller that delegates to the download handler."""
 
 import logging
-import re
 import threading
-from pathlib import Path
-import yt_dlp
 
 logger = logging.getLogger(__name__)
 
 
 class ServiceController:
-    """Controller for managing download operations."""
+    """Simple controller that delegates downloads to the download handler."""
 
     def __init__(self, download_service, cookie_manager):
         self.download_service = download_service
@@ -18,210 +15,40 @@ class ServiceController:
         self._active_downloads = 0
         self._lock = threading.Lock()
 
-    def start_downloads(self, downloads, progress_callback=None, completion_callback=None):
-        """Start downloads with proper UI feedback using yt-dlp directly."""
-        logger.info(f"[SERVICE_CONTROLLER] start_downloads called with {len(downloads)} downloads")
-
-        if not downloads:
-            logger.warning("[SERVICE_CONTROLLER] No downloads to start")
-            if completion_callback:
-                completion_callback(True, "No downloads to process")
-            return
-
-        try:
-            # Start each download in a separate thread
-            for download in downloads:
-                download_dir = getattr(download, 'output_path', '~/Downloads') or '~/Downloads'
-
-                # Start download thread
-                thread = threading.Thread(
-                    target=self._download_worker,
-                    args=(download, download_dir, progress_callback, completion_callback),
-                    daemon=True
-                )
-                thread.start()
-                logger.info(f"[SERVICE_CONTROLLER] Started download thread for {download.name}")
-
-            logger.info("[SERVICE_CONTROLLER] All download threads started")
-
-        except Exception as e:
-            logger.error(f"[SERVICE_CONTROLLER] Error starting downloads: {e}")
-            if completion_callback:
-                completion_callback(False, f"Error starting downloads: {e}")
-
-    def _download_worker(self, download, download_dir, progress_callback, completion_callback):
-        """Worker function to handle a single download using yt-dlp Python API."""
-        logger.info(f"[SERVICE_CONTROLLER] download_worker called for: {download.name}")
-        try:
-            # Create sanitized directory name
-            sanitized_name = re.sub(r'[^\w\s-]', '', download.name).strip()
-            sanitized_name = re.sub(r'[-\s]+', '-', sanitized_name)
-            video_dir = Path(download_dir).expanduser() / sanitized_name
-            video_dir.mkdir(parents=True, exist_ok=True)
-            logger.info(f"[SERVICE_CONTROLLER] Created video directory: {video_dir}")
-
-            # Progress hook for yt-dlp
-            def progress_hook(d):
-                if progress_callback:
-                    if d['status'] == 'downloading':
-                        # Calculate progress percentage
-                        total_bytes = d.get('total_bytes') or d.get('total_bytes_estimate')
-                        downloaded_bytes = d.get('downloaded_bytes', 0)
-                        if total_bytes and total_bytes > 0:
-                            progress = min(100, int((downloaded_bytes / total_bytes) * 100))
-                            progress_callback(download, progress)
-                    elif d['status'] == 'finished':
-                        progress_callback(download, 100)
-
-            # Build yt-dlp options with encoding fixes
-            ydl_opts = {
-                'progress_hooks': [progress_hook],
-                'outtmpl': str(video_dir / f"{download.name}.%(ext)s"),
-                'restrictfilenames': True,
-                'no_warnings': True,
-                'quiet': True,
-                'ignoreerrors': False,
-                'noplaylist': not getattr(download, 'download_playlist', False),
-                # Encoding fixes
-                'encoding': 'utf-8',
-                'nocheckcertificate': True,
-                'prefer_free_formats': True,
-                'extractor_args': {
-                    'youtube': {
-                        'player_client': ['android', 'ios', 'web'],  
-                    }
-                },
-            }
-
-            # Handle format selection
-            format_type = getattr(download, 'format_type', 'video_audio')
-
-            if getattr(download, 'audio_only', False):
-                ydl_opts.update({
-                    'format': 'bestaudio/best',
-                    'postprocessors': [{
-                        'key': 'FFmpegExtractAudio',
-                        'preferredcodec': 'mp3',
-                        'preferredquality': '192',
-                    }],
-                })
-            elif format_type == 'video_audio':
-                # Video with audio combined
-                if download.quality and download.quality != '720p':
-                    height = download.quality[:-1]  # Remove 'p' from '720p'
-                    ydl_opts['format'] = f"best[height<={height}]/best"
-                else:
-                    ydl_opts['format'] = 'best'
-            elif format_type == 'video_only':
-                # Video without audio
-                if download.quality and download.quality != '720p':
-                    height = download.quality[:-1]
-                    ydl_opts['format'] = f"bestvideo[height<={height}]"
-                else:
-                    ydl_opts['format'] = 'bestvideo'
-            elif format_type == 'separate':
-                # Separate video and audio files
-                if download.quality and download.quality != '720p':
-                    height = download.quality[:-1]
-                    ydl_opts['format'] = f"bestvideo[height<={height}]+bestaudio"
-                else:
-                    ydl_opts['format'] = 'bestvideo+bestaudio'
+    def start_downloads(self, downloads, download_dir, progress_callback=None, completion_callback=None):
+        """Start downloads by delegating to the download handler."""
+        logger.info(f"[SERVICE_CONTROLLER] Starting {len(downloads)} downloads")
+        
+        # Get download handler from the service
+        if hasattr(self.download_service, 'download_handler'):
+            download_handler = self.download_service.download_handler
+        else:
+            # Fallback: try to get from container if available
+            if hasattr(self.download_service, 'container'):
+                download_handler = self.download_service.container.get('download_handler')
             else:
-                # Default fallback
-                if download.quality and download.quality != '720p':
-                    height = download.quality[:-1]
-                    ydl_opts['format'] = f"best[height<={height}]/best"
-                else:
-                    ydl_opts['format'] = 'best'
+                logger.error("[SERVICE_CONTROLLER] No download handler available")
+                if completion_callback:
+                    completion_callback(False, "No download handler available")
+                return
 
-            # Handle subtitles
-            if getattr(download, 'download_subtitles', False) and getattr(download, 'selected_subtitles'):
-                subtitle_langs = [sub.get('language_code', 'en') for sub in download.selected_subtitles]
-                ydl_opts.update({
-                    'writesubtitles': True,
-                    'subtitleslangs': subtitle_langs,
-                    'writeautomaticsub': True,
-                })
-
-            # Handle thumbnails
-            if getattr(download, 'download_thumbnail', True):
-                ydl_opts['writethumbnail'] = True
-
-            # Handle metadata embedding
-            if getattr(download, 'embed_metadata', True):
-                ydl_opts['embedmetadata'] = True
-
-            # Handle cookies
-            if getattr(download, 'cookie_path', None):
-                ydl_opts['cookiefile'] = download.cookie_path
-                logger.debug(f"Using cookie file: {download.cookie_path}")
-            elif getattr(download, 'selected_browser', None):
-                # Use cookies-from-browser with Python API
-                ydl_opts['cookiesfrombrowser'] = (download.selected_browser,)
-                logger.debug(f"Using cookies from browser: {download.selected_browser}")
-            elif self.cookie_manager and self.cookie_manager.has_valid_cookies():
-                # Use cookies from cookie manager if available
-                cookie_info = self.cookie_manager.get_cookie_info_for_ytdlp()
-                if cookie_info:
-                    ydl_opts.update(cookie_info)
-                    logger.debug(f"Using cookies from cookie manager: {cookie_info}")
-
-            # Simulate some initial progress since API might take time to start
-            import time
-            for progress in range(0, 30, 10):
-                if progress_callback:
-                    progress_callback(download, progress)
-                time.sleep(0.1)
-
-            # Download using yt-dlp Python API with encoding error handling
-            try:
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    ydl.download([download.url])
-            except UnicodeDecodeError as ude:
-                # Try with different encoding options
-                logger.warning(f"[SERVICE_CONTROLLER] Unicode decode error, trying fallback: {ude}")
-                ydl_opts_fallback = ydl_opts.copy()
-                ydl_opts_fallback.update({
-                    'encoding': 'latin-1',
-                    'extractor_args': {
-                        'youtube': {
-                            'player_client': ['ios', 'android', 'tv_embedded', 'web'],
-                            'player_skip': ['webpage'],
-                            'skip': ['dash'],
-                        }
-                    },
-                    'format': 'best[ext=mp4]/best',  # Simpler format selection
-                })
-
-                try:
-                    with yt_dlp.YoutubeDL(ydl_opts_fallback) as ydl:
-                        ydl.download([download.url])
-                except Exception as fallback_e:
-                    raise yt_dlp.utils.DownloadError(f"Fallback also failed: {fallback_e}") from fallback_e
-
-            # Final progress update
-            if progress_callback:
-                progress_callback(download, 100)
-
-            logger.info(f"[SERVICE_CONTROLLER] Download completed successfully: {download.name}")
+        if download_handler:
+            download_handler.start_downloads(
+                downloads, 
+                download_dir, 
+                progress_callback, 
+                completion_callback
+            )
+        else:
+            logger.error("[SERVICE_CONTROLLER] Download handler not found")
             if completion_callback:
-                completion_callback(True, f"Download completed: {download.name}")
-
-        except yt_dlp.utils.DownloadError as e:
-            error_msg = f"Download failed: {str(e)}"
-            logger.error(f"[SERVICE_CONTROLLER] {error_msg}")
-            if completion_callback:
-                completion_callback(False, error_msg)
-        except Exception as e:
-            error_msg = f"Download error: {str(e)}"
-            logger.error(f"[SERVICE_CONTROLLER] Download error for {download.name}: {e}")
-            if completion_callback:
-                completion_callback(False, error_msg)
+                completion_callback(False, "Download handler not found")
 
     def has_active_downloads(self):
         """Check if there are active downloads."""
-        with self._lock:
-            return self._active_downloads > 0
+        # This could be implemented by tracking active downloads
+        # For now, return False as the download handler manages this
+        return False
 
     def _safe_decode_bytes(self, byte_data: bytes) -> str:
         """Safely decode bytes with multiple fallback encodings."""

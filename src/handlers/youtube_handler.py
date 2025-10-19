@@ -3,7 +3,7 @@
 import re
 import logging
 from typing import Dict, Any, Callable, Optional
-from ..core.link_detection import LinkHandlerInterface, DetectionResult, auto_register_handler
+from src.core.link_detection import LinkHandlerInterface, DetectionResult, auto_register_handler
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ class YouTubeHandler(LinkHandlerInterface):
     def get_metadata(self, url: str) -> Dict[str, Any]:
         """Get YouTube metadata for the URL."""
         # This would integrate with your existing YouTube metadata service
-        from ..services.youtube.metadata_service import YouTubeMetadataService
+        from src.services.youtube.metadata_service import YouTubeMetadataService
 
         try:
             metadata_service = YouTubeMetadataService()
@@ -84,8 +84,8 @@ class YouTubeHandler(LinkHandlerInterface):
         """Get the UI callback for YouTube URLs."""
         logger.info("[YOUTUBE_HANDLER] Getting UI callback")
 
-        from ..ui.dialogs.youtube_downloader_dialog import YouTubeDownloaderDialog
-        from ..ui.dialogs.browser_cookie_dialog import BrowserCookieDialog
+        from src.ui.dialogs.youtube_downloader_dialog import YouTubeDownloaderDialog
+        from src.ui.dialogs.browser_cookie_dialog import BrowserCookieDialog
 
         def youtube_callback(url: str, ui_context: Any):
             """Callback for handling YouTube URLs."""

@@ -9,11 +9,19 @@ from .models import UIState
 from .message_queue import MessageQueue
 from .network import check_internet_connection, check_all_services
 from .container import ServiceContainer
+from .event_coordinator import EventCoordinator
+from .link_detection import LinkDetector
+from .service_accessor import ServiceAccessor
 from ..handlers.cookie_handler import CookieHandler
 from ..handlers.auth_handler import AuthenticationHandler
 from ..handlers.download_handler import DownloadHandler
 from ..services.factory import ServiceFactory
 from ..services.download import DownloadService
+from ..services.youtube.cookie_detector import CookieManager, CookieDetector
+from ..services.youtube.metadata_service import YouTubeMetadataService
+from ..handlers.network_checker import NetworkChecker
+from ..handlers.service_detector import ServiceDetector
+from ..ui.dialogs.network_status_dialog import NetworkStatusDialog
 from .service_controller import ServiceController
 
 logger = logging.getLogger(__name__)
@@ -33,9 +41,6 @@ class ApplicationOrchestrator:
         self.container = ServiceContainer()
 
         # Initialize event coordinator and link detection system
-        from .event_coordinator import EventCoordinator
-        from .link_detection import LinkDetector
-        from .service_accessor import ServiceAccessor
         self.event_coordinator = EventCoordinator(self.root, self.container)
         self.link_detector = LinkDetector()
         self.service_accessor = ServiceAccessor(self.container)
@@ -56,16 +61,18 @@ class ApplicationOrchestrator:
         # Register singletons first
         self.container.register('ui_state', self.ui_state, singleton=True)
         self.container.register('message_queue', self.message_queue, singleton=True)
-        self.container.register('downloads_folder', self.downloads_folder, singleton=True)
+        self.container.register(
+            'downloads_folder', self.downloads_folder, singleton=True
+        )
 
         # Register service factories
-        from ..services.youtube.cookie_detector import CookieManager, CookieDetector
-        from ..services.youtube.metadata_service import YouTubeMetadataService
-        from ..handlers.network_checker import NetworkChecker
-        from ..handlers.service_detector import ServiceDetector
         self.container.register_factory('cookie_detector', lambda: CookieDetector())
-        self.container.register_factory('auth_manager', lambda: self._create_auth_manager())
-        self.container.register_factory('youtube_metadata', lambda: YouTubeMetadataService())
+        self.container.register_factory(
+            'auth_manager', lambda: self._create_auth_manager()
+        )
+        self.container.register_factory(
+            'youtube_metadata', lambda: YouTubeMetadataService()
+        )
         self.container.register_factory('network_checker', lambda: NetworkChecker())
         self.container.register_factory('service_detector', lambda: ServiceDetector())
 
@@ -100,21 +107,33 @@ class ApplicationOrchestrator:
         # Register handlers
         self.container.register('cookie_handler', cookie_handler, singleton=True)
         self.container.register('auth_handler', auth_handler, singleton=True)
-        self.container.register('download_handler', download_handler, singleton=True)
-        self.container.register('network_checker', network_checker, singleton=True)
-        self.container.register('service_detector', service_detector, singleton=True)
+        self.container.register(
+            'download_handler', download_handler, singleton=True
+        )
+        self.container.register(
+            'network_checker', network_checker, singleton=True
+        )
+        self.container.register(
+            'service_detector', service_detector, singleton=True
+        )
 
         # Create service controller
-        self.container.register('service_controller', ServiceController(
-            download_service=download_service,
-            cookie_manager=cookie_manager
-        ), singleton=True)
+        self.container.register(
+            'service_controller',
+            ServiceController(
+                download_service=download_service,
+                cookie_manager=cookie_manager
+            ),
+            singleton=True
+        )
 
         # Register orchestrator as event handler
         self.container.register('event_handler', self, singleton=True)
 
         # Register event coordinator
-        self.container.register('event_coordinator', self.event_coordinator, singleton=True)
+        self.container.register(
+            'event_coordinator', self.event_coordinator, singleton=True
+        )
 
         # Register UI components to event coordinator
         self.event_coordinator.download_list = self.ui_components.get('download_list')
@@ -129,6 +148,7 @@ class ApplicationOrchestrator:
         class SimpleAuthManager:
             def authenticate_instagram(self, parent_window, callback):
                 # Simple implementation for now
+                _ = parent_window  # Unused parameter
                 callback(False)
 
             def cleanup(self):
@@ -138,26 +158,26 @@ class ApplicationOrchestrator:
 
     def set_ui_components(self, **components):
         """Set UI component references."""
-        logger.info(f"[ORCHESTRATOR] set_ui_components called with: {list(components.keys())}")
-        logger.info(f"[ORCHESTRATOR] components: {components}")
+        logger.info("[ORCHESTRATOR] set_ui_components called with: %s", list(components.keys()))
+        logger.info("[ORCHESTRATOR] components: %s", components)
         self.ui_components.update(components)
 
         # Update event coordinator with new UI components
         if hasattr(self, 'event_coordinator'):
             logger.info("[ORCHESTRATOR] Updating event coordinator with UI components")
-            logger.info(f"[ORCHESTRATOR] event_coordinator before: {self.event_coordinator}")
+            logger.info("[ORCHESTRATOR] event_coordinator before: %s", self.event_coordinator)
 
             self.event_coordinator.download_list = components.get('download_list')
-            logger.info(f"[ORCHESTRATOR] Set download_list: {self.event_coordinator.download_list}")
+            logger.info("[ORCHESTRATOR] Set download_list: %s", self.event_coordinator.download_list)
 
             self.event_coordinator.status_bar = components.get('status_bar')
-            logger.info(f"[ORCHESTRATOR] Set status_bar: {self.event_coordinator.status_bar}")
+            logger.info("[ORCHESTRATOR] Set status_bar: %s", self.event_coordinator.status_bar)
 
             self.event_coordinator.action_buttons = components.get('action_buttons')
-            logger.info(f"[ORCHESTRATOR] Set action_buttons: {self.event_coordinator.action_buttons}")
+            logger.info("[ORCHESTRATOR] Set action_buttons: %s", self.event_coordinator.action_buttons)
 
             self.event_coordinator.url_entry = components.get('url_entry')
-            logger.info(f"[ORCHESTRATOR] Set url_entry: {self.event_coordinator.url_entry}")
+            logger.info("[ORCHESTRATOR] Set url_entry: %s", self.event_coordinator.url_entry)
 
             # Also set up the container with UI components
             logger.info("[ORCHESTRATOR] Setting up container with UI components")
@@ -173,14 +193,18 @@ class ApplicationOrchestrator:
             self.event_coordinator.refresh_handlers()
             logger.info("[ORCHESTRATOR] Event coordinator handlers refreshed")
         else:
-            logger.warning("[ORCHESTRATOR] event_coordinator not found, cannot update UI components")
+            logger.warning(
+                "[ORCHESTRATOR] event_coordinator not found, cannot update UI components"
+            )
 
         logger.info("[ORCHESTRATOR] UI components registered successfully")
 
     def check_connectivity(self):
         """Check internet connectivity at startup."""
         if hasattr(self, 'event_coordinator'):
-            self.event_coordinator.update_status("Checking network connectivity...")
+            self.event_coordinator.update_status(
+                "Checking network connectivity..."
+            )
 
         def check_worker():
             internet_connected, error_msg = check_internet_connection()
@@ -197,7 +221,9 @@ class ApplicationOrchestrator:
         import threading
         threading.Thread(target=check_worker, daemon=True).start()
 
-    def _handle_connectivity_check(self, internet_connected: bool, error_msg: str, problem_services: list):
+    def _handle_connectivity_check(
+        self, internet_connected: bool, error_msg: str, problem_services: list
+    ):
         """Handle the results of the connectivity check."""
         if not internet_connected:
             messagebox.showwarning(
@@ -206,7 +232,9 @@ class ApplicationOrchestrator:
                 "You can view detailed network status from Tools > Network Status."
             )
             if hasattr(self, 'event_coordinator'):
-                self.event_coordinator.update_status("Network connectivity issues detected", is_error=True)
+                self.event_coordinator.update_status(
+                    "Network connectivity issues detected", is_error=True
+                )
         elif problem_services:
             problem_list = ", ".join(problem_services)
             messagebox.showwarning(
@@ -215,7 +243,9 @@ class ApplicationOrchestrator:
                 "You can view detailed network status from Tools > Network Status."
             )
             if hasattr(self, 'event_coordinator'):
-                self.event_coordinator.update_status(f"Connection issues with: {problem_list}", is_error=True)
+                self.event_coordinator.update_status(
+                    f"Connection issues with: {problem_list}", is_error=True
+                )
         else:
             if hasattr(self, 'event_coordinator'):
                 self.event_coordinator.update_status("Ready - All services connected")
@@ -226,7 +256,6 @@ class ApplicationOrchestrator:
             self.event_coordinator.show_network_status()
         else:
             # Fallback for backward compatibility
-            from ..ui.dialogs.network_status_dialog import NetworkStatusDialog
             NetworkStatusDialog(self.root)
 
     def cleanup(self):
@@ -250,7 +279,7 @@ class ApplicationOrchestrator:
             self.container.clear()
             logger.info("Application cleanup completed")
         except Exception as e:
-            logger.error(f"Error during cleanup: {str(e)}")
+            logger.error("Error during cleanup: %s", str(e))
 
     def _setup_event_handlers(self):
         """Set up direct event handling methods."""
@@ -259,6 +288,7 @@ class ApplicationOrchestrator:
     def handle_add_url(self, url: str, name: str = None):
         """Handle adding a new URL using the new detection system."""
         # Use the new link detection system
+        _ = name  # Unused parameter
         self.link_detector.detect_and_handle(url, self.event_coordinator)
 
     def handle_remove(self):
@@ -277,25 +307,25 @@ class ApplicationOrchestrator:
     def handle_download(self):
         """Handle starting downloads."""
         logger.info("[ORCHESTRATOR] handle_download called")
-        logger.info(f"[ORCHESTRATOR] event_coordinator: {self.event_coordinator}")
+        logger.info("[ORCHESTRATOR] event_coordinator: %s", self.event_coordinator)
         try:
             self.event_coordinator.start_downloads()
             logger.info("[ORCHESTRATOR] event_coordinator.start_downloads() called successfully")
         except Exception as e:
-            logger.error(f"[ORCHESTRATOR] Error calling event_coordinator.start_downloads(): {e}", exc_info=True)
+            logger.exception("[ORCHESTRATOR] Error calling event_coordinator.start_downloads(): %s", e)
 
     def handle_selection_change(self, selected_indices: list):
         """Handle selection changes."""
-        logger.info(f"[ORCHESTRATOR] handle_selection_change called with: {selected_indices}")
+        logger.info("[ORCHESTRATOR] handle_selection_change called with: %s", selected_indices)
         download_list = self.ui_components.get('download_list')
-        logger.info(f"[ORCHESTRATOR] download_list: {download_list}")
+        logger.info("[ORCHESTRATOR] download_list: %s", download_list)
         has_items = download_list.has_items() if download_list else False
-        logger.info(f"[ORCHESTRATOR] has_items: {has_items}, has_selection: {bool(selected_indices)}")
+        logger.info("[ORCHESTRATOR] has_items: %s, has_selection: %s", has_items, bool(selected_indices))
         try:
             self.event_coordinator.update_button_states(bool(selected_indices), has_items)
             logger.info("[ORCHESTRATOR] update_button_states called successfully")
         except Exception as e:
-            logger.error(f"[ORCHESTRATOR] Error calling update_button_states: {e}", exc_info=True)
+            logger.exception("[ORCHESTRATOR] Error calling update_button_states: %s", e)
 
     
     def handle_instagram_login(self, parent_window=None):
