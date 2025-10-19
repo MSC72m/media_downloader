@@ -168,10 +168,13 @@ class MockYoutubeDL:
 class MockDownloadError(Exception):
     pass
 
-sys.modules['yt_dlp'] = type('MockModule', (), {
-    'YoutubeDL': MockYoutubeDL
+# Create a proper mock for yt_dlp with nested utils
+mock_yt_dlp = type('MockModule', (), {
+    'YoutubeDL': MockYoutubeDL,
+    'utils': type('MockModule', (), {
+        'DownloadError': MockDownloadError
+    })()
 })()
 
-sys.modules['yt_dlp.utils'] = type('MockModule', (), {
-    'DownloadError': MockDownloadError
-})()
+sys.modules['yt_dlp'] = mock_yt_dlp
+sys.modules['yt_dlp.utils'] = mock_yt_dlp.utils
