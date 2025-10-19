@@ -1,6 +1,5 @@
 """Comprehensive tests for service container to achieve 100% coverage."""
 
-import pytest
 from core.container import ServiceContainer
 
 

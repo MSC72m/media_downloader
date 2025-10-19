@@ -1,7 +1,7 @@
 """Comprehensive tests for service controller to achieve 100% coverage."""
 
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 from core.service_controller import ServiceController
 
 

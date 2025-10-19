@@ -1,6 +1,5 @@
 """Tests for real service controller without heavy mocking."""
 
-import pytest
 import sys
 import os
 from unittest.mock import Mock

@@ -1,7 +1,5 @@
 """Tests for core models."""
 
-import pytest
-from datetime import datetime
 from core.models import Download, DownloadOptions, UIState, AuthState, ButtonState
 from core.enums.download_status import DownloadStatus
 from core.enums.service_type import ServiceType

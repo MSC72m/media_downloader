@@ -1,6 +1,5 @@
 """Tests for real service container without heavy mocking."""
 
-import pytest
 import sys
 import os
 

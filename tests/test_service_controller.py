@@ -1,6 +1,5 @@
 """Tests for service controller."""
 
-import pytest
 from unittest.mock import Mock
 from core.service_controller import ServiceController
 

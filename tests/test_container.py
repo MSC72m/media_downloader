@@ -1,6 +1,5 @@
 """Tests for service container."""
 
-import pytest
 from core.container import ServiceContainer
 
 

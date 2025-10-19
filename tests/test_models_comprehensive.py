@@ -1,6 +1,5 @@
 """Comprehensive tests for core models to achieve 100% coverage."""
 
-import pytest
 from datetime import datetime
 from core.models import Download, DownloadOptions, UIState, AuthState, ButtonState
 from core.enums.download_status import DownloadStatus
