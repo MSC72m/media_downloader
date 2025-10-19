@@ -22,6 +22,17 @@ sys.modules['tkinter.messagebox'] = MockTk
 sys.modules['tkinter.filedialog'] = MockTk
 sys.modules['customtkinter'] = MockCTk
 
+# Mock messagebox functions
+class MockMessagebox:
+    def showerror(self, title, message):
+        pass
+    def showwarning(self, title, message):
+        pass
+    def showinfo(self, title, message):
+        pass
+
+sys.modules['tkinter.messagebox'] = MockMessagebox()
+
 # Mock GUI components that depend on tkinter
 sys.modules['src.utils.window'] = type('MockModule', (), {
     'WindowCenterMixin': object
@@ -178,3 +189,101 @@ mock_yt_dlp = type('MockModule', (), {
 
 sys.modules['yt_dlp'] = mock_yt_dlp
 sys.modules['yt_dlp.utils'] = mock_yt_dlp.utils
+
+# Mock enums
+class MockDownloadStatus:
+    PENDING = "Pending"
+    DOWNLOADING = "Downloading"
+    COMPLETED = "Completed"
+    FAILED = "Failed"
+    PAUSED = "Paused"
+    CANCELLED = "Cancelled"
+
+class MockServiceType:
+    YOUTUBE = "youtube"
+    TWITTER = "twitter"
+    INSTAGRAM = "instagram"
+    PINTEREST = "pinterest"
+
+sys.modules['core.enums.download_status'] = type('MockModule', (), {
+    'DownloadStatus': MockDownloadStatus
+})()
+
+sys.modules['core.enums.service_type'] = type('MockModule', (), {
+    'ServiceType': MockServiceType
+})()
+
+# Mock core modules that are missing
+sys.modules['core.link_detection'] = type('MockModule', (), {
+    'LinkHandlerInterface': object,
+    'DetectionResult': object,
+    'auto_register_handler': lambda x: x
+})()
+
+sys.modules['core.container'] = type('MockModule', (), {
+    'ServiceContainer': object
+})()
+
+# Mock models with proper classes
+class MockDownload:
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+class MockDownloadOptions:
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+class MockUIState:
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+class MockAuthState:
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+class MockButtonState:
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+sys.modules['core.models'] = type('MockModule', (), {
+    'Download': MockDownload,
+    'DownloadOptions': MockDownloadOptions,
+    'UIState': MockUIState,
+    'AuthState': MockAuthState,
+    'ButtonState': MockButtonState,
+    'DownloadStatus': MockDownloadStatus,
+    'ServiceType': MockServiceType
+})()
+
+sys.modules['core.service_controller'] = type('MockModule', (), {
+    'ServiceController': object
+})()
+
+sys.modules['core.event_coordinator'] = type('MockModule', (), {
+    'EventCoordinator': object
+})()
+
+sys.modules['core.application'] = type('MockModule', (), {
+    'ApplicationOrchestrator': object
+})()
+
+# Mock handlers
+sys.modules['handlers.download_handler'] = type('MockModule', (), {
+    'DownloadHandler': object
+})()
+
+# Mock network module
+sys.modules['core.network'] = type('MockModule', (), {
+    'check_all_services': lambda: (True, [])
+})()
+
+# Mock UI dialogs
+sys.modules['core.application'] = type('MockModule', (), {
+    'ApplicationOrchestrator': object,
+    'NetworkStatusDialog': object
+})()
