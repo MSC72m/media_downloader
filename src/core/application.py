@@ -2,20 +2,16 @@
 
 import os
 import logging
-import threading
-from typing import Optional, Any
 import customtkinter as ctk
 from tkinter import messagebox
 
 from .models import UIState
-from .enums.download_status import DownloadStatus
 from .message_queue import MessageQueue
 from .network import check_internet_connection, check_all_services
 from .container import ServiceContainer
 from ..handlers.cookie_handler import CookieHandler
 from ..handlers.auth_handler import AuthenticationHandler
 from ..handlers.download_handler import DownloadHandler
-from ..services.youtube.cookie_detector import CookieManager
 from ..services.factory import ServiceFactory
 from ..services.download import DownloadService
 from .service_controller import ServiceController
@@ -67,8 +63,6 @@ class ApplicationOrchestrator:
         from ..services.youtube.metadata_service import YouTubeMetadataService
         from ..handlers.network_checker import NetworkChecker
         from ..handlers.service_detector import ServiceDetector
-
-        from ..services.youtube.cookie_detector import CookieDetector
         self.container.register_factory('cookie_detector', lambda: CookieDetector())
         self.container.register_factory('auth_manager', lambda: self._create_auth_manager())
         self.container.register_factory('youtube_metadata', lambda: YouTubeMetadataService())
@@ -76,7 +70,6 @@ class ApplicationOrchestrator:
         self.container.register_factory('service_detector', lambda: ServiceDetector())
 
         # Initialize core services
-        cookie_detector = self.container.get('cookie_detector')
         cookie_manager = CookieManager()
         cookie_manager.initialize()
 
@@ -151,7 +144,7 @@ class ApplicationOrchestrator:
 
         # Update event coordinator with new UI components
         if hasattr(self, 'event_coordinator'):
-            logger.info(f"[ORCHESTRATOR] Updating event coordinator with UI components")
+            logger.info("[ORCHESTRATOR] Updating event coordinator with UI components")
             logger.info(f"[ORCHESTRATOR] event_coordinator before: {self.event_coordinator}")
 
             self.event_coordinator.download_list = components.get('download_list')
@@ -167,22 +160,22 @@ class ApplicationOrchestrator:
             logger.info(f"[ORCHESTRATOR] Set url_entry: {self.event_coordinator.url_entry}")
 
             # Also set up the container with UI components
-            logger.info(f"[ORCHESTRATOR] Setting up container with UI components")
+            logger.info("[ORCHESTRATOR] Setting up container with UI components")
             self.container.register('download_list', components.get('download_list'))
             self.container.register('status_bar', components.get('status_bar'))
             self.container.register('action_buttons', components.get('action_buttons'))
             self.container.register('url_entry', components.get('url_entry'))
 
-            logger.info(f"[ORCHESTRATOR] Container updated with UI components")
+            logger.info("[ORCHESTRATOR] Container updated with UI components")
 
             # Refresh handlers after UI components are registered
-            logger.info(f"[ORCHESTRATOR] Refreshing event coordinator handlers")
+            logger.info("[ORCHESTRATOR] Refreshing event coordinator handlers")
             self.event_coordinator.refresh_handlers()
-            logger.info(f"[ORCHESTRATOR] Event coordinator handlers refreshed")
+            logger.info("[ORCHESTRATOR] Event coordinator handlers refreshed")
         else:
-            logger.warning(f"[ORCHESTRATOR] event_coordinator not found, cannot update UI components")
+            logger.warning("[ORCHESTRATOR] event_coordinator not found, cannot update UI components")
 
-        logger.info(f"[ORCHESTRATOR] UI components registered successfully")
+        logger.info("[ORCHESTRATOR] UI components registered successfully")
 
     def check_connectivity(self):
         """Check internet connectivity at startup."""
@@ -283,11 +276,11 @@ class ApplicationOrchestrator:
 
     def handle_download(self):
         """Handle starting downloads."""
-        logger.info(f"[ORCHESTRATOR] handle_download called")
+        logger.info("[ORCHESTRATOR] handle_download called")
         logger.info(f"[ORCHESTRATOR] event_coordinator: {self.event_coordinator}")
         try:
             self.event_coordinator.start_downloads()
-            logger.info(f"[ORCHESTRATOR] event_coordinator.start_downloads() called successfully")
+            logger.info("[ORCHESTRATOR] event_coordinator.start_downloads() called successfully")
         except Exception as e:
             logger.error(f"[ORCHESTRATOR] Error calling event_coordinator.start_downloads(): {e}", exc_info=True)
 
@@ -300,7 +293,7 @@ class ApplicationOrchestrator:
         logger.info(f"[ORCHESTRATOR] has_items: {has_items}, has_selection: {bool(selected_indices)}")
         try:
             self.event_coordinator.update_button_states(bool(selected_indices), has_items)
-            logger.info(f"[ORCHESTRATOR] update_button_states called successfully")
+            logger.info("[ORCHESTRATOR] update_button_states called successfully")
         except Exception as e:
             logger.error(f"[ORCHESTRATOR] Error calling update_button_states: {e}", exc_info=True)
 

@@ -6,7 +6,6 @@ from .download_list import DownloadListView
 from .options_bar import OptionsBar
 from .status_bar import StatusBar
 from .url_entry import URLEntryFrame
-from .main_action_buttons import ActionButtonBar
 
 __all__ = [
     'FileListBox',

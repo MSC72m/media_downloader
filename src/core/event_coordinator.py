@@ -7,10 +7,7 @@ from .interfaces.event_handlers import (
     AuthenticationHandler, FileManagementHandler, ConfigurationHandler,
     NetworkStatusHandler, YouTubeSpecificHandler
 )
-from .models import Download, DownloadStatus
-from ..services.youtube.metadata_service import YouTubeMetadataService
-from ..ui.dialogs.youtube_downloader_dialog import YouTubeDownloaderDialog
-from ..ui.dialogs.browser_cookie_dialog import BrowserCookieDialog
+from .models import Download
 from ..ui.dialogs.file_manager_dialog import FileManagerDialog
 from ..ui.dialogs.network_status_dialog import NetworkStatusDialog
 from .link_detection import LinkDetector
@@ -38,7 +35,7 @@ class EventCoordinator(
 
     def _setup_handlers(self):
         """Setup internal handlers and services."""
-        logger.info(f"[EVENT_COORDINATOR] _setup_handlers called")
+        logger.info("[EVENT_COORDINATOR] _setup_handlers called")
         # Get services from container
         self.download_list = self.container.get('download_list')
         logger.info(f"[EVENT_COORDINATOR] Got download_list: {self.download_list}")
@@ -61,13 +58,13 @@ class EventCoordinator(
         self.service_controller = self.container.get('service_controller')
         logger.info(f"[EVENT_COORDINATOR] Got service_controller: {self.service_controller}")
 
-        logger.info(f"[EVENT_COORDINATOR] _setup_handlers completed")
+        logger.info("[EVENT_COORDINATOR] _setup_handlers completed")
 
     def refresh_handlers(self):
         """Refresh handlers after UI components are registered."""
-        logger.info(f"[EVENT_COORDINATOR] refresh_handlers called")
+        logger.info("[EVENT_COORDINATOR] refresh_handlers called")
         self._setup_handlers()
-        logger.info(f"[EVENT_COORDINATOR] refresh_handlers completed")
+        logger.info("[EVENT_COORDINATOR] refresh_handlers completed")
 
 
     # URLDetectionHandler implementation
@@ -91,14 +88,14 @@ class EventCoordinator(
 
         try:
             if self.download_list:
-                logger.info(f"[EVENT_COORDINATOR] Adding download to download_list")
+                logger.info("[EVENT_COORDINATOR] Adding download to download_list")
                 self.download_list.add_download(download)
-                logger.info(f"[EVENT_COORDINATOR] Download added to download_list successfully")
+                logger.info("[EVENT_COORDINATOR] Download added to download_list successfully")
                 self.update_status(f"Download added: {download.name}")
                 logger.info(f"[EVENT_COORDINATOR] Status updated: Download added: {download.name}")
                 return True
             else:
-                logger.error(f"[EVENT_COORDINATOR] download_list is None or falsy")
+                logger.error("[EVENT_COORDINATOR] download_list is None or falsy")
         except Exception as e:
             logger.error(f"[EVENT_COORDINATOR] Failed to add download: {e}", exc_info=True)
             self.show_error("Add Error", f"Failed to add download: {str(e)}")
@@ -128,20 +125,20 @@ class EventCoordinator(
 
     def start_downloads(self) -> bool:
         """Start all pending downloads."""
-        logger.info(f"[EVENT_COORDINATOR] start_downloads called")
+        logger.info("[EVENT_COORDINATOR] start_downloads called")
         logger.info(f"[EVENT_COORDINATOR] download_list: {self.download_list}")
         logger.info(f"[EVENT_COORDINATOR] action_buttons: {self.action_buttons}")
         logger.info(f"[EVENT_COORDINATOR] service_controller: {self.service_controller}")
 
         try:
             if not self.download_list or not self.download_list.has_items():
-                logger.warning(f"[EVENT_COORDINATOR] No downloads to start")
+                logger.warning("[EVENT_COORDINATOR] No downloads to start")
                 self.update_status("Please add items to download")
                 return False
 
-            logger.info(f"[EVENT_COORDINATOR] Downloads available, checking service_controller")
+            logger.info("[EVENT_COORDINATOR] Downloads available, checking service_controller")
             if self.service_controller:
-                logger.info(f"[EVENT_COORDINATOR] Getting downloads from download_list")
+                logger.info("[EVENT_COORDINATOR] Getting downloads from download_list")
                 downloads = self.download_list.get_downloads()
                 logger.info(f"[EVENT_COORDINATOR] Got {len(downloads)} downloads: {downloads}")
 
@@ -154,12 +151,12 @@ class EventCoordinator(
                     logger.info(f"[EVENT_COORDINATOR] Completion callback: success={success}, message={message}")
                     # Re-enable buttons
                     if self.action_buttons:
-                        logger.info(f"[EVENT_COORDINATOR] Re-enabling action buttons")
+                        logger.info("[EVENT_COORDINATOR] Re-enabling action buttons")
                         self.action_buttons.set_enabled(True)
 
                     # Clear completed downloads if successful
                     if success and self.download_list:
-                        logger.info(f"[EVENT_COORDINATOR] Clearing completed downloads")
+                        logger.info("[EVENT_COORDINATOR] Clearing completed downloads")
                         self.download_list.clear_downloads()
                         # Update button states after clearing
                         self.update_button_states(False, False)
@@ -172,27 +169,27 @@ class EventCoordinator(
 
                 # Disable buttons during download
                 if self.action_buttons:
-                    logger.info(f"[EVENT_COORDINATOR] Disabling action buttons during download")
+                    logger.info("[EVENT_COORDINATOR] Disabling action buttons during download")
                     self.action_buttons.set_enabled(False)
                 else:
-                    logger.warning(f"[EVENT_COORDINATOR] action_buttons is None, cannot disable buttons")
+                    logger.warning("[EVENT_COORDINATOR] action_buttons is None, cannot disable buttons")
 
                 # Start downloads with callbacks
-                logger.info(f"[EVENT_COORDINATOR] Calling service_controller.start_downloads")
+                logger.info("[EVENT_COORDINATOR] Calling service_controller.start_downloads")
                 self.service_controller.start_downloads(downloads, on_progress, on_completion)
-                logger.info(f"[EVENT_COORDINATOR] service_controller.start_downloads called successfully")
+                logger.info("[EVENT_COORDINATOR] service_controller.start_downloads called successfully")
                 return True
             else:
-                logger.error(f"[EVENT_COORDINATOR] service_controller is None")
+                logger.error("[EVENT_COORDINATOR] service_controller is None")
 
         except Exception as e:
             logger.error(f"[EVENT_COORDINATOR] Failed to start downloads: {e}", exc_info=True)
             self.show_error("Download Error", f"Failed to start downloads: {str(e)}")
             if self.action_buttons:
-                logger.info(f"[EVENT_COORDINATOR] Re-enabling action buttons after error")
+                logger.info("[EVENT_COORDINATOR] Re-enabling action buttons after error")
                 self.action_buttons.set_enabled(True)
 
-        logger.warning(f"[EVENT_COORDINATOR] start_downloads returning False")
+        logger.warning("[EVENT_COORDINATOR] start_downloads returning False")
         return False
 
     # UIUpdateHandler implementation
@@ -216,11 +213,11 @@ class EventCoordinator(
         if self.action_buttons:
             try:
                 self.action_buttons.update_button_states(has_selection, has_items)
-                logger.info(f"[EVENT_COORDINATOR] action_buttons.update_button_states called successfully")
+                logger.info("[EVENT_COORDINATOR] action_buttons.update_button_states called successfully")
             except Exception as e:
                 logger.error(f"[EVENT_COORDINATOR] Error calling action_buttons.update_button_states: {e}", exc_info=True)
         else:
-            logger.warning(f"[EVENT_COORDINATOR] action_buttons is None, cannot update button states")
+            logger.warning("[EVENT_COORDINATOR] action_buttons is None, cannot update button states")
 
     def show_error(self, title: str, message: str) -> None:
         """Show error dialog."""
@@ -308,7 +305,7 @@ class EventCoordinator(
     # YouTubeSpecificHandler implementation
     def handle_youtube_download(self, url: str, name: str, options: dict) -> None:
         """Handle YouTube download completion."""
-        logger.info(f"[EVENT_COORDINATOR] handle_youtube_download called")
+        logger.info("[EVENT_COORDINATOR] handle_youtube_download called")
         logger.info(f"[EVENT_COORDINATOR] URL: {url}")
         logger.info(f"[EVENT_COORDINATOR] Name: {name}")
         logger.info(f"[EVENT_COORDINATOR] Options: {options}")
@@ -316,7 +313,7 @@ class EventCoordinator(
         try:
             # Create download with YouTube-specific options
             from .models import ServiceType
-            logger.info(f"[EVENT_COORDINATOR] Creating Download object")
+            logger.info("[EVENT_COORDINATOR] Creating Download object")
             download = Download(
                 name=name,
                 url=url,
@@ -339,12 +336,12 @@ class EventCoordinator(
             logger.info(f"[EVENT_COORDINATOR] Download object created: {download}")
 
             # Add to download list
-            logger.info(f"[EVENT_COORDINATOR] Calling add_download")
+            logger.info("[EVENT_COORDINATOR] Calling add_download")
             if self.add_download(download):
-                logger.info(f"[EVENT_COORDINATOR] Download added successfully")
+                logger.info("[EVENT_COORDINATOR] Download added successfully")
                 # Reset URL entry field
                 if self.url_entry:
-                    logger.info(f"[EVENT_COORDINATOR] Resetting URL entry field")
+                    logger.info("[EVENT_COORDINATOR] Resetting URL entry field")
                     try:
                         if hasattr(self.url_entry, 'url_entry'):
                             self.url_entry.url_entry.delete(0, 'end')
@@ -352,11 +349,11 @@ class EventCoordinator(
                         else:
                             self.url_entry.delete(0, 'end')
                             self.url_entry.insert(0, '')
-                        logger.info(f"[EVENT_COORDINATOR] URL entry field reset successfully")
+                        logger.info("[EVENT_COORDINATOR] URL entry field reset successfully")
                     except Exception as e:
                         logger.error(f"[EVENT_COORDINATOR] Error resetting URL entry: {e}", exc_info=True)
                 else:
-                    logger.warning(f"[EVENT_COORDINATOR] url_entry is None, cannot reset")
+                    logger.warning("[EVENT_COORDINATOR] url_entry is None, cannot reset")
 
                 # Create descriptive message
                 config_desc = []
@@ -376,7 +373,7 @@ class EventCoordinator(
                 logger.info(f"[EVENT_COORDINATOR] Updating status: {status_message}")
                 self.update_status(status_message)
             else:
-                logger.error(f"[EVENT_COORDINATOR] Failed to add download (add_download returned False)")
+                logger.error("[EVENT_COORDINATOR] Failed to add download (add_download returned False)")
 
         except Exception as e:
             logger.error(f"[EVENT_COORDINATOR] Failed to process YouTube download: {e}", exc_info=True)

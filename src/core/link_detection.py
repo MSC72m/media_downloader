@@ -149,7 +149,7 @@ class LinkDetector:
                 if callback and ui_context:
                     logger.info(f"[LINK_DETECTOR] Executing callback with URL: {url} and context: {ui_context}")
                     callback(url, ui_context)
-                    logger.info(f"[LINK_DETECTOR] Callback executed successfully")
+                    logger.info("[LINK_DETECTOR] Callback executed successfully")
                     return True
                 else:
                     logger.warning(f"[LINK_DETECTOR] Missing callback or ui_context. callback={callback}, ui_context={ui_context}")

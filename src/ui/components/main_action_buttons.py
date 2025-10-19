@@ -52,11 +52,11 @@ class ActionButtonBar(ctk.CTkFrame):
 
         # Download Button
         def on_download_with_logging():
-            logger.info(f"[ACTION_BUTTONS] Download All button clicked")
+            logger.info("[ACTION_BUTTONS] Download All button clicked")
             logger.info(f"[ACTION_BUTTONS] on_download callback: {on_download}")
             try:
                 on_download()
-                logger.info(f"[ACTION_BUTTONS] on_download callback executed successfully")
+                logger.info("[ACTION_BUTTONS] on_download callback executed successfully")
             except Exception as e:
                 logger.error(f"[ACTION_BUTTONS] Error in on_download callback: {e}", exc_info=True)
 
@@ -109,7 +109,7 @@ class ActionButtonBar(ctk.CTkFrame):
 
         # If download is in progress, don't change button states
         if self._download_in_progress:
-            logger.info(f"[ACTION_BUTTONS] Download in progress, keeping current button states")
+            logger.info("[ACTION_BUTTONS] Download in progress, keeping current button states")
             return
 
         remove_state = "normal" if has_selection else "disabled"

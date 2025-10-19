@@ -199,7 +199,7 @@ class CookieDetector(ICookieDetector):
                     # Netscape format: host, include_subdomains, path, is_secure, expires, name, value
                     domain_flag = "TRUE" if host_key.startswith(".") else "FALSE"
                     secure_flag = "TRUE" if is_secure else "FALSE"
-                    httponly_flag = "FALSE" if is_httponly else "TRUE"  # Inverted for Netscape format
+                    # httponly_flag = "FALSE" if is_httponly else "TRUE"  # Inverted for Netscape format
 
                     line = f"{host_key}\t{domain_flag}\t{path}\t{secure_flag}\t{unix_timestamp}\t{name}\t{value}\n"
                     temp_file.write(line)
@@ -225,7 +225,7 @@ class CookieDetector(ICookieDetector):
                 # Clean up temporary database
                 try:
                     os.unlink(temp_db.name)
-                except:
+                except Exception:
                     pass
 
         except Exception as e:

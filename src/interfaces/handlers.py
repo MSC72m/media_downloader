@@ -1,7 +1,7 @@
 """Abstract base classes for the application's business logic layer."""
 
 from abc import ABC, abstractmethod
-from typing import List, Callable, Optional, Dict, Any
+from typing import List, Callable, Optional, Any
 from src.core.models import Download, DownloadOptions, ServiceType, UIState
 
 

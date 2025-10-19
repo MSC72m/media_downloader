@@ -118,7 +118,7 @@ class HTTPNetworkChecker(BaseNetworkChecker):
         # Step 1: Check DNS resolution (most basic connectivity)
         try:
             socket.gethostbyname(url)
-            dns_time = time.time() - start_time
+            # dns_time = time.time() - start_time
         except socket.gaierror:
             response_time = time.time() - start_time
             return ConnectionResult(

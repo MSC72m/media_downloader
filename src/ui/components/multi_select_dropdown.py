@@ -1,7 +1,7 @@
 """Multi-select dropdown component with checkbox support."""
 
 import customtkinter as ctk
-from typing import List, Dict, Any, Callable, Optional, Tuple
+from typing import List, Dict, Any, Callable, Optional
 
 
 class MultiSelectDropdown(ctk.CTkFrame):
@@ -125,12 +125,12 @@ class MultiSelectDropdown(ctk.CTkFrame):
             self.dropdown_window.focus_set()
             self.is_open = True
 
-        except Exception as e:
+        except Exception:
             # If anything goes wrong, ensure we clean up
             if hasattr(self, 'dropdown_window') and self.dropdown_window:
                 try:
                     self.dropdown_window.destroy()
-                except:
+                except Exception:
                     pass
                 self.dropdown_window = None
             self.is_open = False
@@ -234,7 +234,7 @@ class MultiSelectDropdown(ctk.CTkFrame):
         if not self.selected_options:
             display_text = self.placeholder
         elif len(self.selected_options) == 1:
-            display_text = f"1 item selected"
+            display_text = "1 item selected"
         else:
             display_text = f"{len(self.selected_options)} items selected"
 
@@ -245,7 +245,7 @@ class MultiSelectDropdown(ctk.CTkFrame):
         if self.dropdown_window:
             try:
                 self.dropdown_window.destroy()
-            except:
+            except Exception:
                 pass
             self.dropdown_window = None
 
@@ -281,7 +281,7 @@ class MultiSelectDropdown(ctk.CTkFrame):
                 focused_widget = self.focus_get()
                 if focused_widget != self.dropdown_window and not self._is_descendant(focused_widget, self.dropdown_window):
                     self._close_dropdown()
-            except:
+            except Exception:
                 # If we can't check focus, close it
                 self._close_dropdown()
 

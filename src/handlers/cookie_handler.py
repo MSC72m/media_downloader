@@ -1,8 +1,7 @@
 """Handler for cookie detection and integration with the application."""
 
 import logging
-from typing import Optional, Callable, Any
-from src.core.models import ServiceType
+from typing import Optional
 from src.services.youtube.cookie_detector import CookieManager
 from src.interfaces.cookie_detection import BrowserType, PlatformType, ICookieManager
 from src.handlers.service_detector import ServiceDetector

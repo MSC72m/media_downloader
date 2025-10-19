@@ -6,7 +6,7 @@ import json
 import os
 import threading
 from pathlib import Path
-from ...interfaces.youtube_metadata import YouTubeMetadata, SubtitleInfo
+from ...interfaces.youtube_metadata import YouTubeMetadata
 from ...interfaces.cookie_detection import BrowserType
 from ...utils.window import WindowCenterMixin
 from ...utils.logger import get_logger
@@ -100,7 +100,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         try:
             logger.info("Creating BrowserCookieDialog")
-            cookie_dialog = BrowserCookieDialog(self, on_cookie_selected)
+            BrowserCookieDialog(self, on_cookie_selected)
             logger.info("BrowserCookieDialog created successfully")
             # No need to wait_window() as the callback will be called after the dialog is destroyed
         except Exception as e:
@@ -170,7 +170,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             self.loading_overlay.close()
 
         # Show error message and close dialog
-        import tkinter as tk
         from tkinter import messagebox
 
         error_msg = "Failed to fetch video metadata. Please check the URL and try again."
@@ -570,11 +569,11 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         format_value = self.format_var.get()
 
         # Update format label text to show what it means
-        format_descriptions = {
-            "video": "Video + Audio",
-            "audio": "Audio Only",
-            "video_only": "Video Only"
-        }
+        # format_descriptions = {
+        #     "video": "Video + Audio",
+        #     "audio": "Audio Only",
+        #     "video_only": "Video Only"
+        # }
 
         # Update audio_only checkbox based on format
         if format_value == "audio":
@@ -664,7 +663,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                     # Restore selected button state
                     if self._selected_browser and self._selected_browser in self.browser_buttons:
                         self._handle_browser_select(self._selected_browser)
-        except Exception as e:
+        except Exception:
             pass  # Fail silently if cache can't be loaded
 
     def _save_cached_selections(self):
@@ -681,7 +680,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
             with open(cache_file, 'w') as f:
                 json.dump(cache_data, f, indent=2)
-        except Exception as e:
+        except Exception:
             pass  # Fail silently if cache can't be saved
 
     def _handle_add_to_downloads(self):

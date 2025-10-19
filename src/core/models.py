@@ -1,6 +1,6 @@
 """Core models using Pydantic with fallback support."""
 
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict
 from datetime import datetime
 from enum import StrEnum
 

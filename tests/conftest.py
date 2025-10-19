@@ -156,6 +156,22 @@ class MockYoutubeDL:
             'automatic_captions': {}
         }
 
+    def download(self, urls):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+class MockDownloadError(Exception):
+    pass
+
 sys.modules['yt_dlp'] = type('MockModule', (), {
     'YoutubeDL': MockYoutubeDL
+})()
+
+sys.modules['yt_dlp.utils'] = type('MockModule', (), {
+    'DownloadError': MockDownloadError
 })()

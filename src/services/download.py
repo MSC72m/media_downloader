@@ -3,7 +3,7 @@
 import threading
 import logging
 from typing import List, Callable, Optional
-from ..core import Download, DownloadStatus, ServiceType
+from ..core import Download, DownloadStatus
 from .factory import ServiceFactory
 from .repository import DownloadRepository, OptionsRepository
 

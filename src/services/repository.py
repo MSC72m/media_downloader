@@ -2,7 +2,7 @@
 
 import threading
 import logging
-from typing import List, Optional, Callable
+from typing import List, Callable
 from ..core import Download, DownloadStatus
 
 logger = logging.getLogger(__name__)

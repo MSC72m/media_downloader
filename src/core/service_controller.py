@@ -1,11 +1,9 @@
 """Service controller for handling download operations."""
 
 import logging
-import os
-import threading
 import re
+import threading
 from pathlib import Path
-from typing import List, Callable, Optional
 import yt_dlp
 
 logger = logging.getLogger(__name__)
@@ -217,3 +215,27 @@ class ServiceController:
         """Check if there are active downloads."""
         with self._lock:
             return self._active_downloads > 0
+
+    def _safe_decode_bytes(self, byte_data: bytes) -> str:
+        """Safely decode bytes with multiple fallback encodings."""
+        if not byte_data:
+            return ""
+
+        # Try UTF-8 first (most common)
+        try:
+            return byte_data.decode('utf-8')
+        except UnicodeDecodeError:
+            pass
+
+        # Try latin-1 (handles all byte values)
+        try:
+            return byte_data.decode('latin-1')
+        except UnicodeDecodeError:
+            pass
+
+        # Final fallback: replace problematic characters
+        try:
+            return byte_data.decode('utf-8', errors='replace')
+        except Exception:
+            # Last resort: use repr to show raw bytes
+            return repr(byte_data)

@@ -1,8 +1,8 @@
 """Abstract base classes for UI components."""
 
 from abc import ABC, abstractmethod
-from typing import List, Callable, Optional, Any
-from src.core.models import UIState, Download, ServiceType
+from typing import List, Callable, Any
+from src.core.models import Download
 
 
 class IUIComponent(ABC):

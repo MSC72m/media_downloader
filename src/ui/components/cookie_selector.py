@@ -2,10 +2,10 @@
 
 import logging
 import customtkinter as ctk
-from typing import Optional, Callable, List, Dict, Any
+from typing import Optional, Callable
 from tkinter import messagebox, filedialog
 
-from ...interfaces.cookie_detection import BrowserType, PlatformType
+from ...interfaces.cookie_detection import BrowserType
 from ...handlers.cookie_handler import CookieHandler
 
 logger = logging.getLogger(__name__)
@@ -153,7 +153,7 @@ class CookieSelectorFrame(ctk.CTkFrame):
             if file_path:
                 success = self.cookie_handler.set_cookie_file(file_path)
                 if success:
-                    self.current_cookie_status = f"Using manual cookie file"
+                    self.current_cookie_status = "Using manual cookie file"
                     self.status_label.configure(text=self.current_cookie_status)
                     self._show_success_message("Cookie file loaded successfully!")
                     if self.on_cookie_detected:

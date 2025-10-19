@@ -47,7 +47,7 @@ class YouTubeHandler(LinkHandlerInterface):
                 logger.debug(f"[YOUTUBE_HANDLER] Detection metadata: {result.metadata}")
                 return result
 
-        logger.debug(f"[YOUTUBE_HANDLER] URL does not match any pattern")
+        logger.debug("[YOUTUBE_HANDLER] URL does not match any pattern")
         return DetectionResult(service_type="unknown", confidence=0.0)
 
     def get_metadata(self, url: str) -> Dict[str, Any]:
@@ -82,7 +82,7 @@ class YouTubeHandler(LinkHandlerInterface):
 
     def get_ui_callback(self) -> Callable:
         """Get the UI callback for YouTube URLs."""
-        logger.info(f"[YOUTUBE_HANDLER] Getting UI callback")
+        logger.info("[YOUTUBE_HANDLER] Getting UI callback")
 
         from ..ui.dialogs.youtube_downloader_dialog import YouTubeDownloaderDialog
         from ..ui.dialogs.browser_cookie_dialog import BrowserCookieDialog
@@ -112,18 +112,18 @@ class YouTubeHandler(LinkHandlerInterface):
             download_callback = None
             if hasattr(ui_context, 'handle_youtube_download'):
                 download_callback = ui_context.handle_youtube_download
-                logger.info(f"[YOUTUBE_HANDLER] Using ui_context handle_youtube_download callback")
+                logger.info("[YOUTUBE_HANDLER] Using ui_context handle_youtube_download callback")
             elif hasattr(ui_context, 'event_coordinator'):
                 download_callback = ui_context.event_coordinator.handle_youtube_download
-                logger.info(f"[YOUTUBE_HANDLER] Using event_coordinator handle_youtube_download callback")
+                logger.info("[YOUTUBE_HANDLER] Using event_coordinator handle_youtube_download callback")
             else:
-                logger.warning(f"[YOUTUBE_HANDLER] No download callback found in ui_context")
+                logger.warning("[YOUTUBE_HANDLER] No download callback found in ui_context")
 
             # Show cookie selection dialog first
             def on_cookie_selected(cookie_path: Optional[str], browser: Optional[str]):
                 logger.info(f"[YOUTUBE_HANDLER] Cookie selected: {cookie_path}, browser: {browser}")
                 try:
-                    dialog = YouTubeDownloaderDialog(
+                    YouTubeDownloaderDialog(
                         root,
                         url=url,
                         cookie_handler=cookie_handler,
@@ -133,21 +133,21 @@ class YouTubeHandler(LinkHandlerInterface):
                         initial_cookie_path=cookie_path,
                         initial_browser=browser
                     )
-                    logger.info(f"[YOUTUBE_HANDLER] YouTubeDownloaderDialog created successfully")
+                    logger.info("[YOUTUBE_HANDLER] YouTubeDownloaderDialog created successfully")
                 except Exception as e:
                     logger.error(f"[YOUTUBE_HANDLER] Failed to create YouTubeDownloaderDialog: {e}", exc_info=True)
 
             try:
-                logger.info(f"[YOUTUBE_HANDLER] Creating BrowserCookieDialog")
-                cookie_dialog = BrowserCookieDialog(
+                logger.info("[YOUTUBE_HANDLER] Creating BrowserCookieDialog")
+                BrowserCookieDialog(
                     root,
                     on_cookie_selected
                 )
-                logger.info(f"[YOUTUBE_HANDLER] BrowserCookieDialog created successfully")
+                logger.info("[YOUTUBE_HANDLER] BrowserCookieDialog created successfully")
             except Exception as e:
                 logger.error(f"[YOUTUBE_HANDLER] Failed to create BrowserCookieDialog: {e}", exc_info=True)
 
-        logger.info(f"[YOUTUBE_HANDLER] Returning YouTube callback")
+        logger.info("[YOUTUBE_HANDLER] Returning YouTube callback")
         return youtube_callback
 
     def _detect_youtube_type(self, url: str) -> str:

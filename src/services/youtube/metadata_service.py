@@ -1,7 +1,5 @@
 """YouTube metadata service implementation."""
 
-import yt_dlp
-import json
 import re
 import subprocess
 import os
@@ -340,7 +338,7 @@ class YouTubeMetadataService(IYouTubeMetadataService):
             # en                             vtt, srt, ttml, srv3, srv2, srv1, json3
             # en-US                          vtt, srt, ttml, srv3, srv2, srv1, json3 (auto)
 
-            current_section = None  # 'subtitles' or 'automatic_captions'
+            # current_section = None  # 'subtitles' or 'automatic_captions'
 
             for line in lines:
                 line = line.strip()
@@ -348,10 +346,10 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                 if line.startswith('Language formats available'):
                     continue
                 elif line.startswith('Available automatic captions'):
-                    current_section = 'automatic_captions'
+                    # current_section = 'automatic_captions'
                     continue
                 elif line.startswith('Available subtitles'):
-                    current_section = 'subtitles'
+                    # current_section = 'subtitles'
                     continue
                 elif not line or line.startswith('-') or line.startswith('Formats'):
                     continue

@@ -1,7 +1,7 @@
 """Fixed multi-select dropdown component that doesn't block UI."""
 
 import customtkinter as ctk
-from typing import List, Dict, Any, Callable, Optional, Tuple
+from typing import List, Dict, Any, Callable, Optional
 import threading
 
 
@@ -206,7 +206,7 @@ class SubtitleMultiSelect(ctk.CTkFrame):
             if not self.selected_options:
                 display_text = self.placeholder
             elif len(self.selected_options) == 1:
-                display_text = f"1 subtitle selected"
+                display_text = "1 subtitle selected"
             else:
                 display_text = f"{len(self.selected_options)} subtitles selected"
 
@@ -220,7 +220,7 @@ class SubtitleMultiSelect(ctk.CTkFrame):
         if self.dropdown_window:
             try:
                 self.dropdown_window.destroy()
-            except:
+            except Exception:
                 pass
             self.dropdown_window = None
 
@@ -280,7 +280,7 @@ class SubtitleMultiSelect(ctk.CTkFrame):
                     return True
                 widget = widget.master
             return False
-        except:
+        except Exception:
             return False
 
     def set_options(self, options: List[Dict[str, Any]]):

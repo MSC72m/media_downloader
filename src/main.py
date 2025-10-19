@@ -13,9 +13,7 @@ from src.ui.components.url_entry import URLEntryFrame
 from src.ui.components.options_bar import OptionsBar
 from src.ui.components.download_list import DownloadListView
 from src.ui.components.status_bar import StatusBar
-from src.ui.dialogs.file_manager_dialog import FileManagerDialog
 from src.ui.components.main_action_buttons import ActionButtonBar
-from src.ui.dialogs.network_status_dialog import NetworkStatusDialog
 from src.ui.components.cookie_selector import CookieSelectorFrame
 
 # Import application orchestrator
@@ -89,7 +87,7 @@ class MediaDownloaderApp(ctk.CTk):
         )
 
         # Action Buttons
-        logger.info(f"[MAIN_APP] Creating ActionButtonBar")
+        logger.info("[MAIN_APP] Creating ActionButtonBar")
         logger.info(f"[MAIN_APP] on_download callback: {self.orchestrator.handle_download}")
         self.action_buttons = ActionButtonBar(
             self.main_frame,
@@ -98,7 +96,7 @@ class MediaDownloaderApp(ctk.CTk):
             on_download=self.orchestrator.handle_download,
             on_manage_files=self.orchestrator.handle_manage_files
         )
-        logger.info(f"[MAIN_APP] ActionButtonBar created successfully")
+        logger.info("[MAIN_APP] ActionButtonBar created successfully")
 
         # Status Bar
         self.status_bar = StatusBar(self.main_frame)
@@ -112,7 +110,7 @@ class MediaDownloaderApp(ctk.CTk):
         )
 
         # Pass UI components to orchestrator
-        logger.info(f"[MAIN_APP] Passing UI components to orchestrator")
+        logger.info("[MAIN_APP] Passing UI components to orchestrator")
         self.orchestrator.set_ui_components(
             url_entry=self.url_entry,
             options_bar=self.options_bar,
@@ -121,7 +119,7 @@ class MediaDownloaderApp(ctk.CTk):
             status_bar=self.status_bar,
             cookie_selector=self.cookie_selector
         )
-        logger.info(f"[MAIN_APP] UI components passed to orchestrator successfully")
+        logger.info("[MAIN_APP] UI components passed to orchestrator successfully")
 
     def _setup_layout(self):
         """Configure the main layout."""

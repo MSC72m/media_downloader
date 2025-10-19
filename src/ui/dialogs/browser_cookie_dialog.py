@@ -4,7 +4,6 @@ import customtkinter as ctk
 import os
 from typing import Optional, Callable
 from ...utils.window import WindowCenterMixin
-from ...interfaces.cookie_detection import BrowserType
 from ...utils.logger import get_logger
 
 logger = get_logger(__name__)

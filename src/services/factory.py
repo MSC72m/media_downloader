@@ -1,7 +1,7 @@
 """Service factory for creating appropriate services based on URL."""
 
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict
 from urllib.parse import urlparse
 from ..core import ServiceType, BaseDownloader
 from .youtube import YouTubeDownloader

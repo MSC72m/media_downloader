@@ -1,8 +1,7 @@
 """Thread-safe utilities for GUI operations."""
 
 import threading
-import customtkinter as ctk
-from typing import Callable, Any, Optional
+from typing import Callable, Any
 from functools import wraps
 
 
