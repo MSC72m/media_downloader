@@ -118,8 +118,10 @@ class TestButtonState:
     """Test ButtonState model."""
 
     def test_button_state_creation(self):
-        """Test ButtonState creation."""
-        button_state = ButtonState()
-        
-        # ButtonState should be creatable
-        assert button_state is not None
+        """Test ButtonState enum values."""
+        # ButtonState is a StrEnum, test its values
+        assert ButtonState.REMOVE == "remove"
+        assert ButtonState.CLEAR == "clear"
+        assert ButtonState.DOWNLOAD == "download"
+        assert ButtonState.SETTINGS == "settings"
+        assert ButtonState.CANCEL == "cancel"

@@ -61,24 +61,7 @@ mock_yt_dlp = type('MockModule', (), {
 sys.modules['yt_dlp'] = mock_yt_dlp
 sys.modules['yt_dlp.utils'] = mock_yt_dlp.utils
 
-# Mock Pydantic properly
-class MockBaseModel:
-    def __init__(self, **kwargs):
-        for key, value in kwargs.items():
-            setattr(self, key, value)
-
-class MockField:
-    def __init__(self, default=None, default_factory=None):
-        self.default = default
-        self.default_factory = default_factory
-
-mock_pydantic = type('MockModule', (), {
-    'BaseModel': MockBaseModel,
-    'Field': MockField
-})()
-
-sys.modules['pydantic'] = mock_pydantic
-
 # Mock other external dependencies
 sys.modules['requests'] = Mock()
 sys.modules['instaloader'] = Mock()
+sys.modules['pydantic'] = Mock()
