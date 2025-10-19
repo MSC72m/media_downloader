@@ -154,10 +154,17 @@ class ServiceController:
             # Handle cookies
             if getattr(download, 'cookie_path', None):
                 ydl_opts['cookiefile'] = download.cookie_path
+                logger.debug(f"Using cookie file: {download.cookie_path}")
             elif getattr(download, 'selected_browser', None):
-                # Note: Python API doesn't directly support cookies-from-browser
-                # We'll need to extract cookies first or fall back to file
-                pass
+                # Use cookies-from-browser with Python API
+                ydl_opts['cookiesfrombrowser'] = (download.selected_browser,)
+                logger.debug(f"Using cookies from browser: {download.selected_browser}")
+            elif self.cookie_manager and self.cookie_manager.has_valid_cookies():
+                # Use cookies from cookie manager if available
+                cookie_info = self.cookie_manager.get_cookie_info_for_ytdlp()
+                if cookie_info:
+                    ydl_opts.update(cookie_info)
+                    logger.debug(f"Using cookies from cookie manager: {cookie_info}")
 
             # Simulate some initial progress since API might take time to start
             import time

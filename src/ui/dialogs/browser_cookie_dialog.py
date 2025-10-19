@@ -254,26 +254,26 @@ class BrowserCookieDialog(ctk.CTkToplevel, WindowCenterMixin):
         manual_path = self.manual_path_var.get().strip()
         browser = self.browser_var.get()
 
-        print(f"Continue clicked: manual_path='{manual_path}', browser='{browser}'")
+        logger.debug(f"Continue clicked: manual_path='{manual_path}', browser='{browser}'")
 
         if manual_path:
             # Use manual path
             if os.path.exists(manual_path):
-                print(f"Using manual path: {manual_path}")
+                logger.debug(f"Using manual path: {manual_path}")
                 self.cookie_path = manual_path
                 self.selected_browser = None
                 self._finish()
             else:
-                print(f"Manual path not found: {manual_path}")
+                logger.warning(f"Manual path not found: {manual_path}")
                 self._show_error("Cookie file not found: " + manual_path)
         elif browser != "none":
             # Use browser selection
-            print(f"Using browser: {browser}")
+            logger.debug(f"Using browser: {browser}")
             self.selected_browser = browser
             self.cookie_path = None
             self._finish()
         else:
-            print("No selection made")
+            logger.warning("No selection made")
             self._show_error("Please select a browser or enter a cookie file path")
 
     def _on_skip(self):

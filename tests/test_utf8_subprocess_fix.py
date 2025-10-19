@@ -86,7 +86,7 @@ class TestUTF8SubprocessHandling:
             mock_subprocess.return_value = mock_result
             
             # Call the metadata service
-            result = service._get_basic_video_info("https://youtube.com/watch?v=test")
+            service._get_basic_video_info("https://youtube.com/watch?v=test")
             
             # Verify subprocess was called with proper environment
             mock_subprocess.assert_called()
@@ -350,7 +350,7 @@ class TestUTF8SubprocessHandling:
             mock_subprocess.return_value = mock_result
             
             # This should call subprocess.run with encoding parameters
-            result = service._get_basic_video_info("https://youtube.com/watch?v=test")
+            service._get_basic_video_info("https://youtube.com/watch?v=test")
             
             # Verify the call
             mock_subprocess.assert_called()

@@ -137,9 +137,9 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                     cookie_path = self.selected_cookie_path
 
                     # Debug output
-                    print(f"DEBUG: YouTube dialog fetch_metadata - url: {self.url}")
-                    print(f"DEBUG: YouTube dialog fetch_metadata - cookie_path: {cookie_path}")
-                    print(f"DEBUG: YouTube dialog fetch_metadata - selected_browser: {self.selected_browser}")
+                    logger.debug(f"YouTube dialog fetch_metadata - url: {self.url}")
+                    logger.debug(f"YouTube dialog fetch_metadata - cookie_path: {cookie_path}")
+                    logger.debug(f"YouTube dialog fetch_metadata - selected_browser: {self.selected_browser}")
 
                     # Fetch metadata with cookies
                     self.video_metadata = self.metadata_service.fetch_metadata(self.url, cookie_path, self.selected_browser)
@@ -693,7 +693,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             self.after(10, self._process_add_to_downloads)
 
         except Exception as e:
-            print(f"Error in add to downloads: {e}")
+            logger.error(f"Error in add to downloads: {e}")
             import traceback
             traceback.print_exc()
             # Re-enable button on error
@@ -754,7 +754,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             self.after(100, self.destroy)
 
         except Exception as e:
-            print(f"Error processing add to downloads: {e}")
+            logger.error(f"Error processing add to downloads: {e}")
             import traceback
             traceback.print_exc()
         finally:

@@ -184,7 +184,7 @@ def test_real_yt_dlp_behavior():
 
         print(f"Using yt-dlp options: {ydl_opts}")
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        with yt_dlp.YoutubeDL(ydl_opts):
             # This should work and extract cookies like we saw in the terminal
             print("✅ Real yt-dlp accepts Chrome cookies parameter")
 

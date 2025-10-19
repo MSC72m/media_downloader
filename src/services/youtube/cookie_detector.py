@@ -342,7 +342,7 @@ class CookieDetector(ICookieDetector):
                 # Check if Netscape format file has content
                 with open(cookie_path, 'r') as f:
                     content = f.read().strip()
-                    return content and not content.startswith('#') or len(content.split('\n')) > 2
+                    return content and (not content.startswith('#') or len(content.split('\n')) > 2)
             else:
                 # Check file size (Chrome cookies database)
                 return os.path.getsize(cookie_path) > 0
@@ -389,10 +389,48 @@ class CookieManager(ICookieManager):
         available = []
 
         for browser in supported:
-            if self._detector.detect_cookies(browser):
-                available.append(browser)
+            try:
+                # Check if browser cookie database exists without full detection
+                if self._detector._browser_paths.get(browser):
+                    # Quick check for browser installation
+                    if self._quick_browser_check(browser):
+                        available.append(browser)
+            except Exception as e:
+                logger.debug(f"Error checking browser {browser.value}: {e}")
+                continue
 
         return available
+
+    def _quick_browser_check(self, browser: BrowserType) -> bool:
+        """Quick check if browser is installed without full cookie detection."""
+        try:
+            paths = self._detector._browser_paths.get(browser, {})
+            if not paths:
+                return False
+
+            if browser == BrowserType.CHROME:
+                # Check if Chrome directory exists
+                chrome_paths = paths
+                default_path = chrome_paths.get("default")
+                if default_path and default_path.parent.exists():
+                    return True
+            elif browser == BrowserType.FIREFOX:
+                # Check if Firefox profiles directory exists
+                firefox_paths = paths
+                profiles_path = firefox_paths.get("profiles")
+                if profiles_path and profiles_path.parent.exists():
+                    return True
+            elif browser == BrowserType.SAFARI:
+                # Check if Safari cookies file exists
+                safari_paths = paths
+                cookies_path = safari_paths.get("cookies")
+                if cookies_path and cookies_path.parent.exists():
+                    return True
+
+            return False
+        except Exception as e:
+            logger.debug(f"Error in quick browser check for {browser.value}: {e}")
+            return False
 
     def detect_cookies_for_browser(self, browser: BrowserType) -> Optional[str]:
         """Detect cookies for a specific browser."""
