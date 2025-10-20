@@ -8,7 +8,7 @@ import yt_dlp
 
 from ...core.base import BaseDownloader
 from ..file.sanitizer import FilenameSanitizer
-from ...core.network import check_site_connection
+from src.services.network.checker import check_site_connection
 from .cookie_detector import CookieManager
 from .metadata_service import YouTubeMetadataService
 

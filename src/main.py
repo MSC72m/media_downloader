@@ -1,24 +1,43 @@
 import sys
 from pathlib import Path
-import customtkinter as ctk
+from src.utils.logger import get_logger
+from src.utils.common import ensure_gui_available
 
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-# Import UI components
-from src.ui.components.url_entry import URLEntryFrame
-from src.ui.components.options_bar import OptionsBar
-from src.ui.components.download_list import DownloadListView
-from src.ui.components.status_bar import StatusBar
-from src.ui.components.main_action_buttons import ActionButtonBar
-from src.ui.components.cookie_selector import CookieSelectorFrame
-
-from src.core import ApplicationOrchestrator
-from src.utils.logger import get_logger
-
 logger = get_logger(__name__)
 
-# Set theme
+
+def _ensure_gui_available():
+    try:
+        import customtkinter as _ctk  # noqa: F401
+        import tkinter as _tk  # noqa: F401
+        return True
+    except Exception as e:
+        msg = (
+            "Tkinter (GUI) is not available in this Python. "
+            "Please install Tcl/Tk and a Python build with _tkinter.\n"
+            "macOS with pyenv: brew install tcl-tk and reinstall Python with Tk support."
+        )
+        logger.error(msg)
+        print(msg)
+        raise SystemExit(1) from e
+
+
+# Only import GUI modules after confirming tkinter is available
+ensure_gui_available()
+import customtkinter as ctk  # noqa: E402
+from src.core import ApplicationOrchestrator  # noqa: E402
+from src.ui.components.url_entry import URLEntryFrame  # noqa: E402
+from src.ui.components.options_bar import OptionsBar  # noqa: E402
+from src.ui.components.download_list import DownloadListView  # noqa: E402
+from src.ui.components.status_bar import StatusBar  # noqa: E402
+from src.ui.components.main_action_buttons import ActionButtonBar  # noqa: E402
+from src.ui.components.cookie_selector import CookieSelectorFrame  # noqa: E402
+
+
+# Set theme after successful import
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 

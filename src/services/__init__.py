@@ -1,8 +1,8 @@
 """Service layer for the media downloader application."""
 
-from .factory import ServiceFactory
-from .download import DownloadService
-from .repository import DownloadRepository, OptionsRepository
+from .downloads.factory import ServiceFactory
+from .downloads.service import DownloadService
+from .downloads.repository import DownloadRepository, OptionsRepository
 from .youtube.cookie_detector import CookieManager, CookieDetector
 from .file import FileService, DownloadResult, FilenameSanitizer, FileDownloader
 from .youtube import YouTubeDownloader
