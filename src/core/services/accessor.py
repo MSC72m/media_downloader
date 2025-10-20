@@ -1,7 +1,7 @@
 """Service access helper for clean dependency management."""
 
 from typing import Any, Optional
-from .container import ServiceContainer
+from ..application.container import ServiceContainer
 
 
 class ServiceAccessor:

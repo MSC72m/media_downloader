@@ -136,3 +136,14 @@ class DownloadListView(ctk.CTkFrame):
         self.list_view.delete("1.0", tk.END)
         self._item_line_mapping.clear()
         self._downloads.clear()
+
+    def remove_downloads(self, indices: List[int]) -> None:
+        """Remove downloads by their indices and refresh the list."""
+        if not indices:
+            return
+        # Remove from the stored list (work on a copy, remove highest indices first)
+        unique_indices = sorted(set(i for i in indices if 0 <= i < len(self._downloads)), reverse=True)
+        for i in unique_indices:
+            del self._downloads[i]
+        # Re-render list and rebuild line mapping
+        self.refresh_items(self._downloads)

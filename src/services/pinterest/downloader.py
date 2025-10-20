@@ -6,7 +6,8 @@ from typing import Optional, Callable
 import requests
 
 from ...core import BaseDownloader
-from ...utils.common import download_file, sanitize_filename
+from ..file.service import FileService
+from ..file.sanitizer import FilenameSanitizer
 
 logger = get_logger(__name__)
 
@@ -46,10 +47,13 @@ class PinterestDownloader(BaseDownloader):
 
             # Download the media
             save_dir = os.path.dirname(save_path)
-            filename = sanitize_filename(os.path.basename(save_path))
+            sanitizer = FilenameSanitizer()
+            filename = sanitizer.sanitize_filename(os.path.basename(save_path))
             full_path = os.path.join(save_dir, filename + '.jpg')  # Pinterest images are typically JPG
 
-            return download_file(media_url, full_path, progress_callback)
+            file_service = FileService()
+            result = file_service.download_file(media_url, full_path, progress_callback)
+            return result.success
 
         except Exception as e:
             logger.error(f"Error downloading from Pinterest: {str(e)}")

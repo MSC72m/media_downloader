@@ -7,7 +7,8 @@ from typing import Optional, List, Callable
 import os
 
 from ...core import BaseDownloader
-from ...utils.common import download_file, sanitize_filename
+from ..file.service import FileService
+from ..file.sanitizer import FilenameSanitizer
 
 logger = get_logger(__name__)
 
@@ -81,14 +82,18 @@ class TwitterDownloader(BaseDownloader):
             progress_callback: Optional[Callable[[float, float], None]] = None
     ) -> bool:
         """Download media files from tweet media data."""
+        file_service = FileService()
+        filename_sanitizer = FilenameSanitizer()
+
         for item in media:
             try:
                 url = item['url']
                 ext = '.mp4' if item['type'] == 'video' else '.jpg'
-                filename = sanitize_filename(f'{os.path.basename(save_path)}{ext}')
+                filename = filename_sanitizer.sanitize_filename(f'{os.path.basename(save_path)}{ext}')
                 full_path = os.path.join(os.path.dirname(save_path), filename)
 
-                return download_file(url, full_path, progress_callback)
+                result = file_service.download_file(url, full_path, progress_callback)
+                return result.success
             except Exception as e:
                 logger.error(f"Error downloading media: {str(e)}")
                 continue

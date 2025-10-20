@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from typing import List, Callable, Any, Optional, Dict
-from ..models import Download
+from ..core.models import Download
 
 
 class URLDetectionHandler(ABC):

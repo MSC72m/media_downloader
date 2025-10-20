@@ -8,7 +8,9 @@ from typing import Callable, Optional
 from urllib.parse import urlparse
 
 from ...core import BaseDownloader
-from ...utils.common import download_file, sanitize_filename, check_site_connection
+from ..file.service import FileService
+from ..file.sanitizer import FilenameSanitizer
+from ..network.checker import check_site_connection
 
 logger = get_logger(__name__)
 
@@ -136,14 +138,18 @@ class InstagramDownloader(BaseDownloader):
         try:
             post = instaloader.Post.from_shortcode(self.loader.context, shortcode)
 
+            file_service = FileService()
+            filename_sanitizer = FilenameSanitizer()
+
             if post.is_video:
                 # Download video
                 video_url = post.video_url
                 save_dir = os.path.dirname(save_path)
-                filename = sanitize_filename(os.path.basename(save_path) + '.mp4')
+                filename = filename_sanitizer.sanitize_filename(os.path.basename(save_path) + '.mp4')
                 full_path = os.path.join(save_dir, filename)
 
-                return download_file(video_url, full_path, progress_callback)
+                result = file_service.download_file(video_url, full_path, progress_callback)
+                return result.success
             else:
                 # Download image(s)
                 save_dir = os.path.dirname(save_path)
@@ -152,12 +158,13 @@ class InstagramDownloader(BaseDownloader):
                 for i, url in enumerate(post.get_sidecar_nodes()):
                     ext = '.jpg'
                     if i > 0:
-                        filename = sanitize_filename(f"{os.path.basename(save_path)}_{i}{ext}")
+                        filename = filename_sanitizer.sanitize_filename(f"{os.path.basename(save_path)}_{i}{ext}")
                     else:
-                        filename = sanitize_filename(f"{os.path.basename(save_path)}{ext}")
+                        filename = filename_sanitizer.sanitize_filename(f"{os.path.basename(save_path)}{ext}")
 
                     full_path = os.path.join(save_dir, filename)
-                    if download_file(url, full_path, progress_callback):
+                    result = file_service.download_file(url, full_path, progress_callback)
+                    if result.success:
                         success = True
 
                 return success

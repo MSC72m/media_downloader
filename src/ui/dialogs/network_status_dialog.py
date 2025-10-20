@@ -3,12 +3,11 @@ import threading
 import customtkinter as ctk
 from typing import Dict
 
-from src.utils.common import (
-    SERVICE_URLS, 
-    check_all_services, 
+from src.services.network.checker import (
+    check_all_services,
     check_internet_connection
 )
-from src.core.enums import NetworkStatus
+from src.core.enums import NetworkStatus, ServiceType
 
 class NetworkStatusDialog(ctk.CTkToplevel):
     """Dialog to show network connectivity status."""
@@ -18,7 +17,7 @@ class NetworkStatusDialog(ctk.CTkToplevel):
         
         # Initialize state
         self.parent = parent
-        self.service_statuses = {service: NetworkStatus.UNKNOWN for service in SERVICE_URLS}
+        self.service_statuses = {service: NetworkStatus.UNKNOWN for service in ServiceType}
         
         # Set window properties
         self.title("Network Status")
@@ -47,13 +46,13 @@ class NetworkStatusDialog(ctk.CTkToplevel):
         
         # Status labels for each service
         self.status_labels = {}
-        for service in SERVICE_URLS:
+        for service in ServiceType:
             frame = ctk.CTkFrame(self.frame)
             frame.pack(fill=ctk.X, padx=10, pady=5)
             
             service_label = ctk.CTkLabel(
                 frame, 
-                text=f"{service}:", 
+                text=f"{service.name if hasattr(service, 'name') else str(service)}:", 
                 font=ctk.CTkFont(size=14, weight="bold"),
                 width=100,
                 anchor="w"
@@ -99,7 +98,7 @@ class NetworkStatusDialog(ctk.CTkToplevel):
     def check_connectivity(self):
         """Check connectivity to each service."""
         # Reset UI to show checking
-        for service in SERVICE_URLS:
+        for service in ServiceType:
             self.service_statuses[service] = NetworkStatus.CHECKING
             self.status_labels[service].configure(
                 text="Checking...",
@@ -136,7 +135,7 @@ class NetworkStatusDialog(ctk.CTkToplevel):
             
         threading.Thread(target=check_worker, daemon=True).start()
     
-    def update_status_display(self, service_results: Dict[str, tuple], any_error: bool):
+    def update_status_display(self, service_results: Dict[ServiceType, tuple], any_error: bool):
         """Update the status display with check results."""
         for service, (connected, error) in service_results.items():
             if service not in self.status_labels:
