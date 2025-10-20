@@ -1,3 +1,4 @@
+import os
 import customtkinter as ctk
 from tkinter import messagebox
 from src.utils.logger import get_logger
@@ -181,7 +182,7 @@ class EventCoordinator(
                     self.show_error("Download Error", "Download handler not available")
                     return False
 
-                download_handler.start_downloads(downloads, "~/Downloads", on_progress, on_completion)
+                download_handler.start_downloads(downloads, self.get_download_directory(), on_progress, on_completion)
                 logger.info("[EVENT_COORDINATOR] download_handler.start_downloads called successfully")
                 return True
             else:
@@ -248,7 +249,7 @@ class EventCoordinator(
     # FileManagementHandler implementation
     def show_file_manager(self) -> None:
         """Show file manager dialog."""
-        initial_path = self.get_download_directory()
+        initial_path = self.get_download_directory()  # Already expanded by get_download_directory()
         FileManagerDialog(
             self.root,
             initial_path,
@@ -267,7 +268,8 @@ class EventCoordinator(
     def get_download_directory(self) -> str:
         """Get download directory."""
         ui_state = self.container.get('ui_state')
-        return getattr(ui_state, 'download_directory', '~/Downloads') if ui_state else '~/Downloads'
+        directory = getattr(ui_state, 'download_directory', '~/Downloads') if ui_state else '~/Downloads'
+        return os.path.expanduser(directory)
 
     def set_download_directory(self, directory: str) -> bool:
         """Set download directory."""

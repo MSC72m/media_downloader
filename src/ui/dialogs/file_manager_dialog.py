@@ -28,8 +28,8 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.geometry("600x400")
         self.resizable(False, False)
 
-        # Setup window
-        self.current_path = initial_path
+        # Setup window - expand any tilde paths
+        self.current_path = os.path.expanduser(initial_path)
         self.on_directory_change = on_directory_change
         self.show_status = show_status
 
@@ -78,7 +78,7 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
     def update_file_list(self):
         """Update the file list with current directory contents."""
         try:
-            self.current_path = self.path_entry.get_path()
+            self.current_path = os.path.expanduser(self.path_entry.get_path())
             self.file_list.update_items(self.current_path)
         except OSError as oe:
             logger.error(f"Error accessing directory: {oe}")
