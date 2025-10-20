@@ -1,12 +1,12 @@
 """Concrete implementation of network checker."""
 
-import logging
+from src.utils.logger import get_logger
 from typing import List, Tuple
 from ..interfaces import INetworkChecker
-from src.core.models import ServiceType
-from src.core.network import check_internet_connection, check_site_connection, get_problem_services
+from src.core.downloads.models import ServiceType
+from src.core.network.checker import check_internet_connection, check_site_connection, get_problem_services
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class NetworkChecker(INetworkChecker):

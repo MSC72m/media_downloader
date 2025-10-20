@@ -1,13 +1,9 @@
-"""Core network functionality."""
+"""Network connectivity services."""
 
-from .network import (
-    NetworkService, HTTPNetworkChecker, ConnectionResult,
-    check_internet_connection, check_site_connection, check_all_services,
-    get_problem_services, is_service_connected
-)
+from .checker import HTTPNetworkChecker, NetworkService, ConnectionResult
 
 __all__ = [
-    "NetworkService", "HTTPNetworkChecker", "ConnectionResult",
-    "check_internet_connection", "check_site_connection", "check_all_services",
-    "get_problem_services", "is_service_connected"
+    'HTTPNetworkChecker',
+    'NetworkService',
+    'ConnectionResult'
 ]

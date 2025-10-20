@@ -1,9 +1,9 @@
 """Service controller that delegates to the download handler."""
 
-import logging
+from src.utils.logger import get_logger
 import threading
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ServiceController:
@@ -16,27 +16,34 @@ class ServiceController:
         self._lock = threading.Lock()
 
     def start_downloads(self, downloads, download_dir, progress_callback=None, completion_callback=None) -> None:
-        """Start downloads by delegating to the download handler."""
+        """Start downloads by delegating to the DownloadService with early returns."""
         logger.info(f"[SERVICE_CONTROLLER] Starting {len(downloads)} downloads")
-        
-        # Get download handler from the service
-        if download_handler := (
-            getattr(self.download_service, 'download_handler', None) or
-            (getattr(self.download_service, 'container', None) and 
-             self.download_service.container.get('download_handler'))
-        ):
-            download_handler.start_downloads(
-                downloads, 
-                download_dir, 
-                progress_callback, 
-                completion_callback
-            )
+
+        if not self.download_service:
+            logger.error("[SERVICE_CONTROLLER] download_service is not set")
+            if completion_callback:
+                completion_callback(False, "Download service not available")
             return None
 
-        logger.error("[SERVICE_CONTROLLER] No download handler available")
-        if completion_callback:
-            completion_callback(False, "No download handler available")
-            return None
+        try:
+            # DownloadService manages its own repository; adapt by registering items there
+            # If download_service exposes a direct start with provided items, prefer that
+            if hasattr(self.download_service, 'start_downloads'):
+                self.download_service.start_downloads(
+                    download_dir=download_dir,
+                    progress_callback=progress_callback,
+                    completion_callback=completion_callback
+                )
+                return None
+
+            logger.error("[SERVICE_CONTROLLER] download_service.start_downloads not available")
+            if completion_callback:
+                completion_callback(False, "Download service cannot start downloads")
+        except Exception as e:
+            logger.error(f"[SERVICE_CONTROLLER] Error starting downloads: {e}", exc_info=True)
+            if completion_callback:
+                completion_callback(False, str(e))
+        return None
 
     def has_active_downloads(self):
         """Check if there are active downloads."""

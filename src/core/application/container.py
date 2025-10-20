@@ -1,7 +1,7 @@
-import logging
+from src.utils.logger import get_logger
 from typing import Dict, Any, Callable
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class ServiceContainer:
     """Simple service container for dependency management."""

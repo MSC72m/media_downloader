@@ -1,10 +1,10 @@
 """Concrete implementation of authentication handler."""
 
-import logging
+from src.utils.logger import get_logger
 from typing import Any, Callable
-from src.core.models import ServiceType
+from src.core.downloads.models import ServiceType
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class AuthenticationHandler:
@@ -36,10 +36,9 @@ class AuthenticationHandler:
             self._auth_manager.authenticate_instagram(parent_window, callback)
 
     def is_authenticated(self, service: ServiceType) -> bool:
-        """Check if authenticated with a service."""
+        """Check if authenticated with a service using guard clauses."""
         if not self._auth_manager:
             return False
-        # For now, only Instagram authentication is implemented
-        if service == ServiceType.INSTAGRAM:
-            return hasattr(self._auth_manager, 'is_authenticated') and self._auth_manager.is_authenticated
-        return False  # Other services don't require authentication yet
+        if service != ServiceType.INSTAGRAM:
+            return False
+        return bool(getattr(self._auth_manager, 'is_authenticated', False))

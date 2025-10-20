@@ -1,6 +1,6 @@
 """YouTube downloader service implementation."""
 
-import logging
+from src.utils.logger import get_logger
 import time
 import os
 from typing import Optional, Callable, Dict, Any
@@ -12,7 +12,7 @@ from ...core.network import check_site_connection
 from .cookie_detector import CookieManager
 from .metadata_service import YouTubeMetadataService
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class YouTubeDownloader(BaseDownloader):

@@ -1,11 +1,11 @@
 """Concrete implementation of download handler."""
 
-import logging
+from src.utils.logger import get_logger
 from typing import List, Callable, Optional
-from src.core.models import Download, DownloadOptions
-from src.core.container import ServiceContainer
+from src.core.downloads.models import Download, DownloadOptions
+from src.core.application.container import ServiceContainer
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class DownloadHandler:
@@ -73,25 +73,56 @@ class DownloadHandler:
             thread.start()
 
     def _download_worker(self, download: Download, download_dir: str, progress_callback, completion_callback):
-        """Worker function to handle a single download by delegating to appropriate service."""
+        """Worker function to handle a single download by delegating to service factory with early returns."""
         logger.info(f"[DOWNLOAD_HANDLER] download_worker called for: {download.name}")
         try:
-            # Determine service type and delegate to appropriate service
-            service_type = getattr(download, 'service_type', 'youtube')
-            
-            match service_type:
-                case 'youtube':
-                    self._handle_youtube_download(download, download_dir, progress_callback, completion_callback)
-                case 'twitter':
-                    self._handle_twitter_download(download, download_dir, progress_callback, completion_callback)
-                case 'instagram':
-                    self._handle_instagram_download(download, download_dir, progress_callback, completion_callback)
-                case _:
-                    error_msg = f"Unsupported service type: {service_type}"
-                    logger.error(f"[DOWNLOAD_HANDLER] {error_msg}")
-                    if completion_callback:
-                        completion_callback(False, error_msg)
-                    
+            service_factory = self.container.get('service_factory')
+            if not service_factory:
+                msg = "Service factory not available"
+                logger.error(f"[DOWNLOAD_HANDLER] {msg}")
+                if completion_callback:
+                    completion_callback(False, msg)
+                return
+
+            downloader = service_factory.get_downloader(download.url)
+            if not downloader:
+                msg = f"No downloader available for URL: {download.url}"
+                logger.error(f"[DOWNLOAD_HANDLER] {msg}")
+                if completion_callback:
+                    completion_callback(False, msg)
+                return
+
+            # Create output dir and sanitized filename via FileService
+            from pathlib import Path
+            file_service = service_factory.get_file_service()
+            target_dir = Path(download_dir).expanduser()
+            target_dir.mkdir(parents=True, exist_ok=True)
+            base_name = file_service.sanitize_filename(download.name or "download")
+            ext = ".mp4"
+            if getattr(download, 'audio_only', False):
+                ext = ".mp3"
+            output_path = str(target_dir / f"{base_name}{ext}")
+
+            def progress_wrapper(progress, speed):
+                if progress_callback:
+                    progress_callback(download, int(progress))
+
+            success = downloader.download(
+                url=download.url,
+                save_path=output_path,
+                progress_callback=progress_wrapper
+            )
+
+            if not success:
+                msg = f"Failed to download: {download.name}"
+                logger.error(f"[DOWNLOAD_HANDLER] {msg}")
+                if completion_callback:
+                    completion_callback(False, msg)
+                return
+
+            logger.info(f"[DOWNLOAD_HANDLER] Successfully downloaded: {download.name}")
+            if completion_callback:
+                completion_callback(True, f"Downloaded: {download.name}")
         except Exception as e:
             error_msg = f"Download error: {str(e)}"
             logger.error(f"[DOWNLOAD_HANDLER] Download error for {download.name}: {e}")
@@ -99,149 +130,16 @@ class DownloadHandler:
                 completion_callback(False, error_msg)
 
     def _handle_youtube_download(self, download: Download, download_dir: str, progress_callback, completion_callback):
-        """Handle YouTube downloads using the YouTube service."""
-        try:
-            from src.services.youtube.downloader import YouTubeDownloader
-            
-            # Create sanitized directory name
-            import re
-            from pathlib import Path
-            sanitized_name = re.sub(r'[^\w\s-]', '', download.name).strip()
-            sanitized_name = re.sub(r'[-\s]+', '-', sanitized_name)
-            video_dir = Path(download_dir).expanduser() / sanitized_name
-            video_dir.mkdir(parents=True, exist_ok=True)
-            logger.info(f"[DOWNLOAD_HANDLER] Created video directory: {video_dir}")
-
-            # Get cookie manager from container
-            cookie_manager = self.container.get('cookie_manager')
-
-            # Create YouTube downloader with appropriate settings
-            youtube_downloader = YouTubeDownloader(
-                quality=getattr(download, 'quality', '720p'),
-                download_playlist=getattr(download, 'download_playlist', False),
-                audio_only=getattr(download, 'audio_only', False),
-                cookie_manager=cookie_manager
-            )
-
-            # Create output path
-            output_path = video_dir / f"{download.name}.mp4"
-            if getattr(download, 'audio_only', False):
-                output_path = video_dir / f"{download.name}.mp3"
-
-            # Progress callback wrapper
-            def progress_wrapper(progress, speed):
-                if progress_callback:
-                    progress_callback(download, int(progress))
-
-            # Perform download
-            success = youtube_downloader.download(
-                url=download.url,
-                save_path=str(output_path),
-                progress_callback=progress_wrapper
-            )
-
-            if not success:
-                error_msg = f"Failed to download: {download.name}"
-                logger.error(f"[DOWNLOAD_HANDLER] {error_msg}")
-                if completion_callback:
-                    completion_callback(False, error_msg)
-                return
-
-            logger.info(f"[DOWNLOAD_HANDLER] Successfully downloaded: {download.name}")
-            if completion_callback:
-                completion_callback(True, f"Downloaded: {download.name}")
-
-        except Exception as e:
-            error_msg = f"YouTube download error: {str(e)}"
-            logger.error(f"[DOWNLOAD_HANDLER] {error_msg}")
-            if completion_callback:
-                completion_callback(False, error_msg)
+        """Deprecated: unified through factory in _download_worker."""
+        self._download_worker(download, download_dir, progress_callback, completion_callback)
 
     def _handle_twitter_download(self, download: Download, download_dir: str, progress_callback, completion_callback):
-        """Handle Twitter downloads using the Twitter service."""
-        try:
-            from src.services.twitter.downloader import TwitterDownloader
-            
-            # Create sanitized directory name
-            import re
-            from pathlib import Path
-            sanitized_name = re.sub(r'[^\w\s-]', '', download.name).strip()
-            sanitized_name = re.sub(r'[-\s]+', '-', sanitized_name)
-            video_dir = Path(download_dir).expanduser() / sanitized_name
-            video_dir.mkdir(parents=True, exist_ok=True)
-
-            # Create Twitter downloader
-            twitter_downloader = TwitterDownloader()
-            
-            # Create output path
-            output_path = video_dir / f"{download.name}.mp4"
-
-            # Perform download
-            success = twitter_downloader.download(
-                url=download.url,
-                save_path=str(output_path),
-                progress_callback=progress_callback
-            )
-
-            if not success:
-                error_msg = f"Failed to download: {download.name}"
-                logger.error(f"[DOWNLOAD_HANDLER] {error_msg}")
-                if completion_callback:
-                    completion_callback(False, error_msg)
-                return
-
-            logger.info(f"[DOWNLOAD_HANDLER] Successfully downloaded: {download.name}")
-            if completion_callback:
-                completion_callback(True, f"Downloaded: {download.name}")
-
-        except Exception as e:
-            error_msg = f"Twitter download error: {str(e)}"
-            logger.error(f"[DOWNLOAD_HANDLER] {error_msg}")
-            if completion_callback:
-                completion_callback(False, error_msg)
+        """Deprecated: unified through factory in _download_worker."""
+        self._download_worker(download, download_dir, progress_callback, completion_callback)
 
     def _handle_instagram_download(self, download: Download, download_dir: str, progress_callback, completion_callback):
-        """Handle Instagram downloads using the Instagram service."""
-        try:
-            from src.services.instagram.downloader import InstagramDownloader
-            
-            # Create sanitized directory name
-            import re
-            from pathlib import Path
-            sanitized_name = re.sub(r'[^\w\s-]', '', download.name).strip()
-            sanitized_name = re.sub(r'[-\s]+', '-', sanitized_name)
-            video_dir = Path(download_dir).expanduser() / sanitized_name
-            video_dir.mkdir(parents=True, exist_ok=True)
-
-            # Create Instagram downloader
-            instagram_downloader = InstagramDownloader()
-            
-            # Create output path
-            output_path = video_dir / f"{download.name}.mp4"
-
-            # Perform download
-            success = instagram_downloader.download(
-                url=download.url,
-                save_path=str(output_path),
-                progress_callback=progress_callback
-            )
-
-            if not success:
-                error_msg = f"Failed to download: {download.name}"
-                logger.error(f"[DOWNLOAD_HANDLER] {error_msg}")
-                if completion_callback:
-                    completion_callback(False, error_msg)
-                return
-
-            logger.info(f"[DOWNLOAD_HANDLER] Successfully downloaded: {download.name}")
-            if completion_callback:
-                completion_callback(True, f"Downloaded: {download.name}")
-
-        except Exception as e:
-            error_msg = f"Instagram download error: {str(e)}"
-            logger.error(f"[DOWNLOAD_HANDLER] {error_msg}")
-            if completion_callback:
-                completion_callback(False, error_msg)
+        """Deprecated: unified through factory in _download_worker."""
+        self._download_worker(download, download_dir, progress_callback, completion_callback)
 
     def has_active_downloads(self) -> bool:
         """Check if there are active downloads."""

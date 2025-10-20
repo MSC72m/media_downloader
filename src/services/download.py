@@ -1,13 +1,13 @@
 """Download service for business logic."""
 
 import threading
-import logging
+from src.utils.logger import get_logger
 from typing import List, Callable, Optional
-from ..core import Download, DownloadStatus
+from ..core.downloads.models import Download, DownloadStatus
 from .factory import ServiceFactory
-from .repository import DownloadRepository, OptionsRepository
+from ..core.downloads.repository import DownloadRepository, OptionsRepository
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class DownloadService:

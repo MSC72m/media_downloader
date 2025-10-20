@@ -2,13 +2,13 @@
 import socket
 import http.client
 import time
-import logging
+from src.utils.logger import get_logger
 from abc import ABC, abstractmethod
 from typing import Dict, Tuple, List, Optional, Protocol
 from dataclasses import dataclass
 from src.core.enums import ServiceType
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 @dataclass
 class ConnectionResult:

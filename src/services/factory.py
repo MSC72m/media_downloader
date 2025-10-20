@@ -1,9 +1,10 @@
 """Service factory for creating appropriate services based on URL."""
 
-import logging
+from src.utils.logger import get_logger
 from typing import Optional, Dict
 from urllib.parse import urlparse
-from ..core import ServiceType, BaseDownloader
+from ..core.downloads.models import ServiceType
+from ..core.base import BaseDownloader
 from .youtube import YouTubeDownloader
 from .twitter import TwitterDownloader
 from .instagram import InstagramDownloader
@@ -11,7 +12,7 @@ from .pinterest import PinterestDownloader
 from .youtube.cookie_detector import CookieManager
 from .file import FileService
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ServiceFactory:

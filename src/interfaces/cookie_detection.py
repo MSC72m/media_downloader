@@ -1,7 +1,7 @@
 """Cookie detection interfaces and types."""
 
 from abc import ABC, abstractmethod
-from enum import StrEnum
+from ..core.enums.compat import StrEnum
 from typing import Optional, Dict, Any, List
 
 

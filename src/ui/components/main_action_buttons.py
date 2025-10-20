@@ -1,9 +1,9 @@
 import customtkinter as ctk
-import logging
+from src.utils.logger import get_logger
 from typing import Callable, Dict
-from src.core.models import ButtonState
+from src.core.downloads.models import ButtonState
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ActionButtonBar(ctk.CTkFrame):

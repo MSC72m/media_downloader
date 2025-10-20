@@ -1,4 +1,4 @@
-"""Interface definitions following Interface Segregation Principle."""
+"""Core interfaces for the media downloader application."""
 
 from .event_handlers import (
     URLDetectionHandler,

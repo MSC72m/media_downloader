@@ -2,14 +2,14 @@
 
 import os
 import time
-import logging
+from src.utils.logger import get_logger
 from typing import Optional, Callable
 import requests
 
 from .models import DownloadResult
 from ...core.models import ServiceType
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class FileDownloader:

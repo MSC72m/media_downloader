@@ -1,6 +1,6 @@
 """Network status enum."""
 
-from enum import StrEnum
+from .compat import StrEnum
 
 
 class NetworkStatus(StrEnum):

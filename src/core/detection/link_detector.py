@@ -129,32 +129,33 @@ class LinkDetector:
         self.registry = LinkDetectionRegistry()
 
     def detect_and_handle(self, url: str, ui_context: Any = None) -> bool:
-        """Detect URL type and trigger appropriate handling."""
+        """Detect URL type and trigger appropriate handling with early returns."""
         logger.info(f"[LINK_DETECTOR] Starting detect_and_handle for URL: {url}")
-        logger.info(f"[LINK_DETECTOR] UI context: {ui_context}")
-        logger.info(f"[LINK_DETECTOR] UI context type: {type(ui_context)}")
-
+        
         handler = self.registry.detect_handler(url)
-        logger.info(f"[LINK_DETECTOR] Detected handler: {handler.__class__.__name__ if handler else 'None'}")
-
-        if handler:
-            try:
-                logger.info(f"[LINK_DETECTOR] Getting UI callback from handler: {handler.__class__.__name__}")
-                callback = handler.get_ui_callback()
-                logger.info(f"[LINK_DETECTOR] Got UI callback: {callback}")
-
-                if callback and ui_context:
-                    logger.info(f"[LINK_DETECTOR] Executing callback with URL: {url} and context: {ui_context}")
-                    callback(url, ui_context)
-                    logger.info("[LINK_DETECTOR] Callback executed successfully")
-                    return True
-                else:
-                    logger.warning(f"[LINK_DETECTOR] Missing callback or ui_context. callback={callback}, ui_context={ui_context}")
-            except Exception as e:
-                logger.error(f"[LINK_DETECTOR] Error handling URL with {handler.__class__.__name__}: {e}", exc_info=True)
-        else:
+        if not handler:
             logger.warning(f"[LINK_DETECTOR] No handler found for URL: {url}")
-        return False
+            return False
+        
+        logger.info(f"[LINK_DETECTOR] Detected handler: {handler.__class__.__name__}")
+        
+        try:
+            callback = handler.get_ui_callback()
+            if not callback:
+                logger.warning(f"[LINK_DETECTOR] No callback from handler: {handler.__class__.__name__}")
+                return False
+            
+            if not ui_context:
+                logger.warning(f"[LINK_DETECTOR] Missing ui_context")
+                return False
+            
+            logger.info(f"[LINK_DETECTOR] Executing callback with URL: {url}")
+            callback(url, ui_context)
+            logger.info("[LINK_DETECTOR] Callback executed successfully")
+            return True
+        except Exception as e:
+            logger.error(f"[LINK_DETECTOR] Error handling URL with {handler.__class__.__name__}: {e}", exc_info=True)
+            return False
 
     def get_url_info(self, url: str) -> Optional[DetectionResult]:
         """Get information about a URL without processing it."""

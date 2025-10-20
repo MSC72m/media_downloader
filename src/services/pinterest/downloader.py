@@ -1,6 +1,6 @@
 """Pinterest downloader service implementation."""
 
-import logging
+from src.utils.logger import get_logger
 import os
 from typing import Optional, Callable
 import requests
@@ -8,7 +8,7 @@ import requests
 from ...core import BaseDownloader
 from ...utils.common import download_file, sanitize_filename
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class PinterestDownloader(BaseDownloader):

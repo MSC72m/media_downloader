@@ -1,7 +1,7 @@
 """Media downloader application entrypoint."""
 
 import sys
-import logging
+from src.utils.logger import get_logger
 from pathlib import Path
 import customtkinter as ctk
 
@@ -16,15 +16,13 @@ from src.ui.components.status_bar import StatusBar
 from src.ui.components.main_action_buttons import ActionButtonBar
 from src.ui.components.cookie_selector import CookieSelectorFrame
 
-# Import application orchestrator
-from src.core.application import ApplicationOrchestrator
+from src.core.application.orchestrator import ApplicationOrchestrator
 
-# Configure logging
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Set theme
 ctk.set_appearance_mode("dark")
@@ -37,11 +35,9 @@ class MediaDownloaderApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        # Configure window
         self.title("Media Downloader")
         self.geometry("1000x700")
 
-        # Create application orchestrator
         self.orchestrator = ApplicationOrchestrator(self)
 
         # Create UI

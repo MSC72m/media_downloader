@@ -1,12 +1,12 @@
 """Handler for cookie detection and integration with the application."""
 
-import logging
+from src.utils.logger import get_logger
 from typing import Optional
 from src.services.youtube.cookie_detector import CookieManager
 from src.interfaces.cookie_detection import BrowserType, PlatformType, ICookieManager
 from src.handlers.service_detector import ServiceDetector
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class CookieHandler:

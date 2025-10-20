@@ -1,11 +1,11 @@
 """YouTube link handler implementation."""
 
 import re
-import logging
+from src.utils.logger import get_logger
 from typing import Dict, Any, Callable, Optional
-from src.core.link_detection import LinkHandlerInterface, DetectionResult, auto_register_handler
+from src.core.detection.link_detector import LinkHandlerInterface, DetectionResult, auto_register_handler
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @auto_register_handler

@@ -2,7 +2,7 @@
 
 import re
 from typing import Dict, Any, Callable, Optional
-from ..core.link_detection import LinkHandlerInterface, DetectionResult, auto_register_handler
+from ..core.detection.link_detector import LinkHandlerInterface, DetectionResult, auto_register_handler
 
 
 @auto_register_handler

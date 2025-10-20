@@ -1,7 +1,7 @@
 """Service for detecting browser cookies across platforms."""
 
 import os
-import logging
+from src.utils.logger import get_logger
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 import platform
@@ -11,7 +11,7 @@ import tempfile
 
 from ...interfaces.cookie_detection import ICookieDetector, ICookieManager, BrowserType, PlatformType
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class CookieDetector(ICookieDetector):

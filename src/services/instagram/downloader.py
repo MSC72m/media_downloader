@@ -1,7 +1,7 @@
 """Instagram downloader service implementation."""
 
 import instaloader
-import logging
+from src.utils.logger import get_logger
 import os
 import time
 from typing import Callable, Optional
@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 from ...core import BaseDownloader
 from ...utils.common import download_file, sanitize_filename, check_site_connection
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class InstagramDownloader(BaseDownloader):

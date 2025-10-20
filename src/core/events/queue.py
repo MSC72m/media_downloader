@@ -4,6 +4,7 @@ import tkinter as tk
 from typing import Optional
 from pydantic import BaseModel, Field
 from src.core.enums import MessageLevel
+from tkinter import messagebox
 
 
 class Message(BaseModel):
@@ -12,10 +13,10 @@ class Message(BaseModel):
     level: MessageLevel = Field(default=MessageLevel.INFO)
     title: Optional[str] = Field(default=None)
     duration: int = Field(default=5000, description="How long to display the message (ms)")
-    
-    class Config:
-        """Pydantic model configuration."""
-        validate_assignment = True
+
+class Config:
+    """Pydantic model configuration."""
+    validate_assignment = True
 
 
 class MessageQueue:
@@ -62,11 +63,11 @@ class MessageQueue:
     @staticmethod
     def _show_message(message: Message):
         """Show the message dialog."""
-        from tkinter import messagebox
 
-        if message.level == MessageLevel.ERROR:
-            messagebox.showerror(message.title or "Error", message.text)
-        elif message.level == MessageLevel.SUCCESS:
-            messagebox.showinfo(message.title or "Success", message.text)
-        else:
-            messagebox.showinfo(message.title or "Information", message.text) 
+        match message.level:
+            case MessageLevel.ERROR:
+                messagebox.showerror(message.title or "Error", message.text)
+            case MessageLevel.SUCCESS:
+                messagebox.showinfo(message.title or "Success", message.text)
+            case _:
+                messagebox.showinfo(message.title or "Information", message.text) 

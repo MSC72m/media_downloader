@@ -1,6 +1,6 @@
 """UI component for selecting browser cookies."""
 
-import logging
+from src.utils.logger import get_logger
 import customtkinter as ctk
 from typing import Optional, Callable
 from tkinter import messagebox, filedialog
@@ -8,7 +8,7 @@ from tkinter import messagebox, filedialog
 from ...interfaces.cookie_detection import BrowserType
 from ...handlers.cookie_handler import CookieHandler
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class CookieSelectorFrame(ctk.CTkFrame):

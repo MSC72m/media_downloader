@@ -2,14 +2,14 @@
 
 import requests
 import re
-import logging
+from src.utils.logger import get_logger
 from typing import Optional, List, Callable
 import os
 
 from ...core import BaseDownloader
 from ...utils.common import download_file, sanitize_filename
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class TwitterDownloader(BaseDownloader):

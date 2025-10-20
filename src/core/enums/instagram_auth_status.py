@@ -1,6 +1,6 @@
 """Instagram authentication status enum."""
 
-from enum import StrEnum
+from .compat import StrEnum
 
 
 class InstagramAuthStatus(StrEnum):

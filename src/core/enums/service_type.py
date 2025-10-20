@@ -1,6 +1,6 @@
 """Service type enum."""
 
-from enum import StrEnum
+from .compat import StrEnum
 
 
 class ServiceType(StrEnum):

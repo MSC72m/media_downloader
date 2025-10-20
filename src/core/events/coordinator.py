@@ -7,10 +7,10 @@ from ..interfaces.core.event_handlers import (
     AuthenticationHandler, FileManagementHandler, ConfigurationHandler,
     NetworkStatusHandler, YouTubeSpecificHandler
 )
-from .models import Download
-from ..ui.dialogs.file_manager_dialog import FileManagerDialog
-from ..ui.dialogs.network_status_dialog import NetworkStatusDialog
-from .link_detection import LinkDetector
+from ..downloads.models import Download
+from ...ui.dialogs.file_manager_dialog import FileManagerDialog
+from ...ui.dialogs.network_status_dialog import NetworkStatusDialog
+from ..detection.link_detector import LinkDetector
 
 logger = get_logger(__name__)
 
@@ -295,12 +295,12 @@ class EventCoordinator(
     # NetworkStatusHandler implementation
     def check_connectivity(self) -> bool:
         """Check internet connectivity."""
-        from .network.network import check_internet_connection
+        from ..network.checker import check_internet_connection
         return check_internet_connection()
 
     def check_service_status(self, services: List[str]) -> Dict[str, bool]:
         """Check status of specific services."""
-        from .network.network import check_all_services
+        from ..network.checker import check_all_services
         results = check_all_services()
         return {service: results.get(service, (False, ""))[0] for service in services}
 
@@ -318,7 +318,7 @@ class EventCoordinator(
 
         try:
             # Create download with YouTube-specific options
-            from .models import ServiceType
+            from ..downloads.models import ServiceType
             logger.info("[EVENT_COORDINATOR] Creating Download object")
             download = Download(
                 name=name,

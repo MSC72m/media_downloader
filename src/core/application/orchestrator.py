@@ -6,24 +6,24 @@ import customtkinter as ctk
 from tkinter import messagebox
 from typing import Any, Optional
 
-from .models import UIState
-from .message_queue import MessageQueue
-from .network.network import check_internet_connection, check_all_services
+from ..downloads.models import UIState
+from ..events.queue import MessageQueue
+from ..network.checker import check_internet_connection, check_all_services
 from .container import ServiceContainer
-from .event_coordinator import EventCoordinator
-from .link_detection import LinkDetector
-from .service_accessor import ServiceAccessor
-from ..handlers.cookie_handler import CookieHandler
-from ..handlers.auth_handler import AuthenticationHandler
-from ..handlers.download_handler import DownloadHandler
-from ..services.factory import ServiceFactory
-from ..services.download import DownloadService
-from ..services.youtube.cookie_detector import CookieManager, CookieDetector
-from ..services.youtube.metadata_service import YouTubeMetadataService
-from ..handlers.network_checker import NetworkChecker
-from ..handlers.service_detector import ServiceDetector
-from ..ui.dialogs.network_status_dialog import NetworkStatusDialog
-from .service_controller import ServiceController
+from ..events.coordinator import EventCoordinator
+from ..detection.link_detector import LinkDetector
+from ..services.accessor import ServiceAccessor
+from ...handlers.cookie_handler import CookieHandler
+from ...handlers.auth_handler import AuthenticationHandler
+from ...handlers.download_handler import DownloadHandler
+from ...services.factory import ServiceFactory
+from ...services.download import DownloadService
+from ...services.youtube.cookie_detector import CookieManager, CookieDetector
+from ...services.youtube.metadata_service import YouTubeMetadataService
+from ...handlers.network_checker import NetworkChecker
+from ...handlers.service_detector import ServiceDetector
+from ...ui.dialogs.network_status_dialog import NetworkStatusDialog
+from ..services.controller import ServiceController
 
 logger = get_logger(__name__)
 

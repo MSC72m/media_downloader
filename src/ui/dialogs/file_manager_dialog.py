@@ -1,5 +1,5 @@
 import os
-import logging
+from src.utils.logger import get_logger
 import customtkinter as ctk
 from typing import Callable
 from tkinter import messagebox
@@ -11,7 +11,7 @@ from .input_dialog import CenteredInputDialog
 
 from src.utils.window import WindowCenterMixin
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
