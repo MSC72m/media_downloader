@@ -12,12 +12,12 @@ from ...services.network.checker import check_internet_connection, check_all_ser
 from .container import ServiceContainer
 from ...services.events.coordinator import EventCoordinator
 from ...services.detection.link_detector import LinkDetector
-from ..services.accessor import ServiceAccessor
+from ...services.accessor import ServiceAccessor
 from ...handlers.cookie_handler import CookieHandler
 from ...handlers.auth_handler import AuthenticationHandler
 from ...handlers.download_handler import DownloadHandler
 from ...services.factory import ServiceFactory
-from ...services.download import DownloadService
+from ...services.downloads import DownloadService
 from ...services.youtube.cookie_detector import CookieManager, CookieDetector
 from ...services.youtube.metadata_service import YouTubeMetadataService
 from ...handlers.network_checker import NetworkChecker

@@ -1,7 +1,4 @@
-"""Media downloader application entrypoint."""
-
 import sys
-from src.utils.logger import get_logger
 from pathlib import Path
 import customtkinter as ctk
 
@@ -17,11 +14,8 @@ from src.ui.components.main_action_buttons import ActionButtonBar
 from src.ui.components.cookie_selector import CookieSelectorFrame
 
 from src.core import ApplicationOrchestrator
+from src.utils.logger import get_logger
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
 logger = get_logger(__name__)
 
 # Set theme
