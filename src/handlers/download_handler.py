@@ -2,8 +2,8 @@
 
 from src.utils.logger import get_logger
 from typing import List, Callable, Optional
-from src.core.downloads.models import Download, DownloadOptions
-from src.core.application.container import ServiceContainer
+from src.core.models import Download, DownloadOptions
+from src.core import ServiceContainer
 
 logger = get_logger(__name__)
 

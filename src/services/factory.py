@@ -3,7 +3,7 @@
 from src.utils.logger import get_logger
 from typing import Optional, Dict
 from urllib.parse import urlparse
-from ..core.downloads.models import ServiceType
+from ..core.models import ServiceType
 from ..core.base import BaseDownloader
 from .youtube import YouTubeDownloader
 from .twitter import TwitterDownloader

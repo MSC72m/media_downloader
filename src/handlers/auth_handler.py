@@ -2,7 +2,7 @@
 
 from src.utils.logger import get_logger
 from typing import Any, Callable
-from src.core.downloads.models import ServiceType
+from src.core.models import ServiceType
 
 logger = get_logger(__name__)
 

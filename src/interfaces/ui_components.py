@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from typing import List, Callable, Any
-from src.core.downloads.models import Download
+from src.core.models import Download
 
 
 class IUIComponent(ABC):

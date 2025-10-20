@@ -3,7 +3,7 @@
 import re
 from src.utils.logger import get_logger
 from typing import Dict, Any, Callable, Optional
-from src.core.detection.link_detector import LinkHandlerInterface, DetectionResult, auto_register_handler
+from src.services.detection.link_detector import LinkHandlerInterface, DetectionResult, auto_register_handler
 
 logger = get_logger(__name__)
 

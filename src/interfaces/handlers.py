@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from typing import List, Callable, Optional, Any
-from src.core.downloads.models import Download, DownloadOptions, ServiceType, UIState
+from src.core.models import Download, DownloadOptions, ServiceType, UIState
 
 
 class IHandler(ABC):

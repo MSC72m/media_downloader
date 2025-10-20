@@ -3,9 +3,9 @@
 import threading
 from src.utils.logger import get_logger
 from typing import List, Callable, Optional
-from ..core.downloads.models import Download, DownloadStatus
+from ..core.models import Download, DownloadStatus
 from .factory import ServiceFactory
-from ..core.downloads.repository import DownloadRepository, OptionsRepository
+from .downloads.repository import DownloadRepository, OptionsRepository
 
 logger = get_logger(__name__)
 

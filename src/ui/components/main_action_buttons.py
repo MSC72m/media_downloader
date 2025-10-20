@@ -1,7 +1,7 @@
 import customtkinter as ctk
 from src.utils.logger import get_logger
 from typing import Callable, Dict
-from src.core.downloads.models import ButtonState
+from src.core.models import ButtonState
 
 logger = get_logger(__name__)
 

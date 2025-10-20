@@ -16,7 +16,7 @@ from src.ui.components.status_bar import StatusBar
 from src.ui.components.main_action_buttons import ActionButtonBar
 from src.ui.components.cookie_selector import CookieSelectorFrame
 
-from src.core.application.orchestrator import ApplicationOrchestrator
+from src.core import ApplicationOrchestrator
 
 logging.basicConfig(
     level=logging.DEBUG,

@@ -6,12 +6,12 @@ import customtkinter as ctk
 from tkinter import messagebox
 from typing import Any, Optional
 
-from ..downloads.models import UIState
-from ..events.queue import MessageQueue
-from ..network.checker import check_internet_connection, check_all_services
+from ..models import UIState
+from ...services.events.queue import MessageQueue
+from ...services.network.checker import check_internet_connection, check_all_services
 from .container import ServiceContainer
-from ..events.coordinator import EventCoordinator
-from ..detection.link_detector import LinkDetector
+from ...services.events.coordinator import EventCoordinator
+from ...services.detection.link_detector import LinkDetector
 from ..services.accessor import ServiceAccessor
 from ...handlers.cookie_handler import CookieHandler
 from ...handlers.auth_handler import AuthenticationHandler

@@ -2,15 +2,16 @@ import customtkinter as ctk
 from tkinter import messagebox
 from src.utils.logger import get_logger
 from typing import List, Optional, Any, Callable, Dict
-from ..interfaces.core.event_handlers import (
+from src.interfaces.event_handlers import (
     URLDetectionHandler, DownloadManagementHandler, UIUpdateHandler,
     AuthenticationHandler, FileManagementHandler, ConfigurationHandler,
     NetworkStatusHandler, YouTubeSpecificHandler
 )
-from ..downloads.models import Download
-from ...ui.dialogs.file_manager_dialog import FileManagerDialog
-from ...ui.dialogs.network_status_dialog import NetworkStatusDialog
+from src.core.models import Download, ServiceType
+from src.ui.dialogs.file_manager_dialog import FileManagerDialog
+from src.ui.dialogs.network_status_dialog import NetworkStatusDialog
 from ..detection.link_detector import LinkDetector
+from ..network.checker import check_internet_connection, check_all_services
 
 logger = get_logger(__name__)
 
@@ -295,12 +296,10 @@ class EventCoordinator(
     # NetworkStatusHandler implementation
     def check_connectivity(self) -> bool:
         """Check internet connectivity."""
-        from ..network.checker import check_internet_connection
         return check_internet_connection()
 
     def check_service_status(self, services: List[str]) -> Dict[str, bool]:
         """Check status of specific services."""
-        from ..network.checker import check_all_services
         results = check_all_services()
         return {service: results.get(service, (False, ""))[0] for service in services}
 
@@ -318,7 +317,6 @@ class EventCoordinator(
 
         try:
             # Create download with YouTube-specific options
-            from ..downloads.models import ServiceType
             logger.info("[EVENT_COORDINATOR] Creating Download object")
             download = Download(
                 name=name,

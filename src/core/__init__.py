@@ -1,57 +1,39 @@
-"""Core application modules organized by feature."""
+"""Core application modules - shared primitives and application infrastructure."""
 
-# Downloads
-from .downloads.models import Download, DownloadOptions, ServiceType, DownloadStatus, UIState, ButtonState
-from .downloads.repository import DownloadRepository, OptionsRepository
+# Models - All domain models
+from .models import (
+    Download, DownloadOptions, ServiceType, DownloadStatus, 
+    UIState, AuthState, ButtonState, ConnectionResult, DownloadResult
+)
 
-# Events
-from .events.coordinator import EventCoordinator
-from .events.queue import MessageQueue
+# Base classes
+from .base import BaseDownloader
 
-# Application
+# Application infrastructure
 from .application.orchestrator import ApplicationOrchestrator
 from .application.container import ServiceContainer
 
-# Detection
-from .detection.link_detector import LinkDetector, LinkDetectionRegistry, DetectionResult
-
-# Services
+# Service management
 from .services.accessor import ServiceAccessor
 from .services.controller import ServiceController
 
-# Network
-from .network.checker import HTTPNetworkChecker, NetworkService, ConnectionResult
-
-# Base
-from .base import BaseDownloader
-
 __all__ = [
-    # Downloads
+    # Models
     'Download',
     'DownloadOptions',
     'ServiceType',
     'DownloadStatus',
     'UIState',
+    'AuthState',
     'ButtonState',
-    'DownloadRepository',
-    'OptionsRepository',
-    # Events
-    'EventCoordinator',
-    'MessageQueue',
+    'ConnectionResult',
+    'DownloadResult',
+    # Base
+    'BaseDownloader',
     # Application
     'ApplicationOrchestrator',
     'ServiceContainer',
-    # Detection
-    'LinkDetector',
-    'LinkDetectionRegistry',
-    'DetectionResult',
     # Services
     'ServiceAccessor',
-    'ServiceController',
-    # Network
-    'HTTPNetworkChecker',
-    'NetworkService',
-    'ConnectionResult',
-    # Base
-    'BaseDownloader'
+    'ServiceController'
 ]

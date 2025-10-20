@@ -31,7 +31,19 @@ from .ui_components import (
     IDialogFactory
 )
 
+from .event_handlers import (
+    URLDetectionHandler,
+    DownloadManagementHandler,
+    UIUpdateHandler,
+    AuthenticationHandler,
+    FileManagementHandler,
+    ConfigurationHandler,
+    NetworkStatusHandler,
+    YouTubeSpecificHandler
+)
+
 __all__ = [
+    # Handlers
     "IHandler",
     "IDownloadHandler",
     "IAuthenticationHandler",
@@ -39,10 +51,12 @@ __all__ = [
     "INetworkChecker",
     "IUIEventHandler",
     "IApplicationController",
+    # Cookie
     "ICookieDetector",
     "ICookieManager",
     "BrowserType",
     "PlatformType",
+    # UI Components
     "IUIComponent",
     "IURLEntryComponent",
     "IDownloadListComponent",
@@ -53,5 +67,14 @@ __all__ = [
     "IDialog",
     "INetworkStatusDialog",
     "IFileManagerDialog",
-    "IDialogFactory"
+    "IDialogFactory",
+    # Event Handlers
+    "URLDetectionHandler",
+    "DownloadManagementHandler",
+    "UIUpdateHandler",
+    "AuthenticationHandler",
+    "FileManagementHandler",
+    "ConfigurationHandler",
+    "NetworkStatusHandler",
+    "YouTubeSpecificHandler"
 ]
