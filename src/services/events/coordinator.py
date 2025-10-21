@@ -216,12 +216,12 @@ class EventCoordinator(
 
     def update_button_states(self, has_selection: bool, has_items: bool) -> None:
         """Update button enabled/disabled states."""
-        logger.info(f"[EVENT_COORDINATOR] update_button_states called: has_selection={has_selection}, has_items={has_items}")
-        logger.info(f"[EVENT_COORDINATOR] action_buttons: {self.action_buttons}")
+        logger.debug(f"[EVENT_COORDINATOR] update_button_states called: has_selection={has_selection}, has_items={has_items}")
+        logger.debug(f"[EVENT_COORDINATOR] action_buttons: {self.action_buttons}")
         if self.action_buttons:
             try:
                 self.action_buttons.update_button_states(has_selection, has_items)
-                logger.info("[EVENT_COORDINATOR] action_buttons.update_button_states called successfully")
+                logger.debug("[EVENT_COORDINATOR] action_buttons.update_button_states called successfully")
             except Exception as e:
                 logger.error(f"[EVENT_COORDINATOR] Error calling action_buttons.update_button_states: {e}", exc_info=True)
         else:

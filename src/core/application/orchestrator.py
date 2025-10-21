@@ -158,8 +158,8 @@ class ApplicationOrchestrator:
 
     def set_ui_components(self, **components):
         """Set UI component references."""
-        logger.info("[ORCHESTRATOR] set_ui_components called with: %s", list(components.keys()))
-        logger.info("[ORCHESTRATOR] components: %s", components)
+        logger.debug("[ORCHESTRATOR] set_ui_components called with: %s", list(components.keys()))
+        logger.debug("[ORCHESTRATOR] components: %s", components)
         self.ui_components.update(components)
 
         # Update event coordinator with new UI components
@@ -318,14 +318,14 @@ class ApplicationOrchestrator:
 
     def handle_selection_change(self, selected_indices: list):
         """Handle selection changes."""
-        logger.info("[ORCHESTRATOR] handle_selection_change called with: %s", selected_indices)
+        logger.debug("[ORCHESTRATOR] handle_selection_change called with: %s", selected_indices)
         download_list = self.ui_components.get('download_list')
-        logger.info("[ORCHESTRATOR] download_list: %s", download_list)
+        logger.debug("[ORCHESTRATOR] download_list: %s", download_list)
         has_items = download_list.has_items() if download_list else False
-        logger.info("[ORCHESTRATOR] has_items: %s, has_selection: %s", has_items, bool(selected_indices))
+        logger.debug("[ORCHESTRATOR] has_items: %s, has_selection: %s", has_items, bool(selected_indices))
         try:
             self.event_coordinator.update_button_states(bool(selected_indices), has_items)
-            logger.info("[ORCHESTRATOR] update_button_states called successfully")
+            logger.debug("[ORCHESTRATOR] update_button_states called successfully")
         except Exception as e:
             logger.exception("[ORCHESTRATOR] Error calling update_button_states: %s", e)
 

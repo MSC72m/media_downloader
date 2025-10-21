@@ -47,6 +47,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.selected_cookie_path = initial_cookie_path
         self.selected_browser = initial_browser
         self.widgets_created = False
+        self._metadata_handler_called = False  # Flag to track if handler was called
 
         # Configure window
         self.title("YouTube Video Downloader")
@@ -142,10 +143,14 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                     logger.debug(f"YouTube dialog fetch_metadata - selected_browser: {self.selected_browser}")
 
                     # Fetch metadata with cookies
+                    logger.info("Calling metadata_service.fetch_metadata...")
                     self.video_metadata = self.metadata_service.fetch_metadata(self.url, cookie_path, self.selected_browser)
+                    logger.info(f"Metadata fetch completed. Result: {self.video_metadata}")
+                    logger.info(f"Metadata type: {type(self.video_metadata)}")
 
                     # Check if metadata fetch failed
                     if self.video_metadata and self.video_metadata.error:
+                        logger.error(f"Metadata fetch failed with error: {self.video_metadata.error}")
                         self.after(0, self._handle_metadata_error)
                         return
                 else:
@@ -154,7 +159,34 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                     return
 
                 # Update UI in main thread
-                self.after(0, self._handle_metadata_fetched)
+                logger.info("Scheduling _handle_metadata_fetched to run in main thread")
+                logger.info(f"Dialog still exists: {hasattr(self, 'winfo_exists') and self.winfo_exists()}")
+                try:
+                    self.after(0, self._handle_metadata_fetched)
+                    logger.info("Successfully scheduled _handle_metadata_fetched")
+                    
+                    # Add a timeout fallback in case the scheduled call doesn't work
+                    def timeout_fallback():
+                        if not self._metadata_handler_called:
+                            logger.warning("Timeout fallback: _handle_metadata_fetched was not called, executing directly")
+                            try:
+                                self._handle_metadata_fetched()
+                            except Exception as e:
+                                logger.error(f"Timeout fallback failed: {e}")
+                        else:
+                            logger.info("Timeout fallback: _handle_metadata_fetched was already called, skipping")
+                    
+                    # Schedule timeout fallback after 2 seconds
+                    self.after(2000, timeout_fallback)
+                    
+                except Exception as e:
+                    logger.error(f"Failed to schedule _handle_metadata_fetched: {e}")
+                    # Try to call it directly as a fallback
+                    try:
+                        logger.info("Attempting to call _handle_metadata_fetched directly as fallback")
+                        self._handle_metadata_fetched()
+                    except Exception as e2:
+                        logger.error(f"Failed to call _handle_metadata_fetched directly: {e2}")
 
             except Exception as e:
                 logger.error(f"Error fetching metadata: {e}")
@@ -181,45 +213,77 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
     def _handle_metadata_fetched(self):
         """Handle metadata fetch completion."""
+        logger.info("=== _handle_metadata_fetched called ===")
+        logger.info("Handling metadata fetch completion")
+        self._metadata_handler_called = True  # Set flag to prevent timeout fallback
+        logger.info(f"Video metadata: {self.video_metadata}")
+        logger.info(f"Video metadata type: {type(self.video_metadata)}")
+        if self.video_metadata:
+            logger.info(f"Video metadata title: {getattr(self.video_metadata, 'title', 'No title')}")
+            logger.info(f"Video metadata error: {getattr(self.video_metadata, 'error', 'No error')}")
+        
         # Check if metadata has an error
         if self.video_metadata and self.video_metadata.error:
+            logger.error(f"Metadata fetch error: {self.video_metadata.error}")
             self._handle_metadata_error()
             return
 
         # Hide loading overlay
         if self.loading_overlay:
-            self.loading_overlay.close()
+            logger.info("Closing loading overlay")
+            try:
+                self.loading_overlay.close()
+            except Exception as e:
+                logger.warning(f"Error closing loading overlay: {e}")
+            finally:
+                self.loading_overlay = None  # Clear reference
 
         # Create main interface only after metadata is successfully fetched
         if not self.widgets_created:
-            self._create_widgets()
-            self._load_cached_selections()
-            self.widgets_created = True
+            logger.info("Creating widgets")
+            try:
+                self._create_widgets()
+                logger.info("Widgets created successfully")
+                self._load_cached_selections()
+                logger.info("Cached selections loaded")
+                self.widgets_created = True
+            except Exception as e:
+                logger.error(f"Error creating widgets: {e}", exc_info=True)
+                return
 
         # Show main interface
         if hasattr(self, 'main_frame'):
-            self.main_frame.pack(fill="both", expand=True)
+            logger.info("Packing main frame")
+            try:
+                self.main_frame.pack(fill="both", expand=True)
+                logger.info("Main frame packed successfully")
+            except Exception as e:
+                logger.error(f"Error packing main frame: {e}", exc_info=True)
+                return
 
-        # Wait for loading overlay to close completely, then show main window
-        self._schedule_main_window_show()
+        # Show main window immediately
+        logger.info("Showing main window")
+        try:
+            self._show_main_window()
+        except Exception as e:
+            logger.error(f"Error showing main window: {e}", exc_info=True)
 
     def _schedule_main_window_show(self):
         """Schedule showing main window after loading overlay is completely gone."""
-        if self.loading_overlay and hasattr(self.loading_overlay, 'winfo_exists') and self.loading_overlay.winfo_exists():
-            # Loading overlay still exists, wait a bit more
-            self.after(100, self._schedule_main_window_show)
-        else:
-            # Loading overlay is gone, show main window
-            self.after(200, self._show_main_window)
+        # Give a small delay to ensure loading overlay is properly closed
+        self.after(100, self._show_main_window)
 
     def _show_main_window(self):
         """Show the main window after loading is complete."""
+        logger.info("Showing main window - deiconifying and lifting")
         # Show the main window now that everything is ready
         self.deiconify()
         self.lift()
 
         # Update UI with metadata
+        logger.info("Updating UI with metadata")
         self._update_ui_with_metadata()
+        logger.info("Main window should now be visible")
 
     def _update_ui_with_metadata(self):
         """Update UI components with fetched metadata."""
