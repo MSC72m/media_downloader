@@ -442,20 +442,43 @@ class CookieManager(ICookieManager):
 
     def set_youtube_cookies(self, cookie_path: str) -> None:
         """Set cookies for YouTube downloads."""
+        if not cookie_path:
+            logger.error("Empty cookie path provided")
+            raise ValueError("Cookie path cannot be empty")
+            
         if not os.path.exists(cookie_path):
+            logger.error(f"Cookie file does not exist: {cookie_path}")
             raise ValueError(f"Cookie file does not exist: {cookie_path}")
 
-        if not self._detector.validate_cookie_file(cookie_path):
-            raise ValueError(f"Invalid cookie file: {cookie_path}")
-
-        self._current_cookie_path = cookie_path
-        logger.info(f"Set YouTube cookies from: {cookie_path}")
+        try:
+            if not self._detector.validate_cookie_file(cookie_path):
+                logger.error(f"Invalid cookie file format: {cookie_path}")
+                raise ValueError(f"Invalid cookie file: {cookie_path}")
+                
+            self._current_cookie_path = cookie_path
+            logger.info(f"Successfully set YouTube cookies from: {cookie_path}")
+        except Exception as e:
+            logger.error(f"Error validating cookie file: {str(e)}")
+            raise ValueError(f"Error processing cookie file: {str(e)}")
 
     def has_valid_cookies(self) -> bool:
         """Check if valid cookies are currently set."""
-        return bool(self._current_cookie_path and
-                   os.path.exists(self._current_cookie_path) and
-                   self._detector.validate_cookie_file(self._current_cookie_path))
+        if not self._current_cookie_path:
+            logger.debug("No cookie path is currently set")
+            return False
+            
+        if not os.path.exists(self._current_cookie_path):
+            logger.warning(f"Cookie file no longer exists: {self._current_cookie_path}")
+            return False
+            
+        try:
+            is_valid = self._detector.validate_cookie_file(self._current_cookie_path)
+            if not is_valid:
+                logger.warning(f"Cookie file is invalid: {self._current_cookie_path}")
+            return is_valid
+        except Exception as e:
+            logger.error(f"Error validating cookie file: {str(e)}")
+            return False
 
     def get_current_cookie_path(self) -> Optional[str]:
         """Get the current cookie path."""

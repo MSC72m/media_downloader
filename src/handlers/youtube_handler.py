@@ -123,6 +123,13 @@ class YouTubeHandler(LinkHandlerInterface):
             def on_cookie_selected(cookie_path: Optional[str], browser: Optional[str]):
                 logger.info(f"[YOUTUBE_HANDLER] Cookie selected: {cookie_path}, browser: {browser}")
                 try:
+                    # Validate cookie path before proceeding
+                    if cookie_path and cookie_handler:
+                        success = cookie_handler.set_cookie_file(cookie_path)
+                        if not success:
+                            logger.error(f"[YOUTUBE_HANDLER] Failed to set cookie file: {cookie_path}")
+                            # Continue anyway, the dialog will handle the error
+                    
                     YouTubeDownloaderDialog(
                         root,
                         url=url,
@@ -139,6 +146,11 @@ class YouTubeHandler(LinkHandlerInterface):
 
             try:
                 logger.info("[YOUTUBE_HANDLER] Creating BrowserCookieDialog")
+                # Check if root is valid before creating dialog
+                if root is None:
+                    logger.error("[YOUTUBE_HANDLER] Root is None, cannot create BrowserCookieDialog")
+                    return
+                    
                 BrowserCookieDialog(
                     root,
                     on_cookie_selected
@@ -146,6 +158,18 @@ class YouTubeHandler(LinkHandlerInterface):
                 logger.info("[YOUTUBE_HANDLER] BrowserCookieDialog created successfully")
             except Exception as e:
                 logger.error(f"[YOUTUBE_HANDLER] Failed to create BrowserCookieDialog: {e}", exc_info=True)
+                # Fallback to direct YouTube downloader dialog without cookies
+                try:
+                    YouTubeDownloaderDialog(
+                        root,
+                        url=url,
+                        cookie_handler=cookie_handler,
+                        metadata_service=metadata_service,
+                        on_download=download_callback
+                    )
+                    logger.info("[YOUTUBE_HANDLER] Created YouTubeDownloaderDialog directly as fallback")
+                except Exception as fallback_error:
+                    logger.error(f"[YOUTUBE_HANDLER] Fallback also failed: {fallback_error}", exc_info=True)
 
         logger.info("[YOUTUBE_HANDLER] Returning YouTube callback")
         return youtube_callback
