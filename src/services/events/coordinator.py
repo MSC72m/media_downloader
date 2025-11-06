@@ -1,18 +1,26 @@
 import os
-import customtkinter as ctk
 from tkinter import messagebox
-from src.utils.logger import get_logger
-from typing import List, Optional, Any, Callable, Dict
-from src.interfaces.event_handlers import (
-    URLDetectionHandler, DownloadManagementHandler, UIUpdateHandler,
-    AuthenticationHandler, FileManagementHandler, ConfigurationHandler,
-    NetworkStatusHandler, YouTubeSpecificHandler
-)
+from typing import Any, Callable, Dict, List, Optional
+
+import customtkinter as ctk
+
 from src.core.models import Download, ServiceType
+from src.interfaces.event_handlers import (
+    AuthenticationHandler,
+    ConfigurationHandler,
+    DownloadManagementHandler,
+    FileManagementHandler,
+    NetworkStatusHandler,
+    UIUpdateHandler,
+    URLDetectionHandler,
+    YouTubeSpecificHandler,
+)
 from src.ui.dialogs.file_manager_dialog import FileManagerDialog
 from src.ui.dialogs.network_status_dialog import NetworkStatusDialog
+from src.utils.logger import get_logger
+
 from ..detection.link_detector import LinkDetector
-from ..network.checker import check_internet_connection, check_all_services
+from ..network.checker import check_all_services, check_internet_connection
 
 logger = get_logger(__name__)
 
@@ -25,7 +33,7 @@ class EventCoordinator(
     FileManagementHandler,
     ConfigurationHandler,
     NetworkStatusHandler,
-    YouTubeSpecificHandler
+    YouTubeSpecificHandler,
 ):
     """Coordinates events between UI and business logic."""
 
@@ -39,26 +47,28 @@ class EventCoordinator(
         """Setup internal handlers and services."""
         logger.info("[EVENT_COORDINATOR] _setup_handlers called")
         # Get services from container
-        self.download_list = self.container.get('download_list')
+        self.download_list = self.container.get("download_list")
         logger.info(f"[EVENT_COORDINATOR] Got download_list: {self.download_list}")
 
-        self.status_bar = self.container.get('status_bar')
+        self.status_bar = self.container.get("status_bar")
         logger.info(f"[EVENT_COORDINATOR] Got status_bar: {self.status_bar}")
 
-        self.action_buttons = self.container.get('action_buttons')
+        self.action_buttons = self.container.get("action_buttons")
         logger.info(f"[EVENT_COORDINATOR] Got action_buttons: {self.action_buttons}")
 
-        self.url_entry = self.container.get('url_entry')
+        self.url_entry = self.container.get("url_entry")
         logger.info(f"[EVENT_COORDINATOR] Got url_entry: {self.url_entry}")
 
-        self.cookie_handler = self.container.get('cookie_handler')
+        self.cookie_handler = self.container.get("cookie_handler")
         logger.info(f"[EVENT_COORDINATOR] Got cookie_handler: {self.cookie_handler}")
 
-        self.auth_handler = self.container.get('auth_handler')
+        self.auth_handler = self.container.get("auth_handler")
         logger.info(f"[EVENT_COORDINATOR] Got auth_handler: {self.auth_handler}")
 
-        self.service_controller = self.container.get('service_controller')
-        logger.info(f"[EVENT_COORDINATOR] Got service_controller: {self.service_controller}")
+        self.service_controller = self.container.get("service_controller")
+        logger.info(
+            f"[EVENT_COORDINATOR] Got service_controller: {self.service_controller}"
+        )
 
         logger.info("[EVENT_COORDINATOR] _setup_handlers completed")
 
@@ -67,7 +77,6 @@ class EventCoordinator(
         logger.info("[EVENT_COORDINATOR] refresh_handlers called")
         self._setup_handlers()
         logger.info("[EVENT_COORDINATOR] refresh_handlers completed")
-
 
     # URLDetectionHandler implementation
     def detect_url_type(self, url: str) -> Optional[str]:
@@ -86,7 +95,9 @@ class EventCoordinator(
         logger.info(f"[EVENT_COORDINATOR] add_download called with: {download}")
         logger.info(f"[EVENT_COORDINATOR] download type: {type(download)}")
         logger.info(f"[EVENT_COORDINATOR] download_list: {self.download_list}")
-        logger.info(f"[EVENT_COORDINATOR] download_list type: {type(self.download_list)}")
+        logger.info(
+            f"[EVENT_COORDINATOR] download_list type: {type(self.download_list)}"
+        )
 
         if not self.download_list:
             logger.error("[EVENT_COORDINATOR] download_list is None or falsy")
@@ -97,7 +108,9 @@ class EventCoordinator(
             self.update_status(f"Download added: {download.name}")
             return True
         except Exception as e:
-            logger.error(f"[EVENT_COORDINATOR] Failed to add download: {e}", exc_info=True)
+            logger.error(
+                f"[EVENT_COORDINATOR] Failed to add download: {e}", exc_info=True
+            )
             self.show_error("Add Error", f"Failed to add download: {str(e)}")
             return False
 
@@ -128,7 +141,9 @@ class EventCoordinator(
         logger.info("[EVENT_COORDINATOR] start_downloads called")
         logger.info(f"[EVENT_COORDINATOR] download_list: {self.download_list}")
         logger.info(f"[EVENT_COORDINATOR] action_buttons: {self.action_buttons}")
-        logger.info(f"[EVENT_COORDINATOR] service_controller: {self.service_controller}")
+        logger.info(
+            f"[EVENT_COORDINATOR] service_controller: {self.service_controller}"
+        )
 
         try:
             if not self.download_list or not self.download_list.has_items():
@@ -136,63 +151,88 @@ class EventCoordinator(
                 self.update_status("Please add items to download")
                 return False
 
-            logger.info("[EVENT_COORDINATOR] Downloads available, checking service_controller")
+            logger.info(
+                "[EVENT_COORDINATOR] Downloads available, checking service_controller"
+            )
             if self.service_controller:
                 logger.info("[EVENT_COORDINATOR] Getting downloads from download_list")
                 downloads = self.download_list.get_downloads()
-                logger.info(f"[EVENT_COORDINATOR] Got {len(downloads)} downloads: {downloads}")
+                logger.info(
+                    f"[EVENT_COORDINATOR] Got {len(downloads)} downloads: {downloads}"
+                )
 
-                # Define callbacks for UI feedback
+                # Update each download status to "Downloading" before starting
+                from src.core.models import DownloadStatus
+
+                for download in downloads:
+                    download.status = DownloadStatus.DOWNLOADING
+                    download.progress = 0.0
+
+                # Refresh the UI to show updated status
+                if self.download_list:
+                    self.download_list.refresh_items(downloads)
+
+                # Define callbacks for UI feedback (THREAD-SAFE)
                 def on_progress(download, progress):
-                    logger.debug(f"[EVENT_COORDINATOR] Progress callback: {download.name} - {progress}%")
-                    self.update_progress(download, progress)
+                    """Called from worker thread - must schedule UI updates on main thread."""
+                    logger.debug(
+                        f"[EVENT_COORDINATOR] Progress callback: {download.name} - {progress}%"
+                    )
+                    # Schedule UI update on main thread
+                    self.root.after(
+                        0, lambda: self._update_progress_ui(download, progress)
+                    )
 
                 def on_completion(success, message):
-                    logger.info(f"[EVENT_COORDINATOR] Completion callback: success={success}, message={message}")
-                    # Re-enable buttons
-                    if self.action_buttons:
-                        logger.info("[EVENT_COORDINATOR] Re-enabling action buttons")
-                        self.action_buttons.set_enabled(True)
-
-                    # Clear completed downloads if successful
-                    if success and self.download_list:
-                        logger.info("[EVENT_COORDINATOR] Clearing completed downloads")
-                        self.download_list.clear_downloads()
-                        # Update button states after clearing
-                        self.update_button_states(False, False)
-
-                    # Show completion message
-                    if success:
-                        self.update_status("Downloads completed successfully!")
-                    else:
-                        self.update_status(f"Downloads failed: {message}", is_error=True)
+                    """Called from worker thread - must schedule UI updates on main thread."""
+                    logger.info(
+                        f"[EVENT_COORDINATOR] Completion callback: success={success}, message={message}"
+                    )
+                    # Schedule UI update on main thread
+                    self.root.after(
+                        0, lambda: self._handle_completion_ui(success, message)
+                    )
 
                 # Disable buttons during download
                 if self.action_buttons:
-                    logger.info("[EVENT_COORDINATOR] Disabling action buttons during download")
+                    logger.info(
+                        "[EVENT_COORDINATOR] Disabling action buttons during download"
+                    )
                     self.action_buttons.set_enabled(False)
                 else:
-                    logger.warning("[EVENT_COORDINATOR] action_buttons is None, cannot disable buttons")
+                    logger.warning(
+                        "[EVENT_COORDINATOR] action_buttons is None, cannot disable buttons"
+                    )
 
                 # Start downloads with callbacks using download handler directly
-                logger.info("[EVENT_COORDINATOR] Calling download_handler.start_downloads")
-                download_handler = self.container.get('download_handler')
+                logger.info(
+                    "[EVENT_COORDINATOR] Calling download_handler.start_downloads"
+                )
+                download_handler = self.container.get("download_handler")
                 if not download_handler:
                     logger.error("[EVENT_COORDINATOR] download_handler not found")
                     self.show_error("Download Error", "Download handler not available")
                     return False
 
-                download_handler.start_downloads(downloads, self.get_download_directory(), on_progress, on_completion)
-                logger.info("[EVENT_COORDINATOR] download_handler.start_downloads called successfully")
+                download_handler.start_downloads(
+                    downloads, self.get_download_directory(), on_progress, on_completion
+                )
+                logger.info(
+                    "[EVENT_COORDINATOR] download_handler.start_downloads called successfully"
+                )
                 return True
             else:
                 logger.error("[EVENT_COORDINATOR] service_controller is None")
 
         except Exception as e:
-            logger.error(f"[EVENT_COORDINATOR] Failed to start downloads: {e}", exc_info=True)
+            logger.error(
+                f"[EVENT_COORDINATOR] Failed to start downloads: {e}", exc_info=True
+            )
             self.show_error("Download Error", f"Failed to start downloads: {str(e)}")
             if self.action_buttons:
-                logger.info("[EVENT_COORDINATOR] Re-enabling action buttons after error")
+                logger.info(
+                    "[EVENT_COORDINATOR] Re-enabling action buttons after error"
+                )
                 self.action_buttons.set_enabled(True)
 
         logger.warning("[EVENT_COORDINATOR] start_downloads returning False")
@@ -210,32 +250,97 @@ class EventCoordinator(
             self.status_bar.show_message(message)
 
     def update_progress(self, download: Download, progress: float) -> None:
-        """Update download progress."""
+        """Update download progress (DEPRECATED - use _update_progress_ui for thread-safe updates)."""
         if self.status_bar:
-            self.status_bar.show_message(f"Downloading {download.name}: {progress:.1f}%")
+            self.status_bar.show_message(
+                f"Downloading {download.name}: {progress:.1f}%"
+            )
+
+    def _update_progress_ui(self, download: Download, progress: float) -> None:
+        """Update download progress in UI (called on main thread)."""
+        logger.debug(
+            f"[EVENT_COORDINATOR] _update_progress_ui: {download.name} - {progress}%"
+        )
+
+        # Update the download object
+        download.progress = progress
+
+        # Update the download list item UI
+        if self.download_list:
+            self.download_list.update_item_progress(download, progress)
+
+        # Update status bar
+        if self.status_bar:
+            self.status_bar.show_message(
+                f"Downloading {download.name}: {progress:.1f}%"
+            )
+
+    def _handle_completion_ui(self, success: bool, message: str) -> None:
+        """Handle download completion in UI (called on main thread)."""
+        try:
+            logger.info(
+                f"[EVENT_COORDINATOR] _handle_completion_ui: success={success}, message={message}"
+            )
+
+            # Re-enable buttons
+            if self.action_buttons:
+                logger.info("[EVENT_COORDINATOR] Re-enabling action buttons")
+                try:
+                    self.action_buttons.set_enabled(True)
+                except Exception as e:
+                    logger.error(f"[EVENT_COORDINATOR] Error re-enabling buttons: {e}")
+
+            # Don't clear downloads - just update status
+            # Users might want to retry failed downloads
+
+            # Show completion message
+            if success:
+                self.update_status("Download completed successfully!")
+            else:
+                self.update_status(f"Download failed: {message}", is_error=True)
+
+        except Exception as e:
+            logger.error(
+                f"[EVENT_COORDINATOR] Error in completion handler: {e}", exc_info=True
+            )
 
     def update_button_states(self, has_selection: bool, has_items: bool) -> None:
         """Update button enabled/disabled states."""
-        logger.debug(f"[EVENT_COORDINATOR] update_button_states called: has_selection={has_selection}, has_items={has_items}")
+        logger.debug(
+            f"[EVENT_COORDINATOR] update_button_states called: has_selection={has_selection}, has_items={has_items}"
+        )
         logger.debug(f"[EVENT_COORDINATOR] action_buttons: {self.action_buttons}")
         if self.action_buttons:
             try:
                 self.action_buttons.update_button_states(has_selection, has_items)
-                logger.debug("[EVENT_COORDINATOR] action_buttons.update_button_states called successfully")
+                logger.debug(
+                    "[EVENT_COORDINATOR] action_buttons.update_button_states called successfully"
+                )
             except Exception as e:
-                logger.error(f"[EVENT_COORDINATOR] Error calling action_buttons.update_button_states: {e}", exc_info=True)
+                logger.error(
+                    f"[EVENT_COORDINATOR] Error calling action_buttons.update_button_states: {e}",
+                    exc_info=True,
+                )
         else:
-            logger.warning("[EVENT_COORDINATOR] action_buttons is None, cannot update button states")
+            logger.warning(
+                "[EVENT_COORDINATOR] action_buttons is None, cannot update button states"
+            )
 
     def show_error(self, title: str, message: str) -> None:
         """Show error dialog."""
         messagebox.showerror(title, message)
 
     # AuthenticationHandler implementation
-    def authenticate_instagram(self, parent_window: Any = None, callback: Optional[Callable[[bool], None]] = None) -> None:
+    def authenticate_instagram(
+        self,
+        parent_window: Any = None,
+        callback: Optional[Callable[[bool], None]] = None,
+    ) -> None:
         """Handle Instagram authentication."""
         if self.auth_handler:
-            self.auth_handler.authenticate_instagram(parent_window or self.root, callback or (lambda success: None))
+            self.auth_handler.authenticate_instagram(
+                parent_window or self.root, callback or (lambda success: None)
+            )
 
     def handle_cookie_detection(self, browser_type: str, cookie_path: str) -> None:
         """Handle cookie detection."""
@@ -249,17 +354,17 @@ class EventCoordinator(
     # FileManagementHandler implementation
     def show_file_manager(self) -> None:
         """Show file manager dialog."""
-        initial_path = self.get_download_directory()  # Already expanded by get_download_directory()
+        initial_path = (
+            self.get_download_directory()
+        )  # Already expanded by get_download_directory()
         FileManagerDialog(
-            self.root,
-            initial_path,
-            self.set_download_directory,
-            self.update_status
+            self.root, initial_path, self.set_download_directory, self.update_status
         )
 
     def browse_files(self, file_types: List[str]) -> Optional[str]:
         """Browse for files."""
         from tkinter import filedialog
+
         file_types_formatted = [(ft, f"*.{ft}") for ft in file_types]
         file_types_formatted.append(("All files", "*.*"))
         return filedialog.askopenfilename(filetypes=file_types_formatted)
@@ -267,19 +372,23 @@ class EventCoordinator(
     # ConfigurationHandler implementation
     def get_download_directory(self) -> str:
         """Get download directory."""
-        ui_state = self.container.get('ui_state')
-        directory = getattr(ui_state, 'download_directory', '~/Downloads') if ui_state else '~/Downloads'
+        ui_state = self.container.get("ui_state")
+        directory = (
+            getattr(ui_state, "download_directory", "~/Downloads")
+            if ui_state
+            else "~/Downloads"
+        )
         return os.path.expanduser(directory)
 
     def set_download_directory(self, directory: str) -> bool:
         """Set download directory."""
         try:
-            ui_state = self.container.get('ui_state')
+            ui_state = self.container.get("ui_state")
             if ui_state:
                 ui_state.download_directory = directory
 
                 # Refresh button states after directory change
-                if hasattr(self, 'download_list') and self.download_list:
+                if hasattr(self, "download_list") and self.download_list:
                     has_items = self.download_list.has_items()
                     selected_indices = self.download_list.get_selected_indices()
                     has_selection = bool(selected_indices)
@@ -287,7 +396,9 @@ class EventCoordinator(
 
                 return True
         except Exception as e:
-            self.show_error("Configuration Error", f"Failed to set download directory: {str(e)}")
+            self.show_error(
+                "Configuration Error", f"Failed to set download directory: {str(e)}"
+            )
         return False
 
     def save_configuration(self) -> bool:
@@ -324,20 +435,20 @@ class EventCoordinator(
                 name=name,
                 url=url,
                 service_type=ServiceType.YOUTUBE,
-                quality=options.get('quality', '720p'),
-                format=options.get('format', 'video'),
-                audio_only=options.get('audio_only', False),
-                video_only=options.get('video_only', False),
-                download_playlist=options.get('download_playlist', False),
-                download_subtitles=options.get('download_subtitles', False),
-                selected_subtitles=options.get('selected_subtitles'),
-                download_thumbnail=options.get('download_thumbnail', True),
-                embed_metadata=options.get('embed_metadata', True),
-                cookie_path=options.get('cookie_path'),
-                selected_browser=options.get('selected_browser'),
-                speed_limit=options.get('speed_limit'),
-                retries=options.get('retries', 3),
-                concurrent_downloads=options.get('concurrent_downloads', 1)
+                quality=options.get("quality", "720p"),
+                format=options.get("format", "video"),
+                audio_only=options.get("audio_only", False),
+                video_only=options.get("video_only", False),
+                download_playlist=options.get("download_playlist", False),
+                download_subtitles=options.get("download_subtitles", False),
+                selected_subtitles=options.get("selected_subtitles"),
+                download_thumbnail=options.get("download_thumbnail", True),
+                embed_metadata=options.get("embed_metadata", True),
+                cookie_path=options.get("cookie_path"),
+                selected_browser=options.get("selected_browser"),
+                speed_limit=options.get("speed_limit"),
+                retries=options.get("retries", 3),
+                concurrent_downloads=options.get("concurrent_downloads", 1),
             )
             logger.info(f"[EVENT_COORDINATOR] Download object created: {download}")
 
@@ -349,29 +460,36 @@ class EventCoordinator(
                 if self.url_entry:
                     logger.info("[EVENT_COORDINATOR] Resetting URL entry field")
                     try:
-                        if hasattr(self.url_entry, 'url_entry'):
-                            self.url_entry.url_entry.delete(0, 'end')
-                            self.url_entry.url_entry.insert(0, '')
+                        if hasattr(self.url_entry, "url_entry"):
+                            self.url_entry.url_entry.delete(0, "end")
+                            self.url_entry.url_entry.insert(0, "")
                         else:
-                            self.url_entry.delete(0, 'end')
-                            self.url_entry.insert(0, '')
-                        logger.info("[EVENT_COORDINATOR] URL entry field reset successfully")
+                            self.url_entry.delete(0, "end")
+                            self.url_entry.insert(0, "")
+                        logger.info(
+                            "[EVENT_COORDINATOR] URL entry field reset successfully"
+                        )
                     except Exception as e:
-                        logger.error(f"[EVENT_COORDINATOR] Error resetting URL entry: {e}", exc_info=True)
+                        logger.error(
+                            f"[EVENT_COORDINATOR] Error resetting URL entry: {e}",
+                            exc_info=True,
+                        )
                 else:
-                    logger.warning("[EVENT_COORDINATOR] url_entry is None, cannot reset")
+                    logger.warning(
+                        "[EVENT_COORDINATOR] url_entry is None, cannot reset"
+                    )
 
                 # Create descriptive message
                 config_desc = []
-                if options.get('format') == 'audio':
+                if options.get("format") == "audio":
                     config_desc.append("Audio")
-                elif options.get('format') == 'video_only':
+                elif options.get("format") == "video_only":
                     config_desc.append("Video Only")
-                if options.get('download_playlist'):
+                if options.get("download_playlist"):
                     config_desc.append("Playlist")
-                if options.get('quality') and options.get('quality') != '720p':
+                if options.get("quality") and options.get("quality") != "720p":
                     config_desc.append(f"{options.get('quality')}")
-                if options.get('selected_browser'):
+                if options.get("selected_browser"):
                     config_desc.append(f"{options.get('selected_browser')} cookies")
 
                 desc = f"YouTube {config_desc[0]}" if config_desc else "YouTube video"
@@ -379,13 +497,23 @@ class EventCoordinator(
                 logger.info(f"[EVENT_COORDINATOR] Updating status: {status_message}")
                 self.update_status(status_message)
             else:
-                logger.error("[EVENT_COORDINATOR] Failed to add download (add_download returned False)")
+                logger.error(
+                    "[EVENT_COORDINATOR] Failed to add download (add_download returned False)"
+                )
 
         except Exception as e:
-            logger.error(f"[EVENT_COORDINATOR] Failed to process YouTube download: {e}", exc_info=True)
-            self.show_error("YouTube Download Error", f"Failed to process YouTube download: {str(e)}")
+            logger.error(
+                f"[EVENT_COORDINATOR] Failed to process YouTube download: {e}",
+                exc_info=True,
+            )
+            self.show_error(
+                "YouTube Download Error",
+                f"Failed to process YouTube download: {str(e)}",
+            )
 
-    def show_youtube_dialog(self, url: str, cookie_path: Optional[str] = None, browser: Optional[str] = None) -> None:
+    def show_youtube_dialog(
+        self, url: str, cookie_path: Optional[str] = None, browser: Optional[str] = None
+    ) -> None:
         """Show YouTube download dialog - delegated to handler system."""
         # This is handled by the new link detection system
         self.update_status("YouTube dialog handled by link detection system")

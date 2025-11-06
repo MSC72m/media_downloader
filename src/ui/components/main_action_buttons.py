@@ -1,7 +1,9 @@
-import customtkinter as ctk
-from src.utils.logger import get_logger
 from typing import Callable, Dict
+
+import customtkinter as ctk
+
 from src.core.models import ButtonState
+from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -10,12 +12,12 @@ class ActionButtonBar(ctk.CTkFrame):
     """Frame containing action buttons for main window."""
 
     def __init__(
-            self,
-            master,
-            on_remove: Callable[[], None],
-            on_clear: Callable[[], None],
-            on_download: Callable[[], None],
-            on_manage_files: Callable[[], None]
+        self,
+        master,
+        on_remove: Callable[[], None],
+        on_clear: Callable[[], None],
+        on_download: Callable[[], None],
+        on_manage_files: Callable[[], None],
     ):
         super().__init__(master, fg_color="transparent")
 
@@ -24,29 +26,22 @@ class ActionButtonBar(ctk.CTkFrame):
 
         # Track download state
         self._download_in_progress = False
+        logger.info(
+            f"[ACTION_BUTTONS] Initialized with _download_in_progress={self._download_in_progress}"
+        )
 
         # Common button style
-        self.button_style = {
-            "height": 40,
-            "font": ("Roboto", 14),
-            "corner_radius": 10
-        }
+        self.button_style = {"height": 40, "font": ("Roboto", 14), "corner_radius": 10}
 
         # Remove Button
         self.remove_button = ctk.CTkButton(
-            self,
-            text="Remove Selected",
-            command=on_remove,
-            **self.button_style
+            self, text="Remove Selected", command=on_remove, **self.button_style
         )
         self.remove_button.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
 
         # Clear Button
         self.clear_button = ctk.CTkButton(
-            self,
-            text="Clear All",
-            command=on_clear,
-            **self.button_style
+            self, text="Clear All", command=on_clear, **self.button_style
         )
         self.clear_button.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
 
@@ -56,26 +51,32 @@ class ActionButtonBar(ctk.CTkFrame):
             logger.info(f"[ACTION_BUTTONS] on_download callback: {on_download}")
             try:
                 on_download()
-                logger.info("[ACTION_BUTTONS] on_download callback executed successfully")
+                logger.info(
+                    "[ACTION_BUTTONS] on_download callback executed successfully"
+                )
             except Exception as e:
-                logger.error(f"[ACTION_BUTTONS] Error in on_download callback: {e}", exc_info=True)
+                logger.error(
+                    f"[ACTION_BUTTONS] Error in on_download callback: {e}",
+                    exc_info=True,
+                )
 
         self.download_button = ctk.CTkButton(
             self,
             text="Download All",
             command=on_download_with_logging,
-            **self.button_style
+            **self.button_style,
         )
         self.download_button.grid(row=0, column=2, padx=5, pady=5, sticky="ew")
 
         # Manage Files Button
         self.manage_files_button = ctk.CTkButton(
-            self,
-            text="Manage Files",
-            command=on_manage_files,
-            **self.button_style
+            self, text="Manage Files", command=on_manage_files, **self.button_style
         )
         self.manage_files_button.grid(row=0, column=3, padx=5, pady=5, sticky="ew")
+
+        # Ensure all buttons start in enabled state
+        logger.info("[ACTION_BUTTONS] Setting initial button states to enabled")
+        self.set_enabled(True)
 
     def set_button_state(self, button_name: str, state: str):
         """Set state for a specific button."""
@@ -83,7 +84,7 @@ class ActionButtonBar(ctk.CTkFrame):
             "remove": self.remove_button,
             "clear": self.clear_button,
             "download": self.download_button,
-            "manage": self.manage_files_button
+            "manage": self.manage_files_button,
         }
         if button_name in button_map:
             button_map[button_name].configure(state=state)
@@ -97,19 +98,29 @@ class ActionButtonBar(ctk.CTkFrame):
         # Track download state
         self._download_in_progress = not enabled
 
-        for button in [self.remove_button, self.clear_button,
-                       self.download_button, self.manage_files_button]:
+        for button in [
+            self.remove_button,
+            self.clear_button,
+            self.download_button,
+            self.manage_files_button,
+        ]:
             button.configure(state=state)
         logger.debug(f"[ACTION_BUTTONS] All buttons configured with state: {state}")
 
     def update_button_states(self, has_selection: bool, has_items: bool):
         """Update button states based on selection and items."""
-        logger.debug(f"[ACTION_BUTTONS] update_button_states called: has_selection={has_selection}, has_items={has_items}")
-        logger.debug(f"[ACTION_BUTTONS] Download in progress: {self._download_in_progress}")
+        logger.debug(
+            f"[ACTION_BUTTONS] update_button_states called: has_selection={has_selection}, has_items={has_items}"
+        )
+        logger.debug(
+            f"[ACTION_BUTTONS] Download in progress: {self._download_in_progress}"
+        )
 
         # If download is in progress, don't change button states
         if self._download_in_progress:
-            logger.debug("[ACTION_BUTTONS] Download in progress, keeping current button states")
+            logger.debug(
+                "[ACTION_BUTTONS] Download in progress, keeping current button states"
+            )
             return
 
         remove_state = "normal" if has_selection else "disabled"
@@ -132,7 +143,7 @@ class ActionButtonBar(ctk.CTkFrame):
             ButtonState.REMOVE: self.remove_button,
             ButtonState.CLEAR: self.clear_button,
             ButtonState.DOWNLOAD: self.download_button,
-            ButtonState.SETTINGS: self.manage_files_button  # Map settings to manage files
+            ButtonState.SETTINGS: self.manage_files_button,  # Map settings to manage files
         }
 
         # Only update states for buttons that exist in this component
