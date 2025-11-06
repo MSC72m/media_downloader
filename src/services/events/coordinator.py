@@ -258,22 +258,36 @@ class EventCoordinator(
 
     def _update_progress_ui(self, download: Download, progress: float) -> None:
         """Update download progress in UI (called on main thread)."""
-        logger.debug(
-            f"[EVENT_COORDINATOR] _update_progress_ui: {download.name} - {progress}%"
+        logger.info(
+            f"[EVENT_COORDINATOR] _update_progress_ui called: {download.name} - {progress}%"
         )
 
         # Update the download object
         download.progress = progress
+        logger.info(f"[EVENT_COORDINATOR] Updated download.progress to {progress}")
 
         # Update the download list item UI
         if self.download_list:
+            logger.info(
+                f"[EVENT_COORDINATOR] Calling download_list.update_item_progress"
+            )
             self.download_list.update_item_progress(download, progress)
+            logger.info(
+                f"[EVENT_COORDINATOR] download_list.update_item_progress completed"
+            )
+        else:
+            logger.warning(
+                f"[EVENT_COORDINATOR] download_list is None, cannot update UI"
+            )
 
         # Update status bar
         if self.status_bar:
+            logger.info(f"[EVENT_COORDINATOR] Updating status bar")
             self.status_bar.show_message(
                 f"Downloading {download.name}: {progress:.1f}%"
             )
+        else:
+            logger.warning(f"[EVENT_COORDINATOR] status_bar is None")
 
     def _handle_completion_ui(self, success: bool, message: str) -> None:
         """Handle download completion in UI (called on main thread)."""

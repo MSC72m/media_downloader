@@ -27,11 +27,13 @@ class YouTubeDownloader(BaseDownloader):
         download_playlist: bool = False,
         audio_only: bool = False,
         cookie_manager: Optional[CookieManager] = None,
+        browser: Optional[str] = None,
     ):
         self.quality = quality
         self.download_playlist = download_playlist
         self.audio_only = audio_only
         self.cookie_manager = cookie_manager
+        self.browser = browser
         self.metadata_service = YouTubeMetadataService()
         self.ytdl_opts = self._get_simple_ytdl_options()
 
@@ -52,12 +54,17 @@ class YouTubeDownloader(BaseDownloader):
             # NO format specifications - let yt-dlp choose automatically
         }
 
-        # Add cookie information if available
-        if self.cookie_manager:
+        # Use cookiesfrom_browser for direct browser cookie access (more reliable)
+        if self.browser:
+            browser_lower = self.browser.lower()
+            options["cookiesfrombrowser"] = (browser_lower,)
+            logger.info(f"Using cookiesfrombrowser: {browser_lower}")
+        # Fallback to cookie file if available
+        elif self.cookie_manager:
             cookie_info = self.cookie_manager.get_youtube_cookie_info()
             if cookie_info:
                 options.update(cookie_info)
-                logger.info("Using cookies for YouTube download")
+                logger.info("Using cookie file for YouTube download")
 
         # Handle playlists
         if not self.download_playlist:

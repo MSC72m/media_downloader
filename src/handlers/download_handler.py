@@ -105,16 +105,37 @@ class DownloadHandler:
             service_type = service_factory.detect_service_type(download.url)
             logger.info(f"[DOWNLOAD_HANDLER] Detected service type: {service_type}")
 
+            # Debug: Log all download attributes
+            logger.info(
+                f"[DOWNLOAD_HANDLER] Download object attributes: {download.__dict__}"
+            )
+            logger.info(
+                f"[DOWNLOAD_HANDLER] Has cookie_path: {hasattr(download, 'cookie_path')}"
+            )
+            if hasattr(download, "cookie_path"):
+                logger.info(
+                    f"[DOWNLOAD_HANDLER] cookie_path value: {download.cookie_path}"
+                )
+            if hasattr(download, "selected_browser"):
+                logger.info(
+                    f"[DOWNLOAD_HANDLER] selected_browser value: {download.selected_browser}"
+                )
+
             if service_type == ServiceType.YOUTUBE:
-                # Create YouTube downloader with download-specific options
+                # Get cookie manager and set cookies BEFORE creating downloader
                 cookie_manager = service_factory.get_cookie_manager()
 
-                # Use cookie from download if specified
-                if hasattr(download, "cookie_path") and download.cookie_path:
-                    logger.info(
-                        f"[DOWNLOAD_HANDLER] Setting cookie from download: {download.cookie_path}"
-                    )
-                    if cookie_manager:
+                logger.info(
+                    f"[DOWNLOAD_HANDLER] Cookie manager available: {cookie_manager is not None}"
+                )
+
+                # Set cookies from download options
+                if cookie_manager:
+                    # Use cookie from download if specified
+                    if hasattr(download, "cookie_path") and download.cookie_path:
+                        logger.info(
+                            f"[DOWNLOAD_HANDLER] Setting cookie from download: {download.cookie_path}"
+                        )
                         try:
                             cookie_manager.set_youtube_cookies(download.cookie_path)
                             logger.info(
@@ -124,15 +145,67 @@ class DownloadHandler:
                             logger.error(
                                 f"[DOWNLOAD_HANDLER] Failed to set cookies: {e}"
                             )
+                    elif (
+                        hasattr(download, "selected_browser")
+                        and download.selected_browser
+                    ):
+                        # Try to detect cookies from the selected browser
+                        logger.info(
+                            f"[DOWNLOAD_HANDLER] Detecting cookies from browser: {download.selected_browser}"
+                        )
+                        try:
+                            from src.interfaces.cookie_detection import BrowserType
 
+                            browser_map = {
+                                "Chrome": BrowserType.CHROME,
+                                "Firefox": BrowserType.FIREFOX,
+                                "Safari": BrowserType.SAFARI,
+                                "Edge": BrowserType.EDGE,
+                            }
+                            browser_type = browser_map.get(download.selected_browser)
+                            if browser_type:
+                                cookie_path = cookie_manager.detect_cookies_for_browser(
+                                    browser_type
+                                )
+                                if cookie_path:
+                                    logger.info(
+                                        f"[DOWNLOAD_HANDLER] Detected cookies at: {cookie_path}"
+                                    )
+                                    # Cookies are automatically set in cookie_manager by detect_cookies_for_browser
+                                else:
+                                    logger.warning(
+                                        f"[DOWNLOAD_HANDLER] Could not detect cookies for {download.selected_browser}"
+                                    )
+                            else:
+                                logger.warning(
+                                    f"[DOWNLOAD_HANDLER] Unknown browser type: {download.selected_browser}"
+                                )
+                        except Exception as e:
+                            logger.error(
+                                f"[DOWNLOAD_HANDLER] Failed to detect browser cookies: {e}"
+                            )
+
+                    # Verify cookies are set
+                    has_cookies = cookie_manager.has_valid_cookies()
+                    logger.info(
+                        f"[DOWNLOAD_HANDLER] Cookie manager has valid cookies: {has_cookies}"
+                    )
+                    if has_cookies:
+                        cookie_info = cookie_manager.get_youtube_cookie_info()
+                        logger.info(
+                            f"[DOWNLOAD_HANDLER] Cookie info for yt-dlp: {cookie_info}"
+                        )
+
+                # NOW create the downloader with the configured cookie_manager and browser
                 downloader = YouTubeDownloader(
                     quality=getattr(download, "quality", "720p"),
                     download_playlist=getattr(download, "download_playlist", False),
                     audio_only=getattr(download, "audio_only", False),
                     cookie_manager=cookie_manager,
+                    browser=getattr(download, "selected_browser", None),
                 )
                 logger.info(
-                    f"[DOWNLOAD_HANDLER] Created YouTubeDownloader with quality={getattr(download, 'quality', '720p')}, audio_only={getattr(download, 'audio_only', False)}, cookies={cookie_manager is not None}"
+                    f"[DOWNLOAD_HANDLER] Created YouTubeDownloader with quality={getattr(download, 'quality', '720p')}, audio_only={getattr(download, 'audio_only', False)}"
                 )
             else:
                 # Fallback to factory's default downloader
@@ -165,6 +238,9 @@ class DownloadHandler:
             logger.info(f"[DOWNLOAD_HANDLER] Output path: {output_path}")
 
             def progress_wrapper(progress, speed):
+                logger.info(
+                    f"[DOWNLOAD_HANDLER] Progress callback fired: {download.name} - {progress:.1f}% - {speed:.2f} bytes/s"
+                )
                 if progress_callback:
                     progress_callback(download, int(progress))
 
