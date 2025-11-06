@@ -1,8 +1,10 @@
 """Elegant loading spinner component for async operations."""
 
-import customtkinter as ctk
 import math
 from typing import Optional
+
+import customtkinter as ctk
+
 from ...utils.window import WindowCenterMixin
 
 
@@ -21,7 +23,7 @@ class SmallLoadingSpinner(ctk.CTkToplevel, WindowCenterMixin):
         # Configure window to look like a loading overlay
         self.configure(fg_color="transparent")
         self.overrideredirect(True)  # Remove window decorations
-        self.attributes('-topmost', True)  # Keep on top
+        self.attributes("-topmost", True)  # Keep on top
 
         # Create spinner content
         self._create_spinner()
@@ -32,7 +34,9 @@ class SmallLoadingSpinner(ctk.CTkToplevel, WindowCenterMixin):
     def _create_spinner(self):
         """Create the small spinner with message."""
         # Container frame
-        container = ctk.CTkFrame(self, fg_color=("#2b2b2b", "#f0f0f0"), corner_radius=10)
+        container = ctk.CTkFrame(
+            self, fg_color=("#2b2b2b", "#f0f0f0"), corner_radius=10
+        )
         container.pack(expand=True)
 
         # Small canvas for spinner
@@ -41,7 +45,7 @@ class SmallLoadingSpinner(ctk.CTkToplevel, WindowCenterMixin):
             width=self.size,
             height=self.size,
             highlightthickness=0,
-            bg="#2b2b2b" if ctk.get_appearance_mode() == "Dark" else "#f0f0f0"
+            bg="#2b2b2b" if ctk.get_appearance_mode() == "Dark" else "#f0f0f0",
         )
         self.canvas.pack(pady=(15, 5))
 
@@ -61,10 +65,7 @@ class SmallLoadingSpinner(ctk.CTkToplevel, WindowCenterMixin):
             y2 = center + radius * math.sin(angle)
 
             segment = self.canvas.create_line(
-                x1, y1, x2, y2,
-                width=3,
-                capstyle="round",
-                fill="#3498db"
+                x1, y1, x2, y2, width=3, capstyle="round", fill="#3498db"
             )
             self.segments.append((segment, angle))
 
@@ -73,7 +74,7 @@ class SmallLoadingSpinner(ctk.CTkToplevel, WindowCenterMixin):
             container,
             text=self.message,
             font=("Roboto", 10),
-            text_color=("#ffffff", "#000000")
+            text_color=("#ffffff", "#000000"),
         )
         self.message_label.pack(pady=(0, 15))
 
@@ -115,12 +116,28 @@ class SmallLoadingSpinner(ctk.CTkToplevel, WindowCenterMixin):
     def set_message(self, message: str):
         """Update the loading message."""
         self.message = message
-        if hasattr(self, 'message_label'):
+        if hasattr(self, "message_label"):
             self.message_label.configure(text=message)
+
+    def _safe_deiconify(self):
+        """Safely deiconify the window, handling CustomTkinter race conditions."""
+        try:
+            # Ensure geometry is set before deiconifying
+            self.update_idletasks()
+            self.deiconify()
+        except Exception:
+            # Handle the "expected integer but got a list" error from CustomTkinter
+            try:
+                # Try again after a brief update
+                self.update()
+                self.deiconify()
+            except Exception:
+                # Last resort - window may already be visible or in invalid state
+                pass
 
     def show(self, parent=None):
         """Show the spinner centered on parent or screen."""
-        if parent and hasattr(parent, 'winfo_exists') and parent.winfo_exists():
+        if parent and hasattr(parent, "winfo_exists") and parent.winfo_exists():
             # Transient to parent for better window management
             self.transient(parent)
             # WindowCenterMixin will automatically detect and center on parent
@@ -128,7 +145,7 @@ class SmallLoadingSpinner(ctk.CTkToplevel, WindowCenterMixin):
             # Center on screen (WindowCenterMixin handles this automatically)
             pass
 
-        self.deiconify()  # Show the window
+        self._safe_deiconify()  # Show the window
         self.lift()  # Bring to front
         self.grab_set()  # Make modal
         self.start()  # Start animation

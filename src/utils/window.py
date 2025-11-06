@@ -1,26 +1,38 @@
 import tkinter as tk
 
+
 class WindowCenterMixin:
     """Mixin class to provide window centering functionality."""
 
     def center_window(self) -> None:
         """Center the window on the screen or relative to parent."""
         if not isinstance(self, tk.Tk) and not isinstance(self, tk.Toplevel):
-            raise TypeError("WindowCenterMixin must be used with Tk or Toplevel windows")
+            raise TypeError(
+                "WindowCenterMixin must be used with Tk or Toplevel windows"
+            )
 
         # Update window geometry to get accurate dimensions
-        self.update_idletasks()
+        try:
+            self.update_idletasks()
+        except Exception:
+            # Handle CustomTkinter dimension event bug
+            pass
 
         # Get window size
-        window_width = self.winfo_width()
-        window_height = self.winfo_height()
+        try:
+            window_width = self.winfo_width()
+            window_height = self.winfo_height()
+        except Exception:
+            # If we can't get dimensions, use defaults from geometry string
+            window_width = 700
+            window_height = 900
 
         # Get screen dimensions
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
 
         # If window has parent, center relative to parent
-        if hasattr(self, 'master') and self.master and self.master.winfo_exists():
+        if hasattr(self, "master") and self.master and self.master.winfo_exists():
             parent = self.master
             parent_x = parent.winfo_x()
             parent_y = parent.winfo_y()
