@@ -140,32 +140,65 @@ class InstagramDownloader(BaseDownloader):
 
             file_service = FileService()
             filename_sanitizer = FilenameSanitizer()
+            save_dir = self._get_save_directory(save_path)
+            self._ensure_directory_exists(save_path)
 
             if post.is_video:
                 # Download video
                 video_url = post.video_url
-                save_dir = os.path.dirname(save_path)
-                filename = filename_sanitizer.sanitize_filename(os.path.basename(save_path) + '.mp4')
+                filename = filename_sanitizer.sanitize_filename(
+                    os.path.basename(save_path) + '.mp4'
+                )
                 full_path = os.path.join(save_dir, filename)
 
                 result = file_service.download_file(video_url, full_path, progress_callback)
                 return result.success
             else:
-                # Download image(s)
-                save_dir = os.path.dirname(save_path)
+                # Download image(s) - handle both single images and carousels
                 success = False
 
-                for i, url in enumerate(post.get_sidecar_nodes()):
-                    ext = '.jpg'
-                    if i > 0:
-                        filename = filename_sanitizer.sanitize_filename(f"{os.path.basename(save_path)}_{i}{ext}")
-                    else:
-                        filename = filename_sanitizer.sanitize_filename(f"{os.path.basename(save_path)}{ext}")
+                # Check if it's a sidecar (carousel) post
+                if post.typename == 'GraphSidecar':
+                    for i, node in enumerate(post.get_sidecar_nodes()):
+                        try:
+                            # Get URL based on media type
+                            if node.is_video:
+                                media_url = node.video_url
+                                ext = '.mp4'
+                            else:
+                                media_url = node.display_url
+                                ext = '.jpg'
 
+                            # Generate filename
+                            if i > 0:
+                                filename = filename_sanitizer.sanitize_filename(
+                                    f"{os.path.basename(save_path)}_{i}{ext}"
+                                )
+                            else:
+                                filename = filename_sanitizer.sanitize_filename(
+                                    f"{os.path.basename(save_path)}{ext}"
+                                )
+
+                            full_path = os.path.join(save_dir, filename)
+                            result = file_service.download_file(
+                                media_url, full_path, progress_callback
+                            )
+                            if result.success:
+                                success = True
+                        except Exception as e:
+                            logger.error(f"Error downloading sidecar item {i}: {str(e)}")
+                            continue
+                else:
+                    # Single image post
+                    image_url = post.url
+                    filename = filename_sanitizer.sanitize_filename(
+                        f"{os.path.basename(save_path)}.jpg"
+                    )
                     full_path = os.path.join(save_dir, filename)
-                    result = file_service.download_file(url, full_path, progress_callback)
-                    if result.success:
-                        success = True
+                    result = file_service.download_file(
+                        image_url, full_path, progress_callback
+                    )
+                    success = result.success
 
                 return success
 
