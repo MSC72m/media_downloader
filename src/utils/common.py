@@ -25,4 +25,3 @@ def ensure_gui_available() -> bool:
         logger.error(msg)
         print(msg)
         raise SystemExit(1) from e
-

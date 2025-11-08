@@ -8,6 +8,7 @@ from typing import Callable, Optional
 from urllib.parse import urlparse
 
 from ...core import BaseDownloader
+from ...core.enums import ServiceType
 from ..file.service import FileService
 from ..file.sanitizer import FilenameSanitizer
 from ..network.checker import check_site_connection
@@ -43,7 +44,7 @@ class InstagramDownloader(BaseDownloader):
             return False
 
         # First check internet connectivity to Instagram
-        connected, error_msg = check_site_connection("Instagram")
+        connected, error_msg = check_site_connection(ServiceType.INSTAGRAM)
         if not connected:
             logger.error(f"Cannot authenticate with Instagram: {error_msg}")
             return False
@@ -90,7 +91,7 @@ class InstagramDownloader(BaseDownloader):
         """
         try:
             # Check connectivity to Instagram
-            connected, error_msg = check_site_connection("Instagram")
+            connected, error_msg = check_site_connection(ServiceType.INSTAGRAM)
             if not connected:
                 logger.error(f"Cannot download from Instagram: {error_msg}")
                 return False

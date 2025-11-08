@@ -4,7 +4,7 @@ from src.utils.logger import get_logger
 from typing import Optional
 from urllib.parse import urlparse
 from ..interfaces import IServiceDetector
-from src.core.models import ServiceType
+from src.core.enums import ServiceType
 from src.services.network.checker import check_site_connection
 
 logger = get_logger(__name__)

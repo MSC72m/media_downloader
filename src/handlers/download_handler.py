@@ -99,7 +99,7 @@ class DownloadHandler:
             )
 
             # Create a downloader with the download's specific options
-            from src.core.models import ServiceType
+            from src.core.enums import ServiceType
             from src.services.youtube.downloader import YouTubeDownloader
 
             service_type = service_factory.detect_service_type(download.url)
