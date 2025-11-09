@@ -215,8 +215,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                     logger.info("Calling metadata_service.fetch_metadata...")
 
                     # Set a timeout for metadata fetch
-                    import time
-
                     metadata_result = [None]
                     metadata_error = [None]
                     fetch_completed = [False]

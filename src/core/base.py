@@ -2,6 +2,7 @@
 
 from abc import ABC, abstractmethod
 from typing import Callable, Optional
+import os
 
 
 class BaseDownloader(ABC):
@@ -26,6 +27,29 @@ class BaseDownloader(ABC):
             True if download was successful, False otherwise
         """
         pass
+
+    def _ensure_directory_exists(self, file_path: str) -> None:
+        """
+        Ensure the directory for the given file path exists.
+
+        Args:
+            file_path: Full path to the file
+        """
+        directory = os.path.dirname(file_path)
+        if directory and not os.path.exists(directory):
+            os.makedirs(directory, exist_ok=True)
+
+    def _get_save_directory(self, save_path: str) -> str:
+        """
+        Extract directory path from save path.
+
+        Args:
+            save_path: Full path or directory path
+
+        Returns:
+            Directory path
+        """
+        return os.path.dirname(save_path) if os.path.dirname(save_path) else "."
 
 
 class NetworkError(Exception):

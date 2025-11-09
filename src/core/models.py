@@ -3,7 +3,7 @@
 from typing import Optional, List, Dict
 from datetime import datetime
 from enum import StrEnum
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field
 
 from .enums.download_status import DownloadStatus
 from .enums.service_type import ServiceType

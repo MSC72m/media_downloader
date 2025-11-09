@@ -86,7 +86,7 @@ class DownloadHandler:
         logger.info(f"[DOWNLOAD_HANDLER] Download URL: {download.url}")
         logger.info(f"[DOWNLOAD_HANDLER] Download directory: {download_dir}")
         try:
-            logger.info(f"[DOWNLOAD_HANDLER] Getting service_factory from container")
+            logger.info("[DOWNLOAD_HANDLER] Getting service_factory from container")
             service_factory = self.container.get("service_factory")
             if not service_factory:
                 msg = "Service factory not available"
@@ -99,7 +99,7 @@ class DownloadHandler:
             )
 
             # Create a downloader with the download's specific options
-            from src.core.models import ServiceType
+            from src.core.enums import ServiceType
             from src.services.youtube.downloader import YouTubeDownloader
 
             service_type = service_factory.detect_service_type(download.url)
@@ -224,7 +224,7 @@ class DownloadHandler:
             # Create output dir and sanitized filename via FileService
             from pathlib import Path
 
-            logger.info(f"[DOWNLOAD_HANDLER] Getting file service")
+            logger.info("[DOWNLOAD_HANDLER] Getting file service")
             file_service = service_factory.get_file_service()
             logger.info(f"[DOWNLOAD_HANDLER] Creating target directory: {download_dir}")
             target_dir = Path(download_dir).expanduser()
@@ -244,7 +244,7 @@ class DownloadHandler:
                 if progress_callback:
                     progress_callback(download, int(progress))
 
-            logger.info(f"[DOWNLOAD_HANDLER] Starting download...")
+            logger.info("[DOWNLOAD_HANDLER] Starting download...")
             success = downloader.download(
                 url=download.url,
                 save_path=output_path,

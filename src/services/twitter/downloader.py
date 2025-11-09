@@ -7,8 +7,10 @@ from typing import Optional, List, Callable
 import os
 
 from ...core import BaseDownloader
+from ...core.enums import ServiceType
 from ..file.service import FileService
 from ..file.sanitizer import FilenameSanitizer
+from ..network.checker import check_site_connection
 
 logger = get_logger(__name__)
 
@@ -34,6 +36,12 @@ class TwitterDownloader(BaseDownloader):
             True if download was successful, False otherwise
         """
         try:
+            # Check connectivity to Twitter
+            connected, error_msg = check_site_connection(ServiceType.TWITTER)
+            if not connected:
+                logger.error(f"Cannot download from Twitter: {error_msg}")
+                return False
+
             tweet_ids = self._extract_tweet_ids(url)
             if not tweet_ids:
                 logger.error("No tweet IDs found")
@@ -84,17 +92,30 @@ class TwitterDownloader(BaseDownloader):
         """Download media files from tweet media data."""
         file_service = FileService()
         filename_sanitizer = FilenameSanitizer()
+        success = False
 
-        for item in media:
+        for i, item in enumerate(media):
             try:
                 url = item['url']
                 ext = '.mp4' if item['type'] == 'video' else '.jpg'
-                filename = filename_sanitizer.sanitize_filename(f'{os.path.basename(save_path)}{ext}')
+                
+                # Add index suffix for multiple media items
+                if len(media) > 1:
+                    filename = filename_sanitizer.sanitize_filename(
+                        f'{os.path.basename(save_path)}_{i}{ext}'
+                    )
+                else:
+                    filename = filename_sanitizer.sanitize_filename(
+                        f'{os.path.basename(save_path)}{ext}'
+                    )
+                
                 full_path = os.path.join(os.path.dirname(save_path), filename)
 
                 result = file_service.download_file(url, full_path, progress_callback)
-                return result.success
+                if result.success:
+                    success = True
             except Exception as e:
-                logger.error(f"Error downloading media: {str(e)}")
+                logger.error(f"Error downloading media item {i}: {str(e)}")
                 continue
-        return False
+        
+        return success
