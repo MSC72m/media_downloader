@@ -9,15 +9,11 @@ from src.core.enums import InstagramAuthStatus
 class OptionsBar(ctk.CTkFrame):
     """Frame for download options and controls."""
 
-    def __init__(
-            self,
-            master,
-            on_instagram_login: Callable
-    ):
+    def __init__(self, master, on_instagram_login: Callable):
         super().__init__(master, fg_color="transparent")
 
         self.on_instagram_login = on_instagram_login
-        
+
         # Current Instagram auth status
         self.instagram_status = InstagramAuthStatus.FAILED
 
@@ -27,34 +23,40 @@ class OptionsBar(ctk.CTkFrame):
             self,
             text="Instagram Login",
             command=self._handle_instagram_login,
-            font=("Roboto", 12)
+            font=("Roboto", 12),
         )
         self.insta_login_button.pack(side=tk.LEFT, padx=(0, 0))
 
     def _handle_instagram_login(self):
-        """Handle Instagram login button state and callback."""
-        self.set_instagram_status(InstagramAuthStatus.LOGGING_IN)
+        """Handle Instagram login button click - just trigger callback.
+
+        State management is handled by ComponentStateManager, not here.
+        """
         self.on_instagram_login()
 
     def set_instagram_status(self, status: InstagramAuthStatus):
-        """Update Instagram button state based on auth status."""
+        """Update Instagram button state based on auth status.
+
+        This is called by ComponentStateManager ONLY - no local state management.
+        """
         self.instagram_status = status
-        
-        if status == InstagramAuthStatus.LOGGING_IN:
-            self.insta_login_button.configure(
-                text="Logging in...",
-                state="disabled"
-            )
-        elif status == InstagramAuthStatus.AUTHENTICATED:
-            self.insta_login_button.configure(
-                text="Instagram: Logged In",
-                state="disabled"
-            )
-        elif status == InstagramAuthStatus.FAILED:
-            self.insta_login_button.configure(
-                text="Instagram Login",
-                state="normal"
-            )
+
+        # Map status to button configuration
+        status_config = {
+            InstagramAuthStatus.LOGGING_IN: {
+                "text": "Logging in...",
+                "state": "disabled",
+            },
+            InstagramAuthStatus.AUTHENTICATED: {
+                "text": "Instagram: Logged In",
+                "state": "disabled",
+            },
+            InstagramAuthStatus.FAILED: {"text": "Instagram Login", "state": "normal"},
+        }
+
+        config = status_config.get(status)
+        if config:
+            self.insta_login_button.configure(**config)
 
     # Keeping this for backward compatibility
     def set_instagram_authenticated(self, authenticated: bool):

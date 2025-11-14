@@ -166,17 +166,13 @@ class ApplicationOrchestrator:
                     # Check if user provided credentials
                     if not dialog.username or not dialog.password:
                         logger.info("[AUTH_MANAGER] Instagram login cancelled")
-                        # Reset state via component state manager
-                        self._reset_instagram_state()
+                        # Just call callback - platform_dialog_coordinator will handle state reset
                         callback(False)
                         return
 
                     # Store credentials for use in thread
                     username = dialog.username
                     password = dialog.password
-
-                    # Update UI to show logging in via component state manager
-                    self._set_instagram_logging_in()
 
                     # Capture references for the nested function
                     orchestrator = self.orchestrator
@@ -208,56 +204,20 @@ class ApplicationOrchestrator:
                         def update_main_thread():
                             try:
                                 logger.info(
-                                    f"[AUTH_MANAGER] Updating main thread with success={success}, error={error_message}"
+                                    f"[AUTH_MANAGER] Calling callback with success={success}, error={error_message}"
                                 )
-                                # Show error dialog and update status if authentication failed
-                                if not success:
-                                    try:
-                                        event_coordinator = orchestrator.container.get(
-                                            "event_coordinator"
-                                        )
-                                        if event_coordinator:
-                                            # Update status bar with error message
-                                            if error_message:
-                                                event_coordinator.update_status(
-                                                    f"Instagram authentication failed: {error_message}",
-                                                    is_error=True,
-                                                )
-                                            else:
-                                                event_coordinator.update_status(
-                                                    "Instagram authentication failed",
-                                                    is_error=True,
-                                                )
 
-                                            # Show error dialog
-                                            if error_message:
-                                                event_coordinator.show_error(
-                                                    "Instagram Authentication Failed",
-                                                    error_message,
-                                                )
-                                    except Exception as dialog_error:
-                                        logger.error(
-                                            f"[AUTH_MANAGER] Error showing error dialog: {dialog_error}"
-                                        )
-
-                                # Call the original handler
-                                auth_manager._handle_auth_result(success, callback)
-
-                                # Additional error logging if there was an error
-                                if error_message:
-                                    logger.error(
-                                        f"[AUTH_MANAGER] Authentication failed with error: {error_message}"
-                                    )
+                                # Just call callback with error message
+                                # platform_dialog_coordinator will handle ALL UI updates
+                                callback(success, error_message)
 
                             except Exception as update_error:
                                 logger.error(
-                                    f"[AUTH_MANAGER] Error updating main thread: {update_error}",
+                                    f"[AUTH_MANAGER] Error calling callback: {update_error}",
                                     exc_info=True,
                                 )
-                                # Fallback: reset state and call callback
-                                logger.warning("[AUTH_MANAGER] Using fallback callback")
-                                auth_manager._reset_instagram_state()
-                                callback(False)
+                                # Fallback: call callback with failure
+                                callback(False, str(update_error))
 
                         try:
                             if parent_window and hasattr(parent_window, "after"):
@@ -275,16 +235,8 @@ class ApplicationOrchestrator:
                                 f"[AUTH_MANAGER] Error scheduling main thread update: {schedule_error}",
                                 exc_info=True,
                             )
-
-                            # Ensure UI state is reset on error via component state manager
-                            def reset_ui_state():
-                                auth_manager._reset_instagram_state()
-                                callback(False)
-
-                            if parent_window and hasattr(parent_window, "after"):
-                                parent_window.after(0, reset_ui_state)
-                            else:
-                                reset_ui_state()
+                            # Just call callback with failure - no UI updates here
+                            callback(False, str(schedule_error))
 
                     import threading
 
@@ -294,101 +246,17 @@ class ApplicationOrchestrator:
                     logger.error(
                         f"[AUTH_MANAGER] Error showing login dialog: {e}", exc_info=True
                     )
-                    # Show error dialog to user and reset UI state
-                    try:
-                        event_coordinator = self.orchestrator.container.get(
-                            "event_coordinator"
-                        )
-                        if event_coordinator:
-                            event_coordinator.show_error(
-                                "Instagram Login Error",
-                                f"Failed to show login dialog: {str(e)}",
-                            )
-                    except Exception as dialog_error:
-                        logger.error(
-                            f"[AUTH_MANAGER] Error showing error dialog: {dialog_error}"
-                        )
-
-                # Always reset UI state on exception via component state manager
-                self._reset_instagram_state()
-                callback(False)
+                    # Just call callback with failure - platform_dialog_coordinator handles UI
+                    callback(False, f"Failed to show login dialog: {str(e)}")
 
             def _handle_auth_result(self, success: bool, callback):
-                """Handle authentication result and update UI."""
+                """Handle authentication result - NO UI UPDATES HERE.
+
+                Platform dialog coordinator is responsible for ALL UI updates.
+                """
                 self._is_authenticated = success
-
-                # Update UI status via component state manager (SINGLE SOURCE OF TRUTH)
-                if success:
-                    self._set_instagram_authenticated()
-                    logger.info("[AUTH_MANAGER] Instagram authentication successful")
-                else:
-                    self._reset_instagram_state()
-                    logger.warning("[AUTH_MANAGER] Instagram authentication failed")
-
-                # Call the callback
-                callback(success)
-
-            def _set_instagram_logging_in(self):
-                """Set Instagram to logging in state via component state manager."""
-                try:
-                    component_state = (
-                        self.orchestrator.event_coordinator.component_state
-                    )
-                    if component_state:
-                        component_state.set_instagram_logging_in()
-                        logger.info("[AUTH_MANAGER] Instagram state set to LOGGING_IN")
-                    else:
-                        logger.warning(
-                            "[AUTH_MANAGER] Component state manager not available"
-                        )
-                except Exception as e:
-                    logger.error(
-                        f"[AUTH_MANAGER] Error setting Instagram logging in state: {e}"
-                    )
-
-            def _set_instagram_authenticated(self):
-                """Set Instagram to authenticated state via component state manager."""
-                try:
-                    component_state = (
-                        self.orchestrator.event_coordinator.component_state
-                    )
-                    if component_state:
-                        component_state.set_instagram_authenticated()
-                        logger.info(
-                            "[AUTH_MANAGER] Instagram state set to AUTHENTICATED"
-                        )
-
-                    # Also update status bar
-                    if self.orchestrator.event_coordinator:
-                        self.orchestrator.event_coordinator.update_status(
-                            "Instagram authenticated successfully", is_error=False
-                        )
-                except Exception as e:
-                    logger.error(
-                        f"[AUTH_MANAGER] Error setting Instagram authenticated state: {e}"
-                    )
-
-            def _reset_instagram_state(self):
-                """Reset Instagram to failed state via component state manager."""
-                try:
-                    component_state = (
-                        self.orchestrator.event_coordinator.component_state
-                    )
-                    if component_state:
-                        component_state.set_instagram_failed()
-                        logger.info("[AUTH_MANAGER] Instagram state reset to FAILED")
-                    else:
-                        logger.warning(
-                            "[AUTH_MANAGER] Component state manager not available"
-                        )
-
-                    # Also update status bar
-                    if self.orchestrator.event_coordinator:
-                        self.orchestrator.event_coordinator.update_status(
-                            "Instagram authentication failed", is_error=True
-                        )
-                except Exception as e:
-                    logger.error(f"[AUTH_MANAGER] Error resetting Instagram state: {e}")
+                logger.info(f"[AUTH_MANAGER] Authentication result: {success}")
+                # Callback already called in update_main_thread - don't call again
 
             @property
             def is_authenticated(self):

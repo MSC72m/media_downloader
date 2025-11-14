@@ -50,13 +50,19 @@ class DownloadCoordinator:
         self.ui_state.update_status(f"Download completed: {download.name}")
 
     def _on_failed_event(self, download: Download, error: str) -> None:
-        """Handle failure event - update UI and show error dialog."""
+        """Handle failure event - update UI and show error dialog.
+
+        SINGLE PATH: Show error dialog via message queue ONLY.
+        Don't duplicate with status bar error.
+        """
         logger.error(f"[DOWNLOAD_COORDINATOR] Failed: {download.name} - {error}")
         self.ui_state.refresh_download_list()
         self.ui_state.enable_action_buttons()
-        self.ui_state.show_error(error or "Download failed")
 
-        # Show error dialog via message queue
+        # Update status bar with simple message (not error style)
+        self.ui_state.update_status(f"Download failed: {download.name}", is_error=False)
+
+        # Show error dialog via message queue (SINGLE SOURCE for error display)
         self._show_error_dialog(
             "Download Failed", error or f"Failed to download: {download.name}"
         )
@@ -95,7 +101,7 @@ class DownloadCoordinator:
                 f"[DOWNLOAD_COORDINATOR] Failed to add download: {e}", exc_info=True
             )
             error_msg = f"Failed to add download: {str(e)}"
-            self.ui_state.show_error(error_msg)
+            # Show error dialog ONLY (not status bar) - SINGLE PATH
             self._show_error_dialog("Add Download Failed", error_msg)
             return False
 
@@ -121,7 +127,7 @@ class DownloadCoordinator:
                 f"[DOWNLOAD_COORDINATOR] Failed to remove downloads: {e}", exc_info=True
             )
             error_msg = f"Failed to remove downloads: {str(e)}"
-            self.ui_state.show_error(error_msg)
+            # Show error dialog ONLY - SINGLE PATH
             self._show_error_dialog("Remove Downloads Failed", error_msg)
             return False
 
@@ -147,7 +153,7 @@ class DownloadCoordinator:
                 f"[DOWNLOAD_COORDINATOR] Failed to clear downloads: {e}", exc_info=True
             )
             error_msg = f"Failed to clear downloads: {str(e)}"
-            self.ui_state.show_error(error_msg)
+            # Show error dialog ONLY - SINGLE PATH
             self._show_error_dialog("Clear Downloads Failed", error_msg)
             return False
 
@@ -165,7 +171,7 @@ class DownloadCoordinator:
                 f"[DOWNLOAD_COORDINATOR] Failed to clear completed: {e}", exc_info=True
             )
             error_msg = f"Failed to clear completed downloads: {str(e)}"
-            self.ui_state.show_error(error_msg)
+            # Show error dialog ONLY - SINGLE PATH
             self._show_error_dialog("Clear Completed Failed", error_msg)
             return 0
 
@@ -237,7 +243,7 @@ class DownloadCoordinator:
                 f"[DOWNLOAD_COORDINATOR] Failed to start downloads: {e}", exc_info=True
             )
             error_msg = f"Failed to start downloads: {str(e)}"
-            self.ui_state.show_error(error_msg)
+            # Show error dialog ONLY - SINGLE PATH
             self._show_error_dialog("Start Downloads Failed", error_msg)
             self.ui_state.enable_action_buttons()
             return False

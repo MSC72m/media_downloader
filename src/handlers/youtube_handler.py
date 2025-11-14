@@ -143,14 +143,16 @@ class YouTubeHandler(LinkHandlerInterface):
                     try:
                         from src.core.models import Download
 
-                        # Fetch metadata first
-                        metadata = None
+                        # Fetch metadata first for proper naming
+                        track_name = "YouTube Music"
                         if metadata_service:
                             try:
                                 metadata = metadata_service.fetch_metadata(url)
-                                logger.info(
-                                    f"[YOUTUBE_HANDLER] Music metadata fetched: {metadata.title if metadata else 'None'}"
-                                )
+                                if metadata and metadata.title:
+                                    track_name = metadata.title
+                                    logger.info(
+                                        f"[YOUTUBE_HANDLER] Music metadata fetched: {track_name}"
+                                    )
                             except Exception as e:
                                 logger.warning(
                                     f"[YOUTUBE_HANDLER] Could not fetch music metadata: {e}"
@@ -159,19 +161,21 @@ class YouTubeHandler(LinkHandlerInterface):
                         # Create download with audio-only settings
                         download = Download(
                             url=url,
-                            name=metadata.title if metadata else "YouTube Music",
+                            name=track_name,
                             service_type="youtube",
                         )
 
-                        # Set audio-only options
+                        # Set audio-only options (these will be used by YouTubeDownloader)
                         download.audio_only = True
                         download.format = "audio"
                         download.quality = "best"
+                        download.download_thumbnail = True
+                        download.embed_metadata = True
 
-                        # Add to download queue
+                        # Add to download queue via callback
                         download_callback(download)
                         logger.info(
-                            "[YOUTUBE_HANDLER] YouTube Music download added automatically"
+                            f"[YOUTUBE_HANDLER] YouTube Music download added: {track_name}"
                         )
 
                     except Exception as e:
@@ -179,6 +183,26 @@ class YouTubeHandler(LinkHandlerInterface):
                             f"[YOUTUBE_HANDLER] Failed to create music download: {e}",
                             exc_info=True,
                         )
+                        # Show error to user
+                        try:
+                            from src.core.enums.message_level import MessageLevel
+                            from src.services.events.queue import Message
+
+                            message_queue = (
+                                container.get("message_queue") if container else None
+                            )
+                            if message_queue:
+                                message_queue.add_message(
+                                    Message(
+                                        text=f"Failed to add YouTube Music download: {str(e)}",
+                                        level=MessageLevel.ERROR,
+                                        title="YouTube Music Error",
+                                    )
+                                )
+                        except Exception as dialog_error:
+                            logger.error(
+                                f"[YOUTUBE_HANDLER] Failed to show error dialog: {dialog_error}"
+                            )
 
                 schedule_on_main_thread(root, create_music_download, immediate=True)
                 return

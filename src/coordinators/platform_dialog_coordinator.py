@@ -285,54 +285,63 @@ class PlatformDialogCoordinator:
 
     # Authentication
     def authenticate_instagram(self, parent_window) -> None:
-        """Show Instagram authentication dialog."""
+        """Show Instagram authentication dialog.
+
+        This is the SINGLE SOURCE OF TRUTH for Instagram auth UI updates.
+        """
         logger.info("[PLATFORM_DIALOG_COORDINATOR] Authenticating Instagram")
 
         if not self._auth_handler:
             logger.error("[PLATFORM_DIALOG_COORDINATOR] Auth handler not available")
+            if self.component_state:
+                self.component_state.set_instagram_failed()
             return
+
+        # Set to logging in state BEFORE calling auth
+        if self.component_state:
+            self.component_state.set_instagram_logging_in()
+            logger.info(
+                "[PLATFORM_DIALOG_COORDINATOR] Instagram state set to LOGGING_IN"
+            )
 
         try:
 
             def on_auth_complete(success: bool, error_message: Optional[str] = None):
-                """Handle authentication completion with UI updates."""
+                """Handle authentication completion - SINGLE PLACE for all UI updates."""
+                logger.info(
+                    f"[PLATFORM_DIALOG_COORDINATOR] Auth complete: success={success}, error={error_message}"
+                )
+
                 if success:
-                    logger.info(
-                        "[PLATFORM_DIALOG_COORDINATOR] Instagram authentication successful"
-                    )
-                    # Update state via centralized state manager
+                    # SUCCESS PATH - Update state and status bar
                     if self.component_state:
                         self.component_state.set_instagram_authenticated()
+                        logger.info(
+                            "[PLATFORM_DIALOG_COORDINATOR] State set to AUTHENTICATED"
+                        )
 
-                    # Update status bar
                     event_coordinator = self.container.get("event_coordinator")
                     if event_coordinator:
                         event_coordinator.update_status(
                             "Instagram authenticated successfully", is_error=False
                         )
                 else:
-                    logger.warning(
-                        "[PLATFORM_DIALOG_COORDINATOR] Instagram authentication failed"
-                    )
-                    # Update state via centralized state manager (SINGLE SOURCE OF TRUTH)
+                    # FAILURE PATH - Update state, status bar, and show error
                     if self.component_state:
                         self.component_state.set_instagram_failed()
+                        logger.info("[PLATFORM_DIALOG_COORDINATOR] State set to FAILED")
 
-                    # Update status bar
                     event_coordinator = self.container.get("event_coordinator")
                     if event_coordinator:
                         event_coordinator.update_status(
                             "Instagram authentication failed", is_error=True
                         )
 
-                    # Show error dialog via message queue
-                    error_text = (
-                        error_message
-                        or "Instagram authentication failed. Please check your credentials."
-                    )
-                    self._show_error_dialog(
-                        "Instagram Authentication Failed", error_text
-                    )
+                    # Show error dialog ONLY if there's an error message
+                    if error_message:
+                        self._show_error_dialog(
+                            "Instagram Authentication Failed", error_message
+                        )
 
             self._auth_handler.authenticate_instagram(
                 parent_window or self.root, on_auth_complete
@@ -343,16 +352,18 @@ class PlatformDialogCoordinator:
                 f"[PLATFORM_DIALOG_COORDINATOR] Error authenticating Instagram: {e}",
                 exc_info=True,
             )
-            # Reset state via centralized state manager
+            # EXCEPTION PATH - Reset state and show error
             if self.component_state:
                 self.component_state.set_instagram_failed()
+                logger.info(
+                    "[PLATFORM_DIALOG_COORDINATOR] State reset to FAILED after exception"
+                )
 
-            # Show error dialog via message queue
             self._show_error_dialog(
                 "Instagram Authentication Error",
                 f"An error occurred during authentication: {str(e)}",
             )
-            # Update UI with error status
+
             event_coordinator = self.container.get("event_coordinator")
             if event_coordinator:
                 event_coordinator.update_status(
