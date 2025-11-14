@@ -50,8 +50,9 @@ def get_container(ui_context: Any) -> Optional[ServiceContainer]:
     Returns:
         ServiceContainer if available, None otherwise
     """
-    ctx = get_ui_context(ui_context)
-    return ctx.container if ctx else None
+    if ctx := get_ui_context(ui_context):
+        return ctx.container
+    return None
 
 
 def get_root(ui_context: Any) -> Optional[TkRootProtocol]:
