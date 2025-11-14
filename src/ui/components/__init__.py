@@ -8,12 +8,12 @@ from .status_bar import StatusBar
 from .url_entry import URLEntryFrame
 
 __all__ = [
-    "FileListBox",
-    "FileManagerButtonBar",
-    "FileManagerActionButtonBar",
-    "PathEntryBar",
     "DownloadListView",
+    "FileListBox",
+    "FileManagerActionButtonBar",
+    "FileManagerButtonBar",
     "OptionsBar",
+    "PathEntryBar",
     "StatusBar",
     "URLEntryFrame",
 ]

@@ -1,6 +1,7 @@
-import customtkinter as ctk
 import tkinter as tk
-from typing import Callable
+from collections.abc import Callable
+
+import customtkinter as ctk
 
 from src.core.enums import InstagramAuthStatus
 

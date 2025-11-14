@@ -1,8 +1,9 @@
 """Thread-safe utilities for GUI operations."""
 
 import threading
-from typing import Callable, Any
 from functools import wraps
+from typing import Any
+from collections.abc import Callable
 
 
 class ThreadSafeDialogMixin:

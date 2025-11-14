@@ -1,6 +1,6 @@
-import customtkinter as ctk
-from typing import Optional
 from tkinter import messagebox
+
+import customtkinter as ctk
 
 from src.utils.window import WindowCenterMixin
 
@@ -13,8 +13,8 @@ class LoginDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.geometry("400x250")
         self.resizable(False, False)
 
-        self.username: Optional[str] = None
-        self.password: Optional[str] = None
+        self.username: str | None = None
+        self.password: str | None = None
 
         # Create widgets
         self.create_widgets()

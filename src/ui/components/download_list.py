@@ -1,5 +1,5 @@
 import tkinter as tk
-from typing import Callable, Dict, List
+from collections.abc import Callable
 
 import customtkinter as ctk
 
@@ -9,7 +9,7 @@ from src.core import Download, DownloadStatus
 class DownloadListView(ctk.CTkFrame):
     """List view for showing download items and their status."""
 
-    def __init__(self, master, on_selection_change: Callable[[List[int]], None]):
+    def __init__(self, master, on_selection_change: Callable[[list[int]], None]):
         super().__init__(master)
 
         self.on_selection_change = on_selection_change
@@ -28,7 +28,7 @@ class DownloadListView(ctk.CTkFrame):
         # Enable text selection
         self.list_view.bind("<Control-a>", self._select_all)
 
-    def refresh_items(self, items: List[Download]):
+    def refresh_items(self, items: list[Download]) -> None:
         """Refresh the displayed items."""
         self.list_view.delete("1.0", tk.END)
         self._item_line_mapping.clear()
@@ -88,15 +88,16 @@ class DownloadListView(ctk.CTkFrame):
                 self.list_view.insert(line_start, new_line)
 
                 # Restore scroll position
-                self.list_view.yview_moveto(current_scroll[0])
+                if current_scroll and len(current_scroll) > 0:
+                    self.list_view.yview_moveto(current_scroll[0])
 
-                logger.debug(f"[DOWNLOAD_LIST] Progress updated successfully in UI")
+                logger.debug("[DOWNLOAD_LIST] Progress updated successfully in UI")
             else:
                 logger.warning(
                     f"[DOWNLOAD_LIST] Line format unexpected - expected 3+ parts, got {len(parts)}"
                 )
         else:
-            logger.warning(f"[DOWNLOAD_LIST] Current line is empty")
+            logger.warning("[DOWNLOAD_LIST] Current line is empty")
 
     @staticmethod
     def _format_status(item: Download) -> str:
@@ -107,7 +108,7 @@ class DownloadListView(ctk.CTkFrame):
             return f"Failed: {item.error_message}"
         return item.status.value
 
-    def get_selected_indices(self) -> List[int]:
+    def get_selected_indices(self) -> list[int]:
         """Get indices of selected items."""
         try:
             start = self.list_view.index("sel.first").split(".")[0]
@@ -153,7 +154,7 @@ class DownloadListView(ctk.CTkFrame):
         """Check if the download list has any items."""
         return len(self._downloads) > 0
 
-    def get_downloads(self) -> List["Download"]:
+    def get_downloads(self) -> list[Download]:
         """Get all downloads from the list."""
         # Return the stored Download objects instead of parsing text
         return self._downloads.copy()

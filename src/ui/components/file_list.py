@@ -1,6 +1,6 @@
 import os
 import tkinter as tk
-from typing import Callable, Optional
+from collections.abc import Callable
 
 
 class FileListBox(tk.Listbox):
@@ -50,7 +50,7 @@ class FileListBox(tk.Listbox):
             # Handle directory access errors
             pass
 
-    def get_selected_item(self) -> Optional[str]:
+    def get_selected_item(self) -> str | None:
         """Get the currently selected item."""
         selection = self.curselection()
         return self.get(selection[0]) if selection else None

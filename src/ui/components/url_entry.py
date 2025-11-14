@@ -1,6 +1,8 @@
-import customtkinter as ctk
 import tkinter as tk
-from typing import Callable, Optional
+from collections.abc import Callable
+
+import customtkinter as ctk
+
 from ..dialogs.input_dialog import CenteredInputDialog
 
 
@@ -11,7 +13,7 @@ class URLEntryFrame(ctk.CTkFrame):
             self,
             master,
             on_add: Callable[[str, str], None],  # Callback signature: (url: str, name: str) -> None
-            on_youtube_detected: Optional[Callable[[str], None]] = None
+            on_youtube_detected: Callable[[str], None] | None = None
     ):
         super().__init__(master, fg_color="transparent")
 

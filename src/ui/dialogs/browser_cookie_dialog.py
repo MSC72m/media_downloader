@@ -1,10 +1,12 @@
 """Browser cookie selection dialog that matches YouTube options window style."""
 
-import customtkinter as ctk
 import os
-from typing import Optional, Callable
-from ...utils.window import WindowCenterMixin
+from collections.abc import Callable
+
+import customtkinter as ctk
+
 from ...utils.logger import get_logger
+from ...utils.window import WindowCenterMixin
 
 logger = get_logger(__name__)
 
@@ -12,12 +14,12 @@ logger = get_logger(__name__)
 class BrowserCookieDialog(ctk.CTkToplevel, WindowCenterMixin):
     """Dialog for selecting browser cookies that matches YouTube options style."""
 
-    def __init__(self, parent, on_cookie_selected: Callable[[Optional[str], Optional[str]], None], **kwargs):
+    def __init__(self, parent, on_cookie_selected: Callable[[str | None, str | None], None], **kwargs):
         super().__init__(parent, **kwargs)
 
         self.on_cookie_selected = on_cookie_selected
-        self.cookie_path: Optional[str] = None
-        self.selected_browser: Optional[str] = None
+        self.cookie_path: str | None = None
+        self.selected_browser: str | None = None
 
         # Configure window to match YouTube options style
         self.title("Select Cookie Source")

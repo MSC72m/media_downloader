@@ -1,6 +1,7 @@
 """Simple loading dialog with animated dots."""
 
 import customtkinter as ctk
+
 from ...utils.window import WindowCenterMixin
 
 

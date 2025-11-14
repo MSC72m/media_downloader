@@ -1,27 +1,27 @@
 """Concrete implementation of service detector."""
 
-from src.utils.logger import get_logger
 from typing import Optional
 from urllib.parse import urlparse
-from ..interfaces import IServiceDetector
+
 from src.core.enums import ServiceType
 from src.services.network.checker import check_site_connection
+from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-class ServiceDetector(IServiceDetector):
-    """Concrete implementation of service detector."""
+class ServiceDetector:
+    """Service detector for identifying service types from URLs."""
 
     def __init__(self):
         self._domain_to_service = {
-            'youtube.com': ServiceType.YOUTUBE,
-            'youtu.be': ServiceType.YOUTUBE,
-            'twitter.com': ServiceType.TWITTER,
-            'x.com': ServiceType.TWITTER,
-            'instagram.com': ServiceType.INSTAGRAM,
-            'pinterest.com': ServiceType.PINTEREST,
-            'pin.it': ServiceType.PINTEREST
+            "youtube.com": ServiceType.YOUTUBE,
+            "youtu.be": ServiceType.YOUTUBE,
+            "twitter.com": ServiceType.TWITTER,
+            "x.com": ServiceType.TWITTER,
+            "instagram.com": ServiceType.INSTAGRAM,
+            "pinterest.com": ServiceType.PINTEREST,
+            "pin.it": ServiceType.PINTEREST,
         }
         self._initialized = False
 
@@ -63,5 +63,7 @@ class ServiceDetector(IServiceDetector):
                 logger.warning(f"Service {service.value} not accessible: {error_msg}")
             return connected
         except Exception as e:
-            logger.error(f"Error checking service accessibility for {service.value}: {e}")
+            logger.error(
+                f"Error checking service accessibility for {service.value}: {e}"
+            )
             return False

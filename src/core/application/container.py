@@ -1,13 +1,16 @@
+from typing import Any, Callable, Dict, Tuple
+
 from src.utils.logger import get_logger
-from typing import Dict, Any, Callable
 
 logger = get_logger(__name__)
 
+
 class ServiceContainer:
     """Simple service container for dependency management."""
+
     def __init__(self):
         self._services: Dict[str, Any] = {}
-        self._factories: Dict[str, Callable] = {}
+        self._factories: Dict[str, Tuple[Callable[[], Any], bool]] = {}
         self._singletons: Dict[str, Any] = {}
 
     def register(self, key: str, service: Any, singleton: bool = False) -> None:
@@ -19,7 +22,9 @@ class ServiceContainer:
         logger.debug(f"Registered service: {key}")
         return None
 
-    def register_factory(self, key: str, factory: Callable, singleton: bool = False) -> None:
+    def register_factory(
+        self, key: str, factory: Callable, singleton: bool = False
+    ) -> None:
         """Register a service factory."""
         self._factories[key] = (factory, singleton)
         logger.debug(f"Registered factory: {key}")
@@ -37,7 +42,8 @@ class ServiceContainer:
 
         # Check factories
         if key in self._factories:
-            factory, is_singleton = self._factories[key]
+            factory_tuple = self._factories[key]
+            factory, is_singleton = factory_tuple
             service = factory()
 
             if is_singleton:
@@ -51,7 +57,9 @@ class ServiceContainer:
 
     def has(self, key: str) -> bool:
         """Check if a service is registered."""
-        return any(key in d for d in (self._services, self._factories, self._singletons))
+        return any(
+            key in d for d in (self._services, self._factories, self._singletons)
+        )
 
     def remove(self, key: str) -> None:
         """Remove a service."""

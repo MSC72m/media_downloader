@@ -26,14 +26,30 @@ class YouTubeDownloader(BaseDownloader):
         quality: str = "720p",
         download_playlist: bool = False,
         audio_only: bool = False,
+        video_only: bool = False,
+        format: str = "video",
         cookie_manager: Optional[CookieManager] = None,
         browser: Optional[str] = None,
+        download_subtitles: bool = False,
+        selected_subtitles: Optional[list] = None,
+        download_thumbnail: bool = True,
+        embed_metadata: bool = True,
+        speed_limit: Optional[int] = None,
+        retries: int = 3,
     ):
         self.quality = quality
         self.download_playlist = download_playlist
         self.audio_only = audio_only
+        self.video_only = video_only
+        self.format = format
         self.cookie_manager = cookie_manager
         self.browser = browser
+        self.download_subtitles = download_subtitles
+        self.selected_subtitles = selected_subtitles or []
+        self.download_thumbnail = download_thumbnail
+        self.embed_metadata = embed_metadata
+        self.speed_limit = speed_limit
+        self.retries = retries
         self.metadata_service = YouTubeMetadataService()
         self.ytdl_opts = self._get_simple_ytdl_options()
 
@@ -43,17 +59,35 @@ class YouTubeDownloader(BaseDownloader):
             "quiet": True,
             "no_warnings": True,
             "ignoreerrors": True,
-            "retries": 3,
-            "fragment_retries": 3,
+            "retries": self.retries,
+            "fragment_retries": self.retries,
             "retry_sleep_functions": {"fragment": lambda x: 3 * (x + 1)},
             "socket_timeout": 15,
-            "extractor_retries": 3,
+            "extractor_retries": self.retries,
             "hls_prefer_native": True,
             "nocheckcertificate": True,
             "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
             "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
-            # NO format specifications - let yt-dlp choose automatically
+            "writethumbnail": self.download_thumbnail,
+            "embedmetadata": self.embed_metadata,
         }
+
+        # Add speed limit if specified
+        if self.speed_limit:
+            options["ratelimit"] = self.speed_limit * 1024  # Convert KB/s to bytes/s
+
+        # Add subtitle options
+        if self.download_subtitles and self.selected_subtitles:
+            options["writesubtitles"] = True
+            options["writeautomaticsub"] = True
+            # Extract language codes from selected subtitles
+            subtitle_langs = [
+                sub.get("language_code", sub.get("id", "en"))
+                for sub in self.selected_subtitles
+                if isinstance(sub, dict)
+            ]
+            if subtitle_langs:
+                options["subtitleslangs"] = subtitle_langs
 
         # Use cookiesfrom_browser for direct browser cookie access (more reliable)
         if self.browser:
@@ -122,8 +156,8 @@ class YouTubeDownloader(BaseDownloader):
                 }
             )
 
-            # Add format selection based on quality and audio settings
-            if self.audio_only:
+            # Add format selection based on format type and quality
+            if self.format == "audio" or self.audio_only:
                 opts["format"] = "bestaudio"
                 opts["postprocessors"] = [
                     {
@@ -132,7 +166,13 @@ class YouTubeDownloader(BaseDownloader):
                         "preferredquality": "192",
                     }
                 ]
+                ext = ".mp3"
+            elif self.format == "video_only" or self.video_only:
+                # Video only without audio
+                opts["format"] = "bestvideo"
+                ext = ".mp4"
             else:
+                # Default: video + audio
                 # Use dictionary-based format selection
                 format_map = {
                     "highest": "best",

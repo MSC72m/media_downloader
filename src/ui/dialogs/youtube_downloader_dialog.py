@@ -4,8 +4,8 @@ import json
 import os
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
 
 import customtkinter as ctk
 
@@ -32,11 +32,11 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         parent,
         url: str,
         cookie_handler,
-        on_download: Optional[Callable[[str, str, Dict[str, Any]], None]] = None,
+        on_download: Callable | None = None,
         metadata_service=None,
-        pre_fetched_metadata: Optional[YouTubeMetadata] = None,
-        initial_cookie_path: Optional[str] = None,
-        initial_browser: Optional[str] = None,
+        pre_fetched_metadata: YouTubeMetadata | None = None,
+        initial_cookie_path: str | None = None,
+        initial_browser: str | None = None,
     ):
         super().__init__(parent)
 
@@ -48,7 +48,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.video_metadata = (
             pre_fetched_metadata  # Use pre-fetched metadata if provided
         )
-        self.loading_overlay: Optional[SimpleLoadingDialog] = None
+        self.loading_overlay: SimpleLoadingDialog | None = None
         self.selected_cookie_path = initial_cookie_path
         self.selected_browser = initial_browser
         self.widgets_created = False
@@ -141,7 +141,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         """Show cookie selection dialog before metadata fetching."""
         logger.info("Showing cookie selection dialog")
 
-        def on_cookie_selected(cookie_path: Optional[str], browser: Optional[str]):
+        def on_cookie_selected(cookie_path: str | None, browser: str | None):
             logger.info(
                 f"Cookie selection callback: path={cookie_path}, browser={browser}"
             )
@@ -508,7 +508,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         except Exception as e:
             logger.error(f"Error showing main window: {e}", exc_info=True)
 
-    def _update_ui_with_metadata(self):
+    def _update_ui_with_metadata(self) -> None:
         """Update UI components with fetched metadata."""
         if not self.video_metadata:
             return
@@ -849,13 +849,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         # Set focus
         self.name_entry.focus()
 
-    def _on_subtitle_change(self, selected_subtitles: List[str]):
-        """Handle subtitle selection change."""
-        # This method is called when subtitle selection changes
-        # You can add custom logic here if needed
-        pass
-
-    def _on_format_change(self):
+    def _on_format_change(self) -> None:
         """Handle format selection change."""
         format_value = self.format_var.get()
 
@@ -1021,29 +1015,34 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             # Get selected subtitles
             selected_subtitles = self.subtitle_dropdown.get_selected_subtitles()
 
-            # Create comprehensive download options
-            download_options = {
-                "quality": self.quality_var.get(),
-                "format": format_value,
-                "audio_only": audio_only,
-                "video_only": video_only,
-                "download_playlist": self.playlist_var.get(),
-                "download_subtitles": bool(selected_subtitles),
-                "selected_subtitles": selected_subtitles,
-                "download_thumbnail": self.thumbnail_var.get(),
-                "embed_metadata": self.metadata_var.get(),
-                "cookie_path": getattr(self, "selected_cookie_path", None),
-                "selected_browser": self._selected_browser,
-                "speed_limit": self.speed_limit_var.get() or None,
-                "retries": int(self.retries_var.get()) if self.retries_var.get() else 3,
-                "concurrent_downloads": int(self.concurrent_var.get())
+            # Create Download object with all options
+            from src.core.models import Download
+
+            download = Download(
+                url=self.url,
+                name=name,
+                service_type="youtube",
+                quality=self.quality_var.get(),
+                download_playlist=self.playlist_var.get(),
+                audio_only=audio_only,
+                video_only=video_only,
+                format=format_value,
+                download_subtitles=bool(selected_subtitles),
+                selected_subtitles=selected_subtitles,
+                download_thumbnail=self.thumbnail_var.get(),
+                embed_metadata=self.metadata_var.get(),
+                cookie_path=getattr(self, "selected_cookie_path", None),
+                selected_browser=self._selected_browser,
+                speed_limit=self.speed_limit_var.get() or None,
+                retries=int(self.retries_var.get()) if self.retries_var.get() else 3,
+                concurrent_downloads=int(self.concurrent_var.get())
                 if self.concurrent_var.get()
                 else 1,
-            }
+            )
 
-            # Call download callback
+            # Call download callback with Download object
             if self.on_download:
-                self.on_download(self.url, name, download_options)
+                self.on_download(download)
 
             # Close dialog after a small delay
             self.after(100, self.destroy)

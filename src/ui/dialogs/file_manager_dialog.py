@@ -1,15 +1,16 @@
 import os
-from src.utils.logger import get_logger
-import customtkinter as ctk
-from typing import Callable
 from tkinter import messagebox
+from collections.abc import Callable
 
-from ..components.path_entry import PathEntryBar
+import customtkinter as ctk
+
+from src.utils.logger import get_logger
+from src.utils.window import WindowCenterMixin
+
 from ..components.file_list import FileListBox
 from ..components.file_manager_buttons import FileManagerButtonBar
+from ..components.path_entry import PathEntryBar
 from .input_dialog import CenteredInputDialog
-
-from src.utils.window import WindowCenterMixin
 
 logger = get_logger(__name__)
 

@@ -1,7 +1,9 @@
 """Simple subtitle selection component using a scrollable checklist."""
 
+from collections.abc import Callable
+from typing import Any
+
 import customtkinter as ctk
-from typing import List, Dict, Any, Callable, Optional
 
 
 class SubtitleChecklist(ctk.CTkFrame):
@@ -11,9 +13,9 @@ class SubtitleChecklist(ctk.CTkFrame):
         self,
         master,
         placeholder: str = "No subtitles available",
-        on_change: Optional[Callable[[List[Dict[str, str]]], None]] = None,
+        on_change: Callable[[List[Dict[str, str]]], None] | None = None,
         height: int = 120,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(master, fg_color="transparent", **kwargs)
 
@@ -31,17 +33,13 @@ class SubtitleChecklist(ctk.CTkFrame):
         """Create the checklist widgets."""
         # Title label
         self.title_label = ctk.CTkLabel(
-            self,
-            text="Available Subtitles:",
-            font=("Roboto", 11, "bold")
+            self, text="Available Subtitles:", font=("Roboto", 11, "bold")
         )
         self.title_label.pack(anchor="w", pady=(0, 5))
 
         # Scrollable frame for options
         self.scrollable_frame = ctk.CTkScrollableFrame(
-            self,
-            height=self.height,
-            fg_color=("gray95", "gray25")
+            self, height=self.height, fg_color=("gray95", "gray25")
         )
         self.scrollable_frame.pack(fill="both", expand=True)
 
@@ -50,7 +48,7 @@ class SubtitleChecklist(ctk.CTkFrame):
             self.scrollable_frame,
             text=self.placeholder,
             font=("Roboto", 10),
-            text_color="gray"
+            text_color="gray",
         )
         self.placeholder_label.pack(pady=20)
 
@@ -65,7 +63,7 @@ class SubtitleChecklist(ctk.CTkFrame):
             command=self._select_all,
             width=80,
             height=25,
-            font=("Roboto", 9)
+            font=("Roboto", 9),
         )
         self.select_all_btn.pack(side="left", padx=(0, 5))
 
@@ -75,20 +73,17 @@ class SubtitleChecklist(ctk.CTkFrame):
             command=self._clear_all,
             width=80,
             height=25,
-            font=("Roboto", 9)
+            font=("Roboto", 9),
         )
         self.clear_all_btn.pack(side="left")
 
         # Status label
         self.status_label = ctk.CTkLabel(
-            self.button_frame,
-            text="0 selected",
-            font=("Roboto", 9),
-            text_color="gray"
+            self.button_frame, text="0 selected", font=("Roboto", 9), text_color="gray"
         )
         self.status_label.pack(side="right")
 
-    def set_subtitle_options(self, options: List[Dict[str, Any]]):
+    def set_subtitle_options(self, subtitles: list[dict[str, Any]]) -> None:
         """Set subtitle options."""
         try:
             # Store the options
@@ -136,9 +131,9 @@ class SubtitleChecklist(ctk.CTkFrame):
             option_frame = ctk.CTkFrame(self.scrollable_frame, fg_color="transparent")
             option_frame.pack(fill="x", pady=2, padx=5)
 
-            option_id = option.get('id', str(index))
-            display_text = option.get('display', option_id)
-            is_auto = option.get('is_auto', False)
+            option_id = option.get("id", str(index))
+            display_text = option.get("display", option_id)
+            is_auto = option.get("is_auto", False)
 
             # Add (Auto) suffix for auto-generated subtitles
             if is_auto:
@@ -154,7 +149,9 @@ class SubtitleChecklist(ctk.CTkFrame):
                 text=display_text,
                 variable=var,
                 font=("Roboto", 10),
-                command=lambda oid=option_id, v=var: self._handle_option_change(oid, v.get())
+                command=lambda oid=option_id, v=var: self._handle_option_change(
+                    oid, v.get()
+                ),
             )
             checkbox.pack(anchor="w")
 
@@ -226,19 +223,21 @@ class SubtitleChecklist(ctk.CTkFrame):
         except Exception as e:
             print(f"Error clearing all: {e}")
 
-    def get_selected_subtitles(self) -> List[Dict[str, str]]:
+    def get_selected_subtitles(self) -> list[dict[str, str]]:
         """Get currently selected subtitle dictionaries."""
         selected_dicts = []
         for option_id in self.selected_options:
             # Find the option details for this ID
             for option in self.options:
-                if option.get('id') == option_id:
-                    selected_dicts.append({
-                        'language_code': option.get('language_code', option_id),
-                        'language_name': option.get('display', option_id),
-                        'is_auto_generated': str(option.get('is_auto', False)),
-                        'url': option.get('url', '')
-                    })
+                if option.get("id") == option_id:
+                    selected_dicts.append(
+                        {
+                            "language_code": option.get("language_code", option_id),
+                            "language_name": option.get("display", option_id),
+                            "is_auto_generated": str(option.get("is_auto", False)),
+                            "url": option.get("url", ""),
+                        }
+                    )
                     break
         return selected_dicts
 

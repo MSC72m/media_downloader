@@ -1,72 +1,31 @@
 """Abstraction layer interfaces for the media downloader application."""
 
 from .cookie_detection import BrowserType, ICookieDetector, ICookieManager, PlatformType
-from .event_handlers import (
-    AuthenticationHandler,
-    ConfigurationHandler,
-    DownloadManagementHandler,
-    FileManagementHandler,
-    NetworkStatusHandler,
-    UIUpdateHandler,
-    URLDetectionHandler,
-    YouTubeSpecificHandler,
+from .protocols import (
+    HasCleanupProtocol,
+    HasClearProtocol,
+    HasCompletedDownloadsProtocol,
+    HasEventCoordinatorProtocol,
+    TkRootProtocol,
+    UIContextProtocol,
 )
-from .handlers import (
-    IApplicationController,
-    IAuthenticationHandler,
-    IDownloadHandler,
-    IHandler,
-    INetworkChecker,
-    IServiceDetector,
-    IUIEventHandler,
-)
-from .ui_components import (
-    IActionButtonsComponent,
-    IDialog,
-    IDialogFactory,
-    IDownloadListComponent,
-    IFileManagerDialog,
-    INetworkStatusDialog,
-    IOptionsBarComponent,
-    IStatusBarComponent,
-    IUIComponent,
-    IUIFactory,
-    IURLEntryComponent,
-)
+from .youtube_metadata import IYouTubeMetadataService, SubtitleInfo, YouTubeMetadata
 
 __all__ = [
-    # Handlers
-    "IHandler",
-    "IDownloadHandler",
-    "IAuthenticationHandler",
-    "IServiceDetector",
-    "INetworkChecker",
-    "IUIEventHandler",
-    "IApplicationController",
-    # Cookie
+    # Cookie Detection
     "ICookieDetector",
     "ICookieManager",
     "BrowserType",
     "PlatformType",
-    # UI Components
-    "IUIComponent",
-    "IURLEntryComponent",
-    "IDownloadListComponent",
-    "IOptionsBarComponent",
-    "IActionButtonsComponent",
-    "IStatusBarComponent",
-    "IUIFactory",
-    "IDialog",
-    "INetworkStatusDialog",
-    "IFileManagerDialog",
-    "IDialogFactory",
-    # Event Handlers
-    "URLDetectionHandler",
-    "DownloadManagementHandler",
-    "UIUpdateHandler",
-    "AuthenticationHandler",
-    "FileManagementHandler",
-    "ConfigurationHandler",
-    "NetworkStatusHandler",
-    "YouTubeSpecificHandler",
+    # YouTube Metadata
+    "IYouTubeMetadataService",
+    "SubtitleInfo",
+    "YouTubeMetadata",
+    # Protocols
+    "UIContextProtocol",
+    "HasEventCoordinatorProtocol",
+    "HasCleanupProtocol",
+    "HasClearProtocol",
+    "HasCompletedDownloadsProtocol",
+    "TkRootProtocol",
 ]

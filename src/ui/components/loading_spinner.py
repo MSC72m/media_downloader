@@ -1,7 +1,6 @@
 """Elegant loading spinner component for async operations."""
 
 import math
-from typing import Optional
 
 import customtkinter as ctk
 
@@ -168,7 +167,7 @@ class LoadingOverlay(ctk.CTkFrame):
         super().__init__(parent, **kwargs)
 
         self.message = message
-        self.spinner: Optional[SmallLoadingSpinner] = None
+        self.spinner: SmallLoadingSpinner | None = None
 
         self._create_overlay()
 

@@ -1,5 +1,6 @@
+from collections.abc import Callable
+
 import customtkinter as ctk
-from typing import Callable
 
 
 class PathEntryBar(ctk.CTkFrame):

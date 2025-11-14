@@ -1,12 +1,14 @@
 """UI component for selecting browser cookies."""
 
-from src.utils.logger import get_logger
-import customtkinter as ctk
-from typing import Optional, Callable
-from tkinter import messagebox, filedialog
+from tkinter import filedialog, messagebox
+from collections.abc import Callable
 
-from ...interfaces.cookie_detection import BrowserType
+import customtkinter as ctk
+
+from src.utils.logger import get_logger
+
 from ...handlers.cookie_handler import CookieHandler
+from ...interfaces.cookie_detection import BrowserType
 
 logger = get_logger(__name__)
 
@@ -18,8 +20,8 @@ class CookieSelectorFrame(ctk.CTkFrame):
         self,
         parent,
         cookie_handler: CookieHandler,
-        on_cookie_detected: Optional[Callable[[bool], None]] = None,
-        on_manual_select: Optional[Callable[[], None]] = None
+        on_cookie_detected: Callable[[bool], None] | None = None,
+        on_manual_select: Callable[[], None] | None = None
     ):
         super().__init__(parent, fg_color="transparent")
 

@@ -211,11 +211,22 @@ class DownloadHandler:
                     quality=getattr(download, "quality", "720p"),
                     download_playlist=getattr(download, "download_playlist", False),
                     audio_only=getattr(download, "audio_only", False),
+                    video_only=getattr(download, "video_only", False),
+                    format=getattr(download, "format", "video"),
                     cookie_manager=cookie_manager,
                     browser=getattr(download, "selected_browser", None),
+                    download_subtitles=getattr(download, "download_subtitles", False),
+                    selected_subtitles=getattr(download, "selected_subtitles", None),
+                    download_thumbnail=getattr(download, "download_thumbnail", True),
+                    embed_metadata=getattr(download, "embed_metadata", True),
+                    speed_limit=getattr(download, "speed_limit", None),
+                    retries=getattr(download, "retries", 3),
                 )
                 logger.info(
-                    f"[DOWNLOAD_HANDLER] Created YouTubeDownloader with quality={getattr(download, 'quality', '720p')}, audio_only={getattr(download, 'audio_only', False)}"
+                    f"[DOWNLOAD_HANDLER] Created YouTubeDownloader with quality={getattr(download, 'quality', '720p')}, "
+                    f"audio_only={getattr(download, 'audio_only', False)}, "
+                    f"video_only={getattr(download, 'video_only', False)}, "
+                    f"format={getattr(download, 'format', 'video')}"
                 )
             else:
                 # Fallback to factory's default downloader

@@ -68,8 +68,9 @@ class MediaDownloaderApp(ctk.CTk):
 
         logger.info("Media Downloader initialized")
 
-        # Start connectivity check
-        self.orchestrator.check_connectivity()
+        # Start connectivity check after UI is fully initialized
+        # Use after() to ensure UI is ready to receive updates
+        self.after(100, self.orchestrator.check_connectivity)
 
     def _create_ui(self):
         """Create all UI components."""

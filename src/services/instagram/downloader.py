@@ -1,16 +1,18 @@
 """Instagram downloader service implementation."""
 
-import instaloader
-from src.utils.logger import get_logger
 import os
 import time
 from typing import Callable, Optional
 from urllib.parse import urlparse
 
+import instaloader
+
+from src.utils.logger import get_logger
+
 from ...core import BaseDownloader
 from ...core.enums import ServiceType
-from ..file.service import FileService
 from ..file.sanitizer import FilenameSanitizer
+from ..file.service import FileService
 from ..network.checker import check_site_connection
 
 logger = get_logger(__name__)
@@ -39,7 +41,10 @@ class InstagramDownloader(BaseDownloader):
         """
         # Check if we've tried too many times recently
         current_time = time.time()
-        if self.login_attempts >= self.max_login_attempts and current_time - self.last_login_attempt < 600:  # 10 minutes
+        if (
+            self.login_attempts >= self.max_login_attempts
+            and current_time - self.last_login_attempt < 600
+        ):  # 10 minutes
             logger.error("Too many login attempts. Please try again later.")
             return False
 
@@ -59,7 +64,7 @@ class InstagramDownloader(BaseDownloader):
                 download_geotags=False,
                 download_comments=False,
                 save_metadata=False,
-                quiet_mode=True
+                quiet=True,
             )
 
             self.loader.login(username, password)
@@ -76,7 +81,7 @@ class InstagramDownloader(BaseDownloader):
         self,
         url: str,
         save_path: str,
-        progress_callback: Optional[Callable[[float, float], None]] = None
+        progress_callback: Optional[Callable[[float, float], None]] = None,
     ) -> bool:
         """
         Download media from Instagram URLs.
@@ -104,12 +109,12 @@ class InstagramDownloader(BaseDownloader):
                     download_geotags=False,
                     download_comments=False,
                     save_metadata=False,
-                    quiet_mode=True
+                    quiet=True,
                 )
 
             # Parse URL to determine content type
             parsed = urlparse(url)
-            path_parts = parsed.path.strip('/').split('/')
+            path_parts = parsed.path.strip("/").split("/")
 
             if len(path_parts) < 2:
                 logger.error("Invalid Instagram URL format")
@@ -119,7 +124,7 @@ class InstagramDownloader(BaseDownloader):
             shortcode = path_parts[1]
 
             # Download based on content type
-            if content_type in ['p', 'reel']:
+            if content_type in ["p", "reel"]:
                 return self._download_post(shortcode, save_path, progress_callback)
             else:
                 logger.error(f"Unsupported Instagram content type: {content_type}")
@@ -133,7 +138,7 @@ class InstagramDownloader(BaseDownloader):
         self,
         shortcode: str,
         save_path: str,
-        progress_callback: Optional[Callable[[float, float], None]] = None
+        progress_callback: Optional[Callable[[float, float], None]] = None,
     ) -> bool:
         """Download a single Instagram post or reel."""
         try:
@@ -148,27 +153,29 @@ class InstagramDownloader(BaseDownloader):
                 # Download video
                 video_url = post.video_url
                 filename = filename_sanitizer.sanitize_filename(
-                    os.path.basename(save_path) + '.mp4'
+                    os.path.basename(save_path) + ".mp4"
                 )
                 full_path = os.path.join(save_dir, filename)
 
-                result = file_service.download_file(video_url, full_path, progress_callback)
+                result = file_service.download_file(
+                    video_url, full_path, progress_callback
+                )
                 return result.success
             else:
                 # Download image(s) - handle both single images and carousels
                 success = False
 
                 # Check if it's a sidecar (carousel) post
-                if post.typename == 'GraphSidecar':
+                if post.typename == "GraphSidecar":
                     for i, node in enumerate(post.get_sidecar_nodes()):
                         try:
                             # Get URL based on media type
                             if node.is_video:
                                 media_url = node.video_url
-                                ext = '.mp4'
+                                ext = ".mp4"
                             else:
                                 media_url = node.display_url
-                                ext = '.jpg'
+                                ext = ".jpg"
 
                             # Generate filename
                             if i > 0:
@@ -187,7 +194,9 @@ class InstagramDownloader(BaseDownloader):
                             if result.success:
                                 success = True
                         except Exception as e:
-                            logger.error(f"Error downloading sidecar item {i}: {str(e)}")
+                            logger.error(
+                                f"Error downloading sidecar item {i}: {str(e)}"
+                            )
                             continue
                 else:
                     # Single image post
