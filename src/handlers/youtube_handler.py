@@ -23,7 +23,7 @@ logger = get_logger(__name__)
 class YouTubeHandler(LinkHandlerInterface):
     """Handler for YouTube URLs."""
 
-    # YouTube URL patterns
+    # YouTube URL patterns (including YouTube Music)
     YOUTUBE_PATTERNS = [
         r"^https?://(?:www\.)?youtube\.com/watch\?v=[\w-]+",
         r"^https?://(?:www\.)?youtube\.com/playlist\?list=[\w-]+",
@@ -31,6 +31,8 @@ class YouTubeHandler(LinkHandlerInterface):
         r"^https?://(?:www\.)?youtube\.com/embed/[\w-]+",
         r"^https?://(?:www\.)?youtube\.com/v/[\w-]+",
         r"^https?://(?:www\.)?youtube\.com/shorts/[\w-]+",
+        r"^https?://music\.youtube\.com/watch\?v=[\w-]+",
+        r"^https?://music\.youtube\.com/playlist\?list=[\w-]+",
     ]
 
     @classmethod
@@ -52,6 +54,7 @@ class YouTubeHandler(LinkHandlerInterface):
                         "type": self._detect_youtube_type(url),
                         "video_id": self._extract_video_id(url),
                         "playlist_id": self._extract_playlist_id(url),
+                        "is_music": self._is_youtube_music(url),
                     },
                 )
                 logger.info(
@@ -129,7 +132,58 @@ class YouTubeHandler(LinkHandlerInterface):
                 logger.error("[YOUTUBE_HANDLER] No download callback found")
                 return
 
-            # Show cookie selection dialog first
+            # Check if this is a YouTube Music URL - if so, skip dialog and auto-download as audio
+            is_music = self._is_youtube_music(url)
+            if is_music:
+                logger.info(
+                    "[YOUTUBE_HANDLER] YouTube Music URL detected - auto-downloading as audio"
+                )
+
+                def create_music_download():
+                    try:
+                        from src.core.models import Download
+
+                        # Fetch metadata first
+                        metadata = None
+                        if metadata_service:
+                            try:
+                                metadata = metadata_service.fetch_metadata(url)
+                                logger.info(
+                                    f"[YOUTUBE_HANDLER] Music metadata fetched: {metadata.title if metadata else 'None'}"
+                                )
+                            except Exception as e:
+                                logger.warning(
+                                    f"[YOUTUBE_HANDLER] Could not fetch music metadata: {e}"
+                                )
+
+                        # Create download with audio-only settings
+                        download = Download(
+                            url=url,
+                            name=metadata.title if metadata else "YouTube Music",
+                            service_type="youtube",
+                        )
+
+                        # Set audio-only options
+                        download.audio_only = True
+                        download.format = "audio"
+                        download.quality = "best"
+
+                        # Add to download queue
+                        download_callback(download)
+                        logger.info(
+                            "[YOUTUBE_HANDLER] YouTube Music download added automatically"
+                        )
+
+                    except Exception as e:
+                        logger.error(
+                            f"[YOUTUBE_HANDLER] Failed to create music download: {e}",
+                            exc_info=True,
+                        )
+
+                schedule_on_main_thread(root, create_music_download, immediate=True)
+                return
+
+            # For regular YouTube videos, show cookie selection dialog first
             def on_cookie_selected(cookie_path: Optional[str], browser: Optional[str]):
                 logger.info(
                     f"[YOUTUBE_HANDLER] Cookie selected: {cookie_path}, browser: {browser}"
@@ -255,3 +309,14 @@ class YouTubeHandler(LinkHandlerInterface):
         """Extract playlist ID from YouTube URL."""
         match = re.search(r"list=([0-9A-Za-z_-]+)", url)
         return match.group(1) if match else None
+
+    def _is_youtube_music(self, url: str) -> bool:
+        """Check if URL is from YouTube Music.
+
+        Args:
+            url: URL to check
+
+        Returns:
+            True if URL is from music.youtube.com
+        """
+        return "music.youtube.com" in url.lower()

@@ -9,6 +9,7 @@ from src.services.detection.link_detector import LinkDetector
 from src.services.events.event_bus import DownloadEventBus
 from src.utils.logger import get_logger
 
+from .component_state_manager import ComponentStateManager
 from .download_coordinator import DownloadCoordinator
 from .platform_dialog_coordinator import PlatformDialogCoordinator
 from .ui_state_manager import UIStateManager
@@ -38,10 +39,15 @@ class EventCoordinator:
         # Link detector for URL detection
         self.link_detector = LinkDetector()
 
+        # Create centralized component state manager (SINGLE SOURCE OF TRUTH)
+        self.component_state = ComponentStateManager(container)
+
         # Create focused coordinators
         self.ui_state = UIStateManager(container)
         self.downloads = DownloadCoordinator(container, self.event_bus, self.ui_state)
-        self.platform_dialogs = PlatformDialogCoordinator(container, root_window)
+        self.platform_dialogs = PlatformDialogCoordinator(
+            container, root_window, self.component_state
+        )
 
         logger.info("[EVENT_COORDINATOR] Initialized with focused coordinators")
 
@@ -49,6 +55,7 @@ class EventCoordinator:
         """Refresh all handlers after UI components are registered."""
         logger.info("[EVENT_COORDINATOR] Refreshing handlers")
         self.ui_state.refresh_ui_components()
+        self.component_state.refresh_components()
         self.downloads.refresh_handlers()
         self.platform_dialogs.refresh_handlers()
         logger.info("[EVENT_COORDINATOR] Handlers refreshed")

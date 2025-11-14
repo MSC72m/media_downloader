@@ -1,6 +1,7 @@
 """SoundCloud downloader service implementation."""
 
 import os
+import re
 from typing import Any, Callable, Dict, Optional
 
 import yt_dlp
@@ -189,13 +190,14 @@ class SoundCloudDownloader(BaseDownloader):
 
         except Exception as e:
             error_msg = str(e)
-            error_lower = error_msg.lower()
+
+            # Use regex for efficient premium error detection
+            premium_error_pattern = re.compile(
+                r"\b(premium|go\+|subscription|not\s+available)\b", re.IGNORECASE
+            )
 
             # Check for premium/Go+ errors first
-            if any(
-                keyword in error_lower
-                for keyword in ["premium", "go+", "subscription", "not available"]
-            ):
+            if premium_error_pattern.search(error_msg):
                 logger.error(
                     f"[SOUNDCLOUD_DOWNLOADER] Premium content error: {error_msg}"
                 )
@@ -281,14 +283,18 @@ class SoundCloudDownloader(BaseDownloader):
         if info.get("policy") == "BLOCK":
             return True
 
-        # Check for premium keywords in description or title
-        description = (info.get("description") or "").lower()
-        title = (info.get("title") or "").lower()
+        # Check for premium keywords using efficient regex
+        description = info.get("description") or ""
+        title = info.get("title") or ""
 
-        premium_keywords = ["go+", "premium only", "subscribers only"]
-        for keyword in premium_keywords:
-            if keyword in description or keyword in title:
-                return True
+        # Compile regex pattern for premium keywords (case-insensitive)
+        premium_pattern = re.compile(
+            r"\b(go\+|premium\s+only|subscribers?\s+only|subscription\s+required)\b",
+            re.IGNORECASE,
+        )
+
+        if premium_pattern.search(description) or premium_pattern.search(title):
+            return True
 
         # Check availability
         if not info.get("is_available", True):
@@ -302,31 +308,25 @@ class SoundCloudDownloader(BaseDownloader):
         Args:
             error_msg: Error message from yt-dlp
         """
-        error_lower = error_msg.lower()
+        # Use regex patterns for efficient error classification
+        error_patterns = {
+            r"\b(premium|go\+|subscription\s+required)\b": "[SOUNDCLOUD_DOWNLOADER] Track requires SoundCloud Go+ subscription",
+            r"\b(private|not\s+available)\b": "[SOUNDCLOUD_DOWNLOADER] Track is private or not available",
+            r"\bcopyright\b": "[SOUNDCLOUD_DOWNLOADER] Copyright restriction",
+            r"\b(geo|region)\b": "[SOUNDCLOUD_DOWNLOADER] Geographic restriction",
+            r"\b(network|connection)\b": "[SOUNDCLOUD_DOWNLOADER] Network connection error",
+            r"\b(403|401)\b": "[SOUNDCLOUD_DOWNLOADER] Access denied - authentication may be required",
+            r"\b404\b": "[SOUNDCLOUD_DOWNLOADER] Track not found",
+        }
 
-        if any(
-            keyword in error_lower
-            for keyword in ["premium", "go+", "subscription required"]
-        ):
-            logger.error(
-                "[SOUNDCLOUD_DOWNLOADER] Track requires SoundCloud Go+ subscription"
-            )
-        elif "private" in error_lower or "not available" in error_lower:
-            logger.error("[SOUNDCLOUD_DOWNLOADER] Track is private or not available")
-        elif "copyright" in error_lower:
-            logger.error("[SOUNDCLOUD_DOWNLOADER] Copyright restriction")
-        elif "geo" in error_lower or "region" in error_lower:
-            logger.error("[SOUNDCLOUD_DOWNLOADER] Geographic restriction")
-        elif "network" in error_lower or "connection" in error_lower:
-            logger.error("[SOUNDCLOUD_DOWNLOADER] Network connection error")
-        elif "403" in error_msg or "401" in error_msg:
-            logger.error(
-                "[SOUNDCLOUD_DOWNLOADER] Access denied - authentication may be required"
-            )
-        elif "404" in error_msg:
-            logger.error("[SOUNDCLOUD_DOWNLOADER] Track not found")
-        else:
-            logger.error(f"[SOUNDCLOUD_DOWNLOADER] Unknown error: {error_msg}")
+        # Check each pattern
+        for pattern, log_message in error_patterns.items():
+            if re.search(pattern, error_msg, re.IGNORECASE):
+                logger.error(log_message)
+                return
+
+        # If no pattern matches, log as unknown error
+        logger.error(f"[SOUNDCLOUD_DOWNLOADER] Unknown error: {error_msg}")
 
     def get_info(self, url: str) -> Optional[Dict[str, Any]]:
         """Get information about a SoundCloud track without downloading.

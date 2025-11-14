@@ -166,6 +166,8 @@ class ApplicationOrchestrator:
                     # Check if user provided credentials
                     if not dialog.username or not dialog.password:
                         logger.info("[AUTH_MANAGER] Instagram login cancelled")
+                        # Reset state via component state manager
+                        self._reset_instagram_state()
                         callback(False)
                         return
 
@@ -173,8 +175,8 @@ class ApplicationOrchestrator:
                     username = dialog.username
                     password = dialog.password
 
-                    # Update UI to show logging in
-                    self._update_instagram_status("logging_in")
+                    # Update UI to show logging in via component state manager
+                    self._set_instagram_logging_in()
 
                     # Capture references for the nested function
                     orchestrator = self.orchestrator
@@ -252,8 +254,9 @@ class ApplicationOrchestrator:
                                     f"[AUTH_MANAGER] Error updating main thread: {update_error}",
                                     exc_info=True,
                                 )
-                                # Fallback: call callback directly
+                                # Fallback: reset state and call callback
                                 logger.warning("[AUTH_MANAGER] Using fallback callback")
+                                auth_manager._reset_instagram_state()
                                 callback(False)
 
                         try:
@@ -273,9 +276,9 @@ class ApplicationOrchestrator:
                                 exc_info=True,
                             )
 
-                            # Ensure UI state is reset on error
+                            # Ensure UI state is reset on error via component state manager
                             def reset_ui_state():
-                                auth_manager._update_instagram_status("failed")
+                                auth_manager._reset_instagram_state()
                                 callback(False)
 
                             if parent_window and hasattr(parent_window, "after"):
@@ -306,74 +309,86 @@ class ApplicationOrchestrator:
                             f"[AUTH_MANAGER] Error showing error dialog: {dialog_error}"
                         )
 
-                    # Always reset UI state on exception
-                    self._update_instagram_status("failed")
-                    callback(False)
+                # Always reset UI state on exception via component state manager
+                self._reset_instagram_state()
+                callback(False)
 
             def _handle_auth_result(self, success: bool, callback):
                 """Handle authentication result and update UI."""
                 self._is_authenticated = success
 
-                # Update UI status
+                # Update UI status via component state manager (SINGLE SOURCE OF TRUTH)
                 if success:
-                    self._update_instagram_status("authenticated")
+                    self._set_instagram_authenticated()
                     logger.info("[AUTH_MANAGER] Instagram authentication successful")
                 else:
-                    self._update_instagram_status("failed")
+                    self._reset_instagram_state()
                     logger.warning("[AUTH_MANAGER] Instagram authentication failed")
 
                 # Call the callback
                 callback(success)
 
-            def _update_instagram_status(self, status: str):
-                """Update Instagram button status using UI state manager."""
+            def _set_instagram_logging_in(self):
+                """Set Instagram to logging in state via component state manager."""
                 try:
-                    # Use the new UI state manager for consistent UI updates
-                    if self.orchestrator.event_coordinator:
-                        status_messages = {
-                            "logging_in": "Logging in to Instagram...",
-                            "authenticated": "Instagram authenticated successfully",
-                            "failed": "Instagram authentication failed",
-                        }
-                        message = status_messages.get(
-                            status, f"Instagram status: {status}"
-                        )
-                        is_error = status == "failed"
-                        self.orchestrator.event_coordinator.update_status(
-                            message, is_error
-                        )
-
-                        # Also update the options bar if available
-                        options_bar = self.orchestrator.container.get("options_bar")
-                        if options_bar:
-                            from src.core.enums.instagram_auth_status import (
-                                InstagramAuthStatus,
-                            )
-
-                            status_map = {
-                                "logging_in": InstagramAuthStatus.LOGGING_IN,
-                                "authenticated": InstagramAuthStatus.AUTHENTICATED,
-                                "failed": InstagramAuthStatus.FAILED,
-                            }
-                            if status in status_map:
-                                options_bar.set_instagram_status(status_map[status])
+                    component_state = (
+                        self.orchestrator.event_coordinator.component_state
+                    )
+                    if component_state:
+                        component_state.set_instagram_logging_in()
+                        logger.info("[AUTH_MANAGER] Instagram state set to LOGGING_IN")
                     else:
-                        # Fallback to direct options bar update
-                        options_bar = self.orchestrator.container.get("options_bar")
-                        if options_bar:
-                            from src.core.enums.instagram_auth_status import (
-                                InstagramAuthStatus,
-                            )
-
-                            status_map = {
-                                "logging_in": InstagramAuthStatus.LOGGING_IN,
-                                "authenticated": InstagramAuthStatus.AUTHENTICATED,
-                                "failed": InstagramAuthStatus.FAILED,
-                            }
-                            if status in status_map:
-                                options_bar.set_instagram_status(status_map[status])
+                        logger.warning(
+                            "[AUTH_MANAGER] Component state manager not available"
+                        )
                 except Exception as e:
-                    logger.error(f"[AUTH_MANAGER] Error updating UI status: {e}")
+                    logger.error(
+                        f"[AUTH_MANAGER] Error setting Instagram logging in state: {e}"
+                    )
+
+            def _set_instagram_authenticated(self):
+                """Set Instagram to authenticated state via component state manager."""
+                try:
+                    component_state = (
+                        self.orchestrator.event_coordinator.component_state
+                    )
+                    if component_state:
+                        component_state.set_instagram_authenticated()
+                        logger.info(
+                            "[AUTH_MANAGER] Instagram state set to AUTHENTICATED"
+                        )
+
+                    # Also update status bar
+                    if self.orchestrator.event_coordinator:
+                        self.orchestrator.event_coordinator.update_status(
+                            "Instagram authenticated successfully", is_error=False
+                        )
+                except Exception as e:
+                    logger.error(
+                        f"[AUTH_MANAGER] Error setting Instagram authenticated state: {e}"
+                    )
+
+            def _reset_instagram_state(self):
+                """Reset Instagram to failed state via component state manager."""
+                try:
+                    component_state = (
+                        self.orchestrator.event_coordinator.component_state
+                    )
+                    if component_state:
+                        component_state.set_instagram_failed()
+                        logger.info("[AUTH_MANAGER] Instagram state reset to FAILED")
+                    else:
+                        logger.warning(
+                            "[AUTH_MANAGER] Component state manager not available"
+                        )
+
+                    # Also update status bar
+                    if self.orchestrator.event_coordinator:
+                        self.orchestrator.event_coordinator.update_status(
+                            "Instagram authentication failed", is_error=True
+                        )
+                except Exception as e:
+                    logger.error(f"[AUTH_MANAGER] Error resetting Instagram state: {e}")
 
             @property
             def is_authenticated(self):

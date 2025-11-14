@@ -12,10 +12,11 @@ logger = get_logger(__name__)
 class PlatformDialogCoordinator:
     """Coordinates platform-specific UI dialogs - delegates to platform handlers."""
 
-    def __init__(self, container, root_window):
+    def __init__(self, container, root_window, component_state_manager=None):
         """Initialize with service container and root window."""
         self.container = container
         self.root = root_window
+        self.component_state = component_state_manager
         self._cookie_handler = None
         self._auth_handler = None
 
@@ -299,52 +300,30 @@ class PlatformDialogCoordinator:
                     logger.info(
                         "[PLATFORM_DIALOG_COORDINATOR] Instagram authentication successful"
                     )
-                    # Update UI with success status
+                    # Update state via centralized state manager
+                    if self.component_state:
+                        self.component_state.set_instagram_authenticated()
+
+                    # Update status bar
                     event_coordinator = self.container.get("event_coordinator")
                     if event_coordinator:
                         event_coordinator.update_status(
                             "Instagram authenticated successfully", is_error=False
                         )
-
-                    # Update options bar status
-                    options_bar = self.container.get("options_bar")
-                    if options_bar:
-                        try:
-                            from src.core.enums.instagram_auth_status import (
-                                InstagramAuthStatus,
-                            )
-
-                            options_bar.set_instagram_status(
-                                InstagramAuthStatus.AUTHENTICATED
-                            )
-                        except Exception as e:
-                            logger.error(
-                                f"[PLATFORM_DIALOG_COORDINATOR] Error updating options bar: {e}"
-                            )
                 else:
                     logger.warning(
                         "[PLATFORM_DIALOG_COORDINATOR] Instagram authentication failed"
                     )
-                    # Update UI with failure status
+                    # Update state via centralized state manager (SINGLE SOURCE OF TRUTH)
+                    if self.component_state:
+                        self.component_state.set_instagram_failed()
+
+                    # Update status bar
                     event_coordinator = self.container.get("event_coordinator")
                     if event_coordinator:
                         event_coordinator.update_status(
                             "Instagram authentication failed", is_error=True
                         )
-
-                    # Update options bar status
-                    options_bar = self.container.get("options_bar")
-                    if options_bar:
-                        try:
-                            from src.core.enums.instagram_auth_status import (
-                                InstagramAuthStatus,
-                            )
-
-                            options_bar.set_instagram_status(InstagramAuthStatus.FAILED)
-                        except Exception as e:
-                            logger.error(
-                                f"[PLATFORM_DIALOG_COORDINATOR] Error updating options bar: {e}"
-                            )
 
                     # Show error dialog via message queue
                     error_text = (
@@ -364,6 +343,10 @@ class PlatformDialogCoordinator:
                 f"[PLATFORM_DIALOG_COORDINATOR] Error authenticating Instagram: {e}",
                 exc_info=True,
             )
+            # Reset state via centralized state manager
+            if self.component_state:
+                self.component_state.set_instagram_failed()
+
             # Show error dialog via message queue
             self._show_error_dialog(
                 "Instagram Authentication Error",
