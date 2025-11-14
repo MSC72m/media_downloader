@@ -49,6 +49,10 @@ class ComponentStateManager:
         self._status_bar = self.container.get("status_bar")
         logger.info("[COMPONENT_STATE_MANAGER] Components refreshed")
 
+        # CRITICAL: Immediately initialize ALL component states when components are registered
+        # This ensures no stale states persist from before components were loaded
+        self._initialize_all_component_states()
+
     # Instagram Auth State Management
     def set_instagram_auth_state(self, status: InstagramAuthStatus) -> None:
         """Set Instagram authentication state - SINGLE SOURCE OF TRUTH.
@@ -200,3 +204,51 @@ class ComponentStateManager:
         """Log all current states for debugging."""
         states = self.get_all_states()
         logger.info(f"[COMPONENT_STATE_MANAGER] Current states: {states}")
+
+    def _initialize_all_component_states(self) -> None:
+        """Initialize all component states to their default values.
+
+        Called when components are first registered to ensure clean initial state.
+        """
+        logger.info("[COMPONENT_STATE_MANAGER] Initializing all component states")
+
+        # Initialize Instagram button to FAILED (not logged in)
+        if self._options_bar:
+            try:
+                self._options_bar.set_instagram_status(InstagramAuthStatus.FAILED)
+                self._states[ComponentState.INSTAGRAM_AUTH] = InstagramAuthStatus.FAILED
+                logger.info(
+                    "[COMPONENT_STATE_MANAGER] Instagram button initialized to FAILED"
+                )
+            except Exception as e:
+                logger.error(
+                    f"[COMPONENT_STATE_MANAGER] Error initializing Instagram button: {e}"
+                )
+
+        # Initialize action buttons to enabled
+        if self._action_buttons:
+            try:
+                self._action_buttons.set_enabled(True)
+                self._states[ComponentState.BUTTONS_ENABLED] = True
+                logger.info(
+                    "[COMPONENT_STATE_MANAGER] Action buttons initialized to enabled"
+                )
+            except Exception as e:
+                logger.error(
+                    f"[COMPONENT_STATE_MANAGER] Error initializing action buttons: {e}"
+                )
+
+        # Initialize status bar with ready message
+        if self._status_bar:
+            try:
+                self._status_bar.show_message("Initializing...")
+                self._states[ComponentState.NETWORK_STATUS] = "initializing"
+                logger.info("[COMPONENT_STATE_MANAGER] Status bar initialized")
+            except Exception as e:
+                logger.error(
+                    f"[COMPONENT_STATE_MANAGER] Error initializing status bar: {e}"
+                )
+
+        # Set download_in_progress to False
+        self._states[ComponentState.DOWNLOAD_IN_PROGRESS] = False
+        logger.info("[COMPONENT_STATE_MANAGER] All component states initialized")

@@ -293,8 +293,8 @@ class PlatformDialogCoordinator:
 
         if not self._auth_handler:
             logger.error("[PLATFORM_DIALOG_COORDINATOR] Auth handler not available")
-            if self.component_state:
-                self.component_state.set_instagram_failed()
+            # Failsafe: Reset button state directly if component_state not available
+            self._reset_instagram_button_state()
             return
 
         # Set to logging in state BEFORE calling auth
@@ -303,6 +303,12 @@ class PlatformDialogCoordinator:
             logger.info(
                 "[PLATFORM_DIALOG_COORDINATOR] Instagram state set to LOGGING_IN"
             )
+        else:
+            # Failsafe: Set state directly on options_bar if component_state not ready
+            logger.warning(
+                "[PLATFORM_DIALOG_COORDINATOR] Component state not available, setting directly on options_bar"
+            )
+            self._set_instagram_button_direct(InstagramAuthStatus.LOGGING_IN)
 
         try:
 
@@ -319,6 +325,11 @@ class PlatformDialogCoordinator:
                         logger.info(
                             "[PLATFORM_DIALOG_COORDINATOR] State set to AUTHENTICATED"
                         )
+                    else:
+                        # Failsafe: Set directly if component_state not available
+                        self._set_instagram_button_direct(
+                            InstagramAuthStatus.AUTHENTICATED
+                        )
 
                     event_coordinator = self.container.get("event_coordinator")
                     if event_coordinator:
@@ -330,6 +341,9 @@ class PlatformDialogCoordinator:
                     if self.component_state:
                         self.component_state.set_instagram_failed()
                         logger.info("[PLATFORM_DIALOG_COORDINATOR] State set to FAILED")
+                    else:
+                        # Failsafe: Reset directly if component_state not available
+                        self._reset_instagram_button_state()
 
                     event_coordinator = self.container.get("event_coordinator")
                     if event_coordinator:
@@ -358,6 +372,9 @@ class PlatformDialogCoordinator:
                 logger.info(
                     "[PLATFORM_DIALOG_COORDINATOR] State reset to FAILED after exception"
                 )
+            else:
+                # Failsafe: Reset directly if component_state not available
+                self._reset_instagram_button_state()
 
             self._show_error_dialog(
                 "Instagram Authentication Error",
@@ -369,6 +386,38 @@ class PlatformDialogCoordinator:
                 event_coordinator.update_status(
                     "Instagram authentication error", is_error=True
                 )
+
+    def _reset_instagram_button_state(self) -> None:
+        """Failsafe method to reset Instagram button directly when component_state not available."""
+        try:
+            from src.core.enums.instagram_auth_status import InstagramAuthStatus
+
+            options_bar = self.container.get("options_bar")
+            if options_bar:
+                options_bar.set_instagram_status(InstagramAuthStatus.FAILED)
+                logger.info(
+                    "[PLATFORM_DIALOG_COORDINATOR] Instagram button reset directly to FAILED"
+                )
+            else:
+                logger.error(
+                    "[PLATFORM_DIALOG_COORDINATOR] Options bar not available for reset"
+                )
+        except Exception as e:
+            logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error resetting button: {e}")
+
+    def _set_instagram_button_direct(self, status) -> None:
+        """Failsafe method to set Instagram button state directly when component_state not available."""
+        try:
+            options_bar = self.container.get("options_bar")
+            if options_bar:
+                options_bar.set_instagram_status(status)
+                logger.info(
+                    f"[PLATFORM_DIALOG_COORDINATOR] Instagram button set directly to {status}"
+                )
+            else:
+                logger.error("[PLATFORM_DIALOG_COORDINATOR] Options bar not available")
+        except Exception as e:
+            logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error setting button: {e}")
 
     def _show_error_dialog(self, title: str, message: str) -> None:
         """Show error dialog via message queue."""
