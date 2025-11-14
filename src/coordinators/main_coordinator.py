@@ -92,9 +92,7 @@ class EventCoordinator:
             message_queue = self.container.get("message_queue")
             if message_queue:
                 error_message = Message(
-                    text=message,
-                    level=MessageLevel.ERROR,
-                    title=title
+                    text=message, level=MessageLevel.ERROR, title=title
                 )
                 message_queue.add_message(error_message)
             else:
@@ -123,6 +121,7 @@ class EventCoordinator:
             "twitter": self.platform_dialogs.show_twitter_dialog,
             "instagram": self.platform_dialogs.show_instagram_dialog,
             "pinterest": self.platform_dialogs.show_pinterest_dialog,
+            "soundcloud": self.platform_dialogs.show_soundcloud_dialog,
             "generic": self.platform_dialogs.generic_download,
         }
         dialog_method = platform_map.get(platform)
@@ -150,6 +149,9 @@ class EventCoordinator:
 
     def pinterest_download(self, url: str, **kwargs) -> None:
         self.platform_download("pinterest", url)
+
+    def soundcloud_download(self, url: str, **kwargs) -> None:
+        self.platform_download("soundcloud", url)
 
     def generic_download(self, url: str, name: Optional[str] = None) -> None:
         self.platform_download("generic", url, name)

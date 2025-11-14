@@ -228,8 +228,25 @@ class DownloadHandler:
                     f"video_only={getattr(download, 'video_only', False)}, "
                     f"format={getattr(download, 'format', 'video')}"
                 )
+            elif service_type == ServiceType.SOUNDCLOUD:
+                # Create SoundCloud downloader with download-specific options
+                from src.services.soundcloud.downloader import SoundCloudDownloader
+
+                downloader = SoundCloudDownloader(
+                    audio_format=getattr(download, "audio_format", "mp3"),
+                    audio_quality=getattr(download, "audio_quality", "best"),
+                    download_playlist=getattr(download, "download_playlist", False),
+                    embed_metadata=getattr(download, "embed_metadata", True),
+                    download_thumbnail=getattr(download, "download_thumbnail", True),
+                    speed_limit=getattr(download, "speed_limit", None),
+                    retries=getattr(download, "retries", 3),
+                )
+                logger.info(
+                    f"[DOWNLOAD_HANDLER] Created SoundCloudDownloader with audio_format={getattr(download, 'audio_format', 'mp3')}, "
+                    f"audio_quality={getattr(download, 'audio_quality', 'best')}"
+                )
             else:
-                # Fallback to factory's default downloader
+                # Fallback to factory's default downloader for other services
                 downloader = service_factory.get_downloader(download.url)
 
                 if not downloader:

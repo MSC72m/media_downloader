@@ -50,11 +50,16 @@ class DownloadCoordinator:
         self.ui_state.update_status(f"Download completed: {download.name}")
 
     def _on_failed_event(self, download: Download, error: str) -> None:
-        """Handle failure event - update UI."""
+        """Handle failure event - update UI and show error dialog."""
         logger.error(f"[DOWNLOAD_COORDINATOR] Failed: {download.name} - {error}")
         self.ui_state.refresh_download_list()
         self.ui_state.enable_action_buttons()
         self.ui_state.show_error(error or "Download failed")
+
+        # Show error dialog via message queue
+        self._show_error_dialog(
+            "Download Failed", error or f"Failed to download: {download.name}"
+        )
 
     # Download Management - All delegate to download_handler
     def add_download(self, download: Download) -> bool:
@@ -89,7 +94,9 @@ class DownloadCoordinator:
             logger.error(
                 f"[DOWNLOAD_COORDINATOR] Failed to add download: {e}", exc_info=True
             )
-            self.ui_state.show_error(f"Failed to add download: {str(e)}")
+            error_msg = f"Failed to add download: {str(e)}"
+            self.ui_state.show_error(error_msg)
+            self._show_error_dialog("Add Download Failed", error_msg)
             return False
 
     def remove_downloads(self, indices: List[int]) -> bool:
@@ -113,7 +120,9 @@ class DownloadCoordinator:
             logger.error(
                 f"[DOWNLOAD_COORDINATOR] Failed to remove downloads: {e}", exc_info=True
             )
-            self.ui_state.show_error(f"Failed to remove downloads: {str(e)}")
+            error_msg = f"Failed to remove downloads: {str(e)}"
+            self.ui_state.show_error(error_msg)
+            self._show_error_dialog("Remove Downloads Failed", error_msg)
             return False
 
     def clear_downloads(self) -> bool:
@@ -137,7 +146,9 @@ class DownloadCoordinator:
             logger.error(
                 f"[DOWNLOAD_COORDINATOR] Failed to clear downloads: {e}", exc_info=True
             )
-            self.ui_state.show_error(f"Failed to clear downloads: {str(e)}")
+            error_msg = f"Failed to clear downloads: {str(e)}"
+            self.ui_state.show_error(error_msg)
+            self._show_error_dialog("Clear Downloads Failed", error_msg)
             return False
 
     def clear_completed_downloads(self) -> int:
@@ -153,7 +164,9 @@ class DownloadCoordinator:
             logger.error(
                 f"[DOWNLOAD_COORDINATOR] Failed to clear completed: {e}", exc_info=True
             )
-            self.ui_state.show_error(f"Failed to clear completed downloads: {str(e)}")
+            error_msg = f"Failed to clear completed downloads: {str(e)}"
+            self.ui_state.show_error(error_msg)
+            self._show_error_dialog("Clear Completed Failed", error_msg)
             return 0
 
     def _auto_clear_completed_downloads(self) -> int:
@@ -223,7 +236,9 @@ class DownloadCoordinator:
             logger.error(
                 f"[DOWNLOAD_COORDINATOR] Failed to start downloads: {e}", exc_info=True
             )
-            self.ui_state.show_error(f"Failed to start downloads: {str(e)}")
+            error_msg = f"Failed to start downloads: {str(e)}"
+            self.ui_state.show_error(error_msg)
+            self._show_error_dialog("Start Downloads Failed", error_msg)
             self.ui_state.enable_action_buttons()
             return False
 
@@ -245,3 +260,24 @@ class DownloadCoordinator:
         if not self._download_handler:
             return []
         return self._download_handler.get_downloads()
+
+    def _show_error_dialog(self, title: str, message: str) -> None:
+        """Show error dialog via message queue."""
+        try:
+            from src.core.enums.message_level import MessageLevel
+            from src.services.events.queue import Message
+
+            message_queue = self.container.get("message_queue")
+            if message_queue:
+                error_message = Message(
+                    text=message, level=MessageLevel.ERROR, title=title
+                )
+                message_queue.add_message(error_message)
+                logger.debug(f"[DOWNLOAD_COORDINATOR] Error dialog queued: {title}")
+            else:
+                logger.warning("[DOWNLOAD_COORDINATOR] Message queue not available")
+        except Exception as e:
+            logger.error(
+                f"[DOWNLOAD_COORDINATOR] Failed to show error dialog: {e}",
+                exc_info=True,
+            )

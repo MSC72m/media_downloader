@@ -73,6 +73,10 @@ class PlatformDialogCoordinator:
                             f"[PLATFORM_DIALOG_COORDINATOR] Failed to create YouTube dialog: {e}",
                             exc_info=True,
                         )
+                        self._show_error_dialog(
+                            "YouTube Dialog Error",
+                            f"Failed to create YouTube dialog: {str(e)}",
+                        )
 
                 if hasattr(self.root, "after"):
                     self.root.after(0, create_youtube_dialog)
@@ -91,6 +95,10 @@ class PlatformDialogCoordinator:
                         f"[PLATFORM_DIALOG_COORDINATOR] Failed to create cookie dialog: {e}",
                         exc_info=True,
                     )
+                    self._show_error_dialog(
+                        "Cookie Dialog Error",
+                        f"Failed to show cookie selector: {str(e)}",
+                    )
                     # Fallback: show YouTube dialog without cookies
                     on_cookie_selected(None, None)
 
@@ -103,6 +111,9 @@ class PlatformDialogCoordinator:
             logger.error(
                 f"[PLATFORM_DIALOG_COORDINATOR] Error showing YouTube dialog: {e}",
                 exc_info=True,
+            )
+            self._show_error_dialog(
+                "YouTube Error", f"Failed to show YouTube dialog: {str(e)}"
             )
 
     # Twitter Dialog
@@ -163,6 +174,66 @@ class PlatformDialogCoordinator:
         )
         on_download_callback(download)
 
+    # SoundCloud Dialog
+    def show_soundcloud_dialog(self, url: str, on_download_callback) -> None:
+        """Show SoundCloud download dialog - uses soundcloud_handler."""
+        logger.info(
+            f"[PLATFORM_DIALOG_COORDINATOR] Showing SoundCloud dialog for: {url}"
+        )
+
+        try:
+            # For now, use simple generic download
+            # TODO: Create dedicated SoundCloud dialog with audio quality options
+            from src.services.soundcloud.downloader import SoundCloudDownloader
+
+            # Get track info for better naming
+            downloader = SoundCloudDownloader()
+            info = downloader.get_info(url)
+
+            if info:
+                # Create download with proper name
+                track_name = (
+                    f"{info.get('artist', 'Unknown')} - {info.get('title', 'Unknown')}"
+                )
+                download = Download(
+                    url=url,
+                    name=track_name,
+                    service_type="soundcloud",
+                )
+                logger.info(
+                    f"[PLATFORM_DIALOG_COORDINATOR] SoundCloud track info retrieved: {track_name}"
+                )
+            else:
+                # Fallback if info retrieval fails
+                download = Download(
+                    url=url,
+                    name=os.path.basename(url) or "soundcloud_download",
+                    service_type="soundcloud",
+                )
+                logger.warning(
+                    "[PLATFORM_DIALOG_COORDINATOR] Could not retrieve SoundCloud track info"
+                )
+
+            on_download_callback(download)
+            logger.info("[PLATFORM_DIALOG_COORDINATOR] SoundCloud download added")
+
+        except Exception as e:
+            logger.error(
+                f"[PLATFORM_DIALOG_COORDINATOR] Error showing SoundCloud dialog: {e}",
+                exc_info=True,
+            )
+            # Show error dialog via message queue
+            self._show_error_dialog(
+                "SoundCloud Error", f"Failed to process SoundCloud URL: {str(e)}"
+            )
+            # Fallback to generic download
+            download = Download(
+                url=url,
+                name=os.path.basename(url) or "soundcloud_download",
+                service_type="soundcloud",
+            )
+            on_download_callback(download)
+
     # Generic Download
     def generic_download(
         self, url: str, name: Optional[str], on_download_callback
@@ -199,7 +270,7 @@ class PlatformDialogCoordinator:
 
         try:
 
-            def on_auth_complete(success: bool):
+            def on_auth_complete(success: bool, error_message: str = None):
                 """Handle authentication completion with UI updates."""
                 if success:
                     logger.info(
@@ -208,16 +279,25 @@ class PlatformDialogCoordinator:
                     # Update UI with success status
                     event_coordinator = self.container.get("event_coordinator")
                     if event_coordinator:
-                        event_coordinator.update_status("Instagram authenticated successfully", is_error=False)
+                        event_coordinator.update_status(
+                            "Instagram authenticated successfully", is_error=False
+                        )
 
                     # Update options bar status
                     options_bar = self.container.get("options_bar")
                     if options_bar:
                         try:
-                            from src.core.enums.instagram_auth_status import InstagramAuthStatus
-                            options_bar.set_instagram_status(InstagramAuthStatus.AUTHENTICATED)
+                            from src.core.enums.instagram_auth_status import (
+                                InstagramAuthStatus,
+                            )
+
+                            options_bar.set_instagram_status(
+                                InstagramAuthStatus.AUTHENTICATED
+                            )
                         except Exception as e:
-                            logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error updating options bar: {e}")
+                            logger.error(
+                                f"[PLATFORM_DIALOG_COORDINATOR] Error updating options bar: {e}"
+                            )
                 else:
                     logger.warning(
                         "[PLATFORM_DIALOG_COORDINATOR] Instagram authentication failed"
@@ -225,16 +305,32 @@ class PlatformDialogCoordinator:
                     # Update UI with failure status
                     event_coordinator = self.container.get("event_coordinator")
                     if event_coordinator:
-                        event_coordinator.update_status("Instagram authentication failed", is_error=True)
+                        event_coordinator.update_status(
+                            "Instagram authentication failed", is_error=True
+                        )
 
                     # Update options bar status
                     options_bar = self.container.get("options_bar")
                     if options_bar:
                         try:
-                            from src.core.enums.instagram_auth_status import InstagramAuthStatus
+                            from src.core.enums.instagram_auth_status import (
+                                InstagramAuthStatus,
+                            )
+
                             options_bar.set_instagram_status(InstagramAuthStatus.FAILED)
                         except Exception as e:
-                            logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error updating options bar: {e}")
+                            logger.error(
+                                f"[PLATFORM_DIALOG_COORDINATOR] Error updating options bar: {e}"
+                            )
+
+                    # Show error dialog via message queue
+                    error_text = (
+                        error_message
+                        or "Instagram authentication failed. Please check your credentials."
+                    )
+                    self._show_error_dialog(
+                        "Instagram Authentication Failed", error_text
+                    )
 
             self._auth_handler.authenticate_instagram(
                 parent_window or self.root, on_auth_complete
@@ -245,7 +341,39 @@ class PlatformDialogCoordinator:
                 f"[PLATFORM_DIALOG_COORDINATOR] Error authenticating Instagram: {e}",
                 exc_info=True,
             )
+            # Show error dialog via message queue
+            self._show_error_dialog(
+                "Instagram Authentication Error",
+                f"An error occurred during authentication: {str(e)}",
+            )
             # Update UI with error status
             event_coordinator = self.container.get("event_coordinator")
             if event_coordinator:
-                event_coordinator.update_status("Instagram authentication error", is_error=True)
+                event_coordinator.update_status(
+                    "Instagram authentication error", is_error=True
+                )
+
+    def _show_error_dialog(self, title: str, message: str) -> None:
+        """Show error dialog via message queue."""
+        try:
+            from src.core.enums.message_level import MessageLevel
+            from src.services.events.queue import Message
+
+            message_queue = self.container.get("message_queue")
+            if message_queue:
+                error_message = Message(
+                    text=message, level=MessageLevel.ERROR, title=title
+                )
+                message_queue.add_message(error_message)
+                logger.debug(
+                    f"[PLATFORM_DIALOG_COORDINATOR] Error dialog queued: {title}"
+                )
+            else:
+                logger.warning(
+                    "[PLATFORM_DIALOG_COORDINATOR] Message queue not available"
+                )
+        except Exception as e:
+            logger.error(
+                f"[PLATFORM_DIALOG_COORDINATOR] Failed to show error dialog: {e}",
+                exc_info=True,
+            )
