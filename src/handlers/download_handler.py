@@ -170,25 +170,25 @@ class DownloadHandler:
                                 "Chrome": BrowserType.CHROME,
                                 "Firefox": BrowserType.FIREFOX,
                                 "Safari": BrowserType.SAFARI,
-                                "Edge": BrowserType.EDGE,
                             }
                             browser_type = browser_map.get(download.selected_browser)
-                            if browser_type:
-                                cookie_path = cookie_manager.detect_cookies_for_browser(
-                                    browser_type
-                                )
-                                if cookie_path:
-                                    logger.info(
-                                        f"[DOWNLOAD_HANDLER] Detected cookies at: {cookie_path}"
-                                    )
-                                    # Cookies are automatically set in cookie_manager by detect_cookies_for_browser
-                                else:
-                                    logger.warning(
-                                        f"[DOWNLOAD_HANDLER] Could not detect cookies for {download.selected_browser}"
-                                    )
-                            else:
+
+                            if not browser_type:
                                 logger.warning(
                                     f"[DOWNLOAD_HANDLER] Unknown browser type: {download.selected_browser}"
+                                )
+                            elif (
+                                cookie_path
+                                := cookie_manager.detect_cookies_for_browser(
+                                    browser_type
+                                )
+                            ):
+                                logger.info(
+                                    f"[DOWNLOAD_HANDLER] Detected cookies at: {cookie_path}"
+                                )
+                            else:
+                                logger.warning(
+                                    f"[DOWNLOAD_HANDLER] Could not detect cookies for {download.selected_browser}"
                                 )
                         except Exception as e:
                             logger.error(
@@ -220,6 +220,7 @@ class DownloadHandler:
             else:
                 # Fallback to factory's default downloader
                 downloader = service_factory.get_downloader(download.url)
+
                 if not downloader:
                     self._handle_download_failure(
                         download,
@@ -249,7 +250,7 @@ class DownloadHandler:
                 f"[DOWNLOAD_HANDLER] Download completed with success: {success}"
             )
 
-            # Handle result
+            # Handle result with early return
             if not success:
                 self._handle_download_failure(
                     download,
@@ -372,12 +373,9 @@ class DownloadHandler:
             active_threads.append(thread)
 
             # Concurrency control
-            if len(active_threads) >= max_concurrent:
-                for j, active_thread in enumerate(active_threads):
-                    if not active_thread.is_alive():
-                        active_threads.pop(j)
-                        break
-                else:
+            while len(active_threads) >= max_concurrent:
+                active_threads = [t for t in active_threads if t.is_alive()]
+                if len(active_threads) >= max_concurrent:
                     time.sleep(0.1)
 
     def _prepare_download_path(self, download: Download, download_dir: str) -> str:
@@ -393,17 +391,19 @@ class DownloadHandler:
         # Get file service with fallback
         file_service = self.container.get("file_service")
 
-        if file_service:
-            base_name = file_service.sanitize_filename(download.name or "download")
-        else:
-            # Fallback sanitization if file_service not available
+        if not file_service:
             logger.warning(
                 "[DOWNLOAD_HANDLER] file_service not available, using fallback sanitization"
             )
             base_name = download.name or "download"
-            # Remove invalid filename characters
             base_name = re.sub(r'[<>:"/\\|?*]', "_", base_name)
-            base_name = base_name.strip()[:200]  # Limit length
+            base_name = base_name.strip()[:200]
+            ext = ".mp3" if getattr(download, "audio_only", False) else ".mp4"
+            output_path = str(target_dir / f"{base_name}{ext}")
+            logger.info(f"[DOWNLOAD_HANDLER] Output path: {output_path}")
+            return output_path
+
+        base_name = file_service.sanitize_filename(download.name or "download")
 
         ext = ".mp3" if getattr(download, "audio_only", False) else ".mp4"
         output_path = str(target_dir / f"{base_name}{ext}")
@@ -413,12 +413,14 @@ class DownloadHandler:
 
     def _create_progress_wrapper(self, download: Download, progress_callback):
         """Create a progress wrapper function for the download."""
+        if not progress_callback:
+            return None
 
         def progress_wrapper(progress, speed):
             logger.info(
                 f"[DOWNLOAD_HANDLER] Progress: {download.name} - {progress:.1f}% - {speed:.2f} bytes/s"
             )
-            self._invoke_progress_callback(progress_callback, download, int(progress))
+            progress_callback(download, int(progress))
 
         return progress_wrapper
 
@@ -438,19 +440,14 @@ class DownloadHandler:
         download.mark_failed(message)
         self._invoke_completion_callback(completion_callback, False, message)
 
-    def _invoke_progress_callback(
-        self, callback, download: Download, progress: int
-    ) -> None:
-        """Safely invoke progress callback if available."""
-        if callback:
-            callback(download, progress)
-
     def _invoke_completion_callback(
         self, callback, success: bool, message: str
     ) -> None:
         """Safely invoke completion callback if available."""
-        if callback:
-            callback(success, message)
+        if not callback:
+            return
+
+        callback(success, message)
 
     def has_active_downloads(self) -> bool:
         """Check if there are active downloads."""

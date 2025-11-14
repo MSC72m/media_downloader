@@ -1,12 +1,16 @@
 """Core models - requires pydantic (no fallbacks)."""
 
-from typing import Optional, List, Dict
 from datetime import datetime
 from enum import StrEnum
+from typing import TYPE_CHECKING, Dict, List, Optional
+
 from pydantic import BaseModel, Field
 
 from .enums.download_status import DownloadStatus
 from .enums.service_type import ServiceType
+
+if TYPE_CHECKING:
+    from src.services.events.event_bus import DownloadEventBus
 
 
 class Download(BaseModel):
@@ -38,31 +42,64 @@ class Download(BaseModel):
     retries: int = Field(default=3)
     concurrent_downloads: int = Field(default=1)
 
+    # Event bus for state changes
+    _event_bus: Optional["DownloadEventBus"] = None
+
+    model_config = {"arbitrary_types_allowed": True}
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-
-        # Validate URL
-        if hasattr(self, 'url') and self.url:
+        if hasattr(self, "url") and self.url:
             self._validate_url(self.url)
+
+    def set_event_bus(self, event_bus: "DownloadEventBus") -> None:
+        """Set the event bus for this download."""
+        self._event_bus = event_bus
 
     def _validate_url(self, v):
         """Validate URL format."""
-        if not v.startswith(('http://', 'https://')):
+        if not v.startswith(("http://", "https://")):
             raise ValueError("URL must start with http:// or https://")
 
     def update_progress(self, progress: float, speed: float):
         """Update download progress and speed."""
+        from src.utils.logger import get_logger
+
+        logger = get_logger(__name__)
+
         self.progress = progress
         self.speed = speed
+
+        if not self._event_bus:
+            logger.warning(f"[DOWNLOAD] {self.name} - NO EVENT BUS ATTACHED")
+            return
+
+        logger.info(f"[DOWNLOAD] {self.name} - Publishing progress: {progress}%")
+
+        from src.services.events.event_bus import DownloadEvent
+
+        self._event_bus.publish(
+            DownloadEvent.PROGRESS, download=self, progress=progress, speed=speed
+        )
+
         if progress >= 100:
+            logger.info(f"[DOWNLOAD] {self.name} - Publishing completion")
             self.status = DownloadStatus.COMPLETED
             self.completed_at = datetime.now()
+            self._event_bus.publish(DownloadEvent.COMPLETED, download=self)
 
     def mark_failed(self, error_message: str):
         """Mark download as failed with error message."""
         self.status = DownloadStatus.FAILED
         self.error_message = error_message
         self.completed_at = datetime.now()
+
+        if self._event_bus:
+            from src.services.events.event_bus import DownloadEvent
+
+            self._event_bus.publish(
+                DownloadEvent.FAILED, download=self, error=error_message
+            )
 
 
 class DownloadOptions(BaseModel):
@@ -92,6 +129,7 @@ class AuthState(BaseModel):
 
 class ButtonState(StrEnum):
     """Button state enumeration."""
+
     REMOVE = "remove"
     CLEAR = "clear"
     DOWNLOAD = "download"

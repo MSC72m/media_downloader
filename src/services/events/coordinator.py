@@ -1,12 +1,10 @@
 import os
-import tkinter as tk
-from tkinter import TclError, messagebox
+from tkinter import messagebox
 from typing import Any, Callable, Dict, List, Optional
 
 import customtkinter as ctk
 
-from src.core.enums import DownloadStatus
-from src.core.models import Download, ServiceType
+from src.core.models import Download, DownloadStatus, ServiceType
 from src.interfaces.event_handlers import (
     AuthenticationHandler,
     ConfigurationHandler,
@@ -17,6 +15,7 @@ from src.interfaces.event_handlers import (
     URLDetectionHandler,
     YouTubeSpecificHandler,
 )
+from src.services.events.event_bus import DownloadEvent, DownloadEventBus
 from src.ui.dialogs.file_manager_dialog import FileManagerDialog
 from src.ui.dialogs.network_status_dialog import NetworkStatusDialog
 from src.utils.logger import get_logger
@@ -43,9 +42,9 @@ class EventCoordinator(
         self.root = root_window
         self.container = container
         self.link_detector = LinkDetector()
-        self._active_downloads = {}  # Track active downloads {name: Download}
+        self.event_bus = DownloadEventBus(root_window)
         self._setup_handlers()
-        self._start_ui_update_timer()
+        self._setup_event_subscriptions()
 
     def _setup_handlers(self):
         """Setup internal handlers and services."""
@@ -82,6 +81,54 @@ class EventCoordinator(
         self._setup_handlers()
         logger.info("[EVENT_COORDINATOR] refresh_handlers completed")
 
+    def _setup_event_subscriptions(self) -> None:
+        """Subscribe to download events."""
+        self.event_bus.subscribe(DownloadEvent.PROGRESS, self._on_progress_event)
+        self.event_bus.subscribe(DownloadEvent.COMPLETED, self._on_completed_event)
+        self.event_bus.subscribe(DownloadEvent.FAILED, self._on_failed_event)
+        logger.info("[EVENT_COORDINATOR] Event subscriptions setup complete")
+
+    def _on_progress_event(
+        self, download: Download, progress: float, speed: float
+    ) -> None:
+        """Handle progress event on main thread."""
+        logger.debug(
+            f"[EVENT_COORDINATOR] Progress event: {download.name} - {progress}%"
+        )
+
+        if not self.download_list:
+            return
+
+        self.download_list.update_item_progress(download, progress)
+        if self.status_bar:
+            self.status_bar.show_message(
+                f"Downloading {download.name}: {progress:.1f}%"
+            )
+
+    def _on_completed_event(self, download: Download) -> None:
+        """Handle completion event on main thread."""
+        logger.info(f"[EVENT_COORDINATOR] Completion event: {download.name}")
+
+        if self.download_list:
+            downloads = self.download_list.get_downloads()
+            self.download_list.refresh_items(downloads)
+        if self.action_buttons:
+            self.action_buttons.set_enabled(True)
+        if self.status_bar:
+            self.status_bar.show_message("Download completed!")
+
+    def _on_failed_event(self, download: Download, error: str) -> None:
+        """Handle failure event on main thread."""
+        logger.info(f"[EVENT_COORDINATOR] Failure event: {download.name} - {error}")
+
+        if self.download_list:
+            downloads = self.download_list.get_downloads()
+            self.download_list.refresh_items(downloads)
+        if self.action_buttons:
+            self.action_buttons.set_enabled(True)
+        if self.status_bar:
+            self.status_bar.show_error(error or "Download failed")
+
     # URLDetectionHandler implementation
     def detect_url_type(self, url: str) -> Optional[str]:
         """Detect the type of URL - delegated to link detection system."""
@@ -108,6 +155,7 @@ class EventCoordinator(
             return False
         try:
             logger.info("[EVENT_COORDINATOR] Adding download to download_list")
+            download.set_event_bus(self.event_bus)
             self.download_list.add_download(download)
             self.update_status(f"Download added: {download.name}")
             return True
@@ -165,9 +213,7 @@ class EventCoordinator(
                     f"[EVENT_COORDINATOR] Got {len(downloads)} downloads: {downloads}"
                 )
 
-                # Update each download status to "Downloading" before starting
-                from src.core.models import DownloadStatus
-
+                # Set initial status
                 for download in downloads:
                     download.status = DownloadStatus.DOWNLOADING
                     download.progress = 0.0
@@ -176,75 +222,21 @@ class EventCoordinator(
                 if self.download_list:
                     self.download_list.refresh_items(downloads)
 
-                # Define callbacks for UI feedback (THREAD-SAFE)
-                def on_progress(download, progress):
-                    """Called from worker thread - schedule UI update on main thread."""
-                    try:
-                        logger.info(
-                            f"[EVENT_COORDINATOR] Progress callback RECEIVED: {download.name} - {progress}%"
-                        )
-
-                        # Early return: validate inputs
-                        if not download or not isinstance(progress, (int, float)):
-                            logger.warning(
-                                f"[EVENT_COORDINATOR] Invalid progress data: download={download}, progress={progress}"
-                            )
-                            return
-
-                        # Update model state immediately (thread-safe)
-                        download.progress = progress
-                        download.status = DownloadStatus.DOWNLOADING
-
-                        # Track active download
-                        self._active_downloads[download.name] = download
-
-                        logger.info(
-                            f"[EVENT_COORDINATOR] Progress stored for {download.name}: {progress}%"
-                        )
-
-                    except Exception as e:
-                        logger.error(
-                            f"[EVENT_COORDINATOR] Error in progress callback: {e}",
-                            exc_info=True,
-                        )
-
-                def on_completion(success, message):
-                    """Called from worker thread - schedule completion on main thread."""
-                    try:
-                        logger.info(
-                            f"[EVENT_COORDINATOR] Completion callback: success={success}, message={message}"
-                        )
-
-                        # Early return: validate inputs
-                        if not isinstance(success, bool) or not isinstance(
-                            message, str
-                        ):
-                            logger.warning(
-                                f"[EVENT_COORDINATOR] Invalid completion data: success={type(success)}, message={type(message)}"
-                            )
-                            return
-
-                        # Mark completion
-                        logger.info(
-                            f"[EVENT_COORDINATOR] Completion stored: success={success}, message={message}"
-                        )
-
-                    except Exception as e:
-                        logger.error(
-                            f"[EVENT_COORDINATOR] Unexpected error in completion callback: {e}",
-                            exc_info=True,
-                        )
+                # Define callbacks - update download state, event bus handles UI
+                def on_progress(download: Download, progress: float) -> None:
+                    """Called from worker thread - update model via event bus."""
+                    download.update_progress(progress, 0)
 
                 # Disable buttons during download
-                if self.action_buttons:
+                if not self.action_buttons:
+                    logger.warning(
+                        "[EVENT_COORDINATOR] action_buttons is None, cannot disable buttons"
+                    )
+                else:
                     logger.info(
                         "[EVENT_COORDINATOR] Disabling action buttons during download"
                     )
                     self.action_buttons.set_enabled(False)
-                else:
-                    logger.warning(
-                        "[EVENT_COORDINATOR] action_buttons is None, cannot disable buttons"
-                    )
 
                 # Start downloads with callbacks using download handler directly
                 logger.info(
@@ -257,7 +249,7 @@ class EventCoordinator(
                     return False
 
                 download_handler.start_downloads(
-                    downloads, self.get_download_directory(), on_progress, on_completion
+                    downloads, self.get_download_directory(), on_progress
                 )
                 logger.info(
                     "[EVENT_COORDINATOR] download_handler.start_downloads called successfully"
@@ -288,8 +280,9 @@ class EventCoordinator(
 
         if is_error:
             self.status_bar.show_error(message)
-        else:
-            self.status_bar.show_message(message)
+            return
+
+        self.status_bar.show_message(message)
 
     def update_progress(self, download: Download, progress: float) -> None:
         """Update download progress (DEPRECATED - use _update_progress_ui for thread-safe updates)."""
@@ -653,49 +646,3 @@ class EventCoordinator(
         """Show YouTube download dialog - delegated to handler system."""
         # This is handled by the new link detection system
         self.update_status("YouTube dialog handled by link detection system")
-
-    def _start_ui_update_timer(self):
-        """Start periodic timer to update UI from main thread."""
-
-        def update_ui():
-            try:
-                # Update progress for all active downloads
-                for name, download in list(self._active_downloads.items()):
-                    if download.status == DownloadStatus.DOWNLOADING:
-                        if self.download_list:
-                            self.download_list.update_item_progress(
-                                download, download.progress
-                            )
-                        if self.status_bar:
-                            self.status_bar.show_message(
-                                f"Downloading {download.name}: {download.progress:.1f}%"
-                            )
-                    elif download.status in [
-                        DownloadStatus.COMPLETED,
-                        DownloadStatus.FAILED,
-                    ]:
-                        # Remove from active downloads
-                        self._active_downloads.pop(name, None)
-                        # Refresh list and re-enable buttons
-                        if self.download_list:
-                            downloads = self.download_list.get_downloads()
-                            self.download_list.refresh_items(downloads)
-                        if self.action_buttons:
-                            self.action_buttons.set_enabled(True)
-                        if self.status_bar:
-                            if download.status == DownloadStatus.COMPLETED:
-                                self.status_bar.show_message("Download completed!")
-                            else:
-                                self.status_bar.show_error(
-                                    download.error_message or "Download failed"
-                                )
-            except Exception as e:
-                logger.error(
-                    f"[EVENT_COORDINATOR] Error in UI update timer: {e}", exc_info=True
-                )
-            finally:
-                # Schedule next update
-                self.root.after(100, update_ui)
-
-        # Start the timer
-        self.root.after(100, update_ui)

@@ -133,29 +133,27 @@ class YouTubeDownloader(BaseDownloader):
                     }
                 ]
             else:
-                # Use smart format selection that won't cause format errors
-                if self.quality == "highest":
-                    opts["format"] = "best"
-                elif self.quality == "lowest":
-                    opts["format"] = "worst"
+                # Use dictionary-based format selection
+                format_map = {
+                    "highest": "best",
+                    "lowest": "worst",
+                }
+
+                if self.quality in format_map:
+                    opts["format"] = format_map[self.quality]
                 elif self.quality.endswith("p"):
-                    # Handle any specific resolution (including 144p, 240p, 360p, 480p, 720p, 1080p, 1440p, 4K)
                     height = self.quality.replace("p", "")
-                    if height.isdigit():
-                        # Use a simpler, more compatible format selection
-                        # Try to get video at or below specified height with best audio
+                    if not height.isdigit():
+                        logger.warning(
+                            f"Invalid quality format: {self.quality}, using best"
+                        )
+                        opts["format"] = "best"
+                    else:
                         opts["format"] = f"bestvideo[height<={height}]+bestaudio/best"
                         logger.info(
                             f"Using format selection for {self.quality}: {opts['format']}"
                         )
-                    else:
-                        # Fallback for non-numeric quality
-                        opts["format"] = "best"
-                        logger.warning(
-                            f"Invalid quality format: {self.quality}, using best"
-                        )
                 else:
-                    # Default: best available format
                     opts["format"] = "best"
 
             # Store expected output path for verification
@@ -174,7 +172,7 @@ class YouTubeDownloader(BaseDownloader):
 
             for attempt in range(max_retries):
                 try:
-                    with yt_dlp.YoutubeDL(opts) as ydl:
+                    with yt_dlp.YoutubeDL(opts) as ydl:  # type: ignore
                         info = ydl.extract_info(url, download=True)
                         if not info:
                             logger.error("No video information extracted from YouTube")
@@ -184,41 +182,43 @@ class YouTubeDownloader(BaseDownloader):
                         download_successful = True
                         break  # Exit retry loop
 
-                except yt_dlp.utils.DownloadError as e:
-                    error_msg = str(e)
-                    logger.warning(
-                        f"YouTube download error (attempt {attempt + 1}/{max_retries}): {error_msg}"
-                    )
-
-                    # Handle error using helper methods with early returns
-                    error_type = self._classify_download_error(error_msg)
-
-                    if error_type == "rate_limit":
-                        if self._handle_rate_limit_error(attempt, retry_wait):
-                            continue
-                        return False
-
-                    if error_type == "network":
-                        if self._handle_network_error(
-                            attempt, max_retries, retry_wait, error_msg
-                        ):
-                            continue
-                        return False
-
-                    if error_type == "format":
-                        if self._handle_format_error(attempt, opts, url):
-                            continue
-                        return False
-
-                    # Other errors - log and return
-                    self._log_specific_error(error_msg)
-                    return False
-
                 except Exception as e:
                     error_msg = str(e)
-                    logger.error(f"Error downloading from YouTube: {error_msg}")
-                    self._log_specific_error(error_msg)
-                    return False
+
+                    # Only handle download errors
+                    if "DownloadError" in str(type(e).__name__):
+                        logger.warning(
+                            f"YouTube download error (attempt {attempt + 1}/{max_retries}): {error_msg}"
+                        )
+
+                        # Handle error using dispatcher pattern
+                        error_type = self._classify_download_error(error_msg)
+
+                        error_handlers = {
+                            "rate_limit": lambda: self._handle_rate_limit_error(
+                                attempt, retry_wait
+                            ),
+                            "network": lambda: self._handle_network_error(
+                                attempt, max_retries, retry_wait, error_msg
+                            ),
+                            "format": lambda: self._handle_format_error(
+                                attempt, opts, url
+                            ),
+                        }
+
+                        handler = error_handlers.get(error_type)
+                        if handler and handler():
+                            continue
+
+                        if not handler:
+                            self._log_specific_error(error_msg)
+
+                        return False
+                    else:
+                        # Other exceptions
+                        logger.error(f"Error downloading from YouTube: {error_msg}")
+                        self._log_specific_error(error_msg)
+                        return False
 
             # All retries exhausted
             if not download_successful:
@@ -273,26 +273,21 @@ class YouTubeDownloader(BaseDownloader):
         return True
 
     def _classify_download_error(self, error_msg: str) -> str:
-        """Classify the type of download error."""
-        if "HTTP Error 429" in error_msg:
-            return "rate_limit"
-
-        if any(
-            err in error_msg
-            for err in [
+        """Classify the type of download error using pattern matching."""
+        error_patterns = {
+            "rate_limit": ["HTTP Error 429"],
+            "network": [
                 "Connection refused",
                 "Network Error",
                 "Unable to download",
                 "Errno 111",
-            ]
-        ):
-            return "network"
+            ],
+            "format": ["Requested format is not available", "No video formats found"],
+        }
 
-        if any(
-            err in error_msg
-            for err in ["Requested format is not available", "No video formats found"]
-        ):
-            return "format"
+        for error_type, patterns in error_patterns.items():
+            if any(pattern in error_msg for pattern in patterns):
+                return error_type
 
         return "other"
 
@@ -323,24 +318,24 @@ class YouTubeDownloader(BaseDownloader):
         return True
 
     def _handle_format_error(self, attempt: int, opts: dict, url: str) -> bool:
-        """Handle format error. Returns True to continue retrying."""
-        # First retry: try generic best format
-        if attempt == 0:
-            logger.warning(
-                f"Format not available ({opts.get('format', 'unknown')}), retrying with 'best'"
-            )
-            opts["format"] = "best"
-            return True
+        """Handle format error using fallback strategy."""
+        fallback_strategies = {
+            0: (
+                "best",
+                f"Format not available ({opts.get('format', 'unknown')}), retrying with 'best'",
+            ),
+            1: ("worst", "Best format failed, trying 'worst' as fallback"),
+        }
 
-        # Second retry: try worst as fallback
-        if attempt == 1:
-            logger.warning("Best format failed, trying 'worst' as fallback")
-            opts["format"] = "worst"
-            return True
+        strategy = fallback_strategies.get(attempt)
+        if not strategy:
+            self._log_format_failure(opts, url)
+            return False
 
-        # All format attempts failed
-        self._log_format_failure(opts, url)
-        return False
+        format_type, message = strategy
+        logger.warning(message)
+        opts["format"] = format_type
+        return True
 
     def _log_format_failure(self, opts: dict, url: str) -> None:
         """Log detailed information about format failure."""
@@ -353,17 +348,21 @@ class YouTubeDownloader(BaseDownloader):
             logger.info("Attempting to list available formats...")
             list_opts = opts.copy()
             list_opts.pop("format", None)
-            with yt_dlp.YoutubeDL(list_opts) as ydl:
+            with yt_dlp.YoutubeDL(list_opts) as ydl:  # type: ignore
                 info = ydl.extract_info(url, download=False)
-                if info and "formats" in info:
+                if info and isinstance(info, dict) and "formats" in info:
                     logger.info(f"Available formats for {url}:")
-                    for fmt in info["formats"][:10]:
-                        logger.info(
-                            f"  Format {fmt.get('format_id', 'unknown')}: "
-                            f"{fmt.get('format_note', 'N/A')} - "
-                            f"{fmt.get('ext', 'unknown')} - "
-                            f"height={fmt.get('height', 'N/A')}"
-                        )
+                    formats = info.get("formats", [])
+                    if isinstance(formats, list):
+                        for fmt in formats[:10]:
+                            logger.info(
+                                f"  Format {fmt.get('format_id', 'unknown')}: "
+                                f"{fmt.get('format_note', 'N/A')} - "
+                                f"{fmt.get('ext', 'unknown')} - "
+                                f"height={fmt.get('height', 'N/A')}"
+                            )
+                    else:
+                        logger.warning("Formats is not a list")
         except Exception as list_err:
             logger.warning(f"Could not list formats: {list_err}")
 

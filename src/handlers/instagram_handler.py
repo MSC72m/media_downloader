@@ -1,8 +1,13 @@
 """Instagram link handler implementation."""
 
 import re
-from typing import Dict, Any, Callable, Optional
-from ..services.detection.link_detector import LinkHandlerInterface, DetectionResult, auto_register_handler
+from typing import Any, Callable, Dict, Optional
+
+from ..services.detection.link_detector import (
+    DetectionResult,
+    LinkHandlerInterface,
+    auto_register_handler,
+)
 
 
 @auto_register_handler
@@ -10,10 +15,10 @@ class InstagramHandler(LinkHandlerInterface):
     """Handler for Instagram URLs."""
 
     INSTAGRAM_PATTERNS = [
-        r'^https?://(?:www\.)?instagram\.com/p/[\w-]+',
-        r'^https?://(?:www\.)?instagram\.com/reel/[\w-]+',
-        r'^https?://(?:www\.)?instagram\.com/stories/[\w-]+',
-        r'^https?://(?:www\.)?instagram\.com/tv/[\w-]+',
+        r"^https?://(?:www\.)?instagram\.com/p/[\w-]+",
+        r"^https?://(?:www\.)?instagram\.com/reel/[\w-]+",
+        r"^https?://(?:www\.)?instagram\.com/stories/[\w-]+",
+        r"^https?://(?:www\.)?instagram\.com/tv/[\w-]+",
     ]
 
     @classmethod
@@ -30,8 +35,8 @@ class InstagramHandler(LinkHandlerInterface):
                     confidence=1.0,
                     metadata={
                         "type": self._detect_instagram_type(url),
-                        "shortcode": self._extract_shortcode(url)
-                    }
+                        "shortcode": self._extract_shortcode(url),
+                    },
                 )
         return DetectionResult(service_type="unknown", confidence=0.0)
 
@@ -41,7 +46,7 @@ class InstagramHandler(LinkHandlerInterface):
         return {
             "type": self._detect_instagram_type(url),
             "shortcode": self._extract_shortcode(url),
-            "requires_auth": True
+            "requires_auth": True,
         }
 
     def process_download(self, url: str, options: Dict[str, Any]) -> bool:
@@ -52,32 +57,37 @@ class InstagramHandler(LinkHandlerInterface):
 
     def get_ui_callback(self) -> Callable:
         """Get the UI callback for Instagram URLs."""
+
         def instagram_callback(url: str, ui_context: Any):
             """Callback for handling Instagram URLs."""
             # Show Instagram login or directly process
-            if hasattr(ui_context, 'handle_instagram_login'):
+            if hasattr(ui_context, "handle_instagram_login"):
                 ui_context.handle_instagram_login()
+
         return instagram_callback
 
     def _detect_instagram_type(self, url: str) -> str:
         """Detect if URL is post, reel, story, etc."""
-        if '/p/' in url:
-            return 'post'
-        elif '/reel/' in url:
-            return 'reel'
-        elif '/stories/' in url:
-            return 'story'
-        elif '/tv/' in url:
-            return 'tv'
-        return 'unknown'
+        type_markers = {
+            "/p/": "post",
+            "/reel/": "reel",
+            "/stories/": "story",
+            "/tv/": "tv",
+        }
+
+        for marker, content_type in type_markers.items():
+            if marker in url:
+                return content_type
+
+        return "unknown"
 
     def _extract_shortcode(self, url: str) -> Optional[str]:
         """Extract shortcode from Instagram URL."""
         patterns = [
-            r'/p/([\w-]+)',
-            r'/reel/([\w-]+)',
-            r'/stories/[\w-]+/([\w-]+)',
-            r'/tv/([\w-]+)'
+            r"/p/([\w-]+)",
+            r"/reel/([\w-]+)",
+            r"/stories/[\w-]+/([\w-]+)",
+            r"/tv/([\w-]+)",
         ]
         for pattern in patterns:
             match = re.search(pattern, url)

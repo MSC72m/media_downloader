@@ -139,7 +139,10 @@ class YouTubeHandler(LinkHandlerInterface):
                 logger.info(
                     "[YOUTUBE_HANDLER] Using event_coordinator handle_youtube_download callback"
                 )
-            else:
+
+            if not download_callback:
+                logger.error("[YOUTUBE_HANDLER] No download callback found")
+                return
                 logger.warning(
                     "[YOUTUBE_HANDLER] No download callback found in ui_context"
                 )
@@ -181,13 +184,14 @@ class YouTubeHandler(LinkHandlerInterface):
                         )
 
                 # Schedule dialog creation on main thread (non-blocking)
-                if hasattr(root, "after"):
-                    root.after(0, create_youtube_dialog)
-                    logger.info(
-                        "[YOUTUBE_HANDLER] YouTubeDownloaderDialog creation scheduled"
-                    )
-                else:
+                if not hasattr(root, "after"):
                     create_youtube_dialog()
+                    return
+
+                root.after(0, create_youtube_dialog)
+                logger.info(
+                    "[YOUTUBE_HANDLER] YouTubeDownloaderDialog creation scheduled"
+                )
 
             def create_cookie_dialog():
                 try:
@@ -223,10 +227,10 @@ class YouTubeHandler(LinkHandlerInterface):
                                 "[YOUTUBE_HANDLER] Created YouTubeDownloaderDialog directly as fallback"
                             )
 
-                        if hasattr(root, "after"):
-                            root.after(0, create_fallback_dialog)
-                        else:
+                        if not hasattr(root, "after"):
                             create_fallback_dialog()
+                        else:
+                            root.after(0, create_fallback_dialog)
                     except Exception as fallback_error:
                         logger.error(
                             f"[YOUTUBE_HANDLER] Fallback also failed: {fallback_error}",
@@ -234,25 +238,31 @@ class YouTubeHandler(LinkHandlerInterface):
                         )
 
             # Schedule cookie dialog creation on main thread (non-blocking)
-            if hasattr(root, "after"):
-                root.after(0, create_cookie_dialog)
-                logger.info("[YOUTUBE_HANDLER] BrowserCookieDialog creation scheduled")
-            else:
+            if not hasattr(root, "after"):
                 create_cookie_dialog()
+                return
+
+            root.after(0, create_cookie_dialog)
+            logger.info("[YOUTUBE_HANDLER] BrowserCookieDialog creation scheduled")
 
         logger.info("[YOUTUBE_HANDLER] Returning YouTube callback")
         return youtube_callback
 
     def _detect_youtube_type(self, url: str) -> str:
         """Detect if URL is video, playlist, etc."""
-        if "playlist?list=" in url:
-            return "playlist"
-        elif "shorts/" in url:
-            return "shorts"
-        elif "watch?v=" in url or "youtu.be/" in url:
-            return "video"
-        elif "embed/" in url or "v/" in url:
-            return "embed"
+        type_markers = [
+            ("playlist?list=", "playlist"),
+            ("shorts/", "shorts"),
+            ("watch?v=", "video"),
+            ("youtu.be/", "video"),
+            ("embed/", "embed"),
+            ("v/", "embed"),
+        ]
+
+        for marker, content_type in type_markers:
+            if marker in url:
+                return content_type
+
         return "unknown"
 
     def _extract_video_id(self, url: str) -> Optional[str]:
