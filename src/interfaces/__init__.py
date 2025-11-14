@@ -1,45 +1,37 @@
 """Abstraction layer interfaces for the media downloader application."""
 
-from .handlers import (
-    IHandler,
-    IDownloadHandler,
-    IAuthenticationHandler,
-    IServiceDetector,
-    INetworkChecker,
-    IUIEventHandler,
-    IApplicationController
-)
-
-from .cookie_detection import (
-    ICookieDetector,
-    ICookieManager,
-    BrowserType,
-    PlatformType
-)
-
-from .ui_components import (
-    IUIComponent,
-    IURLEntryComponent,
-    IDownloadListComponent,
-    IOptionsBarComponent,
-    IActionButtonsComponent,
-    IStatusBarComponent,
-    IUIFactory,
-    IDialog,
-    INetworkStatusDialog,
-    IFileManagerDialog,
-    IDialogFactory
-)
-
+from .cookie_detection import BrowserType, ICookieDetector, ICookieManager, PlatformType
 from .event_handlers import (
-    URLDetectionHandler,
-    DownloadManagementHandler,
-    UIUpdateHandler,
     AuthenticationHandler,
-    FileManagementHandler,
     ConfigurationHandler,
+    DownloadManagementHandler,
+    FileManagementHandler,
     NetworkStatusHandler,
-    YouTubeSpecificHandler
+    UIUpdateHandler,
+    URLDetectionHandler,
+    YouTubeSpecificHandler,
+)
+from .handlers import (
+    IApplicationController,
+    IAuthenticationHandler,
+    IDownloadHandler,
+    IHandler,
+    INetworkChecker,
+    IServiceDetector,
+    IUIEventHandler,
+)
+from .ui_components import (
+    IActionButtonsComponent,
+    IDialog,
+    IDialogFactory,
+    IDownloadListComponent,
+    IFileManagerDialog,
+    INetworkStatusDialog,
+    IOptionsBarComponent,
+    IStatusBarComponent,
+    IUIComponent,
+    IUIFactory,
+    IURLEntryComponent,
 )
 
 __all__ = [
@@ -76,5 +68,5 @@ __all__ = [
     "FileManagementHandler",
     "ConfigurationHandler",
     "NetworkStatusHandler",
-    "YouTubeSpecificHandler"
+    "YouTubeSpecificHandler",
 ]

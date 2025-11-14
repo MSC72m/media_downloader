@@ -78,36 +78,61 @@ class MediaDownloaderApp(ctk.CTk):
             self.main_frame, text="Media Downloader", font=("Roboto", 32, "bold")
         )
 
-        # URL Entry
+        # Get coordinator for direct wiring
+        coord = self.orchestrator.event_coordinator
+
+        # URL Entry - wire directly to link detector
+        def on_add_url(url: str, name: str) -> None:
+            self.orchestrator.link_detector.detect_and_handle(url, coord)
+
+        def on_youtube_detected(url: str) -> None:
+            self.orchestrator.link_detector.detect_and_handle(url, coord)
+
         self.url_entry = URLEntryFrame(
             self.main_frame,
-            on_add=self.orchestrator.handle_add_url,
-            on_youtube_detected=self.orchestrator.handle_youtube_detected,
+            on_add=on_add_url,
+            on_youtube_detected=on_youtube_detected,
         )
 
         # Options Bar
         self.options_bar = OptionsBar(
-            self.main_frame, on_instagram_login=self.orchestrator.handle_instagram_login
+            self.main_frame,
+            on_instagram_login=lambda: coord.authenticate_instagram(None),
         )
 
         # Download List
         self.download_list = DownloadListView(
             self.main_frame,
-            on_selection_change=self.orchestrator.handle_selection_change,
+            on_selection_change=lambda sel: coord.update_button_states(
+                bool(sel), self.download_list.has_items()
+            ),
         )
 
-        # Action Buttons
+        # Action Buttons - wire directly to coordinator
         logger.info("[MAIN_APP] Creating ActionButtonBar")
-        logger.info(
-            f"[MAIN_APP] on_download callback: {self.orchestrator.handle_download}"
-        )
+
+        def on_remove() -> None:
+            coord.remove_downloads(self.download_list.get_selected_indices())
+
+        def on_clear() -> None:
+            coord.clear_downloads()
+
+        def on_clear_completed() -> None:
+            coord.clear_completed_downloads()
+
+        def on_download() -> None:
+            coord.start_downloads()
+
+        def on_manage_files() -> None:
+            coord.show_file_manager()
+
         self.action_buttons = ActionButtonBar(
             self.main_frame,
-            on_remove=self.orchestrator.handle_remove,
-            on_clear=self.orchestrator.handle_clear,
-            on_clear_completed=self.orchestrator.handle_clear_completed,
-            on_download=self.orchestrator.handle_download,
-            on_manage_files=self.orchestrator.handle_manage_files,
+            on_remove=on_remove,
+            on_clear=on_clear,
+            on_clear_completed=on_clear_completed,
+            on_download=on_download,
+            on_manage_files=on_manage_files,
         )
         logger.info("[MAIN_APP] ActionButtonBar created successfully")
 
@@ -164,7 +189,8 @@ class MediaDownloaderApp(ctk.CTk):
 
         tools_menu = Menu(menubar, tearoff=0)
         tools_menu.add_command(
-            label="Network Status", command=self.orchestrator.show_network_status
+            label="Network Status",
+            command=self.orchestrator.event_coordinator.show_network_status,
         )
         menubar.add_cascade(label="Tools", menu=tools_menu)
 

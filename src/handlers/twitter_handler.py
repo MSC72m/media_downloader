@@ -1,4 +1,4 @@
-"""Twitter/X link handler implementation."""
+"""Twitter link handler implementation."""
 
 import re
 from typing import Any, Callable, Dict, Optional
@@ -9,6 +9,12 @@ from src.services.detection.link_detector import (
     auto_register_handler,
 )
 from src.utils.logger import get_logger
+from src.utils.type_helpers import (
+    get_container,
+    get_platform_callback,
+    get_root,
+    schedule_on_main_thread,
+)
 
 logger = get_logger(__name__)
 
@@ -80,77 +86,32 @@ class TwitterHandler(LinkHandlerInterface):
             """Callback for handling Twitter URLs."""
             logger.info(f"[TWITTER_HANDLER] Twitter callback called with URL: {url}")
             logger.info(f"[TWITTER_HANDLER] UI context: {ui_context}")
-            logger.info(f"[TWITTER_HANDLER] UI context type: {type(ui_context)}")
 
-            # Get container and root from ui_context
-            container = (
-                ui_context.container
-                if hasattr(ui_context, "container")
-                else ui_context.event_coordinator.container
-                if hasattr(ui_context, "event_coordinator")
-                else None
-            )
-            root = (
-                ui_context.root
-                if hasattr(ui_context, "root")
-                else ui_context.event_coordinator.root
-                if hasattr(ui_context, "event_coordinator")
-                else ui_context
-            )
+            # Get container and root using type-safe helpers
+            container = get_container(ui_context)
+            root = get_root(ui_context)
 
             logger.info(f"[TWITTER_HANDLER] Container: {container}")
             logger.info(f"[TWITTER_HANDLER] Root: {root}")
 
-            # Get download callback
-            download_callback = None
-            if hasattr(ui_context, "handle_twitter_download"):
-                download_callback = ui_context.handle_twitter_download
-                logger.info(
-                    "[TWITTER_HANDLER] Using ui_context handle_twitter_download callback"
-                )
-            elif hasattr(ui_context, "event_coordinator"):
-                download_callback = ui_context.event_coordinator.handle_twitter_download
-                logger.info(
-                    "[TWITTER_HANDLER] Using event_coordinator handle_twitter_download callback"
-                )
-
+            # Get download callback using type-safe helper
+            download_callback = get_platform_callback(ui_context, "twitter")
             if not download_callback:
-                logger.error("[TWITTER_HANDLER] No download callback found")
-                # Fallback: try to create a generic download
-                if hasattr(ui_context, "handle_generic_download"):
-                    download_callback = ui_context.handle_generic_download
-                elif hasattr(ui_context, "event_coordinator") and hasattr(
-                    ui_context.event_coordinator, "handle_generic_download"
-                ):
-                    download_callback = (
-                        ui_context.event_coordinator.handle_generic_download
-                    )
-                else:
-                    logger.error(
-                        "[TWITTER_HANDLER] No fallback download callback found"
-                    )
+                # Try generic fallback
+                download_callback = get_platform_callback(ui_context, "generic")
+                if not download_callback:
+                    logger.error("[TWITTER_HANDLER] No download callback found")
                     return
 
-            # Create download configuration
-            metadata = self.get_metadata(url)
-
+            # Call the platform download method which will show the dialog (or fallback)
             def process_twitter_download():
                 try:
-                    logger.info(f"[TWITTER_HANDLER] Processing download for: {url}")
-
-                    # Create download configuration
-                    download_config = {
-                        "url": url,
-                        "service_type": "twitter",
-                        "metadata": metadata,
-                        "quality": "best",  # Default quality
-                        "format": "video",  # Twitter typically has videos
-                    }
-
-                    # Call the download callback
-                    download_callback(download_config)
+                    logger.info(
+                        f"[TWITTER_HANDLER] Calling download callback for: {url}"
+                    )
+                    # Platform download methods expect URL string
+                    download_callback(url)
                     logger.info("[TWITTER_HANDLER] Download callback executed")
-
                 except Exception as e:
                     logger.error(
                         f"[TWITTER_HANDLER] Error processing Twitter download: {e}",
@@ -158,11 +119,8 @@ class TwitterHandler(LinkHandlerInterface):
                     )
 
             # Schedule on main thread
-            if hasattr(root, "after"):
-                root.after(0, process_twitter_download)
-                logger.info("[TWITTER_HANDLER] Twitter download scheduled")
-            else:
-                process_twitter_download()
+            schedule_on_main_thread(root, process_twitter_download, immediate=True)
+            logger.info("[TWITTER_HANDLER] Twitter download scheduled")
 
         logger.info("[TWITTER_HANDLER] Returning Twitter callback")
         return twitter_callback

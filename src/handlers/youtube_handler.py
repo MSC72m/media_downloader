@@ -9,6 +9,12 @@ from src.services.detection.link_detector import (
     auto_register_handler,
 )
 from src.utils.logger import get_logger
+from src.utils.type_helpers import (
+    get_container,
+    get_platform_callback,
+    get_root,
+    schedule_on_main_thread,
+)
 
 logger = get_logger(__name__)
 
@@ -59,24 +65,28 @@ class YouTubeHandler(LinkHandlerInterface):
 
     def get_metadata(self, url: str) -> Dict[str, Any]:
         """Get YouTube metadata for the URL."""
-        # This would integrate with your existing YouTube metadata service
         from src.services.youtube.metadata_service import YouTubeMetadataService
+        from src.utils.type_helpers import safe_getattr
 
         try:
             metadata_service = YouTubeMetadataService()
             video_info = metadata_service.fetch_metadata(url)
 
             return {
-                "title": getattr(video_info, "title", "Unknown"),
-                "duration": getattr(video_info, "duration", 0),
-                "view_count": getattr(video_info, "view_count", 0),
-                "thumbnail": getattr(video_info, "thumbnail_url", ""),
-                "available_qualities": getattr(video_info, "available_qualities", []),
-                "available_formats": getattr(video_info, "available_formats", []),
-                "available_subtitles": getattr(video_info, "available_subtitles", []),
+                "title": safe_getattr(video_info, "title", "Unknown"),
+                "duration": safe_getattr(video_info, "duration", 0),
+                "view_count": safe_getattr(video_info, "view_count", 0),
+                "thumbnail": safe_getattr(video_info, "thumbnail_url", ""),
+                "available_qualities": safe_getattr(
+                    video_info, "available_qualities", []
+                ),
+                "available_formats": safe_getattr(video_info, "available_formats", []),
+                "available_subtitles": safe_getattr(
+                    video_info, "available_subtitles", []
+                ),
             }
         except Exception as e:
-            print(f"Error getting YouTube metadata: {e}")
+            logger.error(f"Error getting YouTube metadata: {e}")
             return {}
 
     def process_download(self, url: str, options: Dict[str, Any]) -> bool:
@@ -100,23 +110,9 @@ class YouTubeHandler(LinkHandlerInterface):
             logger.info(f"[YOUTUBE_HANDLER] UI context: {ui_context}")
             logger.info(f"[YOUTUBE_HANDLER] UI context type: {type(ui_context)}")
 
-            # ui_context should be the event coordinator or application orchestrator
-
-            # Get services from ui_context (could be orchestrator or event coordinator)
-            container = (
-                ui_context.container
-                if hasattr(ui_context, "container")
-                else ui_context.event_coordinator.container
-                if hasattr(ui_context, "event_coordinator")
-                else None
-            )
-            root = (
-                ui_context.root
-                if hasattr(ui_context, "root")
-                else ui_context.event_coordinator.root
-                if hasattr(ui_context, "event_coordinator")
-                else ui_context
-            )
+            # Get container and root using type-safe helpers
+            container = get_container(ui_context)
+            root = get_root(ui_context)
 
             logger.info(f"[YOUTUBE_HANDLER] Container: {container}")
             logger.info(f"[YOUTUBE_HANDLER] Root: {root}")
@@ -127,25 +123,11 @@ class YouTubeHandler(LinkHandlerInterface):
             logger.info(f"[YOUTUBE_HANDLER] Cookie handler: {cookie_handler}")
             logger.info(f"[YOUTUBE_HANDLER] Metadata service: {metadata_service}")
 
-            # Use event coordinator for download callback if available
-            download_callback = None
-            if hasattr(ui_context, "handle_youtube_download"):
-                download_callback = ui_context.handle_youtube_download
-                logger.info(
-                    "[YOUTUBE_HANDLER] Using ui_context handle_youtube_download callback"
-                )
-            elif hasattr(ui_context, "event_coordinator"):
-                download_callback = ui_context.event_coordinator.handle_youtube_download
-                logger.info(
-                    "[YOUTUBE_HANDLER] Using event_coordinator handle_youtube_download callback"
-                )
-
+            # Get download callback using type-safe helper
+            download_callback = get_platform_callback(ui_context, "youtube")
             if not download_callback:
                 logger.error("[YOUTUBE_HANDLER] No download callback found")
                 return
-                logger.warning(
-                    "[YOUTUBE_HANDLER] No download callback found in ui_context"
-                )
 
             # Show cookie selection dialog first
             def on_cookie_selected(cookie_path: Optional[str], browser: Optional[str]):
@@ -184,11 +166,7 @@ class YouTubeHandler(LinkHandlerInterface):
                         )
 
                 # Schedule dialog creation on main thread (non-blocking)
-                if not hasattr(root, "after"):
-                    create_youtube_dialog()
-                    return
-
-                root.after(0, create_youtube_dialog)
+                schedule_on_main_thread(root, create_youtube_dialog, immediate=True)
                 logger.info(
                     "[YOUTUBE_HANDLER] YouTubeDownloaderDialog creation scheduled"
                 )
@@ -227,10 +205,9 @@ class YouTubeHandler(LinkHandlerInterface):
                                 "[YOUTUBE_HANDLER] Created YouTubeDownloaderDialog directly as fallback"
                             )
 
-                        if not hasattr(root, "after"):
-                            create_fallback_dialog()
-                        else:
-                            root.after(0, create_fallback_dialog)
+                        schedule_on_main_thread(
+                            root, create_fallback_dialog, immediate=True
+                        )
                     except Exception as fallback_error:
                         logger.error(
                             f"[YOUTUBE_HANDLER] Fallback also failed: {fallback_error}",
@@ -238,11 +215,7 @@ class YouTubeHandler(LinkHandlerInterface):
                         )
 
             # Schedule cookie dialog creation on main thread (non-blocking)
-            if not hasattr(root, "after"):
-                create_cookie_dialog()
-                return
-
-            root.after(0, create_cookie_dialog)
+            schedule_on_main_thread(root, create_cookie_dialog, immediate=True)
             logger.info("[YOUTUBE_HANDLER] BrowserCookieDialog creation scheduled")
 
         logger.info("[YOUTUBE_HANDLER] Returning YouTube callback")

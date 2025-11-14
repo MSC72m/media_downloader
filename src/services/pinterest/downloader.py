@@ -1,16 +1,20 @@
 """Pinterest downloader service implementation."""
 
-from src.utils.logger import get_logger
+import json
 import os
-from typing import Optional, Callable
-import requests
 import re
+from typing import Callable, Optional
+
+import requests
 from bs4 import BeautifulSoup
+from bs4.element import Tag
+
+from src.utils.logger import get_logger
 
 from ...core import BaseDownloader
 from ...core.enums import ServiceType
-from ..file.service import FileService
 from ..file.sanitizer import FilenameSanitizer
+from ..file.service import FileService
 from ..network.checker import check_site_connection
 
 logger = get_logger(__name__)
@@ -23,7 +27,7 @@ class PinterestDownloader(BaseDownloader):
         self,
         url: str,
         save_path: str,
-        progress_callback: Optional[Callable[[float, float], None]] = None
+        progress_callback: Optional[Callable[[float, float], None]] = None,
     ) -> bool:
         """
         Download media from Pinterest URLs.
@@ -52,12 +56,12 @@ class PinterestDownloader(BaseDownloader):
             # Download the media
             save_dir = self._get_save_directory(save_path)
             self._ensure_directory_exists(save_path)
-            
+
             sanitizer = FilenameSanitizer()
             filename = sanitizer.sanitize_filename(os.path.basename(save_path))
-            
+
             # Detect file extension from URL or use default
-            ext = self._get_extension_from_url(media_url) or '.jpg'
+            ext = self._get_extension_from_url(media_url) or ".jpg"
             full_path = os.path.join(save_dir, filename + ext)
 
             file_service = FileService()
@@ -73,12 +77,12 @@ class PinterestDownloader(BaseDownloader):
         """Extract file extension from URL."""
         try:
             # Get the path from URL and extract extension
-            match = re.search(r'\.([a-zA-Z0-9]+)(?:\?|$)', url)
+            match = re.search(r"\.([a-zA-Z0-9]+)(?:\?|$)", url)
             if match:
                 ext = match.group(1).lower()
                 # Common image/video extensions
-                if ext in ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'webm']:
-                    return f'.{ext}'
+                if ext in ["jpg", "jpeg", "png", "gif", "webp", "mp4", "webm"]:
+                    return f".{ext}"
             return None
         except Exception:
             return None
@@ -92,48 +96,60 @@ class PinterestDownloader(BaseDownloader):
             headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
             }
-            
+
             response = requests.get(oembed_url, headers=headers, timeout=10)
             if response.status_code == 200:
                 data = response.json()
                 # Try to get the image URL from oembed response
-                if 'url' in data:
-                    return data['url']
-                if 'thumbnail_url' in data:
-                    return data['thumbnail_url']
-            
+                if "url" in data:
+                    return data["url"]
+                if "thumbnail_url" in data:
+                    return data["thumbnail_url"]
+
             # Method 2: Scrape the page directly
             response = requests.get(url, headers=headers, timeout=10)
             if response.status_code == 200:
-                soup = BeautifulSoup(response.content, 'html.parser')
-                
+                soup = BeautifulSoup(response.content, "html.parser")
+
                 # Try to find og:image meta tag (highest quality)
-                og_image = soup.find('meta', property='og:image')
-                if og_image and og_image.get('content'):
-                    return og_image['content']
-                
+                og_image = soup.find("meta", property="og:image")
+                if isinstance(og_image, Tag):
+                    content = og_image.get("content")
+                    if content and isinstance(content, str):
+                        return content
+
                 # Try to find pinterest:image meta tag
-                pin_image = soup.find('meta', attrs={'name': 'pinterest:image'})
-                if pin_image and pin_image.get('content'):
-                    return pin_image['content']
-                
+                pin_image = soup.find("meta", attrs={"name": "pinterest:image"})
+                if isinstance(pin_image, Tag):
+                    content = pin_image.get("content")
+                    if content and isinstance(content, str):
+                        return content
+
                 # Try to find image in structured data
-                script_tags = soup.find_all('script', type='application/ld+json')
+                script_tags = soup.find_all("script", type="application/ld+json")
                 for script in script_tags:
                     try:
-                        import json
-                        data = json.loads(script.string)
-                        if isinstance(data, dict) and 'image' in data:
-                            img = data['image']
+                        if isinstance(script, Tag) and script.string:
+                            data = json.loads(script.string)
+                            if not isinstance(data, dict) and "image" in data:
+                                logger.warning(f"Invalid structured data: {data}")
+                                continue
+
+                            img = data["image"]
                             if isinstance(img, str):
                                 return img
-                            elif isinstance(img, dict) and 'url' in img:
-                                return img['url']
+
+                            if (
+                                isinstance(img, dict)
+                                and "url" in img
+                                and isinstance(img["url"], str)
+                            ):
+                                return img["url"]
+                                
                     except Exception:
                         continue
-
             return None
-            
+
         except Exception as e:
             logger.error(f"Error getting Pinterest media URL: {e}")
             return None

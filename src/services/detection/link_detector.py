@@ -2,7 +2,7 @@ import logging
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Protocol, Type
+from typing import Any, Callable, Dict, List, Optional, Type
 
 from src.utils.logger import get_logger
 
@@ -50,7 +50,7 @@ class LinkDetectionRegistry:
 
     _instance = None
     _handlers: Dict[str, Type[LinkHandlerInterface]] = {}
-    _compiled_patterns: Dict[str, re.Pattern] = {}
+    _compiled_patterns: Dict[str, List[re.Pattern]] = {}
 
     def __new__(cls):
         if cls._instance is None:
@@ -74,13 +74,19 @@ class LinkDetectionRegistry:
         logger.info(f"[REGISTRATION] Registered handlers: {list(cls._handlers.keys())}")
 
         # Compile patterns for faster matching
-        if hasattr(handler_class, "get_patterns"):
-            patterns = handler_class.get_patterns()
-            cls._compiled_patterns[handler_name] = [
-                re.compile(pattern) for pattern in patterns
-            ]
+        if get_patterns := getattr(handler_class, "get_patterns", None):
+            patterns = get_patterns()
+            compiled = []
+            for pattern in patterns:
+                try:
+                    compiled.append(re.compile(pattern))
+                except re.error as e:
+                    logger.error(
+                        f"[REGISTRATION] Invalid regex pattern '{pattern}': {e}"
+                    )
+            cls._compiled_patterns[handler_name] = compiled
             logger.info(
-                f"[REGISTRATION] Compiled {len(patterns)} patterns for {handler_name}: {patterns}"
+                f"[REGISTRATION] Compiled {len(compiled)} patterns for {handler_name}"
             )
         else:
             logger.warning(
@@ -127,9 +133,8 @@ class LinkDetectionRegistry:
     def quick_detect(cls, url: str) -> Optional[str]:
         """Quick detection using pre-compiled patterns."""
         for handler_name, patterns in cls._compiled_patterns.items():
-            for pattern in patterns:
-                if pattern.match(url):
-                    return handler_name
+            if any(pattern.match(url) for pattern in patterns):
+                return handler_name
         return None
 
     @classmethod
@@ -170,7 +175,7 @@ class LinkDetector:
                 return False
 
             if not ui_context:
-                logger.warning(f"[LINK_DETECTOR] Missing ui_context")
+                logger.warning("[LINK_DETECTOR] Missing ui_context")
                 return False
 
             logger.info(f"[LINK_DETECTOR] Executing callback with URL: {url}")
