@@ -5,6 +5,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 import customtkinter as ctk
 
+from src.core.enums import DownloadStatus
 from src.core.models import Download, ServiceType
 from src.interfaces.event_handlers import (
     AuthenticationHandler,
@@ -175,7 +176,7 @@ class EventCoordinator(
 
                 # Define callbacks for UI feedback (THREAD-SAFE)
                 def on_progress(download, progress):
-                    """Called from worker thread - must schedule UI updates on main thread."""
+                    """Called from worker thread - schedule UI update on main thread."""
                     try:
                         logger.info(
                             f"[EVENT_COORDINATOR] Progress callback RECEIVED: {download.name} - {progress}%"
@@ -188,38 +189,36 @@ class EventCoordinator(
                             )
                             return
 
-                        logger.debug(f"[EVENT_COORDINATOR] Progress data validated")
+                        # Update model state immediately (thread-safe)
+                        download.progress = progress
+                        download.status = DownloadStatus.DOWNLOADING
 
-                        # Early return: check if root has after method
-                        if not hasattr(self.root, "after"):
-                            logger.warning(
-                                "[EVENT_COORDINATOR] root.after not available"
-                            )
-                            return
+                        # Schedule UI update on main thread
+                        def update_ui():
+                            try:
+                                if self.download_list:
+                                    self.download_list.update_item_progress(
+                                        download, progress
+                                    )
+                                if self.status_bar:
+                                    self.status_bar.configure(
+                                        text=f"Downloading {download.name}: {progress:.1f}%"
+                                    )
+                                logger.info(
+                                    f"[EVENT_COORDINATOR] Progress UI updated for {download.name}: {progress}%"
+                                )
+                            except Exception as e:
+                                logger.error(
+                                    f"[EVENT_COORDINATOR] Error in UI update: {e}",
+                                    exc_info=True,
+                                )
 
-                        logger.debug(f"[EVENT_COORDINATOR] root.after is available")
-
-                        # Schedule UI update AND force event loop processing
                         try:
-                            self.root.winfo_exists()
-                            logger.debug(
-                                f"[EVENT_COORDINATOR] Window exists, scheduling UI update"
-                            )
-
-                            # Use after(1) to ensure it runs on next event loop cycle
-                            self.root.after(
-                                1,
-                                lambda d=download, p=progress: self._update_progress_ui(
-                                    d, p
-                                ),
-                            )
-
-                            logger.info(
-                                f"[EVENT_COORDINATOR] Progress UI update SCHEDULED for {download.name}: {progress}%"
-                            )
-                        except tk.TclError as e:
-                            logger.warning(
-                                f"[EVENT_COORDINATOR] Window closed, skipping progress update: {e}"
+                            self.root.after(0, update_ui)
+                        except Exception as e:
+                            logger.error(
+                                f"[EVENT_COORDINATOR] Error scheduling update: {e}",
+                                exc_info=True,
                             )
 
                     except Exception as e:
@@ -229,7 +228,7 @@ class EventCoordinator(
                         )
 
                 def on_completion(success, message):
-                    """Called from worker thread - must schedule UI updates on main thread."""
+                    """Called from worker thread - schedule completion on main thread."""
                     try:
                         logger.info(
                             f"[EVENT_COORDINATOR] Completion callback: success={success}, message={message}"
@@ -244,38 +243,35 @@ class EventCoordinator(
                             )
                             return
 
-                        # Early return: check if root has after method
-                        if not hasattr(self.root, "after"):
-                            logger.error(
-                                "[EVENT_COORDINATOR] root.after not available, cannot schedule UI update"
-                            )
-                            return
+                        # Schedule completion on main thread
+                        def handle_completion_ui():
+                            try:
+                                if self.action_buttons:
+                                    self.action_buttons.set_enabled(True)
+                                if self.download_list:
+                                    downloads = self.download_list.get_downloads()
+                                    self.download_list.refresh_items(downloads)
+                                if self.status_bar:
+                                    status_msg = (
+                                        "Download completed!"
+                                        if success
+                                        else f"Download failed: {message}"
+                                    )
+                                    self.status_bar.configure(text=status_msg)
+                                logger.info(
+                                    f"[EVENT_COORDINATOR] Completion UI updated: {message}"
+                                )
+                            except Exception as e:
+                                logger.error(
+                                    f"[EVENT_COORDINATOR] Error in completion UI: {e}",
+                                    exc_info=True,
+                                )
 
-                        # Schedule UI update AND force event loop processing
                         try:
-                            self.root.winfo_exists()
-                            logger.debug(
-                                "[EVENT_COORDINATOR] Scheduling completion UI update"
-                            )
-
-                            # Use after(1) to ensure it runs on next event loop cycle
-                            self.root.after(
-                                1,
-                                lambda s=success, m=message: self._handle_completion_ui(
-                                    s, m
-                                ),
-                            )
-
-                            logger.debug(
-                                "[EVENT_COORDINATOR] Completion UI scheduled successfully"
-                            )
-                        except tk.TclError as tcl_err:
-                            logger.warning(
-                                f"[EVENT_COORDINATOR] Window closed: {tcl_err}"
-                            )
-                        except Exception as sched_err:
+                            self.root.after(0, handle_completion_ui)
+                        except Exception as e:
                             logger.error(
-                                f"[EVENT_COORDINATOR] Error scheduling completion UI: {sched_err}",
+                                f"[EVENT_COORDINATOR] Error scheduling completion: {e}",
                                 exc_info=True,
                             )
 
