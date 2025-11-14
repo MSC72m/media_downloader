@@ -8,8 +8,6 @@ import yt_dlp
 from src.utils.logger import get_logger
 
 from ...core.base import BaseDownloader
-from ...core.enums import ServiceType
-from ..file.sanitizer import FilenameSanitizer
 
 logger = get_logger(__name__)
 
@@ -173,16 +171,16 @@ class SoundCloudDownloader(BaseDownloader):
 
                 return True
 
-        except yt_dlp.utils.DownloadError as e:
-            error_msg = str(e)
-            logger.error(f"[SOUNDCLOUD_DOWNLOADER] Download error: {error_msg}")
-            self._handle_download_error(error_msg)
-            return False
-
         except Exception as e:
-            logger.error(
-                f"[SOUNDCLOUD_DOWNLOADER] Unexpected error: {e}", exc_info=True
-            )
+            error_msg = str(e)
+            # Check if it's a DownloadError
+            if "DownloadError" in type(e).__name__:
+                logger.error(f"[SOUNDCLOUD_DOWNLOADER] Download error: {error_msg}")
+                self._handle_download_error(error_msg)
+            else:
+                logger.error(
+                    f"[SOUNDCLOUD_DOWNLOADER] Unexpected error: {e}", exc_info=True
+                )
             return False
 
     def _create_progress_hook(
@@ -272,13 +270,13 @@ class SoundCloudDownloader(BaseDownloader):
             Dictionary with track information or None if failed
         """
         try:
-            options = {
-                "quiet": True,
-                "no_warnings": True,
-                "extract_flat": False,
-            }
-
-            with yt_dlp.YoutubeDL(options) as ydl:
+            with yt_dlp.YoutubeDL(
+                {
+                    "quiet": True,
+                    "no_warnings": True,
+                    "extract_flat": False,
+                }
+            ) as ydl:
                 info = ydl.extract_info(url, download=False)
 
                 if not info:

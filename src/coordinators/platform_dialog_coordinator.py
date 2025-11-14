@@ -270,7 +270,7 @@ class PlatformDialogCoordinator:
 
         try:
 
-            def on_auth_complete(success: bool, error_message: str = None):
+            def on_auth_complete(success: bool, error_message: Optional[str] = None):
                 """Handle authentication completion with UI updates."""
                 if success:
                     logger.info(

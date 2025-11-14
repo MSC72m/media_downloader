@@ -12,13 +12,20 @@ def _register_link_handlers():
     """Lazy registration of link handlers to avoid circular imports."""
     # Import link handlers here to trigger auto-registration
     # This is called after application initialization
-    from . import instagram_handler, pinterest_handler, twitter_handler, youtube_handler
+    from . import (
+        instagram_handler,
+        pinterest_handler,
+        soundcloud_handler,
+        twitter_handler,
+        youtube_handler,
+    )
 
     return (
         youtube_handler.YouTubeHandler,
         instagram_handler.InstagramHandler,
         twitter_handler.TwitterHandler,
         pinterest_handler.PinterestHandler,
+        soundcloud_handler.SoundCloudHandler,
     )
 
 
@@ -42,6 +49,10 @@ def __getattr__(name):
         from .pinterest_handler import PinterestHandler
 
         return PinterestHandler
+    elif name == "SoundCloudHandler":
+        from .soundcloud_handler import SoundCloudHandler
+
+        return SoundCloudHandler
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -57,6 +68,7 @@ __all__ = [
     "InstagramHandler",
     "TwitterHandler",
     "PinterestHandler",
+    "SoundCloudHandler",
     # Registration function
     "_register_link_handlers",
 ]
