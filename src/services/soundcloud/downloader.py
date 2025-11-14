@@ -141,6 +141,22 @@ class SoundCloudDownloader(BaseDownloader):
         logger.info(f"[SOUNDCLOUD_DOWNLOADER] Audio format: {self.audio_format}")
         logger.info(f"[SOUNDCLOUD_DOWNLOADER] Audio quality: {self.audio_quality}")
 
+        # First, check if track is premium/Go+ only
+        try:
+            info = self.get_info(url)
+            if info and self._is_premium_track(info):
+                error_msg = (
+                    "This track requires SoundCloud Go+ subscription and cannot be downloaded.\n\n"
+                    "Premium tracks are not accessible without a paid subscription."
+                )
+                logger.warning(f"[SOUNDCLOUD_DOWNLOADER] Premium track detected: {url}")
+                return False
+        except Exception as check_error:
+            logger.warning(
+                f"[SOUNDCLOUD_DOWNLOADER] Could not check premium status: {check_error}"
+            )
+            # Continue with download attempt
+
         try:
             # Create progress hook
             progress_hook = self._create_progress_hook(progress_callback)
@@ -173,6 +189,19 @@ class SoundCloudDownloader(BaseDownloader):
 
         except Exception as e:
             error_msg = str(e)
+            error_lower = error_msg.lower()
+
+            # Check for premium/Go+ errors first
+            if any(
+                keyword in error_lower
+                for keyword in ["premium", "go+", "subscription", "not available"]
+            ):
+                logger.error(
+                    f"[SOUNDCLOUD_DOWNLOADER] Premium content error: {error_msg}"
+                )
+                self._handle_download_error(error_msg)
+                return False
+
             # Check if it's a DownloadError
             if "DownloadError" in type(e).__name__:
                 logger.error(f"[SOUNDCLOUD_DOWNLOADER] Download error: {error_msg}")
@@ -235,6 +264,38 @@ class SoundCloudDownloader(BaseDownloader):
 
         return hook
 
+    def _is_premium_track(self, info: Dict[str, Any]) -> bool:
+        """Check if track requires SoundCloud Go+ subscription.
+
+        Args:
+            info: Track information dictionary
+
+        Returns:
+            True if track is premium/Go+ only
+        """
+        # Check various indicators of premium content
+        if not info:
+            return False
+
+        # Check policy field which often indicates premium status
+        if info.get("policy") == "BLOCK":
+            return True
+
+        # Check for premium keywords in description or title
+        description = (info.get("description") or "").lower()
+        title = (info.get("title") or "").lower()
+
+        premium_keywords = ["go+", "premium only", "subscribers only"]
+        for keyword in premium_keywords:
+            if keyword in description or keyword in title:
+                return True
+
+        # Check availability
+        if not info.get("is_available", True):
+            return True
+
+        return False
+
     def _handle_download_error(self, error_msg: str) -> None:
         """Handle and classify download errors.
 
@@ -243,7 +304,14 @@ class SoundCloudDownloader(BaseDownloader):
         """
         error_lower = error_msg.lower()
 
-        if "private" in error_lower or "not available" in error_lower:
+        if any(
+            keyword in error_lower
+            for keyword in ["premium", "go+", "subscription required"]
+        ):
+            logger.error(
+                "[SOUNDCLOUD_DOWNLOADER] Track requires SoundCloud Go+ subscription"
+            )
+        elif "private" in error_lower or "not available" in error_lower:
             logger.error("[SOUNDCLOUD_DOWNLOADER] Track is private or not available")
         elif "copyright" in error_lower:
             logger.error("[SOUNDCLOUD_DOWNLOADER] Copyright restriction")
@@ -295,6 +363,8 @@ class SoundCloudDownloader(BaseDownloader):
                     "track_count": len(info.get("entries", []))
                     if "entries" in info
                     else 1,
+                    "is_available": info.get("availability") != "premium_only",
+                    "policy": info.get("policy", ""),
                 }
 
         except Exception as e:

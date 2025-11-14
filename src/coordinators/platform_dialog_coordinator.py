@@ -186,11 +186,23 @@ class PlatformDialogCoordinator:
             # TODO: Create dedicated SoundCloud dialog with audio quality options
             from src.services.soundcloud.downloader import SoundCloudDownloader
 
-            # Get track info for better naming
+            # Get track info for better naming and premium check
             downloader = SoundCloudDownloader()
             info = downloader.get_info(url)
 
             if info:
+                # Check if track is premium/Go+ only
+                if downloader._is_premium_track(info):
+                    error_msg = (
+                        "This SoundCloud track requires a Go+ subscription.\n\n"
+                        "Premium tracks cannot be downloaded without a paid subscription."
+                    )
+                    logger.warning(
+                        f"[PLATFORM_DIALOG_COORDINATOR] Premium SoundCloud track rejected: {url}"
+                    )
+                    self._show_error_dialog("SoundCloud Go+ Required", error_msg)
+                    return
+
                 # Create download with proper name
                 track_name = (
                     f"{info.get('artist', 'Unknown')} - {info.get('title', 'Unknown')}"
@@ -218,6 +230,23 @@ class PlatformDialogCoordinator:
             logger.info("[PLATFORM_DIALOG_COORDINATOR] SoundCloud download added")
 
         except Exception as e:
+            error_str = str(e).lower()
+
+            # Check for premium/subscription errors
+            if any(
+                keyword in error_str
+                for keyword in ["premium", "go+", "subscription", "not available"]
+            ):
+                error_msg = (
+                    "This SoundCloud track requires a Go+ subscription.\n\n"
+                    "Premium tracks cannot be downloaded without a paid subscription."
+                )
+                logger.error(
+                    f"[PLATFORM_DIALOG_COORDINATOR] Premium SoundCloud track error: {e}"
+                )
+                self._show_error_dialog("SoundCloud Go+ Required", error_msg)
+                return
+
             logger.error(
                 f"[PLATFORM_DIALOG_COORDINATOR] Error showing SoundCloud dialog: {e}",
                 exc_info=True,
@@ -226,13 +255,7 @@ class PlatformDialogCoordinator:
             self._show_error_dialog(
                 "SoundCloud Error", f"Failed to process SoundCloud URL: {str(e)}"
             )
-            # Fallback to generic download
-            download = Download(
-                url=url,
-                name=os.path.basename(url) or "soundcloud_download",
-                service_type="soundcloud",
-            )
-            on_download_callback(download)
+            # Don't add to download list on error - just show error dialog
 
     # Generic Download
     def generic_download(
