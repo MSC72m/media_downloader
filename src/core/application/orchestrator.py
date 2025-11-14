@@ -201,12 +201,20 @@ class ApplicationOrchestrator:
                         def update_main_thread():
                             try:
                                 logger.info(f"[AUTH_MANAGER] Updating main thread with success={success}, error={error_message}")
-                                # Show error dialog if authentication failed
-                                if not success and error_message:
+                                # Show error dialog and update status if authentication failed
+                                if not success:
                                     try:
                                         event_coordinator = orchestrator.container.get("event_coordinator")
                                         if event_coordinator:
-                                            event_coordinator.show_error("Instagram Authentication Failed", error_message)
+                                            # Update status bar with error message
+                                            if error_message:
+                                                event_coordinator.update_status(f"Instagram authentication failed: {error_message}", is_error=True)
+                                            else:
+                                                event_coordinator.update_status("Instagram authentication failed", is_error=True)
+
+                                            # Show error dialog
+                                            if error_message:
+                                                event_coordinator.show_error("Instagram Authentication Failed", error_message)
                                     except Exception as dialog_error:
                                         logger.error(f"[AUTH_MANAGER] Error showing error dialog: {dialog_error}")
 
