@@ -176,3 +176,38 @@ class DownloadListView(ctk.CTkFrame):
             del self._downloads[i]
         # Re-render list and rebuild line mapping
         self.refresh_items(self._downloads)
+
+    def remove_completed_downloads(self) -> int:
+        """Remove all completed downloads from the list.
+
+        Returns:
+            Number of downloads removed
+        """
+        from src.utils.logger import get_logger
+
+        logger = get_logger(__name__)
+
+        # Find indices of completed downloads
+        completed_indices = []
+        for i, download in enumerate(self._downloads):
+            if download.status == DownloadStatus.COMPLETED:
+                completed_indices.append(i)
+                logger.debug(
+                    f"[DOWNLOAD_LIST] Marking completed download for removal: {download.name}"
+                )
+
+        if completed_indices:
+            logger.info(
+                f"[DOWNLOAD_LIST] Removing {len(completed_indices)} completed downloads"
+            )
+            self.remove_downloads(completed_indices)
+        else:
+            logger.debug("[DOWNLOAD_LIST] No completed downloads to remove")
+
+        return len(completed_indices)
+
+    def has_completed_downloads(self) -> bool:
+        """Check if there are any completed downloads in the list."""
+        return any(
+            download.status == DownloadStatus.COMPLETED for download in self._downloads
+        )

@@ -129,18 +129,35 @@ class EventCoordinator(
         if self.status_bar:
             self.status_bar.show_error(error or "Download failed")
 
-    # URLDetectionHandler implementation
-    def detect_url_type(self, url: str) -> Optional[str]:
-        """Detect the type of URL - delegated to link detection system."""
-        # This is handled by the new link detection system
-        return None
-
-    def handle_detected_url(self, url: str, context: Any) -> bool:
-        """Handle a detected URL - delegated to link detection system."""
-        # This is handled by the new link detection system
-        return False
 
     # DownloadManagementHandler implementation
+    def _auto_clear_completed_downloads(self) -> int:
+        """Auto-clear completed downloads from the list.
+
+        Returns:
+            Number of downloads cleared
+        """
+        if not self.download_list:
+            return 0
+
+        if not hasattr(self.download_list, "has_completed_downloads") or not hasattr(
+            self.download_list, "remove_completed_downloads"
+        ):
+            return 0
+
+        if not self.download_list.has_completed_downloads():
+            return 0
+
+        removed_count = self.download_list.remove_completed_downloads()
+        logger.info(
+            f"[EVENT_COORDINATOR] Auto-cleared {removed_count} completed downloads"
+        )
+
+        if removed_count > 0 and self.status_bar:
+            self.update_status(f"Cleared {removed_count} completed download(s)")
+
+        return removed_count
+
     def add_download(self, download: Download) -> bool:
         """Add a download to the system."""
         logger.info(f"[EVENT_COORDINATOR] add_download called with: {download}")
@@ -154,6 +171,9 @@ class EventCoordinator(
             logger.error("[EVENT_COORDINATOR] download_list is None or falsy")
             return False
         try:
+            # Auto-clear completed downloads before adding new one
+            self._auto_clear_completed_downloads()
+
             logger.info("[EVENT_COORDINATOR] Adding download to download_list")
             download.set_event_bus(self.event_bus)
             self.download_list.add_download(download)
@@ -616,10 +636,10 @@ class EventCoordinator(
                     config_desc.append("Video Only")
                 if options.get("download_playlist"):
                     config_desc.append("Playlist")
-                if options.get("quality") and options.get("quality") != "720p":
+                if opt := options.get("quality") and options.get("quality") != "720p":
                     config_desc.append(f"{options.get('quality')}")
-                if options.get("selected_browser"):
-                    config_desc.append(f"{options.get('selected_browser')} cookies")
+                if opt := options.get("selected_browser"):
+                    config_desc.append(f"{opt} cookies")
 
                 desc = f"YouTube {config_desc[0]}" if config_desc else "YouTube video"
                 status_message = f"{desc} added: {name}"
@@ -646,3 +666,182 @@ class EventCoordinator(
         """Show YouTube download dialog - delegated to handler system."""
         # This is handled by the new link detection system
         self.update_status("YouTube dialog handled by link detection system")
+
+    def handle_twitter_download(self, download_config: dict) -> None:
+        """Handle Twitter download."""
+        logger.info("[EVENT_COORDINATOR] handle_twitter_download called")
+        logger.info(f"[EVENT_COORDINATOR] Config: {download_config}")
+
+        try:
+            url = download_config.get("url")
+            metadata = download_config.get("metadata", {})
+
+            # Extract name from metadata or URL
+            tweet_id = metadata.get("tweet_id", "unknown")
+            username = metadata.get("username", "twitter_user")
+            name = f"Twitter_{username}_{tweet_id}"
+
+            # Create download object
+            download = Download(
+                name=name,
+                url=url,
+                service_type=ServiceType.TWITTER,
+                quality=download_config.get("quality", "best"),
+                format=download_config.get("format", "video"),
+            )
+            logger.info(
+                f"[EVENT_COORDINATOR] Twitter download object created: {download}"
+            )
+
+            if self.add_download(download):
+                logger.info("[EVENT_COORDINATOR] Twitter download added successfully")
+                self.update_status(f"Twitter download added: {name}")
+            else:
+                logger.error("[EVENT_COORDINATOR] Failed to add Twitter download")
+
+        except Exception as e:
+            logger.error(
+                f"[EVENT_COORDINATOR] Failed to process Twitter download: {e}",
+                exc_info=True,
+            )
+            self.show_error(
+                "Twitter Download Error",
+                f"Failed to process Twitter download: {str(e)}",
+            )
+
+    def handle_pinterest_download(self, download_config: dict) -> None:
+        """Handle Pinterest download."""
+        logger.info("[EVENT_COORDINATOR] handle_pinterest_download called")
+        logger.info(f"[EVENT_COORDINATOR] Config: {download_config}")
+
+        try:
+            url = download_config.get("url")
+            metadata = download_config.get("metadata", {})
+
+            # Extract name from metadata or URL
+            pin_id = metadata.get("pin_id", "unknown")
+            name = f"Pinterest_{pin_id}"
+
+            # Create download object
+            download = Download(
+                name=name,
+                url=url,
+                service_type=ServiceType.PINTEREST,
+                quality=download_config.get("quality", "best"),
+                format=download_config.get("format", "image"),
+            )
+            logger.info(
+                f"[EVENT_COORDINATOR] Pinterest download object created: {download}"
+            )
+
+            if self.add_download(download):
+                logger.info("[EVENT_COORDINATOR] Pinterest download added successfully")
+                self.update_status(f"Pinterest download added: {name}")
+            else:
+                logger.error("[EVENT_COORDINATOR] Failed to add Pinterest download")
+
+        except Exception as e:
+            logger.error(
+                f"[EVENT_COORDINATOR] Failed to process Pinterest download: {e}",
+                exc_info=True,
+            )
+            self.show_error(
+                "Pinterest Download Error",
+                f"Failed to process Pinterest download: {str(e)}",
+            )
+
+    def handle_instagram_download(self, download_config: dict) -> None:
+        """Handle Instagram download."""
+        logger.info("[EVENT_COORDINATOR] handle_instagram_download called")
+        logger.info(f"[EVENT_COORDINATOR] Config: {download_config}")
+
+        try:
+            url = download_config.get("url")
+            metadata = download_config.get("metadata", {})
+
+            # Extract name from metadata or URL
+            shortcode = metadata.get("shortcode", "unknown")
+            content_type = metadata.get("type", "post")
+            name = f"Instagram_{content_type}_{shortcode}"
+
+            # Create download object
+            download = Download(
+                name=name,
+                url=url,
+                service_type=ServiceType.INSTAGRAM,
+                quality=download_config.get("quality", "best"),
+                format=download_config.get("format", "video"),
+            )
+            logger.info(
+                f"[EVENT_COORDINATOR] Instagram download object created: {download}"
+            )
+
+            if self.add_download(download):
+                logger.info("[EVENT_COORDINATOR] Instagram download added successfully")
+                self.update_status(f"Instagram download added: {name}")
+            else:
+                logger.error("[EVENT_COORDINATOR] Failed to add Instagram download")
+
+        except Exception as e:
+            logger.error(
+                f"[EVENT_COORDINATOR] Failed to process Instagram download: {e}",
+                exc_info=True,
+            )
+            self.show_error(
+                "Instagram Download Error",
+                f"Failed to process Instagram download: {str(e)}",
+            )
+
+    def handle_generic_download(self, download_config: dict) -> None:
+        """Handle generic download for any service type."""
+        logger.info("[EVENT_COORDINATOR] handle_generic_download called")
+        logger.info(f"[EVENT_COORDINATOR] Config: {download_config}")
+
+        try:
+            url = download_config.get("url")
+            service_type_str = download_config.get("service_type", "youtube")
+
+            # Map service type string to enum
+            service_type_map = {
+                "youtube": ServiceType.YOUTUBE,
+                "twitter": ServiceType.TWITTER,
+                "instagram": ServiceType.INSTAGRAM,
+                "pinterest": ServiceType.PINTEREST,
+            }
+            service_type = service_type_map.get(service_type_str, ServiceType.YOUTUBE)
+
+            # Generate name from URL or metadata
+            name = download_config.get(
+                "name", f"{service_type_str}_download_{hash(url) % 10000}"
+            )
+
+            # Create download object
+            download = Download(
+                name=name,
+                url=url,
+                service_type=service_type,
+                quality=download_config.get("quality", "best"),
+                format=download_config.get("format", "video"),
+            )
+            logger.info(
+                f"[EVENT_COORDINATOR] Generic download object created: {download}"
+            )
+
+            if not self.add_download(download):
+                logger.error("[EVENT_COORDINATOR] Failed to add generic download")
+                return 
+                
+            logger.info("[EVENT_COORDINATOR] Generic download added successfully")
+            self.update_status(f"Download added: {name}")
+            return 
+                
+
+        except Exception as e:
+            logger.error(
+                f"[EVENT_COORDINATOR] Failed to process generic download: {e}",
+                exc_info=True,
+            )
+            self.show_error(
+                "Download Error",
+                f"Failed to process download: {str(e)}",
+            )

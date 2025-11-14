@@ -16,13 +16,14 @@ class ActionButtonBar(ctk.CTkFrame):
         master,
         on_remove: Callable[[], None],
         on_clear: Callable[[], None],
+        on_clear_completed: Callable[[], None],
         on_download: Callable[[], None],
         on_manage_files: Callable[[], None],
     ):
         super().__init__(master, fg_color="transparent")
 
         # Configure grid
-        self.grid_columnconfigure((0, 1, 2, 3), weight=1)
+        self.grid_columnconfigure((0, 1, 2, 3, 4), weight=1)
 
         # Track download state
         self._download_in_progress = False
@@ -45,6 +46,15 @@ class ActionButtonBar(ctk.CTkFrame):
         )
         self.clear_button.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
 
+        # Clear Completed Button
+        self.clear_completed_button = ctk.CTkButton(
+            self,
+            text="Clear Completed",
+            command=on_clear_completed,
+            **self.button_style,
+        )
+        self.clear_completed_button.grid(row=0, column=2, padx=5, pady=5, sticky="ew")
+
         # Download Button
         def on_download_with_logging():
             logger.info("[ACTION_BUTTONS] Download All button clicked")
@@ -66,13 +76,13 @@ class ActionButtonBar(ctk.CTkFrame):
             command=on_download_with_logging,
             **self.button_style,
         )
-        self.download_button.grid(row=0, column=2, padx=5, pady=5, sticky="ew")
+        self.download_button.grid(row=0, column=3, padx=5, pady=5, sticky="ew")
 
         # Manage Files Button
         self.manage_files_button = ctk.CTkButton(
             self, text="Manage Files", command=on_manage_files, **self.button_style
         )
-        self.manage_files_button.grid(row=0, column=3, padx=5, pady=5, sticky="ew")
+        self.manage_files_button.grid(row=0, column=4, padx=5, pady=5, sticky="ew")
 
         # Ensure all buttons start in enabled state
         logger.info("[ACTION_BUTTONS] Setting initial button states to enabled")
@@ -83,6 +93,7 @@ class ActionButtonBar(ctk.CTkFrame):
         button_map = {
             "remove": self.remove_button,
             "clear": self.clear_button,
+            "clear_completed": self.clear_completed_button,
             "download": self.download_button,
             "manage": self.manage_files_button,
         }
@@ -101,6 +112,7 @@ class ActionButtonBar(ctk.CTkFrame):
         for button in [
             self.remove_button,
             self.clear_button,
+            self.clear_completed_button,
             self.download_button,
             self.manage_files_button,
         ]:
@@ -126,12 +138,18 @@ class ActionButtonBar(ctk.CTkFrame):
         remove_state = "normal" if has_selection else "disabled"
         clear_state = "normal" if has_items else "disabled"
         download_state = "normal" if has_items else "disabled"
+        clear_completed_state = "normal" if has_items else "disabled"
 
         logger.debug(f"[ACTION_BUTTONS] Setting remove_button to: {remove_state}")
         self.remove_button.configure(state=remove_state)
 
         logger.debug(f"[ACTION_BUTTONS] Setting clear_button to: {clear_state}")
         self.clear_button.configure(state=clear_state)
+
+        logger.debug(
+            f"[ACTION_BUTTONS] Setting clear_completed_button to: {clear_completed_state}"
+        )
+        self.clear_completed_button.configure(state=clear_completed_state)
 
         logger.debug(f"[ACTION_BUTTONS] Setting download_button to: {download_state}")
         self.download_button.configure(state=download_state)

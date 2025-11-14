@@ -1,8 +1,9 @@
 import sys
 import tempfile
 from pathlib import Path
-from src.utils.logger import get_logger
+
 from src.utils.common import ensure_gui_available
+from src.utils.logger import get_logger
 
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -12,8 +13,10 @@ logger = get_logger(__name__)
 
 def _ensure_gui_available():
     try:
-        import customtkinter as _ctk  # noqa: F401
         import tkinter as _tk  # noqa: F401
+
+        import customtkinter as _ctk  # noqa: F401
+
         return True
     except Exception as e:
         msg = (
@@ -29,14 +32,14 @@ def _ensure_gui_available():
 # Only import GUI modules after confirming tkinter is available
 ensure_gui_available()
 import customtkinter as ctk  # noqa: E402
-from src.core import ApplicationOrchestrator  # noqa: E402
-from src.ui.components.url_entry import URLEntryFrame  # noqa: E402
-from src.ui.components.options_bar import OptionsBar  # noqa: E402
-from src.ui.components.download_list import DownloadListView  # noqa: E402
-from src.ui.components.status_bar import StatusBar  # noqa: E402
-from src.ui.components.main_action_buttons import ActionButtonBar  # noqa: E402
-from src.ui.components.cookie_selector import CookieSelectorFrame  # noqa: E402
 
+from src.core import ApplicationOrchestrator  # noqa: E402
+from src.ui.components.cookie_selector import CookieSelectorFrame  # noqa: E402
+from src.ui.components.download_list import DownloadListView  # noqa: E402
+from src.ui.components.main_action_buttons import ActionButtonBar  # noqa: E402
+from src.ui.components.options_bar import OptionsBar  # noqa: E402
+from src.ui.components.status_bar import StatusBar  # noqa: E402
+from src.ui.components.url_entry import URLEntryFrame  # noqa: E402
 
 # Set theme after successful import
 ctk.set_appearance_mode("dark")
@@ -72,39 +75,39 @@ class MediaDownloaderApp(ctk.CTk):
         """Create all UI components."""
         # Title
         self.title_label = ctk.CTkLabel(
-            self.main_frame,
-            text="Media Downloader",
-            font=("Roboto", 32, "bold")
+            self.main_frame, text="Media Downloader", font=("Roboto", 32, "bold")
         )
 
         # URL Entry
         self.url_entry = URLEntryFrame(
             self.main_frame,
             on_add=self.orchestrator.handle_add_url,
-            on_youtube_detected=self.orchestrator.handle_youtube_detected
+            on_youtube_detected=self.orchestrator.handle_youtube_detected,
         )
 
         # Options Bar
         self.options_bar = OptionsBar(
-            self.main_frame,
-            on_instagram_login=self.orchestrator.handle_instagram_login
+            self.main_frame, on_instagram_login=self.orchestrator.handle_instagram_login
         )
 
         # Download List
         self.download_list = DownloadListView(
             self.main_frame,
-            on_selection_change=self.orchestrator.handle_selection_change
+            on_selection_change=self.orchestrator.handle_selection_change,
         )
 
         # Action Buttons
         logger.info("[MAIN_APP] Creating ActionButtonBar")
-        logger.info(f"[MAIN_APP] on_download callback: {self.orchestrator.handle_download}")
+        logger.info(
+            f"[MAIN_APP] on_download callback: {self.orchestrator.handle_download}"
+        )
         self.action_buttons = ActionButtonBar(
             self.main_frame,
             on_remove=self.orchestrator.handle_remove,
             on_clear=self.orchestrator.handle_clear,
+            on_clear_completed=self.orchestrator.handle_clear_completed,
             on_download=self.orchestrator.handle_download,
-            on_manage_files=self.orchestrator.handle_manage_files
+            on_manage_files=self.orchestrator.handle_manage_files,
         )
         logger.info("[MAIN_APP] ActionButtonBar created successfully")
 
@@ -114,9 +117,13 @@ class MediaDownloaderApp(ctk.CTk):
         # Cookie Selector (initially hidden)
         self.cookie_selector = CookieSelectorFrame(
             self.main_frame,
-            cookie_handler=self.orchestrator.get_service('cookie_handler'),
-            on_cookie_detected=lambda success: self.orchestrator.handle_cookie_detected("chrome", tempfile.gettempdir() + "/cookies") if success else None,
-            on_manual_select=self.orchestrator.handle_cookie_manual_select
+            cookie_handler=self.orchestrator.get_service("cookie_handler"),
+            on_cookie_detected=lambda success: self.orchestrator.handle_cookie_detected(
+                "chrome", tempfile.gettempdir() + "/cookies"
+            )
+            if success
+            else None,
+            on_manual_select=self.orchestrator.handle_cookie_manual_select,
         )
 
         # Pass UI components to orchestrator
@@ -127,7 +134,7 @@ class MediaDownloaderApp(ctk.CTk):
             download_list=self.download_list,
             action_buttons=self.action_buttons,
             status_bar=self.status_bar,
-            cookie_selector=self.cookie_selector
+            cookie_selector=self.cookie_selector,
         )
         logger.info("[MAIN_APP] UI components passed to orchestrator successfully")
 
@@ -156,7 +163,9 @@ class MediaDownloaderApp(ctk.CTk):
         self.configure(menu=menubar)
 
         tools_menu = Menu(menubar, tearoff=0)
-        tools_menu.add_command(label="Network Status", command=self.orchestrator.show_network_status)
+        tools_menu.add_command(
+            label="Network Status", command=self.orchestrator.show_network_status
+        )
         menubar.add_cascade(label="Tools", menu=tools_menu)
 
     def _on_closing(self):

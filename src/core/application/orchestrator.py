@@ -48,6 +48,9 @@ class ApplicationOrchestrator:
         self.link_detector = LinkDetector()
         self.service_accessor = ServiceAccessor(self.container)
 
+        # Register link handlers after event coordinator is created
+        self._register_link_handlers()
+
         # UI components (will be set by the main entrypoint)
         self.ui_components: dict[str, Any] = {}
 
@@ -58,6 +61,20 @@ class ApplicationOrchestrator:
         self._setup_event_handlers()
 
         logger.info("Application orchestrator initialized")
+
+    def _register_link_handlers(self):
+        """Register all link handlers for URL detection."""
+        try:
+            from ...handlers import _register_link_handlers
+
+            handlers = _register_link_handlers()
+            logger.info(f"[ORCHESTRATOR] Registered {len(handlers)} link handlers")
+            for handler in handlers:
+                logger.info(f"[ORCHESTRATOR] - {handler.__name__}")
+        except Exception as e:
+            logger.error(
+                f"[ORCHESTRATOR] Failed to register link handlers: {e}", exc_info=True
+            )
 
     def _initialize_services(self):
         """Initialize all application services using the container."""
@@ -320,6 +337,11 @@ class ApplicationOrchestrator:
     def handle_clear(self):
         """Handle clearing all items."""
         self.event_coordinator.clear_downloads()
+
+    def handle_clear_completed(self):
+        """Handle clearing only completed downloads."""
+        removed_count = self.event_coordinator._auto_clear_completed_downloads()
+        logger.info(f"[ORCHESTRATOR] Cleared {removed_count} completed downloads")
 
     def handle_download(self):
         """Handle starting downloads."""
