@@ -43,7 +43,9 @@ class EventCoordinator(
         self.root = root_window
         self.container = container
         self.link_detector = LinkDetector()
+        self._active_downloads = {}  # Track active downloads {name: Download}
         self._setup_handlers()
+        self._start_ui_update_timer()
 
     def _setup_handlers(self):
         """Setup internal handlers and services."""
@@ -193,33 +195,12 @@ class EventCoordinator(
                         download.progress = progress
                         download.status = DownloadStatus.DOWNLOADING
 
-                        # Schedule UI update on main thread
-                        def update_ui():
-                            try:
-                                if self.download_list:
-                                    self.download_list.update_item_progress(
-                                        download, progress
-                                    )
-                                if self.status_bar:
-                                    self.status_bar.configure(
-                                        text=f"Downloading {download.name}: {progress:.1f}%"
-                                    )
-                                logger.info(
-                                    f"[EVENT_COORDINATOR] Progress UI updated for {download.name}: {progress}%"
-                                )
-                            except Exception as e:
-                                logger.error(
-                                    f"[EVENT_COORDINATOR] Error in UI update: {e}",
-                                    exc_info=True,
-                                )
+                        # Track active download
+                        self._active_downloads[download.name] = download
 
-                        try:
-                            self.root.after(0, update_ui)
-                        except Exception as e:
-                            logger.error(
-                                f"[EVENT_COORDINATOR] Error scheduling update: {e}",
-                                exc_info=True,
-                            )
+                        logger.info(
+                            f"[EVENT_COORDINATOR] Progress stored for {download.name}: {progress}%"
+                        )
 
                     except Exception as e:
                         logger.error(
@@ -243,37 +224,10 @@ class EventCoordinator(
                             )
                             return
 
-                        # Schedule completion on main thread
-                        def handle_completion_ui():
-                            try:
-                                if self.action_buttons:
-                                    self.action_buttons.set_enabled(True)
-                                if self.download_list:
-                                    downloads = self.download_list.get_downloads()
-                                    self.download_list.refresh_items(downloads)
-                                if self.status_bar:
-                                    status_msg = (
-                                        "Download completed!"
-                                        if success
-                                        else f"Download failed: {message}"
-                                    )
-                                    self.status_bar.configure(text=status_msg)
-                                logger.info(
-                                    f"[EVENT_COORDINATOR] Completion UI updated: {message}"
-                                )
-                            except Exception as e:
-                                logger.error(
-                                    f"[EVENT_COORDINATOR] Error in completion UI: {e}",
-                                    exc_info=True,
-                                )
-
-                        try:
-                            self.root.after(0, handle_completion_ui)
-                        except Exception as e:
-                            logger.error(
-                                f"[EVENT_COORDINATOR] Error scheduling completion: {e}",
-                                exc_info=True,
-                            )
+                        # Mark completion
+                        logger.info(
+                            f"[EVENT_COORDINATOR] Completion stored: success={success}, message={message}"
+                        )
 
                     except Exception as e:
                         logger.error(
@@ -699,3 +653,49 @@ class EventCoordinator(
         """Show YouTube download dialog - delegated to handler system."""
         # This is handled by the new link detection system
         self.update_status("YouTube dialog handled by link detection system")
+
+    def _start_ui_update_timer(self):
+        """Start periodic timer to update UI from main thread."""
+
+        def update_ui():
+            try:
+                # Update progress for all active downloads
+                for name, download in list(self._active_downloads.items()):
+                    if download.status == DownloadStatus.DOWNLOADING:
+                        if self.download_list:
+                            self.download_list.update_item_progress(
+                                download, download.progress
+                            )
+                        if self.status_bar:
+                            self.status_bar.show_message(
+                                f"Downloading {download.name}: {download.progress:.1f}%"
+                            )
+                    elif download.status in [
+                        DownloadStatus.COMPLETED,
+                        DownloadStatus.FAILED,
+                    ]:
+                        # Remove from active downloads
+                        self._active_downloads.pop(name, None)
+                        # Refresh list and re-enable buttons
+                        if self.download_list:
+                            downloads = self.download_list.get_downloads()
+                            self.download_list.refresh_items(downloads)
+                        if self.action_buttons:
+                            self.action_buttons.set_enabled(True)
+                        if self.status_bar:
+                            if download.status == DownloadStatus.COMPLETED:
+                                self.status_bar.show_message("Download completed!")
+                            else:
+                                self.status_bar.show_error(
+                                    download.error_message or "Download failed"
+                                )
+            except Exception as e:
+                logger.error(
+                    f"[EVENT_COORDINATOR] Error in UI update timer: {e}", exc_info=True
+                )
+            finally:
+                # Schedule next update
+                self.root.after(100, update_ui)
+
+        # Start the timer
+        self.root.after(100, update_ui)
