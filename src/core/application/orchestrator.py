@@ -176,32 +176,64 @@ class ApplicationOrchestrator:
                     # Update UI to show logging in
                     self._update_instagram_status("logging_in")
 
+                    # Capture references for the nested function
+                    orchestrator = self.orchestrator
+                    container = self.orchestrator.container
+                    auth_manager = self
+
                     # Attempt authentication in background thread
                     def auth_worker():
+                        success = False
+                        error_message = None
+
                         try:
+                            logger.info("[AUTH_MANAGER] Starting authentication worker")
                             downloader = InstagramDownloader()
                             success = downloader.authenticate(username, password)
-
-                            # Update on main thread
-                            if parent_window and hasattr(parent_window, "after"):
-                                parent_window.after(
-                                    0,
-                                    lambda: self._handle_auth_result(success, callback),
-                                )
-                            else:
-                                self._handle_auth_result(success, callback)
+                            logger.info(f"[AUTH_MANAGER] Authentication completed with success={success}")
 
                         except Exception as e:
-                            logger.error(
-                                f"[AUTH_MANAGER] Authentication error: {e}",
-                                exc_info=True,
-                            )
+                            logger.error(f"[AUTH_MANAGER] Authentication error: {e}", exc_info=True)
+                            error_message = str(e)
+                            success = False
+
+                        # Always update on main thread, regardless of success or failure
+                        def update_main_thread():
+                            try:
+                                logger.info(f"[AUTH_MANAGER] Updating main thread with success={success}, error={error_message}")
+                                # Show error dialog if authentication failed
+                                if not success and error_message:
+                                    try:
+                                        event_coordinator = orchestrator.container.get("event_coordinator")
+                                        if event_coordinator:
+                                            event_coordinator.show_error("Instagram Authentication Failed", error_message)
+                                    except Exception as dialog_error:
+                                        logger.error(f"[AUTH_MANAGER] Error showing error dialog: {dialog_error}")
+
+                                # Call the original handler
+                                auth_manager._handle_auth_result(success, callback)
+
+                                # Additional error logging if there was an error
+                                if error_message:
+                                    logger.error(f"[AUTH_MANAGER] Authentication failed with error: {error_message}")
+
+                            except Exception as update_error:
+                                logger.error(f"[AUTH_MANAGER] Error updating main thread: {update_error}", exc_info=True)
+                                # Fallback: call callback directly
+                                logger.warning("[AUTH_MANAGER] Using fallback callback")
+                                callback(False)
+
+                        try:
                             if parent_window and hasattr(parent_window, "after"):
-                                parent_window.after(
-                                    0, lambda: self._handle_auth_result(False, callback)
-                                )
+                                parent_window.after(0, update_main_thread)
+                                logger.info("[AUTH_MANAGER] Scheduled main thread update")
                             else:
-                                self._handle_auth_result(False, callback)
+                                logger.warning("[AUTH_MANAGER] No parent_window or after method, calling directly")
+                                update_main_thread()
+                        except Exception as schedule_error:
+                            logger.error(f"[AUTH_MANAGER] Error scheduling main thread update: {schedule_error}", exc_info=True)
+                            # Fallback: call callback directly
+                            callback(False)
 
                     import threading
 
@@ -211,6 +243,13 @@ class ApplicationOrchestrator:
                     logger.error(
                         f"[AUTH_MANAGER] Error showing login dialog: {e}", exc_info=True
                     )
+                    # Show error dialog to user
+                    try:
+                        event_coordinator = self.orchestrator.container.get("event_coordinator")
+                        if event_coordinator:
+                            event_coordinator.show_error("Instagram Login Error", f"Failed to show login dialog: {str(e)}")
+                    except Exception as dialog_error:
+                        logger.error(f"[AUTH_MANAGER] Error showing error dialog: {dialog_error}")
                     callback(False)
 
             def _handle_auth_result(self, success: bool, callback):
@@ -229,21 +268,48 @@ class ApplicationOrchestrator:
                 callback(success)
 
             def _update_instagram_status(self, status: str):
-                """Update Instagram button status in options bar."""
+                """Update Instagram button status using UI state manager."""
                 try:
-                    options_bar = self.orchestrator.container.get("options_bar")
-                    if options_bar:
-                        from src.core.enums.instagram_auth_status import (
-                            InstagramAuthStatus,
-                        )
-
-                        status_map = {
-                            "logging_in": InstagramAuthStatus.LOGGING_IN,
-                            "authenticated": InstagramAuthStatus.AUTHENTICATED,
-                            "failed": InstagramAuthStatus.FAILED,
+                    # Use the new UI state manager for consistent UI updates
+                    if self.orchestrator.event_coordinator:
+                        status_messages = {
+                            "logging_in": "Logging in to Instagram...",
+                            "authenticated": "Instagram authenticated successfully",
+                            "failed": "Instagram authentication failed"
                         }
-                        if status in status_map:
-                            options_bar.set_instagram_status(status_map[status])
+                        message = status_messages.get(status, f"Instagram status: {status}")
+                        is_error = status == "failed"
+                        self.orchestrator.event_coordinator.update_status(message, is_error)
+
+                        # Also update the options bar if available
+                        options_bar = self.orchestrator.container.get("options_bar")
+                        if options_bar:
+                            from src.core.enums.instagram_auth_status import (
+                                InstagramAuthStatus,
+                            )
+
+                            status_map = {
+                                "logging_in": InstagramAuthStatus.LOGGING_IN,
+                                "authenticated": InstagramAuthStatus.AUTHENTICATED,
+                                "failed": InstagramAuthStatus.FAILED,
+                            }
+                            if status in status_map:
+                                options_bar.set_instagram_status(status_map[status])
+                    else:
+                        # Fallback to direct options bar update
+                        options_bar = self.orchestrator.container.get("options_bar")
+                        if options_bar:
+                            from src.core.enums.instagram_auth_status import (
+                                InstagramAuthStatus,
+                            )
+
+                            status_map = {
+                                "logging_in": InstagramAuthStatus.LOGGING_IN,
+                                "authenticated": InstagramAuthStatus.AUTHENTICATED,
+                                "failed": InstagramAuthStatus.FAILED,
+                            }
+                            if status in status_map:
+                                options_bar.set_instagram_status(status_map[status])
                 except Exception as e:
                     logger.error(f"[AUTH_MANAGER] Error updating UI status: {e}")
 
@@ -287,7 +353,7 @@ class ApplicationOrchestrator:
 
     # Convenience methods for UI
     def check_connectivity(self) -> None:
-        """Check network connectivity at startup."""
+        """Check network connectivity at startup - simplified synchronous approach."""
         logger.info("[ORCHESTRATOR] Starting connectivity check")
 
         # Ensure event coordinator and UI components are ready
@@ -300,67 +366,47 @@ class ApplicationOrchestrator:
             "[ORCHESTRATOR] Status updated to 'Checking network connectivity...'"
         )
 
-        def check_worker():
-            """Worker thread for connectivity check."""
+        try:
+            logger.info("[ORCHESTRATOR] Checking connectivity")
+            internet_connected, error_msg = check_internet_connection()
+            logger.info(
+                f"[ORCHESTRATOR] Internet check: connected={internet_connected}, error={error_msg}"
+            )
+
+            service_results = check_all_services()
+            logger.info(f"[ORCHESTRATOR] Service check results: {service_results}")
+
+            problem_services = [
+                service
+                for service, (connected, _) in service_results.items()
+                if not connected
+            ]
+            logger.info(f"[ORCHESTRATOR] Problem services: {problem_services}")
+
+            # Call handler directly since we're in main thread
+            logger.info("[ORCHESTRATOR] Calling connectivity check handler directly")
+            self._handle_connectivity_check(internet_connected, error_msg, problem_services)
+
+        except Exception as e:
+            logger.error(
+                f"[ORCHESTRATOR] Error in connectivity check: {e}",
+                exc_info=True,
+            )
+            # Try to update status with error
             try:
-                logger.info("[ORCHESTRATOR] Worker thread started")
-                internet_connected, error_msg = check_internet_connection()
-                logger.info(
-                    f"[ORCHESTRATOR] Internet check: connected={internet_connected}, error={error_msg}"
+                self.event_coordinator.update_status(
+                    "Network check failed", is_error=True
                 )
-
-                service_results = check_all_services()
-                logger.info(f"[ORCHESTRATOR] Service check results: {service_results}")
-
-                problem_services = [
-                    service
-                    for service, (connected, _) in service_results.items()
-                    if not connected
-                ]
-                logger.info(f"[ORCHESTRATOR] Problem services: {problem_services}")
-
-                # Schedule UI update on main thread
-                if self.root and hasattr(self.root, "winfo_exists"):
-                    if self.root.winfo_exists():
-                        self.root.after(
-                            0,
-                            lambda: self._handle_connectivity_check(
-                                internet_connected, error_msg, problem_services
-                            ),
-                        )
-                    else:
-                        logger.warning("[ORCHESTRATOR] Root window no longer exists")
-                else:
-                    logger.error("[ORCHESTRATOR] Root window not available")
-            except Exception as e:
+            except Exception as update_error:
                 logger.error(
-                    f"[ORCHESTRATOR] Error in connectivity check worker: {e}",
-                    exc_info=True,
+                    f"[ORCHESTRATOR] Failed to update status: {update_error}"
                 )
-                # Try to update status with error
-                if self.root and hasattr(self.root, "after"):
-                    try:
-                        self.root.after(
-                            0,
-                            lambda: self.event_coordinator.update_status(
-                                "Network check failed", is_error=True
-                            ),
-                        )
-                    except Exception as update_error:
-                        logger.error(
-                            f"[ORCHESTRATOR] Failed to update status: {update_error}"
-                        )
-
-        import threading
-
-        threading.Thread(target=check_worker, daemon=True).start()
-        logger.info("[ORCHESTRATOR] Connectivity check thread started")
 
     def _handle_connectivity_check(
         self, internet_connected: bool, error_msg: str, problem_services: list
     ) -> None:
         """Handle connectivity check results."""
-        logger.info("[ORCHESTRATOR] Handling connectivity check results")
+        logger.info("[ORCHESTRATOR] Handling connectivity check results - START")
         logger.info(
             f"[ORCHESTRATOR] internet_connected={internet_connected}, problem_services={problem_services}"
         )

@@ -98,7 +98,7 @@ class MediaDownloaderApp(ctk.CTk):
         # Options Bar
         self.options_bar = OptionsBar(
             self.main_frame,
-            on_instagram_login=lambda: coord.authenticate_instagram(None),
+            on_instagram_login=lambda: coord.authenticate_instagram(self),
         )
 
         # Download List

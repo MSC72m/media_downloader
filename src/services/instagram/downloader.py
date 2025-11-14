@@ -39,13 +39,16 @@ class InstagramDownloader(BaseDownloader):
         Returns:
             True if authentication was successful, False otherwise
         """
+        logger.info(f"[INSTAGRAM_DOWNLOADER] Starting authentication for user: {username[:3]}***")
+
         # Check if we've tried too many times recently
         current_time = time.time()
         if (
             self.login_attempts >= self.max_login_attempts
             and current_time - self.last_login_attempt < 600
         ):  # 10 minutes
-            logger.error("Too many login attempts. Please try again later.")
+            error_msg = "Too many login attempts. Please try again later."
+            logger.error(error_msg)
             return False
 
         # First check internet connectivity to Instagram
@@ -58,6 +61,10 @@ class InstagramDownloader(BaseDownloader):
         self.last_login_attempt = time.time()
 
         try:
+            logger.info("[INSTAGRAM_DOWNLOADER] Creating Instaloader instance")
+            # Use realistic browser User-Agent to avoid 400 errors
+            user_agent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+
             self.loader = instaloader.Instaloader(
                 download_videos=True,
                 download_video_thumbnails=False,
@@ -65,15 +72,18 @@ class InstagramDownloader(BaseDownloader):
                 download_comments=False,
                 save_metadata=False,
                 quiet=True,
+                user_agent=user_agent,
             )
 
+            logger.info("[INSTAGRAM_DOWNLOADER] Attempting login with Instagram")
             self.loader.login(username, password)
             self.authenticated = True
-            logger.info("Instagram authentication successful")
+            logger.info("[INSTAGRAM_DOWNLOADER] ✅ Instagram authentication successful")
             return True
 
         except Exception as e:
-            logger.error(f"Instagram authentication failed: {str(e)}")
+            logger.error(f"[INSTAGRAM_DOWNLOADER] ❌ Instagram authentication failed: {str(e)}")
+            logger.error(f"[INSTAGRAM_DOWNLOADER] Exception type: {type(e).__name__}")
             self.authenticated = False
             return False
 
@@ -103,6 +113,9 @@ class InstagramDownloader(BaseDownloader):
 
             # Initialize instaloader if not already done
             if not self.loader:
+                # Use realistic browser User-Agent to avoid 400 errors
+                user_agent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+
                 self.loader = instaloader.Instaloader(
                     download_videos=True,
                     download_video_thumbnails=False,
@@ -110,6 +123,7 @@ class InstagramDownloader(BaseDownloader):
                     download_comments=False,
                     save_metadata=False,
                     quiet=True,
+                    user_agent=user_agent,
                 )
 
             # Parse URL to determine content type

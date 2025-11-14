@@ -200,14 +200,41 @@ class PlatformDialogCoordinator:
         try:
 
             def on_auth_complete(success: bool):
+                """Handle authentication completion with UI updates."""
                 if success:
                     logger.info(
                         "[PLATFORM_DIALOG_COORDINATOR] Instagram authentication successful"
                     )
+                    # Update UI with success status
+                    event_coordinator = self.container.get("event_coordinator")
+                    if event_coordinator:
+                        event_coordinator.update_status("Instagram authenticated successfully", is_error=False)
+
+                    # Update options bar status
+                    options_bar = self.container.get("options_bar")
+                    if options_bar:
+                        try:
+                            from src.core.enums.instagram_auth_status import InstagramAuthStatus
+                            options_bar.set_instagram_status(InstagramAuthStatus.AUTHENTICATED)
+                        except Exception as e:
+                            logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error updating options bar: {e}")
                 else:
                     logger.warning(
                         "[PLATFORM_DIALOG_COORDINATOR] Instagram authentication failed"
                     )
+                    # Update UI with failure status
+                    event_coordinator = self.container.get("event_coordinator")
+                    if event_coordinator:
+                        event_coordinator.update_status("Instagram authentication failed", is_error=True)
+
+                    # Update options bar status
+                    options_bar = self.container.get("options_bar")
+                    if options_bar:
+                        try:
+                            from src.core.enums.instagram_auth_status import InstagramAuthStatus
+                            options_bar.set_instagram_status(InstagramAuthStatus.FAILED)
+                        except Exception as e:
+                            logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error updating options bar: {e}")
 
             self._auth_handler.authenticate_instagram(
                 parent_window or self.root, on_auth_complete
@@ -218,3 +245,7 @@ class PlatformDialogCoordinator:
                 f"[PLATFORM_DIALOG_COORDINATOR] Error authenticating Instagram: {e}",
                 exc_info=True,
             )
+            # Update UI with error status
+            event_coordinator = self.container.get("event_coordinator")
+            if event_coordinator:
+                event_coordinator.update_status("Instagram authentication error", is_error=True)

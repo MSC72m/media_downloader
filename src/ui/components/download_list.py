@@ -1,5 +1,6 @@
 import tkinter as tk
 from collections.abc import Callable
+from typing import List
 
 import customtkinter as ctk
 
@@ -13,8 +14,8 @@ class DownloadListView(ctk.CTkFrame):
         super().__init__(master)
 
         self.on_selection_change = on_selection_change
-        self._item_line_mapping: Dict[str, int] = {}  # Maps item name to line number
-        self._downloads: List[Download] = []  # Store actual Download objects
+        self._item_line_mapping: dict[str, int] = {}  # Maps item name to line number
+        self._downloads: list[Download] = []  # Store actual Download objects
 
         # Create text widget for displaying downloads
         self.list_view = ctk.CTkTextbox(

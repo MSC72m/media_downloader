@@ -2,21 +2,14 @@
 
 import queue
 import threading
-from enum import Enum, auto
 from typing import Any, Callable, Dict, List, Optional
 
 from src.utils.logger import get_logger
+from src.core.enums.events import DownloadEvent
 
 logger = get_logger(__name__)
 
 
-class DownloadEvent(Enum):
-    """Download event types."""
-
-    PROGRESS = auto()
-    COMPLETED = auto()
-    FAILED = auto()
-    STARTED = auto()
 
 
 class DownloadEventBus:

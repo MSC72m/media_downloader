@@ -694,14 +694,21 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         format_label = ctk.CTkLabel(quality_frame, text="Format:", font=("Roboto", 11))
         format_label.pack(side="left", padx=(0, 10))
 
-        self.format_var = ctk.StringVar(value="video")
-        format_options = ["video", "audio", "video_only"]
+        self.format_var = ctk.StringVar(value="Video + Audio")
+        format_options = ["Video + Audio", "Audio Only", "Video Only"]
+
+        # Map user-friendly names to internal values
+        self.format_map = {
+            "Video + Audio": "video",
+            "Audio Only": "audio",
+            "Video Only": "video_only"
+        }
 
         self.format_menu = ctk.CTkOptionMenu(
             quality_frame,
             variable=self.format_var,
             values=format_options,
-            width=100,
+            width=120,
             font=("Roboto", 10),
             command=lambda x: self._on_format_change(),
         )
@@ -851,22 +858,42 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
     def _on_format_change(self) -> None:
         """Handle format selection change."""
-        format_value = self.format_var.get()
+        format_display = self.format_var.get()
 
-        # Update format label text to show what it means
-        # format_descriptions = {
-        #     "video": "Video + Audio",
-        #     "audio": "Audio Only",
-        #     "video_only": "Video Only"
-        # }
+        # Convert display name to internal value
+        format_value = self.format_map.get(format_display, "video")
 
-        # Update audio_only checkbox based on format
+        # Update UI based on format selection
+        format_descriptions = {
+            "video": "Video + Audio (MP4)",
+            "audio": "Audio Only (MP3)",
+            "video_only": "Video Only (M4V)"
+        }
+
+        # Update the quality options based on format
+        self._update_quality_options_for_format(format_value)
+        logger.info(f"[YOUTUBE_DIALOG] Format changed to: {format_display} ({format_value}) - {format_descriptions.get(format_value, 'Unknown')}")
+
+    def _update_quality_options_for_format(self, format_value: str) -> None:
+        """Update available quality options based on format selection."""
         if format_value == "audio":
-            # Audio format means audio only
-            pass  # No checkbox anymore
+            # For audio only, show audio quality options
+            audio_qualities = ["best", "high", "medium", "low"]
+            if hasattr(self, 'quality_menu'):
+                current_quality = self.quality_var.get()
+                self.quality_menu.configure(values=audio_qualities)
+                # Set a sensible default if current quality is not in audio options
+                if current_quality not in audio_qualities:
+                    self.quality_var.set("high")
         else:
-            # Video or video_only means include video
-            pass
+            # For video formats, show video quality options
+            video_qualities = ["best", "1080p", "720p", "480p", "360p"]
+            if hasattr(self, 'quality_menu'):
+                current_quality = self.quality_var.get()
+                self.quality_menu.configure(values=video_qualities)
+                # Set a sensible default if current quality is not in video options
+                if current_quality not in video_qualities:
+                    self.quality_var.set("720p")
 
     def _darken_color(self, hex_color: str) -> str:
         """Darken a hex color for hover effect."""
@@ -1008,7 +1035,8 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                 return
 
             # Get format-specific settings
-            format_value = self.format_var.get()
+            format_display = self.format_var.get()
+            format_value = self.format_map.get(format_display, "video")
             audio_only = format_value == "audio"
             video_only = format_value == "video_only"
 

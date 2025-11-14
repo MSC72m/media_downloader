@@ -1,6 +1,7 @@
 """Network status dialog for checking connectivity to various services."""
 
 import threading
+from typing import Dict, Tuple
 
 import customtkinter as ctk
 
@@ -129,7 +130,7 @@ class NetworkStatusDialog(ctk.CTkToplevel):
         threading.Thread(target=check_worker, daemon=True).start()
 
     def update_status_display(
-        self, service_results: Dict[ServiceType, tuple], any_error: bool
+        self, service_results: Dict[ServiceType, Tuple[bool, str]], any_error: bool
     ):
         """Update the status display with check results."""
         for service, (connected, error) in service_results.items():

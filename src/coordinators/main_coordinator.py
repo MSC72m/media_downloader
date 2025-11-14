@@ -84,8 +84,26 @@ class EventCoordinator:
         self.ui_state.update_button_states(has_selection, has_items)
 
     def show_error(self, title: str, message: str) -> None:
-        """Show error message - delegates to UI state manager."""
-        self.ui_state.show_error(f"{title}: {message}")
+        """Show error message - uses message queue for proper error dialogs."""
+        try:
+            from src.core.enums.message_level import MessageLevel
+            from src.services.events.queue import Message
+
+            message_queue = self.container.get("message_queue")
+            if message_queue:
+                error_message = Message(
+                    text=message,
+                    level=MessageLevel.ERROR,
+                    title=title
+                )
+                message_queue.add_message(error_message)
+            else:
+                # Fallback to status bar
+                self.ui_state.show_error(f"{title}: {message}")
+        except Exception as e:
+            # Ultimate fallback
+            logger.error(f"Error showing error dialog: {e}")
+            self.ui_state.show_error(f"{title}: {message}")
 
     # Platform-Specific Dialogs - Single dispatch method
     def platform_download(

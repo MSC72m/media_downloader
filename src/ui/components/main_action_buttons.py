@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from typing import Dict
 
 import customtkinter as ctk
 
