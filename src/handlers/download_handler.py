@@ -63,16 +63,25 @@ class DownloadHandler:
         """Start downloads by delegating to appropriate service handlers."""
         logger.info(f"[DOWNLOAD_HANDLER] Starting {len(downloads)} downloads")
 
-        for download in downloads:
-            # Start each download in a separate thread
-            import threading
-
-            thread = threading.Thread(
-                target=self._download_worker,
-                args=(download, download_dir, progress_callback, completion_callback),
-                daemon=True,
+        # Early return: validate inputs
+        if not downloads:
+            logger.warning("[DOWNLOAD_HANDLER] No downloads provided")
+            self._invoke_completion_callback(
+                completion_callback, False, "No downloads to process"
             )
-            thread.start()
+            return
+
+        # Validate and expand download directory
+        validated_dir = self._validate_download_directory(
+            download_dir, completion_callback
+        )
+        if not validated_dir:
+            return
+
+        # Start downloads with concurrency control
+        self._start_download_threads(
+            downloads, validated_dir, progress_callback, completion_callback
+        )
 
     def _download_worker(
         self,
@@ -81,19 +90,20 @@ class DownloadHandler:
         progress_callback,
         completion_callback,
     ):
-        """Worker function to handle a single download by delegating to service factory with early returns."""
-        logger.info(f"[DOWNLOAD_HANDLER] download_worker called for: {download.name}")
-        logger.info(f"[DOWNLOAD_HANDLER] Download URL: {download.url}")
-        logger.info(f"[DOWNLOAD_HANDLER] Download directory: {download_dir}")
+        """Worker function to handle a single download."""
+        logger.info(f"[DOWNLOAD_HANDLER] Worker started for: {download.name}")
+        logger.info(f"[DOWNLOAD_HANDLER] URL: {download.url}")
+        logger.info(f"[DOWNLOAD_HANDLER] Directory: {download_dir}")
+
         try:
-            logger.info("[DOWNLOAD_HANDLER] Getting service_factory from container")
+            # Early return: get service factory
             service_factory = self.container.get("service_factory")
             if not service_factory:
-                msg = "Service factory not available"
-                logger.error(f"[DOWNLOAD_HANDLER] {msg}")
-                if completion_callback:
-                    completion_callback(False, msg)
+                self._handle_download_failure(
+                    download, completion_callback, "Service factory not available"
+                )
                 return
+
             logger.info(
                 f"[DOWNLOAD_HANDLER] Service factory obtained: {service_factory}"
             )
@@ -210,40 +220,25 @@ class DownloadHandler:
             else:
                 # Fallback to factory's default downloader
                 downloader = service_factory.get_downloader(download.url)
+                if not downloader:
+                    self._handle_download_failure(
+                        download,
+                        completion_callback,
+                        f"No downloader available for URL: {download.url}",
+                    )
+                    return
 
-            if not downloader:
-                msg = f"No downloader available for URL: {download.url}"
-                logger.error(f"[DOWNLOAD_HANDLER] {msg}")
-                if completion_callback:
-                    completion_callback(False, msg)
-                return
             logger.info(
                 f"[DOWNLOAD_HANDLER] Downloader obtained: {type(downloader).__name__}"
             )
 
-            # Create output dir and sanitized filename via FileService
-            from pathlib import Path
+            # Prepare download
+            output_path = self._prepare_download_path(download, download_dir)
+            progress_wrapper = self._create_progress_wrapper(
+                download, progress_callback
+            )
 
-            logger.info("[DOWNLOAD_HANDLER] Getting file service")
-            file_service = service_factory.get_file_service()
-            logger.info(f"[DOWNLOAD_HANDLER] Creating target directory: {download_dir}")
-            target_dir = Path(download_dir).expanduser()
-            target_dir.mkdir(parents=True, exist_ok=True)
-            logger.info(f"[DOWNLOAD_HANDLER] Sanitizing filename: {download.name}")
-            base_name = file_service.sanitize_filename(download.name or "download")
-            ext = ".mp4"
-            if getattr(download, "audio_only", False):
-                ext = ".mp3"
-            output_path = str(target_dir / f"{base_name}{ext}")
-            logger.info(f"[DOWNLOAD_HANDLER] Output path: {output_path}")
-
-            def progress_wrapper(progress, speed):
-                logger.info(
-                    f"[DOWNLOAD_HANDLER] Progress callback fired: {download.name} - {progress:.1f}% - {speed:.2f} bytes/s"
-                )
-                if progress_callback:
-                    progress_callback(download, int(progress))
-
+            # Execute download
             logger.info("[DOWNLOAD_HANDLER] Starting download...")
             success = downloader.download(
                 url=download.url,
@@ -254,24 +249,23 @@ class DownloadHandler:
                 f"[DOWNLOAD_HANDLER] Download completed with success: {success}"
             )
 
+            # Handle result
             if not success:
-                msg = f"Failed to download: {download.name}"
-                logger.error(f"[DOWNLOAD_HANDLER] {msg}")
-                if completion_callback:
-                    completion_callback(False, msg)
+                self._handle_download_failure(
+                    download,
+                    completion_callback,
+                    f"Failed to download: {download.name}",
+                )
                 return
 
-            logger.info(f"[DOWNLOAD_HANDLER] Successfully downloaded: {download.name}")
-            if completion_callback:
-                completion_callback(True, f"Downloaded: {download.name}")
+            self._handle_download_success(download, completion_callback)
         except Exception as e:
             error_msg = f"Download error: {str(e)}"
             logger.error(
                 f"[DOWNLOAD_HANDLER] Download error for {download.name}: {e}",
                 exc_info=True,
             )
-            if completion_callback:
-                completion_callback(False, error_msg)
+            self._handle_download_failure(download, completion_callback, error_msg)
 
     def _handle_youtube_download(
         self,
@@ -308,6 +302,155 @@ class DownloadHandler:
         self._download_worker(
             download, download_dir, progress_callback, completion_callback
         )
+
+    def _validate_download_directory(
+        self, download_dir: str, completion_callback
+    ) -> Optional[str]:
+        """Validate and expand download directory. Returns validated path or None."""
+        try:
+            from pathlib import Path
+
+            expanded_dir = Path(download_dir).expanduser().resolve()
+
+            if not expanded_dir.exists():
+                expanded_dir.mkdir(parents=True, exist_ok=True)
+                logger.info(f"[DOWNLOAD_HANDLER] Created directory: {expanded_dir}")
+                return str(expanded_dir)
+
+            if not expanded_dir.is_dir():
+                logger.error(
+                    f"[DOWNLOAD_HANDLER] Path is not a directory: {expanded_dir}"
+                )
+                self._invoke_completion_callback(
+                    completion_callback,
+                    False,
+                    f"Invalid download directory: {download_dir}",
+                )
+                return None
+
+            return str(expanded_dir)
+
+        except Exception as e:
+            logger.error(
+                f"[DOWNLOAD_HANDLER] Invalid download directory: {download_dir}, error: {e}"
+            )
+            self._invoke_completion_callback(
+                completion_callback,
+                False,
+                f"Invalid download directory: {download_dir}",
+            )
+            return None
+
+    def _start_download_threads(
+        self,
+        downloads: List[Download],
+        download_dir: str,
+        progress_callback,
+        completion_callback,
+    ) -> None:
+        """Start download threads with concurrency control."""
+        import threading
+        import time
+
+        max_concurrent = 3
+        active_threads = []
+
+        for download in downloads:
+            # Skip invalid URLs
+            if not download.url or not download.url.strip():
+                logger.error(f"[DOWNLOAD_HANDLER] Invalid URL for: {download.name}")
+                continue
+
+            # Start download thread
+            thread = threading.Thread(
+                target=self._download_worker,
+                args=(download, download_dir, progress_callback, completion_callback),
+                daemon=True,
+                name=f"DownloadWorker-{download.name[:20]}",
+            )
+            thread.start()
+            active_threads.append(thread)
+
+            # Concurrency control
+            if len(active_threads) >= max_concurrent:
+                for j, active_thread in enumerate(active_threads):
+                    if not active_thread.is_alive():
+                        active_threads.pop(j)
+                        break
+                else:
+                    time.sleep(0.1)
+
+    def _prepare_download_path(self, download: Download, download_dir: str) -> str:
+        """Prepare and return the output path for download."""
+        import re
+        from pathlib import Path
+
+        target_dir = Path(download_dir)
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        logger.info(f"[DOWNLOAD_HANDLER] Sanitizing filename: {download.name}")
+
+        # Get file service with fallback
+        file_service = self.container.get("file_service")
+
+        if file_service:
+            base_name = file_service.sanitize_filename(download.name or "download")
+        else:
+            # Fallback sanitization if file_service not available
+            logger.warning(
+                "[DOWNLOAD_HANDLER] file_service not available, using fallback sanitization"
+            )
+            base_name = download.name or "download"
+            # Remove invalid filename characters
+            base_name = re.sub(r'[<>:"/\\|?*]', "_", base_name)
+            base_name = base_name.strip()[:200]  # Limit length
+
+        ext = ".mp3" if getattr(download, "audio_only", False) else ".mp4"
+        output_path = str(target_dir / f"{base_name}{ext}")
+
+        logger.info(f"[DOWNLOAD_HANDLER] Output path: {output_path}")
+        return output_path
+
+    def _create_progress_wrapper(self, download: Download, progress_callback):
+        """Create a progress wrapper function for the download."""
+
+        def progress_wrapper(progress, speed):
+            logger.info(
+                f"[DOWNLOAD_HANDLER] Progress: {download.name} - {progress:.1f}% - {speed:.2f} bytes/s"
+            )
+            self._invoke_progress_callback(progress_callback, download, int(progress))
+
+        return progress_wrapper
+
+    def _handle_download_success(self, download: Download, completion_callback) -> None:
+        """Handle successful download completion."""
+        logger.info(f"[DOWNLOAD_HANDLER] Successfully downloaded: {download.name}")
+        download.update_progress(100.0, 0.0)
+        self._invoke_completion_callback(
+            completion_callback, True, f"Downloaded: {download.name}"
+        )
+
+    def _handle_download_failure(
+        self, download: Download, completion_callback, message: str
+    ) -> None:
+        """Handle download failure."""
+        logger.error(f"[DOWNLOAD_HANDLER] {message}")
+        download.mark_failed(message)
+        self._invoke_completion_callback(completion_callback, False, message)
+
+    def _invoke_progress_callback(
+        self, callback, download: Download, progress: int
+    ) -> None:
+        """Safely invoke progress callback if available."""
+        if callback:
+            callback(download, progress)
+
+    def _invoke_completion_callback(
+        self, callback, success: bool, message: str
+    ) -> None:
+        """Safely invoke completion callback if available."""
+        if callback:
+            callback(success, message)
 
     def has_active_downloads(self) -> bool:
         """Check if there are active downloads."""

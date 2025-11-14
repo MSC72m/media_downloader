@@ -1,4 +1,5 @@
 import sys
+import tempfile
 from pathlib import Path
 from src.utils.logger import get_logger
 from src.utils.common import ensure_gui_available
@@ -114,7 +115,7 @@ class MediaDownloaderApp(ctk.CTk):
         self.cookie_selector = CookieSelectorFrame(
             self.main_frame,
             cookie_handler=self.orchestrator.get_service('cookie_handler'),
-            on_cookie_detected=lambda success: self.orchestrator.handle_cookie_detected("chrome", "/tmp/cookies") if success else None,
+            on_cookie_detected=lambda success: self.orchestrator.handle_cookie_detected("chrome", tempfile.gettempdir() + "/cookies") if success else None,
             on_manual_select=self.orchestrator.handle_cookie_manual_select
         )
 

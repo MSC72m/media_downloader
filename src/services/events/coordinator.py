@@ -1,5 +1,6 @@
 import os
-from tkinter import messagebox
+import tkinter as tk
+from tkinter import TclError, messagebox
 from typing import Any, Callable, Dict, List, Optional
 
 import customtkinter as ctk
@@ -175,23 +176,114 @@ class EventCoordinator(
                 # Define callbacks for UI feedback (THREAD-SAFE)
                 def on_progress(download, progress):
                     """Called from worker thread - must schedule UI updates on main thread."""
-                    logger.debug(
-                        f"[EVENT_COORDINATOR] Progress callback: {download.name} - {progress}%"
-                    )
-                    # Schedule UI update on main thread
-                    self.root.after(
-                        0, lambda: self._update_progress_ui(download, progress)
-                    )
+                    try:
+                        logger.info(
+                            f"[EVENT_COORDINATOR] Progress callback RECEIVED: {download.name} - {progress}%"
+                        )
+
+                        # Early return: validate inputs
+                        if not download or not isinstance(progress, (int, float)):
+                            logger.warning(
+                                f"[EVENT_COORDINATOR] Invalid progress data: download={download}, progress={progress}"
+                            )
+                            return
+
+                        logger.debug(f"[EVENT_COORDINATOR] Progress data validated")
+
+                        # Early return: check if root has after method
+                        if not hasattr(self.root, "after"):
+                            logger.warning(
+                                "[EVENT_COORDINATOR] root.after not available"
+                            )
+                            return
+
+                        logger.debug(f"[EVENT_COORDINATOR] root.after is available")
+
+                        # Schedule UI update AND force event loop processing
+                        try:
+                            self.root.winfo_exists()
+                            logger.debug(
+                                f"[EVENT_COORDINATOR] Window exists, scheduling UI update"
+                            )
+
+                            # Use after(1) to ensure it runs on next event loop cycle
+                            self.root.after(
+                                1,
+                                lambda d=download, p=progress: self._update_progress_ui(
+                                    d, p
+                                ),
+                            )
+
+                            logger.info(
+                                f"[EVENT_COORDINATOR] Progress UI update SCHEDULED for {download.name}: {progress}%"
+                            )
+                        except tk.TclError as e:
+                            logger.warning(
+                                f"[EVENT_COORDINATOR] Window closed, skipping progress update: {e}"
+                            )
+
+                    except Exception as e:
+                        logger.error(
+                            f"[EVENT_COORDINATOR] Error in progress callback: {e}",
+                            exc_info=True,
+                        )
 
                 def on_completion(success, message):
                     """Called from worker thread - must schedule UI updates on main thread."""
-                    logger.info(
-                        f"[EVENT_COORDINATOR] Completion callback: success={success}, message={message}"
-                    )
-                    # Schedule UI update on main thread
-                    self.root.after(
-                        0, lambda: self._handle_completion_ui(success, message)
-                    )
+                    try:
+                        logger.info(
+                            f"[EVENT_COORDINATOR] Completion callback: success={success}, message={message}"
+                        )
+
+                        # Early return: validate inputs
+                        if not isinstance(success, bool) or not isinstance(
+                            message, str
+                        ):
+                            logger.warning(
+                                f"[EVENT_COORDINATOR] Invalid completion data: success={type(success)}, message={type(message)}"
+                            )
+                            return
+
+                        # Early return: check if root has after method
+                        if not hasattr(self.root, "after"):
+                            logger.error(
+                                "[EVENT_COORDINATOR] root.after not available, cannot schedule UI update"
+                            )
+                            return
+
+                        # Schedule UI update AND force event loop processing
+                        try:
+                            self.root.winfo_exists()
+                            logger.debug(
+                                "[EVENT_COORDINATOR] Scheduling completion UI update"
+                            )
+
+                            # Use after(1) to ensure it runs on next event loop cycle
+                            self.root.after(
+                                1,
+                                lambda s=success, m=message: self._handle_completion_ui(
+                                    s, m
+                                ),
+                            )
+
+                            logger.debug(
+                                "[EVENT_COORDINATOR] Completion UI scheduled successfully"
+                            )
+                        except tk.TclError as tcl_err:
+                            logger.warning(
+                                f"[EVENT_COORDINATOR] Window closed: {tcl_err}"
+                            )
+                        except Exception as sched_err:
+                            logger.error(
+                                f"[EVENT_COORDINATOR] Error scheduling completion UI: {sched_err}",
+                                exc_info=True,
+                            )
+
+                    except Exception as e:
+                        logger.error(
+                            f"[EVENT_COORDINATOR] Unexpected error in completion callback: {e}",
+                            exc_info=True,
+                        )
 
                 # Disable buttons during download
                 if self.action_buttons:
@@ -257,65 +349,145 @@ class EventCoordinator(
             )
 
     def _update_progress_ui(self, download: Download, progress: float) -> None:
-        """Update download progress in UI (called on main thread)."""
-        logger.info(
-            f"[EVENT_COORDINATOR] _update_progress_ui called: {download.name} - {progress}%"
-        )
-
-        # Update the download object
-        download.progress = progress
-        logger.info(f"[EVENT_COORDINATOR] Updated download.progress to {progress}")
-
-        # Update the download list item UI
-        if self.download_list:
-            logger.info(
-                f"[EVENT_COORDINATOR] Calling download_list.update_item_progress"
-            )
-            self.download_list.update_item_progress(download, progress)
-            logger.info(
-                f"[EVENT_COORDINATOR] download_list.update_item_progress completed"
-            )
-        else:
-            logger.warning(
-                f"[EVENT_COORDINATOR] download_list is None, cannot update UI"
-            )
-
-        # Update status bar
-        if self.status_bar:
-            logger.info(f"[EVENT_COORDINATOR] Updating status bar")
-            self.status_bar.show_message(
-                f"Downloading {download.name}: {progress:.1f}%"
-            )
-        else:
-            logger.warning(f"[EVENT_COORDINATOR] status_bar is None")
-
-    def _handle_completion_ui(self, success: bool, message: str) -> None:
-        """Handle download completion in UI (called on main thread)."""
+        """Update progress in UI (called on main thread)."""
         try:
             logger.info(
-                f"[EVENT_COORDINATOR] _handle_completion_ui: success={success}, message={message}"
+                f"[EVENT_COORDINATOR] _update_progress_ui EXECUTING on main thread for {download.name} with progress {progress}%"
             )
 
-            # Re-enable buttons
-            if self.action_buttons:
-                logger.info("[EVENT_COORDINATOR] Re-enabling action buttons")
+            # Early return: validate download object
+            if not download:
+                logger.warning("[EVENT_COORDINATOR] download object is None")
+                return
+
+            # Clamp progress to valid range
+            if not isinstance(progress, (int, float)) or progress < 0 or progress > 100:
+                logger.warning(
+                    f"[EVENT_COORDINATOR] Invalid progress: {progress}, clamping"
+                )
+                progress = max(0, min(100, progress))
+
+            # Update the download object (speed is not tracked in progress updates)
+            download.progress = progress
+
+            # Update the download list UI
+            if self.download_list:
                 try:
-                    self.action_buttons.set_enabled(True)
+                    logger.debug(
+                        f"[EVENT_COORDINATOR] Calling download_list.update_item_progress"
+                    )
+                    self.download_list.update_item_progress(download, progress)
+                    logger.debug(
+                        f"[EVENT_COORDINATOR] download_list.update_item_progress completed"
+                    )
                 except Exception as e:
-                    logger.error(f"[EVENT_COORDINATOR] Error re-enabling buttons: {e}")
-
-            # Don't clear downloads - just update status
-            # Users might want to retry failed downloads
-
-            # Show completion message
-            if success:
-                self.update_status("Download completed successfully!")
+                    logger.error(
+                        f"[EVENT_COORDINATOR] Error updating download list: {e}",
+                        exc_info=True,
+                    )
             else:
-                self.update_status(f"Download failed: {message}", is_error=True)
+                logger.warning(
+                    f"[EVENT_COORDINATOR] download_list is None, cannot update"
+                )
+
+            # Update status bar
+            if self.status_bar:
+                try:
+                    self.status_bar.configure(
+                        text=f"Downloading {download.name}: {progress:.1f}%"
+                    )
+                    logger.debug(f"[EVENT_COORDINATOR] Status bar updated")
+                except Exception as e:
+                    logger.error(
+                        f"[EVENT_COORDINATOR] Error updating status bar: {e}",
+                        exc_info=True,
+                    )
+            else:
+                logger.debug(f"[EVENT_COORDINATOR] status_bar is None")
+
+            logger.info(
+                f"[EVENT_COORDINATOR] _update_progress_ui COMPLETED for {download.name}"
+            )
 
         except Exception as e:
             logger.error(
-                f"[EVENT_COORDINATOR] Error in completion handler: {e}", exc_info=True
+                f"[EVENT_COORDINATOR] Unexpected error in _update_progress_ui: {e}",
+                exc_info=True,
+            )
+
+    def _handle_completion_ui(self, success: bool, message: str) -> None:
+        """Handle download completion in UI (called on main thread)."""
+        logger.info(
+            f"[EVENT_COORDINATOR] _handle_completion_ui CALLED: success={success}, message={message}"
+        )
+
+        try:
+            # Re-enable buttons
+            self._reenable_action_buttons()
+
+            # Refresh download list to show updated status
+            self._refresh_download_list()
+
+            # Show completion message
+            self._show_completion_message(success, message)
+
+        except Exception as e:
+            logger.error(
+                f"[EVENT_COORDINATOR] Unexpected error in completion handler: {e}",
+                exc_info=True,
+            )
+
+        logger.info("[EVENT_COORDINATOR] _handle_completion_ui COMPLETED")
+
+    def _reenable_action_buttons(self) -> None:
+        """Re-enable action buttons after download completion."""
+        if not self.action_buttons:
+            return
+
+        try:
+            logger.info("[EVENT_COORDINATOR] Re-enabling action buttons")
+            self.action_buttons.set_enabled(True)
+            logger.info("[EVENT_COORDINATOR] Action buttons re-enabled successfully")
+        except Exception as e:
+            logger.error(
+                f"[EVENT_COORDINATOR] Error re-enabling buttons: {e}",
+                exc_info=True,
+            )
+
+    def _refresh_download_list(self) -> None:
+        """Refresh download list UI to show updated status."""
+        if not self.download_list:
+            logger.warning("[EVENT_COORDINATOR] download_list is None, cannot refresh")
+            return
+
+        try:
+            logger.info("[EVENT_COORDINATOR] Refreshing download list")
+            downloads = self.download_list.get_downloads()
+            logger.info(f"[EVENT_COORDINATOR] Refreshing {len(downloads)} downloads")
+            self.download_list.refresh_items(downloads)
+            logger.info("[EVENT_COORDINATOR] Download list refreshed successfully")
+        except Exception as e:
+            logger.error(
+                f"[EVENT_COORDINATOR] Error refreshing download list: {e}",
+                exc_info=True,
+            )
+
+    def _show_completion_message(self, success: bool, message: str) -> None:
+        """Show completion status message."""
+        try:
+            status_text = (
+                "Download completed successfully!"
+                if success
+                else f"Download failed: {message}"
+            )
+            self.update_status(status_text, is_error=not success)
+            logger.info(
+                f"[EVENT_COORDINATOR] {'Success' if success else 'Failure'} status displayed"
+            )
+        except Exception as e:
+            logger.error(
+                f"[EVENT_COORDINATOR] Error updating status message: {e}",
+                exc_info=True,
             )
 
     def update_button_states(self, has_selection: bool, has_items: bool) -> None:

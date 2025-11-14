@@ -1,6 +1,8 @@
-import customtkinter as ctk
 import tkinter as tk
-from typing import List, Callable, Dict
+from typing import Callable, Dict, List
+
+import customtkinter as ctk
+
 from src.core import Download, DownloadStatus
 
 
@@ -16,10 +18,7 @@ class DownloadListView(ctk.CTkFrame):
 
         # Create text widget for displaying downloads
         self.list_view = ctk.CTkTextbox(
-            self,
-            activate_scrollbars=True,
-            height=300,
-            font=("Roboto", 12)
+            self, activate_scrollbars=True, height=300, font=("Roboto", 12)
         )
         self.list_view.pack(fill=tk.BOTH, expand=True)
 
@@ -41,25 +40,45 @@ class DownloadListView(ctk.CTkFrame):
 
     def update_item_progress(self, item: Download, progress: float):
         """Update progress for a specific item efficiently."""
+        from src.utils.logger import get_logger
+
+        logger = get_logger(__name__)
+
+        logger.debug(
+            f"[DOWNLOAD_LIST] update_item_progress called for {item.name} with progress {progress}"
+        )
+
         line_num = self._item_line_mapping.get(item.name)
         if not line_num:
+            logger.warning(f"[DOWNLOAD_LIST] No line mapping found for {item.name}")
+            logger.debug(
+                f"[DOWNLOAD_LIST] Available mappings: {list(self._item_line_mapping.keys())}"
+            )
             return
+
+        logger.debug(f"[DOWNLOAD_LIST] Found line number: {line_num}")
 
         # Update the item's progress
         item.progress = progress
         status_text = self._format_status(item)
+        logger.debug(f"[DOWNLOAD_LIST] Status text: {status_text}")
 
         # Replace only the status part of the line
         line_start = f"{line_num}.0"
         line_end = f"{line_num}.end"
 
         current_line = self.list_view.get(line_start, line_end).strip()
+        logger.debug(f"[DOWNLOAD_LIST] Current line: {current_line}")
+
         if current_line:
             # Find the status part (after the second "|")
             parts = current_line.split(" | ")
+            logger.debug(f"[DOWNLOAD_LIST] Line parts: {len(parts)}")
+
             if len(parts) >= 3:
                 # Update only the status part
                 new_line = f"{parts[0]} | {parts[1]} | {status_text}"
+                logger.debug(f"[DOWNLOAD_LIST] New line: {new_line}")
 
                 # Store current scroll position
                 current_scroll = self.list_view.yview()
@@ -70,6 +89,14 @@ class DownloadListView(ctk.CTkFrame):
 
                 # Restore scroll position
                 self.list_view.yview_moveto(current_scroll[0])
+
+                logger.debug(f"[DOWNLOAD_LIST] Progress updated successfully in UI")
+            else:
+                logger.warning(
+                    f"[DOWNLOAD_LIST] Line format unexpected - expected 3+ parts, got {len(parts)}"
+                )
+        else:
+            logger.warning(f"[DOWNLOAD_LIST] Current line is empty")
 
     @staticmethod
     def _format_status(item: Download) -> str:
@@ -83,8 +110,8 @@ class DownloadListView(ctk.CTkFrame):
     def get_selected_indices(self) -> List[int]:
         """Get indices of selected items."""
         try:
-            start = self.list_view.index("sel.first").split('.')[0]
-            end = self.list_view.index("sel.last").split('.')[0]
+            start = self.list_view.index("sel.first").split(".")[0]
+            end = self.list_view.index("sel.last").split(".")[0]
             return list(range(int(start) - 1, int(end)))
         except tk.TclError:  # No selection
             return []
@@ -100,7 +127,7 @@ class DownloadListView(ctk.CTkFrame):
         self.list_view.see(tk.INSERT)
         return "break"  # Prevent default handling
 
-    def add_download(self, download: 'Download'):
+    def add_download(self, download: "Download"):
         """Add a new download to the list."""
         # Store the actual Download object
         self._downloads.append(download)
@@ -116,7 +143,7 @@ class DownloadListView(ctk.CTkFrame):
         self.list_view.insert(tk.END, new_entry)
 
         # Update the line mapping
-        line_num = current_content.count('\n') + 1
+        line_num = current_content.count("\n") + 1
         self._item_line_mapping[download.name] = line_num
 
         # Scroll to the bottom to show the new download
@@ -126,7 +153,7 @@ class DownloadListView(ctk.CTkFrame):
         """Check if the download list has any items."""
         return len(self._downloads) > 0
 
-    def get_downloads(self) -> List['Download']:
+    def get_downloads(self) -> List["Download"]:
         """Get all downloads from the list."""
         # Return the stored Download objects instead of parsing text
         return self._downloads.copy()
@@ -142,7 +169,9 @@ class DownloadListView(ctk.CTkFrame):
         if not indices:
             return
         # Remove from the stored list (work on a copy, remove highest indices first)
-        unique_indices = sorted(set(i for i in indices if 0 <= i < len(self._downloads)), reverse=True)
+        unique_indices = sorted(
+            set(i for i in indices if 0 <= i < len(self._downloads)), reverse=True
+        )
         for i in unique_indices:
             del self._downloads[i]
         # Re-render list and rebuild line mapping
