@@ -29,9 +29,8 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.geometry("600x400")
         self.resizable(False, False)
 
-        # Make window visible and on top
+        # Make dialog modal
         self.transient(parent)
-        self.attributes("-topmost", True)
 
         # Setup window - expand any tilde paths
         self.current_path = os.path.expanduser(initial_path)
@@ -49,14 +48,12 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
         # Center the window
         self.center_window()
 
-        # Force window to be visible
-        self.deiconify()
-        self.lift()
-        self.focus_force()
+        # Update to ensure window is drawn
+        self.update_idletasks()
 
-        # Grab focus after window is visible
-        self.after(50, self.grab_set)
-        self.after(100, lambda: self.attributes("-topmost", False))
+        # Make visible and grab focus
+        self.grab_set()
+        self.focus_set()
 
     def create_widgets(self):
         """Create and arrange all widgets."""

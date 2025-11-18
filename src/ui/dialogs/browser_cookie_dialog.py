@@ -31,7 +31,6 @@ class BrowserCookieDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.geometry("500x500")
         self.resizable(False, False)  # Fixed size like YouTube options
         self.transient(parent)
-        self.attributes("-topmost", True)
 
         # Create content
         self._create_content()
@@ -39,14 +38,12 @@ class BrowserCookieDialog(ctk.CTkToplevel, WindowCenterMixin):
         # Center the window
         self.center_window()
 
-        # Force window to be visible
-        self.deiconify()
-        self.lift()
-        self.focus_force()
+        # Update to ensure window is drawn
+        self.update_idletasks()
 
-        # Grab focus after window is visible
-        self.after(50, self.grab_set)
-        self.after(100, lambda: self.attributes("-topmost", False))
+        # Make visible and grab focus
+        self.grab_set()
+        self.focus_set()
 
     def _create_content(self):
         """Create the cookie selection dialog content."""

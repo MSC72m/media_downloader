@@ -26,7 +26,6 @@ class NetworkStatusDialog(ctk.CTkToplevel):
         self.geometry("500x350")
         self.resizable(False, False)
         self.transient(parent)
-        self.attributes("-topmost", True)
 
         # Center on parent
         self.update_idletasks()
@@ -34,14 +33,12 @@ class NetworkStatusDialog(ctk.CTkToplevel):
         y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
         self.geometry(f"+{x}+{y}")
 
-        # Force window to be visible
-        self.deiconify()
-        self.lift()
-        self.focus_force()
+        # Update to ensure window is drawn
+        self.update_idletasks()
 
-        # Grab focus after window is visible
-        self.after(50, self.grab_set)
-        self.after(100, lambda: self.attributes("-topmost", False))
+        # Make visible and grab focus
+        self.grab_set()
+        self.focus_set()
 
         # Create main frame
         self.frame = ctk.CTkFrame(self)

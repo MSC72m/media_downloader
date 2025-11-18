@@ -160,7 +160,19 @@ class EventCoordinator:
 
     def authenticate_instagram(self, parent_window=None) -> None:
         """Show Instagram authentication - delegates to platform dialog coordinator."""
-        self.platform_dialogs.authenticate_instagram(parent_window)
+        logger.info(
+            f"[EVENT_COORDINATOR] authenticate_instagram called with parent_window={parent_window}"
+        )
+        try:
+            self.platform_dialogs.authenticate_instagram(parent_window)
+            logger.info(
+                "[EVENT_COORDINATOR] authenticate_instagram delegation completed"
+            )
+        except Exception as e:
+            logger.error(
+                f"[EVENT_COORDINATOR] Error in authenticate_instagram: {e}",
+                exc_info=True,
+            )
 
     # File Management
     def show_file_manager(self) -> None:

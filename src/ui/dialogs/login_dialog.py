@@ -2,41 +2,50 @@ from tkinter import messagebox
 
 import customtkinter as ctk
 
+from src.utils.logger import get_logger
 from src.utils.window import WindowCenterMixin
+
+logger = get_logger(__name__)
 
 
 class LoginDialog(ctk.CTkToplevel, WindowCenterMixin):
     def __init__(self, parent):
+        logger.info(f"[LOGIN_DIALOG] Initializing with parent: {parent}")
         super().__init__(parent)
 
         self.title("Instagram Login")
         self.geometry("400x250")
         self.resizable(False, False)
 
-        # Make window visible and on top
+        # Make dialog modal
         self.transient(parent)
-        self.attributes("-topmost", True)
+        logger.info("[LOGIN_DIALOG] Window properties set")
 
         self.username: str | None = None
         self.password: str | None = None
 
-        # Create widgets
+        # Create widgets FIRST
+        logger.info("[LOGIN_DIALOG] Creating widgets")
         self.create_widgets()
+        logger.info("[LOGIN_DIALOG] Widgets created")
 
         # Center the window
+        logger.info("[LOGIN_DIALOG] Centering window")
         self.center_window()
+        logger.info("[LOGIN_DIALOG] Window centered")
 
-        # Force window to be visible
-        self.deiconify()
-        self.lift()
-        self.focus_force()
+        # Update the window to ensure it's drawn
+        self.update_idletasks()
 
-        # Grab focus after window is visible
-        self.after(50, self.grab_set)
-        self.after(100, lambda: self.attributes("-topmost", False))
+        # Now make it visible and grab focus
+        logger.info("[LOGIN_DIALOG] Making window visible and grabbing focus")
+        self.grab_set()
+        self.focus_set()
+        logger.info("[LOGIN_DIALOG] Window should now be visible with focus")
 
         # Bind enter key
         self.bind("<Return>", lambda e: self.handle_login())
+        logger.info("[LOGIN_DIALOG] Initialization complete")
 
     def create_widgets(self):
         # Username
@@ -69,12 +78,19 @@ class LoginDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.username_entry.focus()
 
     def handle_login(self):
+        logger.info("[LOGIN_DIALOG] handle_login called")
         self.username = self.username_entry.get().strip()
         self.password = self.password_entry.get().strip()
 
+        logger.info(
+            f"[LOGIN_DIALOG] Username: {self.username}, Password: {'*' * len(self.password) if self.password else 'empty'}"
+        )
+
         if self.username and self.password:
+            logger.info("[LOGIN_DIALOG] Credentials provided, closing dialog")
             self.destroy()
         else:
+            logger.warning("[LOGIN_DIALOG] Missing credentials, showing error")
             messagebox.showerror(
                 "Error", "Please enter both username and password", parent=self
             )

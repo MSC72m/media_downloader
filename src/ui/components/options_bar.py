@@ -4,6 +4,9 @@ from collections.abc import Callable
 import customtkinter as ctk
 
 from src.core.enums import InstagramAuthStatus
+from src.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class OptionsBar(ctk.CTkFrame):
@@ -32,13 +35,22 @@ class OptionsBar(ctk.CTkFrame):
 
         State management is handled by ComponentStateManager, not here.
         """
-        self.on_instagram_login()
+        logger.info("[OPTIONS_BAR] Instagram login button clicked")
+        try:
+            logger.info(f"[OPTIONS_BAR] Calling callback: {self.on_instagram_login}")
+            self.on_instagram_login()
+            logger.info("[OPTIONS_BAR] Callback completed")
+        except Exception as e:
+            logger.error(
+                f"[OPTIONS_BAR] Error in Instagram login callback: {e}", exc_info=True
+            )
 
     def set_instagram_status(self, status: InstagramAuthStatus):
         """Update Instagram button state based on auth status.
 
         This is called by ComponentStateManager ONLY - no local state management.
         """
+        logger.info(f"[OPTIONS_BAR] Setting Instagram status to: {status}")
         self.instagram_status = status
 
         # Map status to button configuration
@@ -56,7 +68,10 @@ class OptionsBar(ctk.CTkFrame):
 
         config = status_config.get(status)
         if config:
+            logger.info(f"[OPTIONS_BAR] Configuring button with: {config}")
             self.insta_login_button.configure(**config)
+        else:
+            logger.warning(f"[OPTIONS_BAR] Unknown status: {status}")
 
     # Keeping this for backward compatibility
     def set_instagram_authenticated(self, authenticated: bool):
