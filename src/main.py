@@ -34,13 +34,13 @@ ensure_gui_available()
 import customtkinter as ctk  # noqa: E402
 
 from src.core import ApplicationOrchestrator  # noqa: E402
+from src.services.events.queue import MessageQueue
 from src.ui.components.cookie_selector import CookieSelectorFrame  # noqa: E402
 from src.ui.components.download_list import DownloadListView  # noqa: E402
 from src.ui.components.main_action_buttons import ActionButtonBar  # noqa: E402
 from src.ui.components.options_bar import OptionsBar  # noqa: E402
 from src.ui.components.status_bar import StatusBar  # noqa: E402
 from src.ui.components.url_entry import URLEntryFrame  # noqa: E402
-from src.services.events.queue import MessageQueue
 
 # Set theme after successful import
 ctk.set_appearance_mode("dark")
@@ -58,9 +58,8 @@ class MediaDownloaderApp(ctk.CTk):
 
         self.orchestrator = ApplicationOrchestrator(self)
 
-        # Register message queue for error dialogs
-        message_queue = MessageQueue(self)
-        self.orchestrator.container.register("message_queue", message_queue, singleton=True)
+        # Note: MessageQueue will be created after status_bar is available
+        # See _create_ui() for message_queue registration
 
         # Create UI
         self.main_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -89,7 +88,17 @@ class MediaDownloaderApp(ctk.CTk):
 
         # URL Entry - wire directly to link detector
         def on_add_url(url: str, name: str) -> None:
-            self.orchestrator.link_detector.detect_and_handle(url, coord)
+            # Try to detect platform-specific handler first
+            handler_found = self.orchestrator.link_detector.detect_and_handle(
+                url, coord
+            )
+
+            # If no handler found, treat as generic download
+            if not handler_found:
+                logger.info(
+                    f"[MAIN_APP] No handler found for {url}, treating as generic download"
+                )
+                coord.platform_download("generic", url, name)
 
         def on_youtube_detected(url: str) -> None:
             self.orchestrator.link_detector.detect_and_handle(url, coord)
@@ -109,7 +118,7 @@ class MediaDownloaderApp(ctk.CTk):
         # Download List
         self.download_list = DownloadListView(
             self.main_frame,
-            on_selection_change=lambda sel: coord.update_button_states(
+            on_selection_change=lambda sel: coord.ui_state.update_button_states(
                 bool(sel), self.download_list.has_items()
             ),
         )
@@ -118,16 +127,16 @@ class MediaDownloaderApp(ctk.CTk):
         logger.info("[MAIN_APP] Creating ActionButtonBar")
 
         def on_remove() -> None:
-            coord.remove_downloads(self.download_list.get_selected_indices())
+            coord.downloads.remove_downloads(self.download_list.get_selected_indices())
 
         def on_clear() -> None:
-            coord.clear_downloads()
+            coord.downloads.clear_downloads()
 
         def on_clear_completed() -> None:
-            coord.clear_completed_downloads()
+            coord.downloads.clear_completed_downloads()
 
         def on_download() -> None:
-            coord.start_downloads()
+            coord.downloads.start_downloads()
 
         def on_manage_files() -> None:
             coord.show_file_manager()
@@ -144,6 +153,13 @@ class MediaDownloaderApp(ctk.CTk):
 
         # Status Bar
         self.status_bar = StatusBar(self.main_frame)
+
+        # Register message queue now that status_bar exists
+        message_queue = MessageQueue(self.status_bar)
+        self.orchestrator.container.register(
+            "message_queue", message_queue, singleton=True
+        )
+        logger.info("[MAIN_APP] MessageQueue registered with status_bar")
 
         # Cookie Selector (initially hidden)
         self.cookie_selector = CookieSelectorFrame(

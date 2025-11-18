@@ -1,36 +1,39 @@
 """Event Coordinator - Thin coordination layer using focused coordinators."""
 
-from typing import List, Optional
+from typing import Optional
 
 import customtkinter as ctk
 
-from src.core.models import Download
 from src.services.detection.link_detector import LinkDetector
 from src.services.events.event_bus import DownloadEventBus
 from src.utils.logger import get_logger
 
 from .download_coordinator import DownloadCoordinator
 from .platform_dialog_coordinator import PlatformDialogCoordinator
-from .ui_state_manager import UIStateManager
 
 logger = get_logger(__name__)
 
 
 class EventCoordinator:
-    """Event coordinator - delegates to focused coordinators.
+    """Event coordinator - thin routing layer for platform-specific operations.
 
     This is a THIN coordination layer that:
-    1. Uses UIStateManager for all UI updates
-    2. Uses DownloadCoordinator for all download operations
-    3. Uses PlatformDialogCoordinator for platform-specific dialogs
-    4. Does NOT contain business logic
-    5. Does NOT duplicate handler logic
+    1. Exposes downloads (DownloadCoordinator) for download operations
+    2. Exposes platform_dialogs (PlatformDialogCoordinator) for platform dialogs
+    3. Provides routing methods with business logic (platform_download, cookie_detected)
+    4. Does NOT contain unnecessary wrapper methods
+
+    Usage:
+        - For downloads: coord.downloads.add_download(), coord.downloads.start_downloads()
+        - For platform dialogs: coord.platform_dialogs.show_youtube_dialog()
+        - For routing: coord.platform_download(), coord.cookie_detected()
     """
 
     def __init__(self, root_window: ctk.CTk, container):
         """Initialize with root window and service container."""
         self.root = root_window
         self.container = container
+        self.error_handler = None
 
         # Event bus for download events
         self.event_bus = DownloadEventBus(root_window)
@@ -39,10 +42,7 @@ class EventCoordinator:
         self.link_detector = LinkDetector()
 
         # Create focused coordinators
-        self.ui_state = UIStateManager(container)
-        # Register UI state manager in container for other components to access
-        container.register("ui_state_manager", self.ui_state, singleton=True)
-        self.downloads = DownloadCoordinator(container, self.event_bus, self.ui_state)
+        self.downloads = DownloadCoordinator(container, self.event_bus)
         self.platform_dialogs = PlatformDialogCoordinator(container, root_window)
 
         logger.info("[EVENT_COORDINATOR] Initialized with focused coordinators")
@@ -50,60 +50,20 @@ class EventCoordinator:
     def refresh_handlers(self) -> None:
         """Refresh all handlers after UI components are registered."""
         logger.info("[EVENT_COORDINATOR] Refreshing handlers")
-        self.ui_state.refresh_ui_components()
         self.downloads.refresh_handlers()
         self.platform_dialogs.refresh_handlers()
+        self.error_handler = self.container.get("error_handler")
         logger.info("[EVENT_COORDINATOR] Handlers refreshed")
 
-    # Download Management - Delegate to DownloadCoordinator
-    def add_download(self, download: Download) -> bool:
-        """Add a download - delegates to download coordinator."""
-        return self.downloads.add_download(download)
-
-    def remove_downloads(self, indices: List[int]) -> bool:
-        """Remove downloads - delegates to download coordinator."""
-        return self.downloads.remove_downloads(indices)
-
-    def clear_downloads(self) -> bool:
-        """Clear all downloads - delegates to download coordinator."""
-        return self.downloads.clear_downloads()
-
-    def start_downloads(self) -> bool:
-        """Start downloads - delegates to download coordinator."""
-        return self.downloads.start_downloads()
-
-    def clear_completed_downloads(self) -> int:
-        """Clear completed downloads - delegates to download coordinator."""
-        return self.downloads.clear_completed_downloads()
-
-    # UI Updates - Delegate to UIStateManager
-    def update_status(self, message: str, is_error: bool = False) -> None:
-        """Update status bar - delegates to UI state manager."""
-        self.ui_state.update_status(message, is_error)
-
-    def update_button_states(self, has_selection: bool, has_items: bool) -> None:
-        """Update button states - delegates to UI state manager."""
-        self.ui_state.update_button_states(has_selection, has_items)
-
     def show_error(self, title: str, message: str) -> None:
-        """Show error message - uses message queue for proper error dialogs."""
-        try:
-            from src.core.enums.message_level import MessageLevel
-            from src.services.events.queue import Message
+        """Show error message via centralized error handler."""
+        if not self.error_handler:
+            logger.error(
+                f"[EVENT_COORDINATOR] Error handler not available: {title}: {message}"
+            )
+            return
 
-            message_queue = self.container.get("message_queue")
-            if message_queue:
-                error_message = Message(
-                    text=message, level=MessageLevel.ERROR, title=title
-                )
-                message_queue.add_message(error_message)
-            else:
-                # Fallback to status bar
-                self.ui_state.show_error(f"{title}: {message}")
-        except Exception as e:
-            # Ultimate fallback
-            logger.error(f"Error showing error dialog: {e}")
-            self.ui_state.show_error(f"{title}: {message}")
+        self.error_handler.show_error(title, message)
 
     # Platform-Specific Dialogs - Single dispatch method
     def platform_download(
@@ -133,130 +93,80 @@ class EventCoordinator:
 
         # Generic download needs name parameter
         if platform == "generic":
-            dialog_method(url, name, lambda download: self.add_download(download))
+            dialog_method(
+                url, name, lambda download: self.downloads.add_download(download)
+            )
             return
 
-        dialog_method(url, lambda download: self.add_download(download))
+        dialog_method(url, lambda download: self.downloads.add_download(download))
         return
 
-    # Convenience methods for backward compatibility
-    def youtube_download(self, url: str, **kwargs) -> None:
-        self.platform_download("youtube", url)
+    # Authentication
+    def authenticate_instagram(self, parent_window) -> None:
+        """Show Instagram authentication dialog - delegates to platform coordinator."""
+        self.platform_dialogs.authenticate_instagram(parent_window)
 
-    def twitter_download(self, url: str, **kwargs) -> None:
-        self.platform_download("twitter", url)
-
-    def instagram_download(self, url: str, **kwargs) -> None:
-        self.platform_download("instagram", url)
-
-    def pinterest_download(self, url: str, **kwargs) -> None:
-        self.platform_download("pinterest", url)
-
-    def soundcloud_download(self, url: str, **kwargs) -> None:
-        self.platform_download("soundcloud", url)
-
-    def generic_download(self, url: str, name: Optional[str] = None) -> None:
-        self.platform_download("generic", url, name)
-
-    def authenticate_instagram(self, parent_window=None) -> None:
-        """Show Instagram authentication - delegates to platform dialog coordinator."""
-        logger.info(
-            f"[EVENT_COORDINATOR] authenticate_instagram called with parent_window={parent_window}"
-        )
-        try:
-            self.platform_dialogs.authenticate_instagram(parent_window)
-            logger.info(
-                "[EVENT_COORDINATOR] authenticate_instagram delegation completed"
-            )
-        except Exception as e:
-            logger.error(
-                f"[EVENT_COORDINATOR] Error in authenticate_instagram: {e}",
-                exc_info=True,
-            )
-
-    # File Management
+    # UI Dialogs
     def show_file_manager(self) -> None:
         """Show file manager dialog."""
         try:
             from src.ui.dialogs.file_manager_dialog import FileManagerDialog
 
             downloads_folder = self.container.get("downloads_folder")
+            if not downloads_folder:
+                downloads_folder = "~/Downloads"
 
-            def on_dir_change(path: str) -> None:
-                self.set_download_directory(path)
+            # Get status bar for showing messages
+            status_bar = self.container.get("status_bar")
 
-            FileManagerDialog(
-                self.root,
-                downloads_folder,
-                on_directory_change=on_dir_change,
-                show_status=lambda msg: self.ui_state.update_status(msg),
+            def on_directory_change(new_path: str) -> None:
+                """Handle directory change in file manager."""
+                logger.info(f"[EVENT_COORDINATOR] Directory changed to: {new_path}")
+                # Could update container's downloads_folder here if needed
+
+            def show_status(message: str) -> None:
+                """Show status message from file manager."""
+                if status_bar:
+                    status_bar.show_message(message)
+
+            dialog = FileManagerDialog(
+                self.root, downloads_folder, on_directory_change, show_status
             )
-            logger.info("[EVENT_COORDINATOR] File manager shown")
+            logger.info("[EVENT_COORDINATOR] File manager dialog shown")
         except Exception as e:
             logger.error(
-                f"[EVENT_COORDINATOR] Error showing file manager: {e}",
-                exc_info=True,
+                f"[EVENT_COORDINATOR] Error showing file manager: {e}", exc_info=True
             )
-            self.ui_state.show_error(f"Failed to open file manager: {str(e)}")
+            if self.error_handler:
+                self.error_handler.show_error(
+                    "File Manager Error", f"Failed to open file manager: {str(e)}"
+                )
 
-    def browse_files(self, file_types: Optional[List[str]] = None) -> Optional[str]:
-        """Browse for files."""
-        try:
-            from tkinter import filedialog
-
-            filetypes = []
-            if file_types:
-                for file_type in file_types:
-                    filetypes.append((f"{file_type} files", f"*.{file_type}"))
-            filetypes.append(("All files", "*.*"))
-
-            file_path = filedialog.askopenfilename(
-                parent=self.root, title="Select File", filetypes=filetypes
-            )
-            return file_path if file_path else None
-        except Exception as e:
-            logger.error(
-                f"[EVENT_COORDINATOR] Error browsing files: {e}",
-                exc_info=True,
-            )
-            return None
-
-    # Configuration
-    def get_download_directory(self) -> str:
-        """Get download directory from container."""
-        downloads_folder = self.container.get("downloads_folder")
-        return downloads_folder if downloads_folder else "~/Downloads"
-
-    def set_download_directory(self, directory: str) -> bool:
-        """Set download directory in container."""
-        try:
-            import os
-
-            expanded_dir = os.path.expanduser(directory)
-            os.makedirs(expanded_dir, exist_ok=True)
-            self.container.register("downloads_folder", expanded_dir, singleton=True)
-            logger.info(f"[EVENT_COORDINATOR] Download directory set: {expanded_dir}")
-            return True
-        except Exception as e:
-            logger.error(
-                f"[EVENT_COORDINATOR] Error setting download directory: {e}",
-                exc_info=True,
-            )
-            return False
-
-    # Network Status
     def show_network_status(self) -> None:
         """Show network status dialog."""
         try:
             from src.ui.dialogs.network_status_dialog import NetworkStatusDialog
 
-            NetworkStatusDialog(self.root)
-            logger.info("[EVENT_COORDINATOR] Network status shown")
+            network_checker = self.container.get("network_checker")
+            if not network_checker:
+                logger.warning("[EVENT_COORDINATOR] Network checker not available")
+                if self.error_handler:
+                    self.error_handler.show_error(
+                        "Network Status", "Network checker not available"
+                    )
+                return
+
+            dialog = NetworkStatusDialog(self.root, network_checker)
+            logger.info("[EVENT_COORDINATOR] Network status dialog shown")
         except Exception as e:
             logger.error(
-                f"[EVENT_COORDINATOR] Error showing network status: {e}",
-                exc_info=True,
+                f"[EVENT_COORDINATOR] Error showing network status: {e}", exc_info=True
             )
+            if self.error_handler:
+                self.error_handler.show_error(
+                    "Network Status Error",
+                    f"Failed to open network status dialog: {str(e)}",
+                )
 
     # Cookie Detection
     def cookie_detected(self, browser_type: str, cookie_path: str) -> None:
@@ -266,17 +176,54 @@ class EventCoordinator:
         )
         try:
             cookie_handler = self.container.get("cookie_handler")
-            if cookie_handler:
-                success = cookie_handler.set_cookie_file(cookie_path)
-                if success:
-                    self.ui_state.update_status(f"Cookie loaded from {browser_type}")
-                else:
-                    self.ui_state.show_error("Failed to load cookie file")
-            else:
+            if not cookie_handler:
                 logger.warning("[EVENT_COORDINATOR] Cookie handler not available")
+                return None
+
+            success = cookie_handler.set_cookie_file(cookie_path)
+            if not success:
+                if self.error_handler:
+                    self.error_handler.show_error(
+                        "Cookie Error", "Failed to load cookie file"
+                    )
+                return None
+
+            # Update status bar
+            status_bar = self.container.get("status_bar")
+            if status_bar:
+                status_bar.show_message(f"Cookie loaded from {browser_type}")
+            return None
         except Exception as e:
             logger.error(
                 f"[EVENT_COORDINATOR] Error handling cookie detection: {e}",
                 exc_info=True,
             )
-            self.ui_state.show_error(f"Error loading cookie: {str(e)}")
+            if self.error_handler:
+                self.error_handler.show_error(
+                    "Cookie Error", f"Error loading cookie: {str(e)}"
+                )
+
+    # Platform-specific download methods (UIContextProtocol implementation)
+    def youtube_download(self, url: str, **kwargs) -> None:
+        """Handle YouTube download - implements UIContextProtocol."""
+        self.platform_download("youtube", url)
+
+    def twitter_download(self, url: str, **kwargs) -> None:
+        """Handle Twitter download - implements UIContextProtocol."""
+        self.platform_download("twitter", url)
+
+    def instagram_download(self, url: str, **kwargs) -> None:
+        """Handle Instagram download - implements UIContextProtocol."""
+        self.platform_download("instagram", url)
+
+    def pinterest_download(self, url: str, **kwargs) -> None:
+        """Handle Pinterest download - implements UIContextProtocol."""
+        self.platform_download("pinterest", url)
+
+    def soundcloud_download(self, url: str, **kwargs) -> None:
+        """Handle SoundCloud download - implements UIContextProtocol."""
+        self.platform_download("soundcloud", url)
+
+    def generic_download(self, url: str, name: Optional[str] = None) -> None:
+        """Handle generic download - implements UIContextProtocol."""
+        self.platform_download("generic", url, name)

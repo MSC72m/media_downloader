@@ -1,9 +1,7 @@
 from collections.abc import Callable
-from typing import Dict
 
 import customtkinter as ctk
 
-from src.core.models import ButtonState
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -155,25 +153,15 @@ class ActionButtonBar(ctk.CTkFrame):
         logger.debug(f"[ACTION_BUTTONS] Setting download_button to: {download_state}")
         self.download_button.configure(state=download_state)
 
-    def update_states(self, button_states: Dict[ButtonState, bool]):
-        """Update button states using the new enum-based system."""
-        # Map ButtonState to actual buttons - only handle buttons that exist in this UI
-        button_mapping = {
-            ButtonState.REMOVE: self.remove_button,
-            ButtonState.CLEAR: self.clear_button,
-            ButtonState.DOWNLOAD: self.download_button,
-        }
+    def update_button_states(self, has_selection: bool, has_items: bool):
+        """Update button states based on selection and items."""
+        # Simple, direct button state management
+        remove_state = "normal" if has_selection else "disabled"
+        clear_state = "normal" if has_items else "disabled"
+        download_state = (
+            "normal" if (has_items and not self._download_in_progress) else "disabled"
+        )
 
-        for button_state, enabled in button_states.items():
-            if button_state in button_mapping:
-                button_mapping[button_state].configure(state="normal" if enabled else "disabled")
-
-    def update_states_legacy(self, has_selection: bool, has_items: bool):
-        """Legacy method for backwards compatibility."""
-        # Create button states from the old boolean parameters
-        button_states = {
-            ButtonState.REMOVE: has_selection,
-            ButtonState.CLEAR: has_items,
-            ButtonState.DOWNLOAD: has_items and not self._download_in_progress,
-        }
-        self.update_states(button_states)
+        self.remove_button.configure(state=remove_state)
+        self.clear_button.configure(state=clear_state)
+        self.download_button.configure(state=download_state)

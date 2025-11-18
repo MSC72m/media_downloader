@@ -1,7 +1,9 @@
 """Simple subtitle selection component using a scrollable checklist."""
 
+"""Subtitle checklist component for YouTube downloads."""
+
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Dict, List
 
 import customtkinter as ctk
 

@@ -9,7 +9,7 @@ logger = get_logger(__name__)
 
 
 class StatusBar(ctk.CTkFrame):
-    """Status bar showing download progress and information - truly thread-safe via queue."""
+    """Status bar showing download progress and information - thread-safe via queue."""
 
     def __init__(self, master):
         super().__init__(master, fg_color="transparent")
@@ -18,8 +18,6 @@ class StatusBar(ctk.CTkFrame):
         self._root_window = self._get_root_window()
         self._update_queue = queue.Queue()
         self._running = True
-
-        logger.info(f"[STATUS_BAR] Initialized with root: {self._root_window}")
 
         # Configure grid
         self.grid_columnconfigure(0, weight=1)
@@ -96,14 +94,10 @@ class StatusBar(ctk.CTkFrame):
 
     def show_message(self, message: str):
         """Show status message - thread-safe via queue."""
-        logger.info(
-            f"[STATUS_BAR] show_message: '{message}', thread={threading.current_thread().name}"
-        )
 
         def _update():
             try:
                 self.status_label.configure(text=message)
-                logger.info(f"[STATUS_BAR] Message updated to: '{message}'")
             except Exception as e:
                 logger.error(f"[STATUS_BAR] Error updating message: {e}", exc_info=True)
 
@@ -112,14 +106,10 @@ class StatusBar(ctk.CTkFrame):
     def show_error(self, message: str):
         """Show error message - thread-safe via queue."""
         error_text = f"Error: {message}"
-        logger.info(
-            f"[STATUS_BAR] show_error: '{message}', thread={threading.current_thread().name}"
-        )
 
         def _update():
             try:
                 self.status_label.configure(text=error_text)
-                logger.info(f"[STATUS_BAR] Error updated to: '{error_text}'")
             except Exception as e:
                 logger.error(f"[STATUS_BAR] Error updating error: {e}", exc_info=True)
 
@@ -128,14 +118,10 @@ class StatusBar(ctk.CTkFrame):
     def show_warning(self, message: str):
         """Show warning message - thread-safe via queue."""
         warning_text = f"Warning: {message}"
-        logger.info(
-            f"[STATUS_BAR] show_warning: '{message}', thread={threading.current_thread().name}"
-        )
 
         def _update():
             try:
                 self.status_label.configure(text=warning_text)
-                logger.info(f"[STATUS_BAR] Warning updated to: '{warning_text}'")
             except Exception as e:
                 logger.error(f"[STATUS_BAR] Error updating warning: {e}", exc_info=True)
 
@@ -143,9 +129,6 @@ class StatusBar(ctk.CTkFrame):
 
     def update_progress(self, progress: float):
         """Update progress display - thread-safe via queue."""
-        logger.info(
-            f"[STATUS_BAR] update_progress: {progress}%, thread={threading.current_thread().name}"
-        )
 
         def _update():
             try:
@@ -154,7 +137,6 @@ class StatusBar(ctk.CTkFrame):
                     self.status_label.configure(text="Download Complete")
                 else:
                     self.status_label.configure(text=f"Downloading... {progress:.1f}%")
-                logger.info(f"[STATUS_BAR] Progress updated to: {progress}%")
             except Exception as e:
                 logger.error(
                     f"[STATUS_BAR] Error updating progress: {e}", exc_info=True
@@ -164,13 +146,11 @@ class StatusBar(ctk.CTkFrame):
 
     def reset(self):
         """Reset status bar to initial state - thread-safe via queue."""
-        logger.info(f"[STATUS_BAR] reset, thread={threading.current_thread().name}")
 
         def _update():
             try:
                 self.progress_bar.set(0)
                 self.status_label.configure(text="Ready")
-                logger.info("[STATUS_BAR] Status bar reset to Ready")
             except Exception as e:
                 logger.error(f"[STATUS_BAR] Error resetting: {e}", exc_info=True)
 

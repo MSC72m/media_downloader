@@ -6,6 +6,7 @@ from typing import Any
 import customtkinter as ctk
 
 from src.coordinators import EventCoordinator
+from src.coordinators.error_handler import ErrorHandler
 from src.handlers import (
     AuthenticationHandler,
     CookieHandler,
@@ -90,6 +91,10 @@ class ApplicationOrchestrator:
         self.container.register(
             "downloads_folder", self.downloads_folder, singleton=True
         )
+
+        # Register error handler for centralized error display
+        error_handler = ErrorHandler(self.container)
+        self.container.register("error_handler", error_handler, singleton=True)
 
         # Register service factories
         self.container.register_factory("cookie_detector", lambda: CookieDetector())
@@ -324,7 +329,10 @@ class ApplicationOrchestrator:
             logger.error("[ORCHESTRATOR] Event coordinator not initialized")
             return
 
-        self.event_coordinator.update_status("Checking network connectivity...")
+        # Update status bar directly
+        status_bar = self.event_coordinator.container.get("status_bar")
+        if status_bar:
+            status_bar.show_message("Checking network connectivity...")
         logger.info(
             "[ORCHESTRATOR] Status updated to 'Checking network connectivity...'"
         )
@@ -375,9 +383,9 @@ class ApplicationOrchestrator:
                 # Try to update status with error on main thread
                 def update_error_status():
                     try:
-                        self.event_coordinator.update_status(
-                            "Network check failed", is_error=True
-                        )
+                        status_bar = self.event_coordinator.container.get("status_bar")
+                        if status_bar:
+                            status_bar.show_error("Network check failed")
                     except Exception as update_error:
                         logger.error(
                             f"[ORCHESTRATOR] Failed to update status: {update_error}"
@@ -411,20 +419,24 @@ class ApplicationOrchestrator:
                 status_message = "Network connectivity issues detected"
                 if error_msg:
                     status_message += f": {error_msg}"
-                self.event_coordinator.update_status(status_message, is_error=True)
+                status_bar = self.event_coordinator.container.get("status_bar")
+                if status_bar:
+                    status_bar.show_error(status_message)
             elif problem_services:
                 problem_list = ", ".join([str(s) for s in problem_services])
                 logger.warning(f"[ORCHESTRATOR] Problem services: {problem_list}")
                 # Use status bar only - no warning dialogs
-                self.event_coordinator.update_status(
-                    f"Connection issues with: {problem_list}", is_error=True
-                )
+                status_bar = self.event_coordinator.container.get("status_bar")
+                if status_bar:
+                    status_bar.show_error(f"Connection issues with: {problem_list}")
             else:
                 logger.info("[ORCHESTRATOR] All services connected successfully")
                 logger.info(
                     "[ORCHESTRATOR] *** STATUS: Ready - All services connected ***"
                 )
-                self.event_coordinator.update_status("Ready - All services connected")
+                status_bar = self.event_coordinator.container.get("status_bar")
+                if status_bar:
+                    status_bar.show_message("Ready - All services connected")
 
             logger.info("[ORCHESTRATOR] Connectivity check handling complete")
         except Exception as e:
@@ -433,7 +445,9 @@ class ApplicationOrchestrator:
             )
             # Fallback to simple status update - DISABLED TO PREVENT CRASH
             try:
-                self.event_coordinator.update_status("Ready", is_error=False)
+                status_bar = self.event_coordinator.container.get("status_bar")
+                if status_bar:
+                    status_bar.show_message("Ready")
             except Exception as update_error:
                 logger.error(
                     f"[ORCHESTRATOR] Failed fallback status update: {update_error}"
