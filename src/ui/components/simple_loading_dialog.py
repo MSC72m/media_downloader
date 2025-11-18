@@ -22,13 +22,23 @@ class SimpleLoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.geometry("300x100")
         self.resizable(False, False)
         self.overrideredirect(False)  # Make it closable
-        self.attributes('-topmost', True)
+        self.transient(parent)
+        self.attributes("-topmost", True)
+
+        # Create content
+        self._create_content()
 
         # Center the window
         self.center_window()
 
-        # Create content
-        self._create_content()
+        # Force window to be visible
+        self.deiconify()
+        self.lift()
+        self.focus_force()
+
+        # Grab focus after window is visible
+        self.after(50, self.grab_set)
+        self.after(100, lambda: self.attributes("-topmost", False))
 
         # Start animation
         self.start_animation()
@@ -47,7 +57,7 @@ class SimpleLoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
             main_frame,
             text=self.message,
             font=("Roboto", 14),
-            text_color=("gray10", "gray90")
+            text_color=("gray10", "gray90"),
         )
         self.message_label.pack(expand=True)
 

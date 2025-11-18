@@ -155,41 +155,63 @@ class ApplicationOrchestrator:
 
             def authenticate_instagram(self, parent_window, callback):
                 """Show Instagram login dialog and authenticate."""
+                logger.info("[AUTH_MANAGER] Starting Instagram authentication")
+
                 try:
                     from src.services.instagram.downloader import InstagramDownloader
                     from src.ui.dialogs.login_dialog import LoginDialog
 
-                    # Create and show login dialog
+                    # Create dialog directly on main thread (this method should be called from main thread)
+                    logger.info("[AUTH_MANAGER] Creating login dialog")
                     dialog = LoginDialog(parent_window)
+                    logger.info(f"[AUTH_MANAGER] Dialog created successfully")
+
+                    # Wait for dialog to close
                     dialog.wait_window()
+                    logger.info("[AUTH_MANAGER] Dialog closed")
 
                     # Check if user provided credentials
                     if not dialog.username or not dialog.password:
-                        logger.info("[AUTH_MANAGER] Instagram login cancelled")
-                        # Just call callback - platform_dialog_coordinator will handle state reset
+                        logger.info("[AUTH_MANAGER] Instagram login cancelled by user")
                         callback(False)
                         return
 
-                    # Store credentials for use in thread
+                    # Store credentials
                     username = dialog.username
                     password = dialog.password
+                    logger.info(f"[AUTH_MANAGER] Got credentials for user: {username}")
 
-                    # Capture references for the nested function
-                    orchestrator = self.orchestrator
-                    container = self.orchestrator.container
-                    auth_manager = self
+                    # Start authentication in background thread
+                    self._start_authentication(
+                        username,
+                        password,
+                        parent_window,
+                        callback,
+                    )
 
+                except Exception as e:
+                    logger.error(
+                        f"[AUTH_MANAGER] Error showing login dialog: {e}", exc_info=True
+                    )
+                    callback(False, f"Failed to show login dialog: {str(e)}")
+
+            def _start_authentication(
+                self, username, password, parent_window, callback
+            ):
+                """Start authentication in background thread."""
+                logger.info("[AUTH_MANAGER] Starting authentication worker thread")
+                try:
                     # Attempt authentication in background thread
                     def auth_worker():
                         success = False
                         error_message = None
 
                         try:
-                            logger.info("[AUTH_MANAGER] Starting authentication worker")
+                            logger.info("[AUTH_MANAGER] Authenticating with Instagram")
                             downloader = InstagramDownloader()
                             success = downloader.authenticate(username, password)
                             logger.info(
-                                f"[AUTH_MANAGER] Authentication completed with success={success}"
+                                f"[AUTH_MANAGER] Authentication result: success={success}"
                             )
 
                         except Exception as e:
@@ -200,54 +222,36 @@ class ApplicationOrchestrator:
                             error_message = str(e)
                             success = False
 
-                        # Always update on main thread, regardless of success or failure
+                        # Schedule callback on main thread
                         def update_main_thread():
+                            """Update main thread with authentication result."""
                             try:
                                 logger.info(
-                                    f"[AUTH_MANAGER] Calling callback with success={success}, error={error_message}"
+                                    f"[AUTH_MANAGER] Calling callback with success={success}"
                                 )
-
-                                # Just call callback with error message
-                                # platform_dialog_coordinator will handle ALL UI updates
                                 callback(success, error_message)
-
                             except Exception as update_error:
                                 logger.error(
-                                    f"[AUTH_MANAGER] Error calling callback: {update_error}",
+                                    f"[AUTH_MANAGER] Error in callback: {update_error}",
                                     exc_info=True,
                                 )
-                                # Fallback: call callback with failure
-                                callback(False, str(update_error))
 
-                        try:
-                            if parent_window and hasattr(parent_window, "after"):
-                                parent_window.after(0, update_main_thread)
-                                logger.info(
-                                    "[AUTH_MANAGER] Scheduled main thread update"
-                                )
-                            else:
-                                logger.warning(
-                                    "[AUTH_MANAGER] No parent_window or after method, calling directly"
-                                )
-                                update_main_thread()
-                        except Exception as schedule_error:
-                            logger.error(
-                                f"[AUTH_MANAGER] Error scheduling main thread update: {schedule_error}",
-                                exc_info=True,
-                            )
-                            # Just call callback with failure - no UI updates here
-                            callback(False, str(schedule_error))
+                        # Schedule on main thread
+                        if parent_window and hasattr(parent_window, "after"):
+                            parent_window.after(0, update_main_thread)
+                        else:
+                            update_main_thread()
 
                     import threading
 
                     threading.Thread(target=auth_worker, daemon=True).start()
+                    logger.info("[AUTH_MANAGER] Authentication thread started")
 
                 except Exception as e:
                     logger.error(
-                        f"[AUTH_MANAGER] Error showing login dialog: {e}", exc_info=True
+                        f"[AUTH_MANAGER] Error in authentication: {e}", exc_info=True
                     )
-                    # Just call callback with failure - platform_dialog_coordinator handles UI
-                    callback(False, f"Failed to show login dialog: {str(e)}")
+                    callback(False, f"Authentication failed: {str(e)}")
 
             def _handle_auth_result(self, success: bool, callback):
                 """Handle authentication result - NO UI UPDATES HERE.
@@ -331,23 +335,22 @@ class ApplicationOrchestrator:
                 ]
                 logger.info(f"[ORCHESTRATOR] Problem services: {problem_services}")
 
-                # Schedule UI update on main thread
-                def update_ui():
-                    try:
-                        self._handle_connectivity_check(
-                            internet_connected, error_msg, problem_services
-                        )
-                    except Exception as e:
-                        logger.error(
-                            f"[ORCHESTRATOR] Error handling connectivity results: {e}",
-                            exc_info=True,
-                        )
-
-                # Use root window's after method to schedule on main thread
-                if self.root:
-                    self.root.after(0, update_ui)
-                else:
-                    logger.error("[ORCHESTRATOR] Root window not available")
+                # Handle connectivity check results directly (most reliable)
+                try:
+                    logger.info(
+                        "[ORCHESTRATOR] *** HANDLING CONNECTIVITY RESULTS DIRECTLY ***"
+                    )
+                    self._handle_connectivity_check(
+                        internet_connected, error_msg, problem_services
+                    )
+                    logger.info(
+                        "[ORCHESTRATOR] *** CONNECTIVITY RESULTS HANDLED SUCCESSFULLY ***"
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"[ORCHESTRATOR] Error handling connectivity results: {e}",
+                        exc_info=True,
+                    )
 
             except Exception as e:
                 logger.error(
@@ -390,40 +393,23 @@ class ApplicationOrchestrator:
         try:
             if not internet_connected:
                 logger.warning(f"[ORCHESTRATOR] No internet connection: {error_msg}")
-                self.event_coordinator.update_status(
-                    "Network connectivity issues detected", is_error=True
-                )
-                # Show error dialog via message queue instead of blocking messagebox
-                self.event_coordinator.show_error(
-                    "Network Connectivity Issue",
-                    f"There are network connectivity issues:\n\n{error_msg}\n\n"
-                    "You can view detailed network status from Tools > Network Status.",
-                )
+                # Use status bar only - no error dialogs
+                status_message = "Network connectivity issues detected"
+                if error_msg:
+                    status_message += f": {error_msg}"
+                self.event_coordinator.update_status(status_message, is_error=True)
             elif problem_services:
                 problem_list = ", ".join([str(s) for s in problem_services])
                 logger.warning(f"[ORCHESTRATOR] Problem services: {problem_list}")
+                # Use status bar only - no warning dialogs
                 self.event_coordinator.update_status(
                     f"Connection issues with: {problem_list}", is_error=True
                 )
-                # Show warning dialog via message queue
-                try:
-                    from src.core.enums.message_level import MessageLevel
-                    from src.services.events.queue import Message
-
-                    message_queue = self.container.get("message_queue")
-                    if message_queue:
-                        message_queue.add_message(
-                            Message(
-                                text=f"Cannot connect to the following services: {problem_list}\n\n"
-                                "You can view detailed network status from Tools > Network Status.",
-                                level=MessageLevel.WARNING,
-                                title="Service Connection Issues",
-                            )
-                        )
-                except Exception as e:
-                    logger.error(f"[ORCHESTRATOR] Failed to show warning dialog: {e}")
             else:
                 logger.info("[ORCHESTRATOR] All services connected successfully")
+                logger.info(
+                    "[ORCHESTRATOR] *** STATUS: Ready - All services connected ***"
+                )
                 self.event_coordinator.update_status("Ready - All services connected")
 
             logger.info("[ORCHESTRATOR] Connectivity check handling complete")
@@ -431,7 +417,7 @@ class ApplicationOrchestrator:
             logger.error(
                 f"[ORCHESTRATOR] Error handling connectivity check: {e}", exc_info=True
             )
-            # Fallback to simple status update
+            # Fallback to simple status update - DISABLED TO PREVENT CRASH
             try:
                 self.event_coordinator.update_status("Ready", is_error=False)
             except Exception as update_error:

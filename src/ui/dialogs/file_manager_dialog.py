@@ -1,6 +1,6 @@
 import os
-from tkinter import messagebox
 from collections.abc import Callable
+from tkinter import messagebox
 
 import customtkinter as ctk
 
@@ -17,17 +17,21 @@ logger = get_logger(__name__)
 
 class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
     def __init__(
-            self,
-            parent,
-            initial_path: str,
-            on_directory_change: Callable[[str], None],
-            show_status: Callable[[str], None]
+        self,
+        parent,
+        initial_path: str,
+        on_directory_change: Callable[[str], None],
+        show_status: Callable[[str], None],
     ):
         super().__init__(parent)
 
         self.title("File Browser")
         self.geometry("600x400")
         self.resizable(False, False)
+
+        # Make window visible and on top
+        self.transient(parent)
+        self.attributes("-topmost", True)
 
         # Setup window - expand any tilde paths
         self.current_path = os.path.expanduser(initial_path)
@@ -45,36 +49,34 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
         # Center the window
         self.center_window()
 
-        # Ensure window gets focus
-        self.focus_force()
+        # Force window to be visible
+        self.deiconify()
         self.lift()
-        self.grab_set()
+        self.focus_force()
+
+        # Grab focus after window is visible
+        self.after(50, self.grab_set)
+        self.after(100, lambda: self.attributes("-topmost", False))
 
     def create_widgets(self):
         """Create and arrange all widgets."""
         # Path entry bar
-        self.path_entry = PathEntryBar(
-            self,
-            self.current_path,
-            self.update_file_list
-        )
+        self.path_entry = PathEntryBar(self, self.current_path, self.update_file_list)
         self.path_entry.grid(row=0, column=0, columnspan=2, sticky="ew")
 
         # File list
-        self.file_list = FileListBox(
-            self,
-            self.on_item_double_click
+        self.file_list = FileListBox(self, self.on_item_double_click)
+        self.file_list.grid(
+            row=1, column=0, columnspan=2, padx=20, pady=(0, 20), sticky="nsew"
         )
-        self.file_list.grid(row=1, column=0, columnspan=2, padx=20, pady=(0, 20), sticky="nsew")
 
         # Action buttons
         self.action_buttons = FileManagerButtonBar(
-            self,
-            self.change_directory,
-            self.create_folder,
-            self.destroy
+            self, self.change_directory, self.create_folder, self.destroy
         )
-        self.action_buttons.grid(row=2, column=0, columnspan=2, padx=20, pady=(0, 20), sticky="ew")
+        self.action_buttons.grid(
+            row=2, column=0, columnspan=2, padx=20, pady=(0, 20), sticky="ew"
+        )
 
     def update_file_list(self):
         """Update the file list with current directory contents."""

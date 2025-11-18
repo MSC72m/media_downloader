@@ -1,5 +1,3 @@
-"""Protocol interfaces for type-safe duck typing without hasattr/getattr."""
-
 from typing import Any, Callable, Optional, Protocol, runtime_checkable
 
 from src.core.application.container import ServiceContainer

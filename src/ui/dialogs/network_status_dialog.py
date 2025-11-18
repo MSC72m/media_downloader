@@ -25,14 +25,23 @@ class NetworkStatusDialog(ctk.CTkToplevel):
         self.title("Network Status")
         self.geometry("500x350")
         self.resizable(False, False)
-        self.transient(parent)  # Make dialog modal-like
-        self.grab_set()  # Make dialog modal
+        self.transient(parent)
+        self.attributes("-topmost", True)
 
         # Center on parent
         self.update_idletasks()
         x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
         y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
         self.geometry(f"+{x}+{y}")
+
+        # Force window to be visible
+        self.deiconify()
+        self.lift()
+        self.focus_force()
+
+        # Grab focus after window is visible
+        self.after(50, self.grab_set)
+        self.after(100, lambda: self.attributes("-topmost", False))
 
         # Create main frame
         self.frame = ctk.CTkFrame(self)

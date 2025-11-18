@@ -13,6 +13,10 @@ class LoginDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.geometry("400x250")
         self.resizable(False, False)
 
+        # Make window visible and on top
+        self.transient(parent)
+        self.attributes("-topmost", True)
+
         self.username: str | None = None
         self.password: str | None = None
 
@@ -22,43 +26,32 @@ class LoginDialog(ctk.CTkToplevel, WindowCenterMixin):
         # Center the window
         self.center_window()
 
-        # Ensure window gets focus
-        self.focus_force()
+        # Force window to be visible
+        self.deiconify()
         self.lift()
-        self.grab_set()
+        self.focus_force()
+
+        # Grab focus after window is visible
+        self.after(50, self.grab_set)
+        self.after(100, lambda: self.attributes("-topmost", False))
 
         # Bind enter key
         self.bind("<Return>", lambda e: self.handle_login())
 
     def create_widgets(self):
         # Username
-        self.username_label = ctk.CTkLabel(
-            self,
-            text="Username:",
-            font=("Roboto", 14)
-        )
+        self.username_label = ctk.CTkLabel(self, text="Username:", font=("Roboto", 14))
         self.username_label.pack(pady=(20, 5))
 
-        self.username_entry = ctk.CTkEntry(
-            self,
-            width=280,
-            font=("Roboto", 14)
-        )
+        self.username_entry = ctk.CTkEntry(self, width=280, font=("Roboto", 14))
         self.username_entry.pack(pady=5)
 
         # Password
-        self.password_label = ctk.CTkLabel(
-            self,
-            text="Password:",
-            font=("Roboto", 14)
-        )
+        self.password_label = ctk.CTkLabel(self, text="Password:", font=("Roboto", 14))
         self.password_label.pack(pady=(10, 5))
 
         self.password_entry = ctk.CTkEntry(
-            self,
-            width=280,
-            show="*",
-            font=("Roboto", 14)
+            self, width=280, show="*", font=("Roboto", 14)
         )
         self.password_entry.pack(pady=5)
 
@@ -68,7 +61,7 @@ class LoginDialog(ctk.CTkToplevel, WindowCenterMixin):
             text="Login",
             command=self.handle_login,
             width=200,
-            font=("Roboto", 14)
+            font=("Roboto", 14),
         )
         self.login_button.pack(pady=20)
 
@@ -83,7 +76,5 @@ class LoginDialog(ctk.CTkToplevel, WindowCenterMixin):
             self.destroy()
         else:
             messagebox.showerror(
-                "Error",
-                "Please enter both username and password",
-                parent=self
+                "Error", "Please enter both username and password", parent=self
             )

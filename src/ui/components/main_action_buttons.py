@@ -162,11 +162,18 @@ class ActionButtonBar(ctk.CTkFrame):
             ButtonState.REMOVE: self.remove_button,
             ButtonState.CLEAR: self.clear_button,
             ButtonState.DOWNLOAD: self.download_button,
-            ButtonState.SETTINGS: self.manage_files_button,  # Map settings to manage files
         }
 
-        # Only update states for buttons that exist in this component
-        for button_state, button in button_mapping.items():
-            if button_state in button_states:
-                state = "normal" if button_states[button_state] else "disabled"
-                button.configure(state=state)
+        for button_state, enabled in button_states.items():
+            if button_state in button_mapping:
+                button_mapping[button_state].configure(state="normal" if enabled else "disabled")
+
+    def update_states_legacy(self, has_selection: bool, has_items: bool):
+        """Legacy method for backwards compatibility."""
+        # Create button states from the old boolean parameters
+        button_states = {
+            ButtonState.REMOVE: has_selection,
+            ButtonState.CLEAR: has_items,
+            ButtonState.DOWNLOAD: has_items and not self._download_in_progress,
+        }
+        self.update_states(button_states)

@@ -17,9 +17,12 @@ class ServiceContainer:
         """Register a service instance."""
         if singleton:
             self._singletons[key] = service
+            logger.info(
+                f"[CONTAINER] Registered singleton: {key} = {type(service).__name__}"
+            )
             return None
         self._services[key] = service
-        logger.debug(f"Registered service: {key}")
+        logger.info(f"[CONTAINER] Registered service: {key} = {type(service).__name__}")
         return None
 
     def register_factory(
@@ -34,11 +37,19 @@ class ServiceContainer:
         """Get a service by key."""
         # Check singletons first
         if key in self._singletons:
-            return self._singletons[key]
+            service = self._singletons[key]
+            logger.debug(
+                f"[CONTAINER] Retrieved singleton: {key} = {type(service).__name__}"
+            )
+            return service
 
         # Check regular services
         if key in self._services:
-            return self._services[key]
+            service = self._services[key]
+            logger.debug(
+                f"[CONTAINER] Retrieved service: {key} = {type(service).__name__}"
+            )
+            return service
 
         # Check factories
         if key in self._factories:
@@ -51,8 +62,14 @@ class ServiceContainer:
             else:
                 self._services[key] = service
 
-            logger.debug(f"Created service from factory: {key}")
+            logger.info(
+                f"[CONTAINER] Created service from factory: {key} = {type(service).__name__}"
+            )
             return service
+
+        logger.warning(
+            f"[CONTAINER] Service not found: {key}, returning default. Available services: {list(self._services.keys())}, singletons: {list(self._singletons.keys())}"
+        )
         return default
 
     def has(self, key: str) -> bool:

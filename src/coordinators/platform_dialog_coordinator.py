@@ -4,6 +4,7 @@ import os
 from typing import Optional
 
 from src.core.models import Download
+from src.core.enums.instagram_auth_status import InstagramAuthStatus
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -12,11 +13,10 @@ logger = get_logger(__name__)
 class PlatformDialogCoordinator:
     """Coordinates platform-specific UI dialogs - delegates to platform handlers."""
 
-    def __init__(self, container, root_window, component_state_manager=None):
+    def __init__(self, container, root_window):
         """Initialize with service container and root window."""
         self.container = container
         self.root = root_window
-        self.component_state = component_state_manager
         self._cookie_handler = None
         self._auth_handler = None
 
@@ -293,21 +293,26 @@ class PlatformDialogCoordinator:
 
         if not self._auth_handler:
             logger.error("[PLATFORM_DIALOG_COORDINATOR] Auth handler not available")
-            # Failsafe: Reset button state directly if component_state not available
+            # Failsafe: Reset button state directly if UI state manager not available
             self._reset_instagram_button_state()
             return
 
-        # Set to logging in state BEFORE calling auth
-        if self.component_state:
-            self.component_state.set_instagram_logging_in()
-            logger.info(
-                "[PLATFORM_DIALOG_COORDINATOR] Instagram state set to LOGGING_IN"
-            )
-        else:
-            # Failsafe: Set state directly on options_bar if component_state not ready
-            logger.warning(
-                "[PLATFORM_DIALOG_COORDINATOR] Component state not available, setting directly on options_bar"
-            )
+        # Set to logging in state BEFORE calling auth - use UI state manager
+        try:
+            ui_state_manager = self.container.get("ui_state_manager")
+            if ui_state_manager:
+                ui_state_manager.set_instagram_logging_in()
+                logger.info(
+                    "[PLATFORM_DIALOG_COORDINATOR] Instagram state set to LOGGING_IN via UI state manager"
+                )
+            else:
+                # Failsafe: Set state directly on options_bar if UI state manager not ready
+                logger.warning(
+                    "[PLATFORM_DIALOG_COORDINATOR] UI state manager not available, setting directly on options_bar"
+                )
+                self._set_instagram_button_direct(InstagramAuthStatus.LOGGING_IN)
+        except Exception as e:
+            logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error setting Instagram logging in state: {e}")
             self._set_instagram_button_direct(InstagramAuthStatus.LOGGING_IN)
 
         try:
@@ -318,44 +323,69 @@ class PlatformDialogCoordinator:
                     f"[PLATFORM_DIALOG_COORDINATOR] Auth complete: success={success}, error={error_message}"
                 )
 
-                if success:
-                    # SUCCESS PATH - Update state and status bar
-                    if self.component_state:
-                        self.component_state.set_instagram_authenticated()
-                        logger.info(
-                            "[PLATFORM_DIALOG_COORDINATOR] State set to AUTHENTICATED"
-                        )
-                    else:
-                        # Failsafe: Set directly if component_state not available
-                        self._set_instagram_button_direct(
-                            InstagramAuthStatus.AUTHENTICATED
-                        )
+                # Always use thread-safe UI updates by scheduling in main thread
+                def update_ui_thread_safe():
+                    try:
+                        if success:
+                            # SUCCESS PATH - Update state and status bar
+                            try:
+                                ui_state_manager = self.container.get("ui_state_manager")
+                                if ui_state_manager:
+                                    ui_state_manager.set_instagram_authenticated()
+                                    logger.info(
+                                        "[PLATFORM_DIALOG_COORDINATOR] State set to AUTHENTICATED via UI state manager"
+                                    )
+                                else:
+                                    # Failsafe: Set directly if UI state manager not available
+                                    self._set_instagram_button_direct(
+                                        InstagramAuthStatus.AUTHENTICATED
+                                    )
+                            except Exception as e:
+                                logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error setting Instagram authenticated state: {e}")
+                                self._set_instagram_button_direct(InstagramAuthStatus.AUTHENTICATED)
 
-                    event_coordinator = self.container.get("event_coordinator")
-                    if event_coordinator:
-                        event_coordinator.update_status(
-                            "Instagram authenticated successfully", is_error=False
-                        )
-                else:
-                    # FAILURE PATH - Update state, status bar, and show error
-                    if self.component_state:
-                        self.component_state.set_instagram_failed()
-                        logger.info("[PLATFORM_DIALOG_COORDINATOR] State set to FAILED")
-                    else:
-                        # Failsafe: Reset directly if component_state not available
-                        self._reset_instagram_button_state()
+                            event_coordinator = self.container.get("event_coordinator")
+                            if event_coordinator:
+                                event_coordinator.update_status(
+                                    "Instagram authenticated successfully", is_error=False
+                                )
+                        else:
+                            # FAILURE PATH - Update state and status bar only (no error dialogs)
+                            try:
+                                ui_state_manager = self.container.get("ui_state_manager")
+                                if ui_state_manager:
+                                    ui_state_manager.set_instagram_failed()
+                                    logger.info("[PLATFORM_DIALOG_COORDINATOR] State set to FAILED via UI state manager")
+                                else:
+                                    # Failsafe: Reset directly if UI state manager not available
+                                    self._reset_instagram_button_state()
+                            except Exception as e:
+                                logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error setting Instagram failed state: {e}")
+                                self._reset_instagram_button_state()
 
-                    event_coordinator = self.container.get("event_coordinator")
-                    if event_coordinator:
-                        event_coordinator.update_status(
-                            "Instagram authentication failed", is_error=True
-                        )
+                            # Update status bar with failure message (no error dialogs)
+                            event_coordinator = self.container.get("event_coordinator")
+                            if event_coordinator:
+                                failure_message = f"Instagram authentication failed"
+                                if error_message:
+                                    failure_message += f": {error_message}"
+                                event_coordinator.update_status(failure_message, is_error=True)
 
-                    # Show error dialog ONLY if there's an error message
-                    if error_message:
-                        self._show_error_dialog(
-                            "Instagram Authentication Failed", error_message
-                        )
+                        logger.info("[PLATFORM_DIALOG_COORDINATOR] UI update completed successfully")
+                    except Exception as ui_error:
+                        logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error in thread-safe UI update: {ui_error}", exc_info=True)
+
+                # Try safe UI update with comprehensive error handling
+                logger.info(f"[PLATFORM_DIALOG_COORDINATOR] *** TRYING SAFE UI UPDATE *** root exists: {hasattr(self.root, 'after_idle')}")
+                try:
+                    update_ui_thread_safe()
+                    logger.info(f"[PLATFORM_DIALOG_COORDINATOR] *** UI UPDATE COMPLETED SUCCESSFULLY ***")
+                except Exception as direct_error:
+                    logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Direct UI update failed: {direct_error}", exc_info=True)
+
+                    # Don't crash - just log the error and continue
+                    # The status update will have been handled by the callback itself
+                    logger.warning("[PLATFORM_DIALOG_COORDINATOR] Continuing after UI update failure - no crash")
 
             self._auth_handler.authenticate_instagram(
                 parent_window or self.root, on_auth_complete
@@ -367,13 +397,18 @@ class PlatformDialogCoordinator:
                 exc_info=True,
             )
             # EXCEPTION PATH - Reset state and show error
-            if self.component_state:
-                self.component_state.set_instagram_failed()
-                logger.info(
-                    "[PLATFORM_DIALOG_COORDINATOR] State reset to FAILED after exception"
-                )
-            else:
-                # Failsafe: Reset directly if component_state not available
+            try:
+                ui_state_manager = self.container.get("ui_state_manager")
+                if ui_state_manager:
+                    ui_state_manager.set_instagram_failed()
+                    logger.info(
+                        "[PLATFORM_DIALOG_COORDINATOR] State reset to FAILED via UI state manager after exception"
+                    )
+                else:
+                    # Failsafe: Reset directly if UI state manager not available
+                    self._reset_instagram_button_state()
+            except Exception as reset_error:
+                logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error resetting Instagram state: {reset_error}")
                 self._reset_instagram_button_state()
 
             self._show_error_dialog(

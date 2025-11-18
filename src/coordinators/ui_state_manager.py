@@ -1,5 +1,6 @@
 """UI State Manager - Handles all UI state updates."""
 
+import threading
 from typing import List, Optional
 
 from src.core.models import Download
@@ -30,22 +31,37 @@ class UIStateManager:
         self._status_bar = self.container.get("status_bar")
         self._action_buttons = self.container.get("action_buttons")
         self._url_entry = self.container.get("url_entry")
-        logger.info("[UI_STATE_MANAGER] UI components refreshed")
+        logger.info(
+            f"[UI_STATE_MANAGER] UI components refreshed - status_bar: {self._status_bar}, thread: {threading.current_thread().name}"
+        )
 
     # Status Bar Updates
     def update_status(self, message: str, is_error: bool = False) -> None:
         """Update status bar message."""
+        logger.info(
+            f"[UI_STATE_MANAGER] update_status called: '{message}', is_error={is_error}, thread={threading.current_thread().name}"
+        )
+
         if not self._status_bar:
-            logger.debug("[UI_STATE_MANAGER] Status bar not available")
+            logger.error(
+                f"[UI_STATE_MANAGER] Status bar not available! Container has: {list(self.container._services.keys())}"
+            )
             return
+
+        logger.info(
+            f"[UI_STATE_MANAGER] Calling status_bar method, status_bar={self._status_bar}"
+        )
 
         if is_error:
             self._status_bar.show_error(message)
         else:
             self._status_bar.show_message(message)
 
+        logger.info(f"[UI_STATE_MANAGER] Status bar method call completed")
+
     def show_error(self, message: str) -> None:
         """Show error message in status bar."""
+        logger.info(f"[UI_STATE_MANAGER] show_error called: '{message}'")
         self.update_status(message, is_error=True)
 
     # Progress Updates
@@ -138,7 +154,8 @@ class UIStateManager:
             return
 
         try:
-            self._action_buttons.update_states(has_selection, has_items)
+            # Use backwards-compatible method
+            self._action_buttons.update_states_legacy(has_selection, has_items)
             logger.debug(
                 f"[UI_STATE_MANAGER] Button states updated: selection={has_selection}, items={has_items}"
             )
@@ -203,3 +220,58 @@ class UIStateManager:
         if count > 0:
             logger.info(f"[UI_STATE_MANAGER] Removed {count} completed downloads")
         return count
+
+    # Instagram Authentication State Management
+    def set_instagram_logging_in(self) -> None:
+        """Set Instagram authentication state to logging in."""
+        try:
+            options_bar = self.container.get("options_bar")
+            if options_bar:
+                from src.core.enums.instagram_auth_status import InstagramAuthStatus
+
+                options_bar.set_instagram_status(InstagramAuthStatus.LOGGING_IN)
+                logger.info("[UI_STATE_MANAGER] Instagram state set to LOGGING_IN")
+            else:
+                logger.warning(
+                    "[UI_STATE_MANAGER] Options bar not available for Instagram state"
+                )
+        except Exception as e:
+            logger.error(
+                f"[UI_STATE_MANAGER] Error setting Instagram logging in state: {e}"
+            )
+
+    def set_instagram_authenticated(self) -> None:
+        """Set Instagram authentication state to authenticated."""
+        try:
+            options_bar = self.container.get("options_bar")
+            if options_bar:
+                from src.core.enums.instagram_auth_status import InstagramAuthStatus
+
+                options_bar.set_instagram_status(InstagramAuthStatus.AUTHENTICATED)
+                logger.info("[UI_STATE_MANAGER] Instagram state set to AUTHENTICATED")
+            else:
+                logger.warning(
+                    "[UI_STATE_MANAGER] Options bar not available for Instagram state"
+                )
+        except Exception as e:
+            logger.error(
+                f"[UI_STATE_MANAGER] Error setting Instagram authenticated state: {e}"
+            )
+
+    def set_instagram_failed(self) -> None:
+        """Set Instagram authentication state to failed."""
+        try:
+            options_bar = self.container.get("options_bar")
+            if options_bar:
+                from src.core.enums.instagram_auth_status import InstagramAuthStatus
+
+                options_bar.set_instagram_status(InstagramAuthStatus.FAILED)
+                logger.info("[UI_STATE_MANAGER] Instagram state set to FAILED")
+            else:
+                logger.warning(
+                    "[UI_STATE_MANAGER] Options bar not available for Instagram state"
+                )
+        except Exception as e:
+            logger.error(
+                f"[UI_STATE_MANAGER] Error setting Instagram failed state: {e}"
+            )

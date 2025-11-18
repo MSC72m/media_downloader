@@ -14,7 +14,12 @@ logger = get_logger(__name__)
 class BrowserCookieDialog(ctk.CTkToplevel, WindowCenterMixin):
     """Dialog for selecting browser cookies that matches YouTube options style."""
 
-    def __init__(self, parent, on_cookie_selected: Callable[[str | None, str | None], None], **kwargs):
+    def __init__(
+        self,
+        parent,
+        on_cookie_selected: Callable[[str | None, str | None], None],
+        **kwargs,
+    ):
         super().__init__(parent, **kwargs)
 
         self.on_cookie_selected = on_cookie_selected
@@ -26,13 +31,22 @@ class BrowserCookieDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.geometry("500x500")
         self.resizable(False, False)  # Fixed size like YouTube options
         self.transient(parent)
-        self.grab_set()
+        self.attributes("-topmost", True)
+
+        # Create content
+        self._create_content()
 
         # Center the window
         self.center_window()
 
-        # Create content
-        self._create_content()
+        # Force window to be visible
+        self.deiconify()
+        self.lift()
+        self.focus_force()
+
+        # Grab focus after window is visible
+        self.after(50, self.grab_set)
+        self.after(100, lambda: self.attributes("-topmost", False))
 
     def _create_content(self):
         """Create the cookie selection dialog content."""
@@ -44,7 +58,7 @@ class BrowserCookieDialog(ctk.CTkToplevel, WindowCenterMixin):
         title_label = ctk.CTkLabel(
             self.main_container,
             text="Cookie Source Selection",
-            font=("Roboto", 20, "bold")
+            font=("Roboto", 20, "bold"),
         )
         title_label.pack(pady=(0, 20))
 
@@ -53,16 +67,13 @@ class BrowserCookieDialog(ctk.CTkToplevel, WindowCenterMixin):
             self.main_container,
             text="Choose how to provide cookies for YouTube access:",
             font=("Roboto", 12),
-            wraplength=450
+            wraplength=450,
         )
         desc_label.pack(pady=(0, 25))
 
         # Scrollable frame for browser options
         scrollable_frame = ctk.CTkScrollableFrame(
-            self.main_container,
-            height=250,
-            fg_color="transparent",
-            corner_radius=8
+            self.main_container, height=250, fg_color="transparent", corner_radius=8
         )
         scrollable_frame.pack(fill="both", expand=True, pady=(0, 20))
 
@@ -90,7 +101,7 @@ class BrowserCookieDialog(ctk.CTkToplevel, WindowCenterMixin):
             font=("Roboto", 12, "bold"),
             fg_color=("gray60", "gray40"),
             hover_color=("gray70", "gray30"),
-            corner_radius=8
+            corner_radius=8,
         )
         skip_btn.pack(side="left", padx=(0, 20))
 
@@ -104,7 +115,7 @@ class BrowserCookieDialog(ctk.CTkToplevel, WindowCenterMixin):
             font=("Roboto", 12, "bold"),
             fg_color="#28a745",
             hover_color="#218838",
-            corner_radius=8
+            corner_radius=8,
         )
         continue_btn.pack(side="left")
 
@@ -112,9 +123,7 @@ class BrowserCookieDialog(ctk.CTkToplevel, WindowCenterMixin):
         """Create browser selection section."""
         # Browser section title
         browser_title = ctk.CTkLabel(
-            parent,
-            text="Select Browser",
-            font=("Roboto", 14, "bold")
+            parent, text="Select Browser", font=("Roboto", 14, "bold")
         )
         browser_title.pack(anchor="w", pady=(10, 10))
 
@@ -122,7 +131,7 @@ class BrowserCookieDialog(ctk.CTkToplevel, WindowCenterMixin):
         browsers = [
             ("Chrome", "chrome", "#4285F4", "#FFA500"),
             ("Firefox", "firefox", "#4169E1", "#FFA500"),
-            ("Safari", "safari", "#007AFF", "#FFA500")
+            ("Safari", "safari", "#007AFF", "#FFA500"),
         ]
 
         self.browser_var = ctk.StringVar(value="none")
@@ -138,17 +147,13 @@ class BrowserCookieDialog(ctk.CTkToplevel, WindowCenterMixin):
                 variable=self.browser_var,
                 value=value,
                 command=self._on_browser_selected,
-                font=("Roboto", 12)
+                font=("Roboto", 12),
             )
             radio.pack(side="left", padx=(0, 10))
 
             # Status indicator
             status_label = ctk.CTkLabel(
-                button_frame,
-                text="",
-                font=("Roboto", 10),
-                width=100,
-                text_color="gray"
+                button_frame, text="", font=("Roboto", 10), width=100, text_color="gray"
             )
             status_label.pack(side="right")
 
@@ -164,7 +169,7 @@ class BrowserCookieDialog(ctk.CTkToplevel, WindowCenterMixin):
             variable=self.browser_var,
             value="none",
             command=self._on_browser_selected,
-            font=("Roboto", 12)
+            font=("Roboto", 12),
         )
         none_radio.pack(side="left")
 
@@ -172,9 +177,7 @@ class BrowserCookieDialog(ctk.CTkToplevel, WindowCenterMixin):
         """Create manual path section."""
         # Manual section title
         manual_title = ctk.CTkLabel(
-            parent,
-            text="Or Enter Cookie File Path",
-            font=("Roboto", 14, "bold")
+            parent, text="Or Enter Cookie File Path", font=("Roboto", 14, "bold")
         )
         manual_title.pack(anchor="w", pady=(20, 10))
 
@@ -190,7 +193,7 @@ class BrowserCookieDialog(ctk.CTkToplevel, WindowCenterMixin):
             placeholder_text="Enter path to cookie file...",
             width=300,
             height=35,
-            font=("Roboto", 11)
+            font=("Roboto", 11),
         )
         self.manual_entry.pack(side="left", padx=(0, 10))
 
@@ -203,7 +206,7 @@ class BrowserCookieDialog(ctk.CTkToplevel, WindowCenterMixin):
             height=35,
             font=("Roboto", 10, "bold"),
             fg_color="#6C757D",
-            hover_color="#5A6268"
+            hover_color="#5A6268",
         )
         browse_btn.pack(side="left")
 
@@ -239,13 +242,14 @@ class BrowserCookieDialog(ctk.CTkToplevel, WindowCenterMixin):
     def _browse_file(self):
         """Browse for cookie file."""
         from tkinter import filedialog
+
         file_path = filedialog.askopenfilename(
             title="Select Cookie File",
             filetypes=[
                 ("Cookie files", "*.txt *.cookies"),
                 ("Text files", "*.txt"),
-                ("All files", "*.*")
-            ]
+                ("All files", "*.*"),
+            ],
         )
         if file_path:
             self.manual_path_var.set(file_path)
@@ -256,7 +260,9 @@ class BrowserCookieDialog(ctk.CTkToplevel, WindowCenterMixin):
         manual_path = self.manual_path_var.get().strip()
         browser = self.browser_var.get()
 
-        logger.debug(f"Continue clicked: manual_path='{manual_path}', browser='{browser}'")
+        logger.debug(
+            f"Continue clicked: manual_path='{manual_path}', browser='{browser}'"
+        )
 
         if manual_path:
             # Use manual path
@@ -286,19 +292,21 @@ class BrowserCookieDialog(ctk.CTkToplevel, WindowCenterMixin):
 
     def _finish(self):
         """Finish the dialog and call callback."""
-        logger.info(f"Finishing dialog: cookie_path={self.cookie_path}, browser={self.selected_browser}")
+        logger.info(
+            f"Finishing dialog: cookie_path={self.cookie_path}, browser={self.selected_browser}"
+        )
         # Store callback and parameters before destroying the window
         callback = self.on_cookie_selected
         cookie_path = self.cookie_path
         selected_browser = self.selected_browser
         parent = self.master
-        
+
         # Release grab set before destroying
         self.grab_release()
         logger.info("Grab released, destroying dialog...")
         self.destroy()
         logger.info("Dialog destroyed, calling callback...")
-        
+
         # Call callback after window is destroyed using parent window
         if callback and parent:
             parent.after(100, lambda: callback(cookie_path, selected_browser))
@@ -316,10 +324,7 @@ class BrowserCookieDialog(ctk.CTkToplevel, WindowCenterMixin):
                 widget.destroy()
 
         error_label = ctk.CTkLabel(
-            self.main_container,
-            text=message,
-            text_color="red",
-            font=("Roboto", 10)
+            self.main_container, text=message, text_color="red", font=("Roboto", 10)
         )
         error_label.pack(pady=(10, 0))
         # Remove error message after 3 seconds

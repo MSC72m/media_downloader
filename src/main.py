@@ -40,6 +40,7 @@ from src.ui.components.main_action_buttons import ActionButtonBar  # noqa: E402
 from src.ui.components.options_bar import OptionsBar  # noqa: E402
 from src.ui.components.status_bar import StatusBar  # noqa: E402
 from src.ui.components.url_entry import URLEntryFrame  # noqa: E402
+from src.services.events.queue import MessageQueue
 
 # Set theme after successful import
 ctk.set_appearance_mode("dark")
@@ -56,6 +57,10 @@ class MediaDownloaderApp(ctk.CTk):
         self.geometry("1000x700")
 
         self.orchestrator = ApplicationOrchestrator(self)
+
+        # Register message queue for error dialogs
+        message_queue = MessageQueue(self)
+        self.orchestrator.container.register("message_queue", message_queue, singleton=True)
 
         # Create UI
         self.main_frame = ctk.CTkFrame(self, fg_color="transparent")
