@@ -204,15 +204,26 @@ class ApplicationOrchestrator:
                     # Attempt authentication in background thread
                     def auth_worker():
                         success = False
-                        error_message = None
+                        error_message = ""  # Initialize to empty string, not None
 
                         try:
                             logger.info("[AUTH_MANAGER] Authenticating with Instagram")
+                            # Import inside worker thread
+                            from src.services.instagram.downloader import (
+                                InstagramDownloader,
+                            )
+
                             downloader = InstagramDownloader()
                             success = downloader.authenticate(username, password)
                             logger.info(
                                 f"[AUTH_MANAGER] Authentication result: success={success}"
                             )
+
+                            # Set error message if authentication failed
+                            if not success:
+                                error_message = (
+                                    "Invalid credentials or authentication failed"
+                                )
 
                         except Exception as e:
                             logger.error(
@@ -222,25 +233,28 @@ class ApplicationOrchestrator:
                             error_message = str(e)
                             success = False
 
-                        # Schedule callback on main thread
-                        def update_main_thread():
-                            """Update main thread with authentication result."""
-                            try:
-                                logger.info(
-                                    f"[AUTH_MANAGER] Calling callback with success={success}"
-                                )
-                                callback(success, error_message)
-                            except Exception as update_error:
-                                logger.error(
-                                    f"[AUTH_MANAGER] Error in callback: {update_error}",
-                                    exc_info=True,
-                                )
+                        # Callback will be invoked directly from worker thread
+                        logger.info(
+                            f"[AUTH_MANAGER] Authentication complete, success={success}, error={error_message}"
+                        )
 
-                        # Schedule on main thread
-                        if parent_window and hasattr(parent_window, "after"):
-                            parent_window.after(0, update_main_thread)
-                        else:
-                            update_main_thread()
+                        # Call callback directly - the callback (on_auth_complete) is responsible
+                        # for handling thread-safety via queue-based UI updates
+                        logger.info(
+                            "[AUTH_MANAGER] Calling callback directly from worker thread"
+                        )
+                        try:
+                            callback(success, error_message)
+                            logger.info(
+                                "[AUTH_MANAGER] Callback completed successfully"
+                            )
+                        except Exception as callback_error:
+                            logger.error(
+                                f"[AUTH_MANAGER] Error in callback: {callback_error}",
+                                exc_info=True,
+                            )
+
+                        logger.info("[AUTH_MANAGER] auth_worker completed")
 
                     import threading
 
