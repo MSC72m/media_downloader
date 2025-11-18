@@ -76,8 +76,6 @@ class EventCoordinator:
             url: URL to download
             name: Optional name for generic downloads
         """
-        logger.info(f"[EVENT_COORDINATOR] {platform} download: {url}")
-
         platform_map = {
             "youtube": self.platform_dialogs.show_youtube_dialog,
             "twitter": self.platform_dialogs.show_twitter_dialog,
@@ -86,20 +84,18 @@ class EventCoordinator:
             "soundcloud": self.platform_dialogs.show_soundcloud_dialog,
             "generic": self.platform_dialogs.generic_download,
         }
+
         dialog_method = platform_map.get(platform)
         if not dialog_method:
             logger.error(f"[EVENT_COORDINATOR] Unknown platform: {platform}")
             return
 
-        # Generic download needs name parameter
-        if platform == "generic":
-            dialog_method(
-                url, name, lambda download: self.downloads.add_download(download)
-            )
-            return
+        callback = lambda download: self.downloads.add_download(download)
 
-        dialog_method(url, lambda download: self.downloads.add_download(download))
-        return
+        if platform == "generic":
+            dialog_method(url, name, callback)
+        else:
+            dialog_method(url, callback)
 
     # Authentication
     def authenticate_instagram(self, parent_window) -> None:
@@ -112,31 +108,17 @@ class EventCoordinator:
         try:
             from src.ui.dialogs.file_manager_dialog import FileManagerDialog
 
-            downloads_folder = self.container.get("downloads_folder")
-            if not downloads_folder:
-                downloads_folder = "~/Downloads"
-
-            # Get status bar for showing messages
+            downloads_folder = self.container.get("downloads_folder") or "~/Downloads"
             status_bar = self.container.get("status_bar")
 
-            def on_directory_change(new_path: str) -> None:
-                """Handle directory change in file manager."""
-                logger.info(f"[EVENT_COORDINATOR] Directory changed to: {new_path}")
-                # Could update container's downloads_folder here if needed
-
-            def show_status(message: str) -> None:
-                """Show status message from file manager."""
-                if status_bar:
-                    status_bar.show_message(message)
-
-            dialog = FileManagerDialog(
-                self.root, downloads_folder, on_directory_change, show_status
+            FileManagerDialog(
+                self.root,
+                downloads_folder,
+                lambda path: None,  # Directory change callback (unused)
+                lambda msg: status_bar.show_message(msg) if status_bar else None,
             )
-            logger.info("[EVENT_COORDINATOR] File manager dialog shown")
         except Exception as e:
-            logger.error(
-                f"[EVENT_COORDINATOR] Error showing file manager: {e}", exc_info=True
-            )
+            logger.error(f"[EVENT_COORDINATOR] Error showing file manager: {e}")
             if self.error_handler:
                 self.error_handler.show_error(
                     "File Manager Error", f"Failed to open file manager: {str(e)}"
@@ -144,24 +126,20 @@ class EventCoordinator:
 
     def show_network_status(self) -> None:
         """Show network status dialog."""
+        network_checker = self.container.get("network_checker")
+        if not network_checker:
+            if self.error_handler:
+                self.error_handler.show_error(
+                    "Network Status", "Network checker not available"
+                )
+            return
+
         try:
             from src.ui.dialogs.network_status_dialog import NetworkStatusDialog
 
-            network_checker = self.container.get("network_checker")
-            if not network_checker:
-                logger.warning("[EVENT_COORDINATOR] Network checker not available")
-                if self.error_handler:
-                    self.error_handler.show_error(
-                        "Network Status", "Network checker not available"
-                    )
-                return
-
-            dialog = NetworkStatusDialog(self.root, network_checker)
-            logger.info("[EVENT_COORDINATOR] Network status dialog shown")
+            NetworkStatusDialog(self.root, network_checker)
         except Exception as e:
-            logger.error(
-                f"[EVENT_COORDINATOR] Error showing network status: {e}", exc_info=True
-            )
+            logger.error(f"[EVENT_COORDINATOR] Error showing network status: {e}")
             if self.error_handler:
                 self.error_handler.show_error(
                     "Network Status Error",
@@ -171,59 +149,52 @@ class EventCoordinator:
     # Cookie Detection
     def cookie_detected(self, browser_type: str, cookie_path: str) -> None:
         """Handle cookie detection."""
-        logger.info(
-            f"[EVENT_COORDINATOR] Cookie detected: {browser_type} at {cookie_path}"
-        )
-        try:
-            cookie_handler = self.container.get("cookie_handler")
-            if not cookie_handler:
-                logger.warning("[EVENT_COORDINATOR] Cookie handler not available")
-                return None
+        cookie_handler = self.container.get("cookie_handler")
+        if not cookie_handler:
+            return
 
-            success = cookie_handler.set_cookie_file(cookie_path)
-            if not success:
+        try:
+            if not cookie_handler.set_cookie_file(cookie_path):
                 if self.error_handler:
                     self.error_handler.show_error(
                         "Cookie Error", "Failed to load cookie file"
                     )
-                return None
+                return
 
-            # Update status bar
             status_bar = self.container.get("status_bar")
             if status_bar:
                 status_bar.show_message(f"Cookie loaded from {browser_type}")
-            return None
         except Exception as e:
-            logger.error(
-                f"[EVENT_COORDINATOR] Error handling cookie detection: {e}",
-                exc_info=True,
-            )
+            logger.error(f"[EVENT_COORDINATOR] Error handling cookie: {e}")
             if self.error_handler:
                 self.error_handler.show_error(
                     "Cookie Error", f"Error loading cookie: {str(e)}"
                 )
 
-    # Platform-specific download methods (UIContextProtocol implementation)
-    def youtube_download(self, url: str, **kwargs) -> None:
-        """Handle YouTube download - implements UIContextProtocol."""
-        self.platform_download("youtube", url)
+    # UIContextProtocol implementation - dynamic dispatch for platform downloads
+    def __getattr__(self, name: str):
+        """Dynamic dispatch for platform_download methods.
 
-    def twitter_download(self, url: str, **kwargs) -> None:
-        """Handle Twitter download - implements UIContextProtocol."""
-        self.platform_download("twitter", url)
+        Handles calls like youtube_download, twitter_download, etc.
+        by routing to platform_download with the appropriate platform name.
+        """
+        platform_methods = {
+            "youtube_download": "youtube",
+            "twitter_download": "twitter",
+            "instagram_download": "instagram",
+            "pinterest_download": "pinterest",
+            "soundcloud_download": "soundcloud",
+        }
 
-    def instagram_download(self, url: str, **kwargs) -> None:
-        """Handle Instagram download - implements UIContextProtocol."""
-        self.platform_download("instagram", url)
+        if name in platform_methods:
+            platform = platform_methods[name]
+            return lambda url, **kwargs: self.platform_download(
+                platform, url, kwargs.get("name")
+            )
 
-    def pinterest_download(self, url: str, **kwargs) -> None:
-        """Handle Pinterest download - implements UIContextProtocol."""
-        self.platform_download("pinterest", url)
+        if name == "generic_download":
+            return lambda url, name=None: self.platform_download("generic", url, name)
 
-    def soundcloud_download(self, url: str, **kwargs) -> None:
-        """Handle SoundCloud download - implements UIContextProtocol."""
-        self.platform_download("soundcloud", url)
-
-    def generic_download(self, url: str, name: Optional[str] = None) -> None:
-        """Handle generic download - implements UIContextProtocol."""
-        self.platform_download("generic", url, name)
+        raise AttributeError(
+            f"'{type(self).__name__}' object has no attribute '{name}'"
+        )
