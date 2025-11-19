@@ -261,6 +261,25 @@ class YouTubeHandler(LinkHandlerInterface):
                 try:
                     logger.info("[YOUTUBE_HANDLER] Creating YouTubeDownloaderDialog")
 
+                    # Get auto-generated cookies if available
+                    cookie_path = None
+                    if container:
+                        auto_cookie_manager = container.get("auto_cookie_manager")
+                        if auto_cookie_manager and auto_cookie_manager.is_ready():
+                            try:
+                                cookie_path = auto_cookie_manager.get_cookies()
+                                logger.info(
+                                    f"[YOUTUBE_HANDLER] Using auto-generated cookies: {cookie_path}"
+                                )
+                            except Exception as cookie_error:
+                                logger.warning(
+                                    f"[YOUTUBE_HANDLER] Failed to get auto cookies: {cookie_error}"
+                                )
+                        else:
+                            logger.warning(
+                                "[YOUTUBE_HANDLER] Auto cookies not ready yet"
+                            )
+
                     YouTubeDownloaderDialog(
                         root,
                         url=url,
@@ -268,7 +287,7 @@ class YouTubeHandler(LinkHandlerInterface):
                         metadata_service=metadata_service,
                         on_download=download_callback,
                         pre_fetched_metadata=None,
-                        initial_cookie_path=None,
+                        initial_cookie_path=cookie_path,
                     )
                     logger.info(
                         "[YOUTUBE_HANDLER] YouTubeDownloaderDialog created successfully"
