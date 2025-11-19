@@ -45,6 +45,95 @@ ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
 
+def _check_playwright_installation():
+    """Check if Playwright is installed and show critical error if not."""
+    try:
+        import playwright  # noqa: F401
+
+        logger.info("[MAIN_APP] Playwright is installed")
+        return True
+    except ImportError:
+        logger.error("[MAIN_APP] Playwright is NOT installed - showing critical error")
+
+        # Create a minimal window to show the error
+        error_window = ctk.CTk()
+        error_window.title("CRITICAL: Playwright Not Installed")
+        error_window.geometry("600x400")
+
+        # Center the window
+        error_window.update_idletasks()
+        width = error_window.winfo_width()
+        height = error_window.winfo_height()
+        x = (error_window.winfo_screenwidth() // 2) - (width // 2)
+        y = (error_window.winfo_screenheight() // 2) - (height // 2)
+        error_window.geometry(f"{width}x{height}+{x}+{y}")
+
+        # Error message
+        error_frame = ctk.CTkFrame(error_window, fg_color="transparent")
+        error_frame.pack(fill="both", expand=True, padx=20, pady=20)
+
+        title_label = ctk.CTkLabel(
+            error_frame,
+            text="⚠️  PLAYWRIGHT NOT INSTALLED  ⚠️",
+            font=("Arial", 20, "bold"),
+            text_color="red",
+        )
+        title_label.pack(pady=(0, 20))
+
+        message = (
+            "The auto-cookie generation system requires Playwright.\n\n"
+            "Without it, age-restricted YouTube videos will FAIL to download.\n\n"
+            "To fix this, run these commands in your terminal:\n\n"
+            "   pip install playwright\n"
+            "   playwright install chromium\n\n"
+            "Then restart the application.\n\n"
+            "Click 'Continue Anyway' to run without cookies (NOT RECOMMENDED)\n"
+            "or 'Exit' to close and install Playwright first."
+        )
+
+        message_label = ctk.CTkLabel(
+            error_frame, text=message, font=("Arial", 12), justify="left"
+        )
+        message_label.pack(pady=10)
+
+        # Buttons
+        button_frame = ctk.CTkFrame(error_frame, fg_color="transparent")
+        button_frame.pack(pady=20)
+
+        def continue_anyway():
+            logger.warning("[MAIN_APP] User chose to continue without Playwright")
+            error_window.destroy()
+
+        def exit_app():
+            logger.info("[MAIN_APP] User chose to exit and install Playwright")
+            error_window.destroy()
+            raise SystemExit(1)
+
+        exit_button = ctk.CTkButton(
+            button_frame,
+            text="Exit (Recommended)",
+            command=exit_app,
+            fg_color="red",
+            hover_color="darkred",
+            width=200,
+        )
+        exit_button.pack(side="left", padx=10)
+
+        continue_button = ctk.CTkButton(
+            button_frame,
+            text="Continue Anyway (Not Recommended)",
+            command=continue_anyway,
+            fg_color="orange",
+            hover_color="darkorange",
+            width=250,
+        )
+        continue_button.pack(side="left", padx=10)
+
+        # Run the error window
+        error_window.mainloop()
+        return False
+
+
 class MediaDownloaderApp(ctk.CTk):
     """Main application window - just UI setup and delegation."""
 
@@ -208,5 +297,8 @@ class MediaDownloaderApp(ctk.CTk):
 
 
 if __name__ == "__main__":
+    # Check Playwright installation before starting the app
+    _check_playwright_installation()
+
     app = MediaDownloaderApp()
     app.mainloop()

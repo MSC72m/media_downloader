@@ -193,8 +193,37 @@ class ApplicationOrchestrator:
                     logger.error(
                         f"[ORCHESTRATOR] Cookie initialization failed: {state.error_message}"
                     )
+
+                    # Check if it's a Playwright installation issue
+                    if (
+                        "Playwright is not installed" in state.error_message
+                        or "playwright" in state.error_message.lower()
+                    ):
+                        # Show critical error dialog
+                        error_handler = self.container.get("error_handler")
+                        if error_handler:
+                            error_message = (
+                                "CRITICAL: Playwright is not installed!\n\n"
+                                "The auto-cookie generation system requires Playwright to function.\n"
+                                "Without it, age-restricted YouTube videos will fail to download.\n\n"
+                                "To fix this, run the following commands:\n\n"
+                                "  pip install playwright\n"
+                                "  playwright install chromium\n\n"
+                                "Then restart the application.\n\n"
+                                "The app will continue to run, but YouTube downloads may fail for restricted content."
+                            )
+                            self.root.after(
+                                1000,
+                                lambda: error_handler.show_error(
+                                    "Playwright Not Installed - Action Required",
+                                    error_message,
+                                ),
+                            )
+
                     if status_bar:
-                        status_bar.show_error(f"Cookie error: {state.error_message}")
+                        status_bar.show_error(
+                            "Cookie system unavailable - Install Playwright!"
+                        )
                 else:
                     logger.warning(
                         "[ORCHESTRATOR] Cookies not valid after initialization"
