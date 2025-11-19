@@ -107,13 +107,6 @@ def _check_playwright_installation():
 
         def continue_anyway():
             logger.warning("[MAIN_APP] User chose to continue without Playwright")
-            # Cancel all pending after callbacks before destroying
-            try:
-                for after_id in error_window.tk.call("after", "info"):
-                    error_window.after_cancel(after_id)
-            except:
-                pass
-            error_window.quit()
             error_window.destroy()
 
         def exit_app():
@@ -147,29 +140,25 @@ def _check_playwright_installation():
             logger.info("[MAIN_APP] Exiting gracefully with sys.exit(1)")
             sys.exit(1)
 
-        # Exit button - larger and first (more prominent)
+        # Exit button - recommended action
         exit_button = ctk.CTkButton(
             button_frame,
-            text="⛔  EXIT - Install Playwright First  ⛔",
+            text="Exit",
             command=exit_app,
             fg_color="red",
             hover_color="darkred",
-            width=300,
-            height=50,
-            font=("Arial", 14, "bold"),
+            width=150,
         )
         exit_button.pack(side="left", padx=10)
 
-        # Continue button - smaller and second (less prominent)
+        # Continue button - not recommended
         continue_button = ctk.CTkButton(
             button_frame,
-            text="Continue Anyway (Not Recommended)",
+            text="Continue Without Playwright",
             command=continue_anyway,
             fg_color="gray",
             hover_color="darkgray",
-            width=200,
-            height=40,
-            font=("Arial", 12),
+            width=250,
         )
         continue_button.pack(side="left", padx=10)
 
