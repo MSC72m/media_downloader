@@ -46,7 +46,12 @@ ctk.set_default_color_theme("blue")
 
 
 def _check_playwright_installation():
-    """Check if Playwright is installed and show critical error if not."""
+    """Check if Playwright is installed and show critical error if not.
+
+    Returns:
+        True if Playwright is installed or user chose to continue
+        Does NOT return if user chose to exit (calls os._exit instead)
+    """
     try:
         import playwright  # noqa: F401
 
@@ -114,17 +119,7 @@ def _check_playwright_installation():
         def exit_app():
             logger.info("[MAIN_APP] User chose to exit and install Playwright")
 
-            # Cancel all pending after callbacks before destroying
-            try:
-                for after_id in error_window.tk.call("after", "info"):
-                    error_window.after_cancel(after_id)
-            except:
-                pass
-
-            error_window.quit()
-            error_window.destroy()
-
-            # Print clear instructions to terminal
+            # Print clear instructions to terminal FIRST
             print("\n" + "=" * 70)
             print("  PLAYWRIGHT INSTALLATION REQUIRED")
             print("=" * 70)
@@ -135,36 +130,58 @@ def _check_playwright_installation():
             print("  uv run -m src.main")
             print("\n" + "=" * 70 + "\n")
 
-            # Force immediate exit - don't allow any further code to run
-            import os
+            # Cancel all pending after callbacks
+            try:
+                for after_id in error_window.tk.call("after", "info"):
+                    error_window.after_cancel(after_id)
+            except:
+                pass
 
-            os._exit(1)
+            # Destroy window
+            error_window.quit()
+            error_window.destroy()
 
+            # Graceful exit using sys.exit
+            import sys
+
+            logger.info("[MAIN_APP] Exiting gracefully with sys.exit(1)")
+            sys.exit(1)
+
+        # Exit button - larger and first (more prominent)
         exit_button = ctk.CTkButton(
             button_frame,
-            text="Exit (Recommended)",
+            text="⛔  EXIT - Install Playwright First  ⛔",
             command=exit_app,
             fg_color="red",
             hover_color="darkred",
-            width=200,
+            width=300,
+            height=50,
+            font=("Arial", 14, "bold"),
         )
         exit_button.pack(side="left", padx=10)
 
+        # Continue button - smaller and second (less prominent)
         continue_button = ctk.CTkButton(
             button_frame,
             text="Continue Anyway (Not Recommended)",
             command=continue_anyway,
-            fg_color="orange",
-            hover_color="darkorange",
-            width=250,
+            fg_color="gray",
+            hover_color="darkgray",
+            width=200,
+            height=40,
+            font=("Arial", 12),
         )
         continue_button.pack(side="left", padx=10)
 
-        # Run the error window
+        # Prevent window from being closed without clicking a button
+        error_window.protocol("WM_DELETE_WINDOW", exit_app)
+
+        # Run the error window - this BLOCKS until user clicks a button
         error_window.mainloop()
 
         # If we reach here, user clicked Continue Anyway
-        return False
+        logger.warning("[MAIN_APP] Continuing without Playwright as user requested")
+        return True
 
 
 class MediaDownloaderApp(ctk.CTk):
@@ -349,10 +366,19 @@ class MediaDownloaderApp(ctk.CTk):
 
 
 if __name__ == "__main__":
-    # Check Playwright installation before starting the app
-    # This will exit if user chooses to install Playwright
-    _check_playwright_installation()
+    # Check Playwright installation BEFORE creating the app
+    # This will call sys.exit(1) if user chooses to exit
+    # Will return True if Playwright is installed or user chose to continue
+    should_continue = _check_playwright_installation()
 
-    # Only reach here if Playwright is installed or user chose to continue anyway
-    app = MediaDownloaderApp()
-    app.mainloop()
+    # Only create app if we should continue
+    if should_continue:
+        logger.info("[MAIN_APP] Starting Media Downloader application")
+        app = MediaDownloaderApp()
+        app.mainloop()
+    else:
+        # Should not reach here, but just in case
+        logger.error("[MAIN_APP] Unexpected state - exiting")
+        import sys
+
+        sys.exit(1)
