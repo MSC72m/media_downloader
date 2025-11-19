@@ -11,12 +11,18 @@ from src.handlers.cookie_handler import CookieHandler
 from src.handlers.download_handler import DownloadHandler
 from src.handlers.network_checker import NetworkChecker
 from src.handlers.service_detector import ServiceDetector
+from src.services.cookies import CookieManager as AutoCookieManager
 from src.services.detection.link_detector import LinkDetector
 from src.services.downloads import DownloadService, ServiceFactory
 from src.services.events.queue import MessageQueue
 from src.services.file import FileService
 from src.services.network.checker import check_all_services, check_internet_connection
-from src.services.youtube.cookie_detector import CookieDetector, CookieManager
+from src.services.youtube.cookie_detector import (
+    CookieDetector,
+)
+from src.services.youtube.cookie_detector import (
+    CookieManager as OldCookieManager,
+)
 from src.services.youtube.metadata_service import YouTubeMetadataService
 from src.utils.logger import get_logger
 from src.utils.type_helpers import safe_cleanup
@@ -105,13 +111,20 @@ class ApplicationOrchestrator:
         self.container.register_factory("service_detector", lambda: ServiceDetector())
         self.container.register_factory("file_service", lambda: FileService())
 
-        # Initialize cookie manager
-        cookie_manager = CookieManager()
-        cookie_manager.initialize()
-        self.container.register("cookie_manager", cookie_manager, singleton=True)
+        # Initialize new auto-generating cookie manager
+        auto_cookie_manager = AutoCookieManager()
+        # Note: We'll initialize in background to not block startup
+        self.container.register(
+            "auto_cookie_manager", auto_cookie_manager, singleton=True
+        )
 
-        # Initialize service factory and download service
-        service_factory = ServiceFactory(cookie_manager)
+        # Keep old cookie manager for backward compatibility during transition
+        old_cookie_manager = OldCookieManager()
+        old_cookie_manager.initialize()
+        self.container.register("cookie_manager", old_cookie_manager, singleton=True)
+
+        # Initialize service factory and download service (use old manager for now)
+        service_factory = ServiceFactory(old_cookie_manager)
         download_service = DownloadService(service_factory)
 
         self.container.register("service_factory", service_factory, singleton=True)

@@ -1,7 +1,8 @@
 """Core models - requires pydantic (no fallbacks)."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import StrEnum
+from pathlib import Path
 from typing import TYPE_CHECKING, Dict, List, Optional
 
 from pydantic import BaseModel, Field
@@ -11,6 +12,32 @@ from .enums.service_type import ServiceType
 
 if TYPE_CHECKING:
     from src.services.events.event_bus import DownloadEventBus
+
+
+class CookieState(BaseModel):
+    """State model for cookie generation and management."""
+
+    generated_at: datetime = Field(default_factory=datetime.now)
+    expires_at: datetime = Field(
+        default_factory=lambda: datetime.now() + timedelta(hours=8)
+    )
+    is_valid: bool = Field(default=False)
+    is_generating: bool = Field(default=False)
+    cookie_path: Optional[str] = None
+    error_message: Optional[str] = None
+
+    def is_expired(self) -> bool:
+        """Check if cookies are expired."""
+        return datetime.now() >= self.expires_at
+
+    def should_regenerate(self) -> bool:
+        """Check if cookies should be regenerated."""
+        return (
+            not self.is_valid
+            or self.is_expired()
+            or not self.cookie_path
+            or not Path(self.cookie_path).exists()
+        )
 
 
 class Download(BaseModel):
@@ -37,7 +64,6 @@ class Download(BaseModel):
     download_thumbnail: bool = Field(default=True)
     embed_metadata: bool = Field(default=True)
     cookie_path: Optional[str] = None
-    selected_browser: Optional[str] = None
     speed_limit: Optional[int] = None
     retries: int = Field(default=3)
     concurrent_downloads: int = Field(default=1)

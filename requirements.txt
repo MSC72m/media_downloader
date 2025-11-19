@@ -5,4 +5,4 @@ requests
 yt-dlp
 urllib3
 pydantic
-
+playwright>=1.40.0

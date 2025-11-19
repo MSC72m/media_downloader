@@ -67,10 +67,16 @@ Last Updated: 2025-01-19
 
 ### Tasks
 
-#### Task 2.1: Remove Old Cookie System
-- [ ] **File**: `src/core/enums/browser_type.py` - DELETE entire file
+#### Task 2.1: Remove Old Cookie System ⏳ IN PROGRESS
+- [x] **File**: `src/core/enums/browser_type.py` - N/A (doesn't exist, BrowserType in cookie_detection.py)
 - [ ] **File**: `src/core/models.py` - Remove `selected_browser` field from Download
-- [ ] **File**: `src/services/cookies/` - Review and remove browser-specific logic
+- [ ] **File**: `src/interfaces/cookie_detection.py` - Remove BrowserType enum and related methods
+- [ ] **File**: `src/services/youtube/cookie_detector.py` - Remove browser-specific detection logic
+- [ ] **File**: `src/handlers/cookie_handler.py` - Remove browser selection methods
+- [ ] **File**: `src/handlers/download_handler.py` - Remove browser detection logic
+- [ ] **File**: `src/handlers/youtube_handler.py` - Remove browser callback logic
+- [ ] **File**: `src/ui/components/cookie_selector.py` - DELETE entire file
+- [ ] **File**: `src/ui/dialogs/browser_cookie_dialog.py` - DELETE entire file
 - [ ] **Search**: Grep for "browser_type", "BrowserType", "selected_browser" - remove all references
 - [ ] **UI**: Remove browser selection components from dialogs/windows
 
