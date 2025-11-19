@@ -111,6 +111,8 @@ def _check_playwright_installation():
             error_window.quit()
             error_window.destroy()
 
+        exit_flag = [False]  # Use list to allow modification in nested function
+
         def exit_app():
             logger.info("[MAIN_APP] User chose to exit and install Playwright")
 
@@ -135,7 +137,7 @@ def _check_playwright_installation():
             print("  uv run -m src.main")
             print("\n" + "=" * 70 + "\n")
 
-            raise SystemExit(1)
+            exit_flag[0] = True
 
         exit_button = ctk.CTkButton(
             button_frame,
@@ -159,6 +161,13 @@ def _check_playwright_installation():
 
         # Run the error window
         error_window.mainloop()
+
+        # If user clicked Exit, actually exit
+        if exit_flag[0]:
+            import sys
+
+            sys.exit(1)
+
         return False
 
 
@@ -345,7 +354,9 @@ class MediaDownloaderApp(ctk.CTk):
 
 if __name__ == "__main__":
     # Check Playwright installation before starting the app
+    # This will exit if user chooses to install Playwright
     _check_playwright_installation()
 
+    # Only reach here if Playwright is installed or user chose to continue anyway
     app = MediaDownloaderApp()
     app.mainloop()
