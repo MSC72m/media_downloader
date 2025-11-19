@@ -121,7 +121,7 @@ class SoundCloudDownloader(BaseDownloader):
 
         Args:
             url: SoundCloud URL to download
-            save_path: Directory to save the downloaded file
+            save_path: Path to save the downloaded file (without extension)
             progress_callback: Optional callback for progress updates (progress%, speed)
 
         Returns:
@@ -131,9 +131,11 @@ class SoundCloudDownloader(BaseDownloader):
             logger.error("[SOUNDCLOUD_DOWNLOADER] No URL provided")
             return False
 
-        if not os.path.exists(save_path):
+        # Create the output directory if it doesn't exist
+        save_dir = os.path.dirname(save_path)
+        if save_dir and not os.path.exists(save_dir):
             logger.error(
-                f"[SOUNDCLOUD_DOWNLOADER] Save path does not exist: {save_path}"
+                f"[SOUNDCLOUD_DOWNLOADER] Save directory does not exist: {save_dir}"
             )
             return False
 
@@ -164,9 +166,9 @@ class SoundCloudDownloader(BaseDownloader):
 
             # Configure options with save path and progress hook
             options = self.ytdl_opts.copy()
-            options["outtmpl"] = os.path.join(
-                save_path, "%(uploader)s - %(title)s.%(ext)s"
-            )
+            # Use the provided save_path as the output template
+            # yt-dlp will add the appropriate extension
+            options["outtmpl"] = f"{save_path}.%(ext)s"
             options["progress_hooks"] = [progress_hook]
 
             # Attempt download
