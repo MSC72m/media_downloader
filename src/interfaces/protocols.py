@@ -97,7 +97,6 @@ class DownloadAttributesProtocol(Protocol):
     """Protocol for download objects with optional attributes."""
 
     cookie_path: Optional[str]
-    selected_browser: Optional[str]
     quality: str
     download_playlist: bool
     audio_only: bool

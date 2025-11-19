@@ -9,23 +9,17 @@ from pathlib import Path
 
 import customtkinter as ctk
 
-from ...interfaces.cookie_detection import BrowserType
 from ...interfaces.youtube_metadata import YouTubeMetadata
 from ...utils.logger import get_logger
 from ...utils.window import WindowCenterMixin
 from ..components.simple_loading_dialog import SimpleLoadingDialog
 from ..components.subtitle_checklist import SubtitleChecklist
-from .browser_cookie_dialog import BrowserCookieDialog
 
 logger = get_logger(__name__)
 
 
 class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
     """Enhanced dialog for downloading YouTube videos with metadata support."""
-
-    # Class variables for cookie caching
-    _cached_cookies = {}
-    _selected_browser = None
 
     def __init__(
         self,
@@ -36,7 +30,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         metadata_service=None,
         pre_fetched_metadata: YouTubeMetadata | None = None,
         initial_cookie_path: str | None = None,
-        initial_browser: str | None = None,
     ):
         super().__init__(parent)
 
@@ -44,13 +37,11 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.cookie_handler = cookie_handler
         self.on_download = on_download
         self.metadata_service = metadata_service
-        self.browser_buttons = {}
         self.video_metadata = (
             pre_fetched_metadata  # Use pre-fetched metadata if provided
         )
         self.loading_overlay: SimpleLoadingDialog | None = None
         self.selected_cookie_path = initial_cookie_path
-        self.selected_browser = initial_browser
         self.widgets_created = False
         self._metadata_handler_called = False  # Flag to track if handler was called
         self._metadata_ready = (
@@ -125,55 +116,9 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                 # Last resort - just continue, window may already be visible
 
     def _start_metadata_fetch_with_cookie(self):
-        """Start metadata fetching with the provided cookie information."""
-        if self.selected_browser:
-            # If browser was selected, get cookies from browser
-            self._get_browser_cookies(self.selected_browser)
-        else:
-            # Use manual cookie path or proceed without cookies
-            self._start_metadata_fetch()
-
-    def _show_cookie_selection(self):
-        """Show cookie selection dialog before metadata fetching."""
-        logger.info("Showing cookie selection dialog")
-
-        def on_cookie_selected(cookie_path: str | None, browser: str | None):
-            logger.info(
-                f"Cookie selection callback: path={cookie_path}, browser={browser}"
-            )
-            self.selected_cookie_path = cookie_path
-            self.selected_browser = browser
-
-            # If manual path was provided, use it directly
-            if cookie_path:
-                logger.info("Starting metadata fetch with manual cookie path")
-                self._start_metadata_fetch()
-            elif browser:
-                logger.info(f"Getting cookies from browser: {browser}")
-                # If browser was selected, get cookies from browser
-                self._get_browser_cookies(browser)
-            else:
-                logger.info("No cookies selected, proceeding without cookies")
-                # No cookies selected, proceed without
-                self._start_metadata_fetch()
-
-        try:
-            logger.info("Creating BrowserCookieDialog")
-            BrowserCookieDialog(self, on_cookie_selected)
-            logger.info("BrowserCookieDialog created successfully")
-            # No need to wait_window() as the callback will be called after the dialog is destroyed
-        except Exception as e:
-            logger.error(f"Error showing cookie dialog: {e}")
-            # If cookie dialog fails, proceed without cookies
-            self._start_metadata_fetch()
-
-    def _get_browser_cookies(self, browser: str):
-        """Handle browser cookie selection - just pass browser type to yt-dlp."""
-        # yt-dlp handles cookie extraction directly, no manual extraction needed
-        logger.debug(f"Using browser cookies: {browser}")
-
-        # Start metadata fetching immediately
-        self.after(0, self._start_metadata_fetch)
+        """Start metadata fetching with auto-generated cookies."""
+        # Auto cookie manager handles cookies, just start fetch
+        self._start_metadata_fetch()
 
     def _start_metadata_fetch(self):
         """Start metadata fetching after cookie selection."""
@@ -222,9 +167,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                     logger.debug(
                         f"YouTube dialog fetch_metadata - cookie_path: {cookie_path}"
                     )
-                    logger.debug(
-                        f"YouTube dialog fetch_metadata - selected_browser: {self.selected_browser}"
-                    )
 
                     # Fetch metadata with cookies and timeout protection
                     logger.info("Calling metadata_service.fetch_metadata...")
@@ -237,7 +179,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                     def fetch_with_timeout():
                         try:
                             metadata_result[0] = self.metadata_service.fetch_metadata(
-                                self.url, cookie_path, self.selected_browser
+                                self.url, cookie_path, None
                             )
                             fetch_completed[0] = True
                         except Exception as e:
@@ -355,9 +297,9 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         # Add suggestions for common issues
         error_msg += "\n\nSuggestions:"
-        error_msg += "\n• Try using browser cookies (Chrome/Firefox)"
         error_msg += "\n• Check your internet connection"
         error_msg += "\n• Verify the YouTube URL is correct"
+        error_msg += "\n• Wait for cookies to finish generating"
 
         try:
             messagebox.showerror("Metadata Error", error_msg)
@@ -614,42 +556,18 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         cookie_label = ctk.CTkLabel(
             cookie_frame,
-            text="Browser Cookies (to bypass YouTube restrictions):",
+            text="Cookies Status:",
             font=("Roboto", 12, "bold"),
         )
-        cookie_label.pack(anchor="w", padx=(10, 5))
+        cookie_label.pack(anchor="w", padx=10, pady=(10, 5))
 
         cookie_info_label = ctk.CTkLabel(
             cookie_frame,
-            text="Select a browser to use its cookies for age-restricted or region-locked content",
+            text="Cookies are automatically managed for age-restricted content",
             font=("Roboto", 10),
             text_color="gray",
         )
         cookie_info_label.pack(anchor="w", padx=(10, 0))
-
-        # Browser buttons
-        browser_button_frame = ctk.CTkFrame(cookie_frame, fg_color="transparent")
-        browser_button_frame.pack(fill="x", padx=10, pady=10)
-
-        browser_info = {
-            BrowserType.CHROME: ("Chrome", "#4285F4", "#FFA500"),
-            BrowserType.FIREFOX: ("Firefox", "#4169E1", "#FFA500"),
-            BrowserType.SAFARI: ("Safari", "#007AFF", "#FFA500"),
-        }
-
-        for browser, (name, color, selected_color) in browser_info.items():
-            button = ctk.CTkButton(
-                browser_button_frame,
-                text=f"Use {name}",
-                command=lambda b=browser: self._handle_browser_select(b),
-                width=140,
-                height=35,
-                font=("Roboto", 11, "bold"),
-                fg_color=color,
-                hover_color=self._darken_color(color),
-            )
-            button.pack(side="left", padx=5)
-            self.browser_buttons[browser] = button
 
         self.cookie_status_label = ctk.CTkLabel(
             cookie_frame, text="No cookies selected", font=("Roboto", 10)
@@ -907,79 +825,13 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                 if current_quality not in video_qualities:
                     self.quality_var.set("720p")
 
-    def _darken_color(self, hex_color: str) -> str:
-        """Darken a hex color for hover effect."""
-        hex_color = hex_color.lstrip("#")
-        rgb = tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
-        darkened = tuple(max(0, c - 30) for c in rgb)
-        return f"#{darkened[0]:02x}{darkened[1]:02x}{darkened[2]:02x}"
-
-    def _handle_browser_select(self, browser: BrowserType):
-        """Handle browser selection for cookies with caching."""
-        # Reset all buttons to default color
-        for btn_browser, button in self.browser_buttons.items():
-            if btn_browser == BrowserType.CHROME:
-                button.configure(fg_color="#4285F4")
-            elif btn_browser == BrowserType.FIREFOX:
-                button.configure(fg_color="#4169E1")
-            elif btn_browser == BrowserType.SAFARI:
-                button.configure(fg_color="#007AFF")
-
-        # Set selected button to orange
-        if browser in self.browser_buttons:
-            self.browser_buttons[browser].configure(fg_color="#FFA500")
-
-        # Try to use cached cookies first
-        if browser in self._cached_cookies:
-            cookie_path = self._cached_cookies[browser]
-            if os.path.exists(cookie_path):
-                self._set_cookie_success(browser, cookie_path)
-                return
-
-        # Detect cookies if not cached
-        try:
-            cookie_path = self.cookie_handler.detect_cookies_for_browser(browser)
-            if cookie_path:
-                # Cache the cookie path
-                self._cached_cookies[browser] = cookie_path
-                self._selected_browser = browser
-                self._save_cached_selections()
-                self._set_cookie_success(browser, cookie_path)
-            else:
-                self._set_cookie_failure(browser)
-        except Exception as e:
-            self._set_cookie_error(browser, str(e))
-
-    def _set_cookie_success(self, browser: BrowserType, cookie_path: str):
-        """Set successful cookie detection."""
-        self.cookie_status_label.configure(
-            text=f"✓ Using {browser.value} cookies (cached)", text_color="green"
-        )
-        self.selected_cookie_path = cookie_path
-
-    def _set_cookie_failure(self, browser: BrowserType):
-        """Set failed cookie detection."""
-        self.cookie_status_label.configure(
-            text=f"✗ No {browser.value} cookies found", text_color="red"
-        )
-        self.selected_cookie_path = None
-
-    def _set_cookie_error(self, browser: BrowserType, error: str):
-        """Set cookie detection error."""
-        self.cookie_status_label.configure(
-            text=f"✗ Error with {browser.value} cookies: {error[:50]}...",
-            text_color="red",
-        )
-        self.selected_cookie_path = None
-
     def _load_cached_selections(self):
-        """Load cached browser selection."""
+        """Load cached selections (placeholder for compatibility)."""
         try:
             cache_file = Path.home() / ".media_downloader" / "youtube_cache.json"
             if cache_file.exists():
                 with open(cache_file, "r") as f:
                     cache_data = json.load(f)
-                    self._cached_cookies = cache_data.get("cookies", {})
                     self._selected_browser = cache_data.get("selected_browser")
 
                     # Restore selected button state

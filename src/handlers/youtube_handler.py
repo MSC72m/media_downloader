@@ -104,7 +104,6 @@ class YouTubeHandler(LinkHandlerInterface):
         """Get the UI callback for YouTube URLs."""
         logger.info("[YOUTUBE_HANDLER] Getting UI callback")
 
-        from src.ui.dialogs.browser_cookie_dialog import BrowserCookieDialog
         from src.ui.dialogs.youtube_downloader_dialog import YouTubeDownloaderDialog
 
         def youtube_callback(url: str, ui_context: Any):
@@ -116,6 +115,36 @@ class YouTubeHandler(LinkHandlerInterface):
             # Get container and root using type-safe helpers
             container = get_container(ui_context)
             root = get_root(ui_context)
+
+            # Check auto cookie manager state
+            auto_cookie_manager = (
+                container.get("auto_cookie_manager") if container else None
+            )
+            if auto_cookie_manager and auto_cookie_manager.is_generating():
+                logger.info(
+                    "[YOUTUBE_HANDLER] Cookies are still generating, notifying user"
+                )
+                try:
+                    from src.core.enums.message_level import MessageLevel
+                    from src.services.events.queue import Message
+
+                    message_queue = (
+                        container.get("message_queue") if container else None
+                    )
+                    if message_queue:
+                        message_queue.add_message(
+                            Message(
+                                text="YouTube cookies are being generated. Please wait a moment and try again.",
+                                level=MessageLevel.INFO,
+                                title="Cookies Generating",
+                                duration=5000,
+                            )
+                        )
+                except Exception as e:
+                    logger.error(
+                        f"[YOUTUBE_HANDLER] Failed to show cookie message: {e}"
+                    )
+                return
 
             logger.info(f"[YOUTUBE_HANDLER] Container: {container}")
             logger.info(f"[YOUTUBE_HANDLER] Root: {root}")
@@ -226,94 +255,34 @@ class YouTubeHandler(LinkHandlerInterface):
                 schedule_on_main_thread(root, show_music_name_dialog, immediate=True)
                 return
 
-            # For regular YouTube videos, show cookie selection dialog first
-            def on_cookie_selected(cookie_path: Optional[str], browser: Optional[str]):
-                logger.info(
-                    f"[YOUTUBE_HANDLER] Cookie selected: {cookie_path}, browser: {browser}"
-                )
-
-                def create_youtube_dialog():
-                    try:
-                        # Validate cookie path before proceeding
-                        if cookie_path and cookie_handler:
-                            success = cookie_handler.set_cookie_file(cookie_path)
-                            if not success:
-                                logger.error(
-                                    f"[YOUTUBE_HANDLER] Failed to set cookie file: {cookie_path}"
-                                )
-                                # Continue anyway, the dialog will handle the error
-
-                        YouTubeDownloaderDialog(
-                            root,
-                            url=url,
-                            cookie_handler=cookie_handler,
-                            metadata_service=metadata_service,
-                            on_download=download_callback,
-                            pre_fetched_metadata=None,
-                            initial_cookie_path=cookie_path,
-                            initial_browser=browser,
-                        )
-                        logger.info(
-                            "[YOUTUBE_HANDLER] YouTubeDownloaderDialog created successfully"
-                        )
-                    except Exception as e:
-                        logger.error(
-                            f"[YOUTUBE_HANDLER] Failed to create YouTubeDownloaderDialog: {e}",
-                            exc_info=True,
-                        )
-
-                # Schedule dialog creation on main thread (non-blocking)
-                schedule_on_main_thread(root, create_youtube_dialog, immediate=True)
-                logger.info(
-                    "[YOUTUBE_HANDLER] YouTubeDownloaderDialog creation scheduled"
-                )
-
-            def create_cookie_dialog():
+            # For regular YouTube videos, go directly to YouTube dialog
+            # Auto cookie manager will provide cookies automatically
+            def create_youtube_dialog():
                 try:
-                    logger.info("[YOUTUBE_HANDLER] Creating BrowserCookieDialog")
-                    # Check if root is valid before creating dialog
-                    if root is None:
-                        logger.error(
-                            "[YOUTUBE_HANDLER] Root is None, cannot create BrowserCookieDialog"
-                        )
-                        return
+                    logger.info("[YOUTUBE_HANDLER] Creating YouTubeDownloaderDialog")
 
-                    BrowserCookieDialog(root, on_cookie_selected)
+                    YouTubeDownloaderDialog(
+                        root,
+                        url=url,
+                        cookie_handler=cookie_handler,
+                        metadata_service=metadata_service,
+                        on_download=download_callback,
+                        pre_fetched_metadata=None,
+                        initial_cookie_path=None,
+                        initial_browser=None,
+                    )
                     logger.info(
-                        "[YOUTUBE_HANDLER] BrowserCookieDialog created successfully"
+                        "[YOUTUBE_HANDLER] YouTubeDownloaderDialog created successfully"
                     )
                 except Exception as e:
                     logger.error(
-                        f"[YOUTUBE_HANDLER] Failed to create BrowserCookieDialog: {e}",
+                        f"[YOUTUBE_HANDLER] Failed to create YouTubeDownloaderDialog: {e}",
                         exc_info=True,
                     )
-                    # Fallback to direct YouTube downloader dialog without cookies
-                    try:
 
-                        def create_fallback_dialog():
-                            YouTubeDownloaderDialog(
-                                root,
-                                url=url,
-                                cookie_handler=cookie_handler,
-                                metadata_service=metadata_service,
-                                on_download=download_callback,
-                            )
-                            logger.info(
-                                "[YOUTUBE_HANDLER] Created YouTubeDownloaderDialog directly as fallback"
-                            )
-
-                        schedule_on_main_thread(
-                            root, create_fallback_dialog, immediate=True
-                        )
-                    except Exception as fallback_error:
-                        logger.error(
-                            f"[YOUTUBE_HANDLER] Fallback also failed: {fallback_error}",
-                            exc_info=True,
-                        )
-
-            # Schedule cookie dialog creation on main thread (non-blocking)
-            schedule_on_main_thread(root, create_cookie_dialog, immediate=True)
-            logger.info("[YOUTUBE_HANDLER] BrowserCookieDialog creation scheduled")
+            # Schedule dialog creation on main thread (non-blocking)
+            schedule_on_main_thread(root, create_youtube_dialog, immediate=True)
+            logger.info("[YOUTUBE_HANDLER] YouTubeDownloaderDialog creation scheduled")
 
         logger.info("[YOUTUBE_HANDLER] Returning YouTube callback")
         return youtube_callback

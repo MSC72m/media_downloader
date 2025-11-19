@@ -126,10 +126,6 @@ class DownloadHandler:
                 logger.info(
                     f"[DOWNLOAD_HANDLER] cookie_path value: {download.cookie_path}"
                 )
-            if hasattr(download, "selected_browser"):
-                logger.info(
-                    f"[DOWNLOAD_HANDLER] selected_browser value: {download.selected_browser}"
-                )
 
             if service_type == ServiceType.YOUTUBE:
                 # Get cookie manager and set cookies BEFORE creating downloader
@@ -155,45 +151,6 @@ class DownloadHandler:
                             logger.error(
                                 f"[DOWNLOAD_HANDLER] Failed to set cookies: {e}"
                             )
-                    elif (
-                        hasattr(download, "selected_browser")
-                        and download.selected_browser
-                    ):
-                        # Try to detect cookies from the selected browser
-                        logger.info(
-                            f"[DOWNLOAD_HANDLER] Detecting cookies from browser: {download.selected_browser}"
-                        )
-                        try:
-                            from src.interfaces.cookie_detection import BrowserType
-
-                            browser_map = {
-                                "Chrome": BrowserType.CHROME,
-                                "Firefox": BrowserType.FIREFOX,
-                                "Safari": BrowserType.SAFARI,
-                            }
-                            browser_type = browser_map.get(download.selected_browser)
-
-                            if not browser_type:
-                                logger.warning(
-                                    f"[DOWNLOAD_HANDLER] Unknown browser type: {download.selected_browser}"
-                                )
-                            elif (
-                                cookie_path
-                                := cookie_manager.detect_cookies_for_browser(
-                                    browser_type
-                                )
-                            ):
-                                logger.info(
-                                    f"[DOWNLOAD_HANDLER] Detected cookies at: {cookie_path}"
-                                )
-                            else:
-                                logger.warning(
-                                    f"[DOWNLOAD_HANDLER] Could not detect cookies for {download.selected_browser}"
-                                )
-                        except Exception as e:
-                            logger.error(
-                                f"[DOWNLOAD_HANDLER] Failed to detect browser cookies: {e}"
-                            )
 
                     # Verify cookies are set
                     has_cookies = cookie_manager.has_valid_cookies()
@@ -206,6 +163,9 @@ class DownloadHandler:
                             f"[DOWNLOAD_HANDLER] Cookie info for yt-dlp: {cookie_info}"
                         )
 
+                # Get auto cookie manager from container
+                auto_cookie_manager = self.container.get("auto_cookie_manager")
+
                 # NOW create the downloader with the configured cookie_manager and browser
                 downloader = YouTubeDownloader(
                     quality=getattr(download, "quality", "720p"),
@@ -214,7 +174,7 @@ class DownloadHandler:
                     video_only=getattr(download, "video_only", False),
                     format=getattr(download, "format", "video"),
                     cookie_manager=cookie_manager,
-                    browser=getattr(download, "selected_browser", None),
+                    auto_cookie_manager=auto_cookie_manager,
                     download_subtitles=getattr(download, "download_subtitles", False),
                     selected_subtitles=getattr(download, "selected_subtitles", None),
                     download_thumbnail=getattr(download, "download_thumbnail", True),

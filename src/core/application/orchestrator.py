@@ -82,6 +82,9 @@ class ApplicationOrchestrator:
         # Register link handlers after coordinator is created
         self._register_link_handlers()
 
+        # Initialize auto cookie manager in background
+        self._initialize_cookies_background()
+
         # UI components (set by main.py)
         self.ui_components: dict[str, Any] = {}
 
@@ -111,9 +114,8 @@ class ApplicationOrchestrator:
         self.container.register_factory("service_detector", lambda: ServiceDetector())
         self.container.register_factory("file_service", lambda: FileService())
 
-        # Initialize new auto-generating cookie manager
+        # Initialize new auto-generating cookie manager (don't initialize yet)
         auto_cookie_manager = AutoCookieManager()
-        # Note: We'll initialize in background to not block startup
         self.container.register(
             "auto_cookie_manager", auto_cookie_manager, singleton=True
         )
@@ -160,6 +162,58 @@ class ApplicationOrchestrator:
         self.container.register("service_detector", service_detector, singleton=True)
 
         logger.info("[ORCHESTRATOR] Handlers initialized and registered")
+
+    def _initialize_cookies_background(self) -> None:
+        """Initialize cookies in background thread to not block startup."""
+        import threading
+
+        def init_cookies():
+            """Background task to initialize cookies."""
+            try:
+                auto_cookie_manager = self.container.get("auto_cookie_manager")
+                if not auto_cookie_manager:
+                    logger.warning("[ORCHESTRATOR] Auto cookie manager not found")
+                    return
+
+                logger.info("[ORCHESTRATOR] Starting background cookie initialization")
+
+                # Show status to user if status bar available
+                status_bar = self.container.get("status_bar")
+                if status_bar:
+                    status_bar.show_message("Initializing YouTube cookies...")
+
+                # Initialize cookies (sync version)
+                state = auto_cookie_manager.initialize()
+
+                if state.is_valid:
+                    logger.info("[ORCHESTRATOR] Cookies initialized successfully")
+                    if status_bar:
+                        status_bar.show_message("YouTube cookies ready")
+                elif state.error_message:
+                    logger.error(
+                        f"[ORCHESTRATOR] Cookie initialization failed: {state.error_message}"
+                    )
+                    if status_bar:
+                        status_bar.show_error(f"Cookie error: {state.error_message}")
+                else:
+                    logger.warning(
+                        "[ORCHESTRATOR] Cookies not valid after initialization"
+                    )
+                    if status_bar:
+                        status_bar.show_message("YouTube cookies not available")
+
+            except Exception as e:
+                logger.error(
+                    f"[ORCHESTRATOR] Error initializing cookies: {e}", exc_info=True
+                )
+                status_bar = self.container.get("status_bar")
+                if status_bar:
+                    status_bar.show_error("Failed to initialize cookies")
+
+        # Start background thread
+        thread = threading.Thread(target=init_cookies, daemon=True, name="CookieInit")
+        thread.start()
+        logger.info("[ORCHESTRATOR] Cookie initialization started in background")
 
     def _create_simple_auth_manager(self):
         """Create Instagram auth manager with proper login dialog."""

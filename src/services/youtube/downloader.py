@@ -2,7 +2,7 @@
 
 import os
 import time
-from typing import Any, Callable, Dict, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
 import yt_dlp
 
@@ -12,8 +12,11 @@ from src.utils.logger import get_logger
 from ...core.base import BaseDownloader
 from ...core.enums import ServiceType
 from ..file.sanitizer import FilenameSanitizer
-from .cookie_detector import CookieManager
+from .cookie_detector import CookieManager as OldCookieManager
 from .metadata_service import YouTubeMetadataService
+
+if TYPE_CHECKING:
+    from src.services.cookies import CookieManager as AutoCookieManager
 
 logger = get_logger(__name__)
 
@@ -28,8 +31,8 @@ class YouTubeDownloader(BaseDownloader):
         audio_only: bool = False,
         video_only: bool = False,
         format: str = "video",
-        cookie_manager: Optional[CookieManager] = None,
-        browser: Optional[str] = None,
+        cookie_manager: Optional[OldCookieManager] = None,
+        auto_cookie_manager: Optional["AutoCookieManager"] = None,
         download_subtitles: bool = False,
         selected_subtitles: Optional[list] = None,
         download_thumbnail: bool = True,
@@ -42,8 +45,8 @@ class YouTubeDownloader(BaseDownloader):
         self.audio_only = audio_only
         self.video_only = video_only
         self.format = format
-        self.cookie_manager = cookie_manager
-        self.browser = browser
+        self.cookie_manager = cookie_manager  # Old system (backward compat)
+        self.auto_cookie_manager = auto_cookie_manager  # New system
         self.download_subtitles = download_subtitles
         self.selected_subtitles = selected_subtitles or []
         self.download_thumbnail = download_thumbnail
@@ -102,17 +105,37 @@ class YouTubeDownloader(BaseDownloader):
                 }
             )
 
-        # Use cookiesfrom_browser for direct browser cookie access (more reliable)
-        if self.browser:
-            browser_lower = self.browser.lower()
-            options["cookiesfrombrowser"] = (browser_lower,)
-            logger.info(f"Using cookiesfrombrowser: {browser_lower}")
-        # Fallback to cookie file if available
+        # Priority order: auto_cookie_manager > old cookie_manager
+        if self.auto_cookie_manager:
+            # Use new auto-generated cookies
+            try:
+                if self.auto_cookie_manager.is_ready():
+                    cookie_path = self.auto_cookie_manager.get_cookies()
+                    if cookie_path:
+                        options["cookiefile"] = cookie_path
+                        logger.info(
+                            f"[YOUTUBE_DOWNLOADER] Using auto-generated cookies: {cookie_path}"
+                        )
+                    else:
+                        logger.warning(
+                            "[YOUTUBE_DOWNLOADER] Auto cookie manager ready but no cookie file available"
+                        )
+                elif self.auto_cookie_manager.is_generating():
+                    logger.warning(
+                        "[YOUTUBE_DOWNLOADER] Cookies are still generating, download may fail for age-restricted content"
+                    )
+                else:
+                    logger.warning("[YOUTUBE_DOWNLOADER] Auto cookie manager not ready")
+            except Exception as e:
+                logger.error(
+                    f"[YOUTUBE_DOWNLOADER] Error getting auto-generated cookies: {e}"
+                )
         elif self.cookie_manager:
+            # Fallback to old cookie file system
             cookie_info = self.cookie_manager.get_youtube_cookie_info()
             if cookie_info:
                 options.update(cookie_info)
-                logger.info("Using cookie file for YouTube download")
+                logger.info("[YOUTUBE_DOWNLOADER] Using old cookie system")
 
         # Handle playlists
         if not self.download_playlist:
