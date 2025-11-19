@@ -330,25 +330,20 @@ class MediaDownloaderApp(ctk.CTk):
         """Handle application closing."""
         logger.info("[MAIN_APP] Application closing - cleaning up")
 
-        # Cancel all pending after callbacks to prevent "invalid command name" errors
-        try:
-            for after_id in self.tk.call("after", "info"):
-                self.after_cancel(after_id)
-            logger.info("[MAIN_APP] Canceled all pending after callbacks")
-        except Exception as e:
-            logger.warning(f"[MAIN_APP] Error canceling after callbacks: {e}")
-
-        # Cleanup orchestrator
+        # Cleanup orchestrator first
         try:
             self.orchestrator.cleanup()
             logger.info("[MAIN_APP] Orchestrator cleanup complete")
         except Exception as e:
             logger.error(f"[MAIN_APP] Error during orchestrator cleanup: {e}")
 
-        # Destroy the window
-        self.quit()
-        self.destroy()
-        logger.info("[MAIN_APP] Application closed")
+        # Destroy the window - this will handle cleanup automatically
+        # Don't call quit() first, just destroy()
+        try:
+            self.destroy()
+            logger.info("[MAIN_APP] Application closed")
+        except Exception as e:
+            logger.error(f"[MAIN_APP] Error during window destruction: {e}")
 
 
 if __name__ == "__main__":
