@@ -105,12 +105,16 @@ def _check_playwright_installation():
         button_frame = ctk.CTkFrame(error_frame, fg_color="transparent")
         button_frame.pack(pady=20)
 
+        # Track which button was clicked
+        exit_clicked = {"value": False}
+
         def continue_anyway():
             logger.warning("[MAIN_APP] User chose to continue without Playwright")
             error_window.destroy()
 
         def exit_app():
             logger.info("[MAIN_APP] User chose to exit and install Playwright")
+            exit_clicked["value"] = True
 
             # Print clear instructions to terminal FIRST
             print("\n" + "=" * 70)
@@ -123,22 +127,8 @@ def _check_playwright_installation():
             print("  uv run -m src.main")
             print("\n" + "=" * 70 + "\n")
 
-            # Cancel all pending after callbacks
-            try:
-                for after_id in error_window.tk.call("after", "info"):
-                    error_window.after_cancel(after_id)
-            except:
-                pass
-
-            # Destroy window
-            error_window.quit()
+            # Destroy window to exit mainloop
             error_window.destroy()
-
-            # Graceful exit using sys.exit
-            import sys
-
-            logger.info("[MAIN_APP] Exiting gracefully with sys.exit(1)")
-            sys.exit(1)
 
         # Exit button - recommended action
         exit_button = ctk.CTkButton(
@@ -167,6 +157,13 @@ def _check_playwright_installation():
 
         # Run the error window - this BLOCKS until user clicks a button
         error_window.mainloop()
+
+        # Check which button was clicked
+        if exit_clicked["value"]:
+            logger.info("[MAIN_APP] Exiting program as user requested")
+            import sys
+
+            sys.exit(1)
 
         # If we reach here, user clicked Continue Anyway
         logger.warning("[MAIN_APP] Continuing without Playwright as user requested")
