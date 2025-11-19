@@ -1,11 +1,8 @@
 """Enhanced dialog for YouTube video downloads with metadata fetching."""
 
-import json
-import os
 import threading
 import time
 from collections.abc import Callable
-from pathlib import Path
 
 import customtkinter as ctk
 
