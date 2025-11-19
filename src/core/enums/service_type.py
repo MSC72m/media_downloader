@@ -12,3 +12,4 @@ class ServiceType(StrEnum):
     PINTEREST = "pinterest"
     SOUNDCLOUD = "soundcloud"
     GOOGLE = "google"
+    GENERIC = "generic"
