@@ -1,6 +1,5 @@
 """Basic tests for the media downloader application."""
 
-
 from core.models import Download, DownloadStatus, ServiceType
 
 
@@ -9,7 +8,7 @@ def test_download_model_creation():
     download = Download(
         name="Test Video",
         url="https://example.com/video",
-        service_type=ServiceType.YOUTUBE
+        service_type=ServiceType.YOUTUBE,
     )
 
     assert download.name == "Test Video"
@@ -35,10 +34,9 @@ def test_download_model_with_optional_fields():
         download_thumbnail=True,
         embed_metadata=True,
         cookie_path="/path/to/cookies",
-        selected_browser="chrome",
         speed_limit=1000000,
         retries=5,
-        concurrent_downloads=2
+        concurrent_downloads=2,
     )
 
     assert download.quality == "1080p"

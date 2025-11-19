@@ -1,9 +1,10 @@
 """Comprehensive tests for core models to achieve 100% coverage."""
 
 from datetime import datetime
-from core.models import Download, DownloadOptions, UIState, AuthState, ButtonState
+
 from core.enums.download_status import DownloadStatus
 from core.enums.service_type import ServiceType
+from core.models import AuthState, ButtonState, Download, DownloadOptions, UIState
 
 
 class TestDownloadComprehensive:
@@ -13,7 +14,7 @@ class TestDownloadComprehensive:
         """Test Download creation with all possible fields."""
         created_at = datetime.now()
         completed_at = datetime.now()
-        
+
         download = Download(
             name="Comprehensive Test Video",
             url="https://example.com/comprehensive",
@@ -32,17 +33,16 @@ class TestDownloadComprehensive:
             download_subtitles=True,
             selected_subtitles=[
                 {"language_code": "en", "language_name": "English"},
-                {"language_code": "es", "language_name": "Spanish"}
+                {"language_code": "es", "language_name": "Spanish"},
             ],
             download_thumbnail=True,
             embed_metadata=True,
             cookie_path="/path/to/cookies",
-            selected_browser="chrome",
             speed_limit=1000000,
             retries=5,
-            concurrent_downloads=2
+            concurrent_downloads=2,
         )
-        
+
         # Test all attributes
         assert download.name == "Comprehensive Test Video"
         assert download.url == "https://example.com/comprehensive"
@@ -63,18 +63,14 @@ class TestDownloadComprehensive:
         assert download.download_thumbnail is True
         assert download.embed_metadata is True
         assert download.cookie_path == "/path/to/cookies"
-        assert download.selected_browser == "chrome"
         assert download.speed_limit == 1000000
         assert download.retries == 5
         assert download.concurrent_downloads == 2
 
     def test_download_creation_with_minimal_fields(self):
         """Test Download creation with minimal required fields."""
-        download = Download(
-            name="Minimal Video",
-            url="https://example.com/minimal"
-        )
-        
+        download = Download(name="Minimal Video", url="https://example.com/minimal")
+
         # Test defaults
         assert download.name == "Minimal Video"
         assert download.url == "https://example.com/minimal"
@@ -94,13 +90,18 @@ class TestDownloadComprehensive:
 
     def test_download_with_different_service_types(self):
         """Test Download with different service types."""
-        services = [ServiceType.YOUTUBE, ServiceType.TWITTER, ServiceType.INSTAGRAM, ServiceType.PINTEREST]
-        
+        services = [
+            ServiceType.YOUTUBE,
+            ServiceType.TWITTER,
+            ServiceType.INSTAGRAM,
+            ServiceType.PINTEREST,
+        ]
+
         for service in services:
             download = Download(
                 name=f"Video from {service}",
                 url=f"https://{service}.com/video",
-                service_type=service
+                service_type=service,
             )
             assert download.service_type == service
 
@@ -112,14 +113,14 @@ class TestDownloadComprehensive:
             DownloadStatus.COMPLETED,
             DownloadStatus.FAILED,
             DownloadStatus.PAUSED,
-            DownloadStatus.CANCELLED
+            DownloadStatus.CANCELLED,
         ]
-        
+
         for status in statuses:
             download = Download(
                 name=f"Video with {status} status",
                 url="https://example.com/video",
-                status=status
+                status=status,
             )
             assert download.status == status
 
@@ -127,15 +128,15 @@ class TestDownloadComprehensive:
         """Test Download with edge case values."""
         download = Download(
             name="",  # Empty name
-            url="",   # Empty URL
+            url="",  # Empty URL
             progress=-1.0,  # Negative progress
             speed=0.0,  # Zero speed
             quality="",  # Empty quality
             format="",  # Empty format
             retries=0,  # Zero retries
-            concurrent_downloads=0  # Zero concurrent downloads
+            concurrent_downloads=0,  # Zero concurrent downloads
         )
-        
+
         assert download.name == ""
         assert download.url == ""
         assert download.progress == -1.0
@@ -151,24 +152,20 @@ class TestDownloadOptionsComprehensive:
 
     def test_download_options_with_all_fields(self):
         """Test DownloadOptions with all possible fields."""
-        options = DownloadOptions(
-            save_directory="/custom/download/path"
-        )
-        
+        options = DownloadOptions(save_directory="/custom/download/path")
+
         assert options.save_directory == "/custom/download/path"
 
     def test_download_options_with_defaults(self):
         """Test DownloadOptions with default values."""
         options = DownloadOptions()
-        
+
         assert options.save_directory == "~/Downloads"
 
     def test_download_options_with_none_values(self):
         """Test DownloadOptions with None values."""
-        options = DownloadOptions(
-            save_directory=None
-        )
-        
+        options = DownloadOptions(save_directory=None)
+
         assert options.save_directory is None
 
 
@@ -185,9 +182,9 @@ class TestUIStateComprehensive:
         ui_state = UIState(
             download_directory="/custom/downloads",
             show_options_panel=True,
-            selected_indices=[0, 1, 2]
+            selected_indices=[0, 1, 2],
         )
-        
+
         assert ui_state.download_directory == "/custom/downloads"
         assert ui_state.show_options_panel is True
         assert ui_state.selected_indices == [0, 1, 2]
@@ -204,11 +201,9 @@ class TestAuthStateComprehensive:
     def test_auth_state_with_fields(self):
         """Test AuthState with various fields."""
         auth_state = AuthState(
-            is_authenticated=True,
-            service="youtube",
-            username="testuser"
+            is_authenticated=True, service="youtube", username="testuser"
         )
-        
+
         assert auth_state.is_authenticated is True
         assert auth_state.service == "youtube"
         assert auth_state.username == "testuser"
@@ -230,6 +225,6 @@ class TestButtonStateComprehensive:
         # Test that we can use the enum values
         remove_state = ButtonState.REMOVE
         download_state = ButtonState.DOWNLOAD
-        
+
         assert remove_state == "remove"
         assert download_state == "download"

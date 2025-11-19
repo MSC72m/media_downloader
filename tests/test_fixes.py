@@ -107,7 +107,6 @@ def test_download_model():
             download_thumbnail=True,
             embed_metadata=True,
             cookie_path="/path/to/cookies.txt",
-            selected_browser="Chrome",
             speed_limit=500,
             retries=5,
             concurrent_downloads=2,
@@ -120,7 +119,6 @@ def test_download_model():
         assert download.video_only == False
         assert download.download_subtitles == True
         assert len(download.selected_subtitles) == 1
-        assert download.selected_browser == "Chrome"
         assert download.speed_limit == 500
         assert download.retries == 5
 

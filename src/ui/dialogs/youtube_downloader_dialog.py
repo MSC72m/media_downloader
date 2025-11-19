@@ -377,8 +377,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
                 self._create_widgets()
                 logger.info("Widgets created successfully")
-                self._load_cached_selections()
-                logger.debug("Cached selections loaded")
                 self.widgets_created = True
             except Exception as e:
                 logger.error(f"Error creating widgets: {e}", exc_info=True)
@@ -825,41 +823,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                 if current_quality not in video_qualities:
                     self.quality_var.set("720p")
 
-    def _load_cached_selections(self):
-        """Load cached selections (placeholder for compatibility)."""
-        try:
-            cache_file = Path.home() / ".media_downloader" / "youtube_cache.json"
-            if cache_file.exists():
-                with open(cache_file, "r") as f:
-                    cache_data = json.load(f)
-                    self._selected_browser = cache_data.get("selected_browser")
-
-                    # Restore selected button state
-                    if (
-                        self._selected_browser
-                        and self._selected_browser in self.browser_buttons
-                    ):
-                        self._handle_browser_select(self._selected_browser)
-        except Exception:
-            pass  # Fail silently if cache can't be loaded
-
-    def _save_cached_selections(self):
-        """Save cached browser selection."""
-        try:
-            cache_dir = Path.home() / ".media_downloader"
-            cache_dir.mkdir(exist_ok=True)
-
-            cache_file = cache_dir / "youtube_cache.json"
-            cache_data = {
-                "cookies": self._cached_cookies,
-                "selected_browser": self._selected_browser,
-            }
-
-            with open(cache_file, "w") as f:
-                json.dump(cache_data, f, indent=2)
-        except Exception:
-            pass  # Fail silently if cache can't be saved
-
     def _handle_add_to_downloads(self):
         """Handle add to downloads button click."""
         try:
@@ -924,7 +887,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                 download_thumbnail=self.thumbnail_var.get(),
                 embed_metadata=self.metadata_var.get(),
                 cookie_path=getattr(self, "selected_cookie_path", None),
-                selected_browser=self._selected_browser,
                 speed_limit=self.speed_limit_var.get() or None,
                 retries=int(self.retries_var.get()) if self.retries_var.get() else 3,
                 concurrent_downloads=int(self.concurrent_var.get())
