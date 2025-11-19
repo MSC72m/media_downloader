@@ -111,8 +111,6 @@ def _check_playwright_installation():
             error_window.quit()
             error_window.destroy()
 
-        exit_flag = [False]  # Use list to allow modification in nested function
-
         def exit_app():
             logger.info("[MAIN_APP] User chose to exit and install Playwright")
 
@@ -137,7 +135,10 @@ def _check_playwright_installation():
             print("  uv run -m src.main")
             print("\n" + "=" * 70 + "\n")
 
-            exit_flag[0] = True
+            # Force immediate exit - don't allow any further code to run
+            import os
+
+            os._exit(1)
 
         exit_button = ctk.CTkButton(
             button_frame,
@@ -162,12 +163,7 @@ def _check_playwright_installation():
         # Run the error window
         error_window.mainloop()
 
-        # If user clicked Exit, actually exit
-        if exit_flag[0]:
-            import sys
-
-            sys.exit(1)
-
+        # If we reach here, user clicked Continue Anyway
         return False
 
 
