@@ -102,11 +102,39 @@ def _check_playwright_installation():
 
         def continue_anyway():
             logger.warning("[MAIN_APP] User chose to continue without Playwright")
+            # Cancel all pending after callbacks before destroying
+            try:
+                for after_id in error_window.tk.call("after", "info"):
+                    error_window.after_cancel(after_id)
+            except:
+                pass
+            error_window.quit()
             error_window.destroy()
 
         def exit_app():
             logger.info("[MAIN_APP] User chose to exit and install Playwright")
+
+            # Cancel all pending after callbacks before destroying
+            try:
+                for after_id in error_window.tk.call("after", "info"):
+                    error_window.after_cancel(after_id)
+            except:
+                pass
+
+            error_window.quit()
             error_window.destroy()
+
+            # Print clear instructions to terminal
+            print("\n" + "=" * 70)
+            print("  PLAYWRIGHT INSTALLATION REQUIRED")
+            print("=" * 70)
+            print("\nTo install Playwright and Chromium, run these commands:\n")
+            print("  pip install playwright")
+            print("  playwright install chromium")
+            print("\nAfter installation, restart the application:")
+            print("  uv run -m src.main")
+            print("\n" + "=" * 70 + "\n")
+
             raise SystemExit(1)
 
         exit_button = ctk.CTkButton(
@@ -292,8 +320,27 @@ class MediaDownloaderApp(ctk.CTk):
 
     def _on_closing(self):
         """Handle application closing."""
-        self.orchestrator.cleanup()
+        logger.info("[MAIN_APP] Application closing - cleaning up")
+
+        # Cancel all pending after callbacks to prevent "invalid command name" errors
+        try:
+            for after_id in self.tk.call("after", "info"):
+                self.after_cancel(after_id)
+            logger.info("[MAIN_APP] Canceled all pending after callbacks")
+        except Exception as e:
+            logger.warning(f"[MAIN_APP] Error canceling after callbacks: {e}")
+
+        # Cleanup orchestrator
+        try:
+            self.orchestrator.cleanup()
+            logger.info("[MAIN_APP] Orchestrator cleanup complete")
+        except Exception as e:
+            logger.error(f"[MAIN_APP] Error during orchestrator cleanup: {e}")
+
+        # Destroy the window
+        self.quit()
         self.destroy()
+        logger.info("[MAIN_APP] Application closed")
 
 
 if __name__ == "__main__":
