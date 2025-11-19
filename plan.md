@@ -1,11 +1,11 @@
 # Media Downloader Fixes & Cookie Refactoring Plan
 
-## Status: In Progress
-Last Updated: 2025-01-XX
+## Status: Phase 1 Complete - Moving to Cookie Refactoring
+Last Updated: 2025-01-19
 
 ---
 
-## PHASE 1: FIX SOUNDCLOUD ISSUE ✓ IN PROGRESS
+## PHASE 1: FIX SOUNDCLOUD ISSUE ✓ COMPLETE
 
 ### Root Cause Analysis
 1. **Error**: ValidationError when creating Download with `service_type="generic"`
@@ -15,23 +15,26 @@ Last Updated: 2025-01-XX
 
 ### Tasks
 
-#### Task 1.1: Add GENERIC to ServiceType Enum ✓
+#### Task 1.1: Add GENERIC to ServiceType Enum ✅ COMPLETE
 - File: `src/core/enums/service_type.py`
 - Action: Add `GENERIC = "generic"` to ServiceType enum
 - Rationale: Support generic downloads for unregistered platforms
+- Status: Committed in 3b98480
 
-#### Task 1.2: Update Download Model Validation
+#### Task 1.2: Update Download Model Validation ✅ COMPLETE
 - File: `src/core/models.py`
 - Action: Verify Download model accepts all ServiceType values
 - Test: Create Download with service_type="generic"
+- Status: Verified working - no changes needed
 
-#### Task 1.3: Test SoundCloud Flow
+#### Task 1.3: Test SoundCloud Flow ⏳ PENDING
 - Test URL: https://soundcloud.com/fm_freemusic/science-discoveries-light-flowing-music-for-corporate-projects-by-oleg-mazur-free-download
 - Verify: URL detection → Handler → Dialog → Download creation
 - Expected: No validation errors, download added to queue
+- Action: Requires manual UI testing
 
-#### Task 1.4: Merge to Main
-- Verify all tests pass
+#### Task 1.4: Merge to Main ⏳ NEXT
+- Verify all tests pass (or fix test infrastructure)
 - Merge feature/soundcloud-support-and-error-fixes → development
 - Merge development → main
 - Create new branch for cookie refactor
@@ -235,9 +238,9 @@ def is_expired(generated_at: datetime) -> bool:
 ## COMPLETION CHECKLIST
 
 ### Phase 1: SoundCloud
-- [ ] ServiceType.GENERIC added
-- [ ] SoundCloud downloads work
-- [ ] Tests pass
+- [x] ServiceType.GENERIC added
+- [ ] SoundCloud downloads work (needs manual testing)
+- [ ] Tests pass (test infrastructure has issues)
 - [ ] Merged to main
 
 ### Phase 2: Cookies
