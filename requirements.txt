@@ -2,7 +2,7 @@ beautifulsoup4
 customtkinter
 instaloader
 requests
-yt-dlp
+yt-dlp>=2025.11.12
 urllib3
 pydantic
 playwright>=1.40.0
