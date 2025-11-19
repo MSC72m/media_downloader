@@ -477,3 +477,7 @@ fabric.properties
 .idea/caches/build_file_checksums.ser
 
 REFACTOR_PLAN.md
+
+# Documentation files (keep only README.md)
+/*.md
+!README.md
