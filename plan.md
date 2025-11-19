@@ -286,6 +286,9 @@ def is_expired(generated_at: datetime) -> bool:
 - [x] All selected_browser references removed from tests
 - [x] Fixed import errors in main.py
 - [x] App runs without errors
+- [x] Added critical Playwright installation check
+- [x] Blocking error dialog on startup if Playwright missing
+- [x] Background thread shows critical error dialog
 - [ ] Tests pass (infrastructure issues - not blocking)
 
 **USER MUST DO:**
@@ -298,7 +301,9 @@ def is_expired(generated_at: datetime) -> bool:
 - ✅ App launches without errors
 - ✅ All imports resolve correctly
 - ✅ No cookie_selector references remain
-- ✅ Ready for end-to-end testing
+- ✅ Playwright check blocks startup if not installed
+- ✅ Critical error dialogs inform user of missing dependency
+- ✅ Ready for end-to-end testing (after installing Playwright)
 
 **HOW IT WORKS:**
 - On startup: Background thread generates cookies (8-hour cache)
@@ -307,6 +312,13 @@ def is_expired(generated_at: datetime) -> bool:
 - If link pasted during generation: Shows "Cookies generating, please wait"
 - Auto-regenerates after 8 hours
 - No user interaction required!
+
+**CRITICAL CHECKS:**
+- Startup validation for Playwright installation
+- Blocking error dialog if missing (forces user decision)
+- Background error dialog with 1-second delay
+- Status bar shows "Cookie system unavailable"
+- Clear instructions on how to install Playwright
 
 ### Phase 3: Metadata
 - [ ] Metadata fetched on detection
