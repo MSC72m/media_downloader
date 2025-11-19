@@ -284,6 +284,8 @@ def is_expired(generated_at: datetime) -> bool:
 - [x] Cookie state checking in handler
 - [x] All cached selections code removed
 - [x] All selected_browser references removed from tests
+- [x] Fixed import errors in main.py
+- [x] App runs without errors
 - [ ] Tests pass (infrastructure issues - not blocking)
 
 **USER MUST DO:**
@@ -291,6 +293,12 @@ def is_expired(generated_at: datetime) -> bool:
 2. Install chromium: `playwright install chromium`
 3. Test with YouTube download (especially age-restricted video)
 4. Verify cookies are generated in ~/.media_downloader/
+
+**VERIFIED WORKING:**
+- ✅ App launches without errors
+- ✅ All imports resolve correctly
+- ✅ No cookie_selector references remain
+- ✅ Ready for end-to-end testing
 
 **HOW IT WORKS:**
 - On startup: Background thread generates cookies (8-hour cache)
