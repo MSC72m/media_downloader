@@ -269,7 +269,6 @@ class YouTubeHandler(LinkHandlerInterface):
                         on_download=download_callback,
                         pre_fetched_metadata=None,
                         initial_cookie_path=None,
-                        initial_browser=None,
                     )
                     logger.info(
                         "[YOUTUBE_HANDLER] YouTubeDownloaderDialog created successfully"
