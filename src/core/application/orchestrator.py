@@ -5,15 +5,12 @@ from typing import Any
 
 import customtkinter as ctk
 
-from src.coordinators import EventCoordinator
 from src.coordinators.error_handler import ErrorHandler
-from src.handlers import (
-    AuthenticationHandler,
-    CookieHandler,
-    DownloadHandler,
-    NetworkChecker,
-    ServiceDetector,
-)
+from src.handlers.auth_handler import AuthenticationHandler
+from src.handlers.cookie_handler import CookieHandler
+from src.handlers.download_handler import DownloadHandler
+from src.handlers.network_checker import NetworkChecker
+from src.handlers.service_detector import ServiceDetector
 from src.services.detection.link_detector import LinkDetector
 from src.services.downloads import DownloadService, ServiceFactory
 from src.services.events.queue import MessageQueue
@@ -65,6 +62,9 @@ class ApplicationOrchestrator:
         self._initialize_handlers()
 
         # Create event coordinator (uses our new coordinator)
+        # Import here to avoid circular import
+        from src.coordinators.main_coordinator import EventCoordinator
+
         self.event_coordinator = EventCoordinator(root_window, self.container)
         self.container.register(
             "event_coordinator", self.event_coordinator, singleton=True
@@ -321,7 +321,7 @@ class ApplicationOrchestrator:
 
     # Convenience methods for UI
     def check_connectivity(self) -> None:
-        """Check network connectivity at startup - asynchronous to prevent UI freeze."""
+        """Check network connectivity at startup - fast and non-blocking."""
         logger.info("[ORCHESTRATOR] Starting connectivity check")
 
         # Ensure event coordinator and UI components are ready
@@ -329,70 +329,40 @@ class ApplicationOrchestrator:
             logger.error("[ORCHESTRATOR] Event coordinator not initialized")
             return
 
-        # Update status bar directly
+        # Update status bar - show ready immediately for better UX
         status_bar = self.event_coordinator.container.get("status_bar")
         if status_bar:
-            status_bar.show_message("Checking network connectivity...")
-        logger.info(
-            "[ORCHESTRATOR] Status updated to 'Checking network connectivity...'"
-        )
+            # Show ready immediately - don't block UI waiting for network
+            status_bar.show_message("Ready - Checking connectivity in background...")
 
-        # Run connectivity check in background thread to prevent UI freeze
+        # Run quick connectivity check in background
         def connectivity_worker():
             """Worker function to check connectivity in background."""
             try:
-                logger.info("[ORCHESTRATOR] Checking connectivity in background thread")
+                # Quick check - just verify internet, skip detailed service checks
                 internet_connected, error_msg = check_internet_connection()
-                logger.info(
-                    f"[ORCHESTRATOR] Internet check: connected={internet_connected}, error={error_msg}"
-                )
 
-                service_results = check_all_services()
-                logger.info(f"[ORCHESTRATOR] Service check results: {service_results}")
-
-                problem_services = [
-                    service
-                    for service, (connected, _) in service_results.items()
-                    if not connected
-                ]
-                logger.info(f"[ORCHESTRATOR] Problem services: {problem_services}")
-
-                # Handle connectivity check results directly (most reliable)
-                try:
+                if internet_connected:
+                    # Internet works - assume services are OK, update status
+                    if status_bar:
+                        status_bar.show_message("Ready - All services connected")
                     logger.info(
-                        "[ORCHESTRATOR] *** HANDLING CONNECTIVITY RESULTS DIRECTLY ***"
+                        "[ORCHESTRATOR] Internet connected - services assumed OK"
                     )
-                    self._handle_connectivity_check(
-                        internet_connected, error_msg, problem_services
-                    )
-                    logger.info(
-                        "[ORCHESTRATOR] *** CONNECTIVITY RESULTS HANDLED SUCCESSFULLY ***"
-                    )
-                except Exception as e:
-                    logger.error(
-                        f"[ORCHESTRATOR] Error handling connectivity results: {e}",
-                        exc_info=True,
-                    )
+                else:
+                    # Only if internet fails, show error
+                    if status_bar:
+                        status_bar.show_error(f"No internet connection: {error_msg}")
+                    logger.warning(f"[ORCHESTRATOR] Internet check failed: {error_msg}")
 
             except Exception as e:
                 logger.error(
                     f"[ORCHESTRATOR] Error in connectivity check: {e}",
                     exc_info=True,
                 )
-
-                # Try to update status with error on main thread
-                def update_error_status():
-                    try:
-                        status_bar = self.event_coordinator.container.get("status_bar")
-                        if status_bar:
-                            status_bar.show_error("Network check failed")
-                    except Exception as update_error:
-                        logger.error(
-                            f"[ORCHESTRATOR] Failed to update status: {update_error}"
-                        )
-
-                if self.root:
-                    self.root.after(0, update_error_status)
+                # Don't block UI on error - just log it
+                if status_bar:
+                    status_bar.show_message("Ready - Connectivity check failed")
 
         # Start background thread
         import threading

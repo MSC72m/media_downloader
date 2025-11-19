@@ -52,91 +52,75 @@ class PlatformDialogCoordinator:
 
     # YouTube Dialog
     def show_youtube_dialog(self, url: str, on_download_callback) -> None:
-        """Show YouTube download dialog - uses youtube_handler."""
-        logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Showing YouTube dialog for: {url}")
+        """Show YouTube download dialog.
 
-        try:
-            from src.ui.dialogs.browser_cookie_dialog import BrowserCookieDialog
-            from src.ui.dialogs.youtube_downloader_dialog import (
-                YouTubeDownloaderDialog,
-            )
+        Note: YouTube handler already handles the full dialog flow.
+        This is just a stub for compatibility.
+        """
+        logger.info(f"[PLATFORM_DIALOG_COORDINATOR] YouTube dialog called for: {url}")
+        logger.warning(
+            "[PLATFORM_DIALOG_COORDINATOR] YouTube handler should handle dialogs directly, not coordinator"
+        )
 
-            BrowserCookieDialog(
-                self.root,
-                lambda cookie_path, browser: self._create_youtube_dialog(
-                    url, on_download_callback, cookie_path, browser
-                ),
-            )
-        except Exception as e:
-            logger.error(
-                f"[PLATFORM_DIALOG_COORDINATOR] Error showing YouTube dialog: {e}",
-                exc_info=True,
-            )
-            if self.error_handler:
-                self.error_handler.show_error(
-                    "YouTube Error", f"Failed to show YouTube dialog: {str(e)}"
-                )
+        # The YouTube handler already creates and manages the dialog
+        # This shouldn't be called directly - kept for compatibility only
+        pass
 
-    def _create_youtube_dialog(
-        self,
-        url: str,
-        on_download_callback,
-        cookie_path: Optional[str],
-        browser: Optional[str],
-    ) -> None:
-        """Create YouTube downloader dialog after cookie selection."""
-        if cookie_path and self._cookie_handler:
-            self._cookie_handler.set_cookie_file(cookie_path)
-
-        try:
-            from src.ui.dialogs.youtube_downloader_dialog import YouTubeDownloaderDialog
-
-            YouTubeDownloaderDialog(
-                self.root,
-                url=url,
-                cookie_handler=self._cookie_handler,
-                metadata_service=self.container.get("youtube_metadata"),
-                on_download=on_download_callback,
-                pre_fetched_metadata=None,
-                initial_cookie_path=cookie_path,
-                initial_browser=browser,
-            )
-        except Exception as e:
-            logger.error(
-                f"[PLATFORM_DIALOG_COORDINATOR] Failed to create YouTube dialog: {e}",
-                exc_info=True,
-            )
-            if self.error_handler:
-                self.error_handler.show_error(
-                    "YouTube Dialog Error", f"Failed to create YouTube dialog: {str(e)}"
-                )
-
+    # Twitter Dialog
     def show_twitter_dialog(self, url: str, on_download_callback) -> None:
-        """Show Twitter download dialog - fallback to generic download."""
-        self._fallback_to_generic(
-            url, "twitter", "twitter_download", on_download_callback
+        """Show Twitter download dialog - uses twitter_handler."""
+        logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Showing Twitter dialog for: {url}")
+
+        # TODO: Implement Twitter dialog
+        logger.warning(
+            "[PLATFORM_DIALOG_COORDINATOR] Twitter dialog not yet implemented"
         )
 
-    def show_instagram_dialog(self, url: str, on_download_callback) -> None:
-        """Show Instagram download dialog - fallback to generic download."""
-        self._fallback_to_generic(
-            url, "instagram", "instagram_download", on_download_callback
-        )
-
-    def show_pinterest_dialog(self, url: str, on_download_callback) -> None:
-        """Show Pinterest download dialog - fallback to generic download."""
-        self._fallback_to_generic(
-            url, "pinterest", "pinterest_download", on_download_callback
-        )
-
-    def _fallback_to_generic(
-        self, url: str, service_type: str, default_name: str, on_download_callback
-    ) -> None:
-        """Fallback to generic download for platforms without dedicated dialogs."""
+        # Fallback to generic download
         download = Download(
             url=url,
-            name=os.path.basename(url) or default_name,
-            service_type=service_type,
+            name=os.path.basename(url) or "twitter_download",
+            service_type="twitter",
+        )
+        on_download_callback(download)
+
+    # Instagram Dialog
+    def show_instagram_dialog(self, url: str, on_download_callback) -> None:
+        """Show Instagram download dialog - uses instagram_handler."""
+        logger.info(
+            f"[PLATFORM_DIALOG_COORDINATOR] Showing Instagram dialog for: {url}"
+        )
+
+        # TODO: Implement Instagram dialog
+        logger.warning(
+            "[PLATFORM_DIALOG_COORDINATOR] Instagram dialog not yet implemented"
+        )
+
+        # Fallback to generic download
+        download = Download(
+            url=url,
+            name=os.path.basename(url) or "instagram_download",
+            service_type="instagram",
+        )
+        on_download_callback(download)
+
+    # Pinterest Dialog
+    def show_pinterest_dialog(self, url: str, on_download_callback) -> None:
+        """Show Pinterest download dialog - uses pinterest_handler."""
+        logger.info(
+            f"[PLATFORM_DIALOG_COORDINATOR] Showing Pinterest dialog for: {url}"
+        )
+
+        # TODO: Implement Pinterest dialog
+        logger.warning(
+            "[PLATFORM_DIALOG_COORDINATOR] Pinterest dialog not yet implemented"
+        )
+
+        # Fallback to generic download
+        download = Download(
+            url=url,
+            name=os.path.basename(url) or "pinterest_download",
+            service_type="pinterest",
         )
         on_download_callback(download)
 
@@ -263,8 +247,6 @@ class PlatformDialogCoordinator:
 
         if not self._auth_handler:
             logger.error("[PLATFORM_DIALOG_COORDINATOR] Auth handler not available")
-            # Failsafe: Reset button state directly if UI state manager not available
-            self._reset_instagram_button_state()
             return
 
         self._set_instagram_status(InstagramAuthStatus.LOGGING_IN)
@@ -291,7 +273,10 @@ class PlatformDialogCoordinator:
     def _handle_instagram_auth_result(
         self, success: bool, error_message: Optional[str] = None
     ) -> None:
-        """Handle Instagram authentication result."""
+        """Handle Instagram authentication result.
+
+        Thread-safe: Uses queue-based status bar and error handler.
+        """
         status_bar = self.container.get("status_bar")
 
         if success:
@@ -301,40 +286,7 @@ class PlatformDialogCoordinator:
             return
 
         self._set_instagram_status(InstagramAuthStatus.FAILED)
-        failure_message = "Instagram authentication failed"
-        if error_message:
-            failure_message += f": {error_message}"
-        if status_bar:
-            status_bar.show_error(failure_message)
-
-    def _reset_instagram_button_state(self) -> None:
-        """Failsafe method to reset Instagram button directly when component_state not available."""
-        try:
-            from src.core.enums.instagram_auth_status import InstagramAuthStatus
-
-            options_bar = self.container.get("options_bar")
-            if options_bar:
-                options_bar.set_instagram_status(InstagramAuthStatus.FAILED)
-                logger.info(
-                    "[PLATFORM_DIALOG_COORDINATOR] Instagram button reset directly to FAILED"
-                )
-            else:
-                logger.error(
-                    "[PLATFORM_DIALOG_COORDINATOR] Options bar not available for reset"
-                )
-        except Exception as e:
-            logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error resetting button: {e}")
-
-    def _set_instagram_button_direct(self, status) -> None:
-        """Failsafe method to set Instagram button state directly when component_state not available."""
-        try:
-            options_bar = self.container.get("options_bar")
-            if options_bar:
-                options_bar.set_instagram_status(status)
-                logger.info(
-                    f"[PLATFORM_DIALOG_COORDINATOR] Instagram button set directly to {status}"
-                )
-            else:
-                logger.error("[PLATFORM_DIALOG_COORDINATOR] Options bar not available")
-        except Exception as e:
-            logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error setting button: {e}")
+        if error_message and self.error_handler:
+            self.error_handler.show_error("Instagram Authentication", error_message)
+        elif status_bar:
+            status_bar.show_error("Instagram authentication failed")

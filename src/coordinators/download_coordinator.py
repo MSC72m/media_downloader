@@ -28,26 +28,9 @@ class DownloadCoordinator:
         self.error_handler = self.container.get("error_handler")
         logger.info("[DOWNLOAD_COORDINATOR] Handlers refreshed")
 
-    # Component Access Helpers
-    def _get_status_bar(self):
-        """Get status bar component from container."""
-        return self.container.get("status_bar")
-
-    def _get_download_list(self):
-        """Get download list component from container."""
-        return self.container.get("download_list")
-
-    def _get_action_buttons(self):
-        """Get action buttons component from container."""
-        return self.container.get("action_buttons")
-
-    def _get_url_entry(self):
-        """Get URL entry component from container."""
-        return self.container.get("url_entry")
-
     def _update_status(self, message: str, is_error: bool = False):
         """Update status bar - helper to avoid repetition."""
-        status_bar = self._get_status_bar()
+        status_bar = self.container.get("status_bar")
         if not status_bar:
             logger.warning("[DOWNLOAD_COORDINATOR] Status bar not available")
             return
@@ -60,9 +43,16 @@ class DownloadCoordinator:
     def _refresh_ui_after_event(self, enable_buttons: bool = True) -> None:
         """Refresh UI components after download event."""
         download_list = self.container.get("download_list")
-        if download_list:
+        download_service = self.container.get("download_service")
+
+        if download_list and download_service:
             try:
-                download_list.refresh_items(download_list.get_downloads())
+                # Get downloads from the service (source of truth), not from the list
+                downloads = download_service.get_downloads()
+                download_list.refresh_items(downloads)
+                logger.debug(
+                    f"[DOWNLOAD_COORDINATOR] Refreshed UI with {len(downloads)} downloads"
+                )
             except Exception as e:
                 logger.error(f"[DOWNLOAD_COORDINATOR] Error refreshing list: {e}")
 
@@ -102,10 +92,33 @@ class DownloadCoordinator:
         self._update_status(f"Download completed: {download.name}")
 
     def _on_failed_event(self, download: Download, error: str) -> None:
-        """Handle failure event - update UI and show error."""
-        self._refresh_ui_after_event(enable_buttons=True)
-        self._update_status(f"Download failed: {download.name}")
+        """Handle failure event - update UI and show error dialog.
 
+        SINGLE PATH: Show error dialog via message queue ONLY.
+        Don't duplicate with status bar error.
+        """
+        logger.error(f"[DOWNLOAD_COORDINATOR] Failed: {download.name} - {error}")
+
+        # Refresh download list
+        download_list = self.container.get("download_list")
+        if download_list:
+            try:
+                download_list.refresh_items(download_list.get_downloads())
+            except Exception as e:
+                logger.error(f"[DOWNLOAD_COORDINATOR] Error refreshing list: {e}")
+
+        # Enable action buttons
+        action_buttons = self.container.get("action_buttons")
+        if action_buttons:
+            try:
+                action_buttons.set_enabled(True)
+            except Exception as e:
+                logger.error(f"[DOWNLOAD_COORDINATOR] Error enabling buttons: {e}")
+
+        # Update status bar with simple message (not error style)
+        self._update_status(f"Download failed: {download.name}", is_error=False)
+
+        # Show error via centralized error handler
         if self.error_handler:
             self.error_handler.show_error(
                 "Download Failed", error or f"Failed to download: {download.name}"
@@ -150,16 +163,26 @@ class DownloadCoordinator:
     def remove_downloads(self, indices: List[int]) -> bool:
         """Remove downloads by indices - delegates to download_handler."""
         if not self._download_handler:
+            logger.error("[DOWNLOAD_COORDINATOR] Download handler not available")
+            return False
+
+        if not indices:
+            logger.warning("[DOWNLOAD_COORDINATOR] No indices provided for removal")
             return False
 
         try:
+            logger.info(
+                f"[DOWNLOAD_COORDINATOR] Removing downloads at indices: {indices}"
+            )
             self._download_handler.remove_downloads(indices)
-            self._refresh_ui_after_event(enable_buttons=False)
-            self._update_status("Selected items removed")
+            self._refresh_ui_after_event(enable_buttons=True)
+            self._update_status(f"Removed {len(indices)} item(s)")
             return True
 
         except Exception as e:
-            logger.error(f"[DOWNLOAD_COORDINATOR] Failed to remove downloads: {e}")
+            logger.error(
+                f"[DOWNLOAD_COORDINATOR] Failed to remove downloads: {e}", exc_info=True
+            )
             if self.error_handler:
                 self.error_handler.show_error(
                     "Remove Downloads Failed", f"Failed to remove downloads: {str(e)}"
@@ -169,16 +192,20 @@ class DownloadCoordinator:
     def clear_downloads(self) -> bool:
         """Clear all downloads - delegates to download_handler."""
         if not self._download_handler:
+            logger.error("[DOWNLOAD_COORDINATOR] Download handler not available")
             return False
 
         try:
+            logger.info("[DOWNLOAD_COORDINATOR] Clearing all downloads")
             self._download_handler.clear_downloads()
-            self._refresh_ui_after_event(enable_buttons=False)
-            self._update_status("All items cleared")
+            self._refresh_ui_after_event(enable_buttons=True)
+            self._update_status("All downloads cleared")
             return True
 
         except Exception as e:
-            logger.error(f"[DOWNLOAD_COORDINATOR] Failed to clear downloads: {e}")
+            logger.error(
+                f"[DOWNLOAD_COORDINATOR] Failed to clear downloads: {e}", exc_info=True
+            )
             if self.error_handler:
                 self.error_handler.show_error(
                     "Clear Downloads Failed", f"Failed to clear downloads: {str(e)}"
@@ -187,11 +214,11 @@ class DownloadCoordinator:
 
     def clear_completed_downloads(self) -> int:
         """Clear completed downloads - manual trigger."""
-        try:
-            download_list = self.container.get("download_list")
-            if not download_list:
-                return 0
+        download_list = self.container.get("download_list")
+        if not download_list:
+            return 0
 
+        try:
             from src.utils.type_helpers import remove_completed_downloads
 
             count = remove_completed_downloads(download_list)

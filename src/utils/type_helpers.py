@@ -1,5 +1,3 @@
-"""Type helper utilities to replace hasattr/getattr patterns."""
-
 from typing import Any, Callable, Optional, TypeVar
 
 from src.core.application.container import ServiceContainer
@@ -27,12 +25,12 @@ def get_ui_context(ui_context: Any) -> Optional[UIContextProtocol]:
     Returns:
         UIContextProtocol if valid, None otherwise
     """
-    # Check if it's already a UIContextProtocol
-    if isinstance(ui_context, UIContextProtocol):
+    # Check if it has the required attributes (container and root)
+    if hasattr(ui_context, "container") and hasattr(ui_context, "root"):
         return ui_context
 
     # Check if it has an event_coordinator attribute
-    if isinstance(ui_context, HasEventCoordinatorProtocol):
+    if hasattr(ui_context, "event_coordinator"):
         return ui_context.event_coordinator
 
     logger.warning(
@@ -65,7 +63,7 @@ def get_root(ui_context: Any) -> Optional[TkRootProtocol]:
         TkRootProtocol if available, None otherwise
     """
     ctx = get_ui_context(ui_context)
-    if ctx and isinstance(ctx.root, TkRootProtocol):
+    if ctx and hasattr(ctx, "root"):
         return ctx.root
     return None
 

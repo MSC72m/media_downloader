@@ -34,10 +34,17 @@ class DownloadListView(ctk.CTkFrame):
         self.list_view.delete("1.0", tk.END)
         self._item_line_mapping.clear()
 
+        # Update internal downloads list to match the provided items
+        self._downloads = list(items)
+
         for i, item in enumerate(items):
             status_text = self._format_status(item)
             self.list_view.insert(tk.END, f"{item.name} | {item.url} | {status_text}\n")
             self._item_line_mapping[item.name] = i + 1  # Line numbers are 1-based
+
+        # Trigger selection change to update button states
+        if self.on_selection_change:
+            self.on_selection_change([])
 
     def update_item_progress(self, item: Download, progress: float):
         """Update progress for a specific item efficiently."""
@@ -163,8 +170,10 @@ class DownloadListView(ctk.CTkFrame):
     def clear_downloads(self) -> None:
         """Clear all downloads from the list."""
         self.list_view.delete("1.0", tk.END)
-        self._item_line_mapping.clear()
         self._downloads.clear()
+        # Trigger selection change to update button states
+        if self.on_selection_change:
+            self.on_selection_change([])
 
     def remove_downloads(self, indices: List[int]) -> None:
         """Remove downloads by their indices and refresh the list."""

@@ -407,7 +407,10 @@ class DownloadHandler:
                     time.sleep(0.1)
 
     def _prepare_download_path(self, download: Download, download_dir: str) -> str:
-        """Prepare and return the output path for download."""
+        """Prepare and return the output path for download.
+
+        Note: Returns path WITHOUT extension - the downloader will add the appropriate extension.
+        """
         import re
         from pathlib import Path
 
@@ -426,17 +429,21 @@ class DownloadHandler:
             base_name = download.name or "download"
             base_name = re.sub(r'[<>:"/\\|?*]', "_", base_name)
             base_name = base_name.strip()[:200]
-            ext = ".mp3" if getattr(download, "audio_only", False) else ".mp4"
-            output_path = str(target_dir / f"{base_name}{ext}")
-            logger.info(f"[DOWNLOAD_HANDLER] Output path: {output_path}")
+            # Don't add extension - downloader will add it
+            output_path = str(target_dir / base_name)
+            logger.info(
+                f"[DOWNLOAD_HANDLER] Output path (without extension): {output_path}"
+            )
             return output_path
 
         base_name = file_service.sanitize_filename(download.name or "download")
 
-        ext = ".mp3" if getattr(download, "audio_only", False) else ".mp4"
-        output_path = str(target_dir / f"{base_name}{ext}")
+        # Don't add extension here - the downloader will add the appropriate extension
+        output_path = str(target_dir / base_name)
 
-        logger.info(f"[DOWNLOAD_HANDLER] Output path: {output_path}")
+        logger.info(
+            f"[DOWNLOAD_HANDLER] Output path (without extension): {output_path}"
+        )
         return output_path
 
     def _create_progress_wrapper(self, download: Download, progress_callback):

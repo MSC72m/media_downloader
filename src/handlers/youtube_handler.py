@@ -132,18 +132,19 @@ class YouTubeHandler(LinkHandlerInterface):
                 logger.error("[YOUTUBE_HANDLER] No download callback found")
                 return
 
-            # Check if this is a YouTube Music URL - if so, skip dialog and auto-download as audio
+            # Check if this is a YouTube Music URL - show name dialog before downloading as audio
             is_music = self._is_youtube_music(url)
             if is_music:
                 logger.info(
-                    "[YOUTUBE_HANDLER] YouTube Music URL detected - auto-downloading as audio"
+                    "[YOUTUBE_HANDLER] YouTube Music URL detected - showing name dialog"
                 )
 
-                def create_music_download():
+                def show_music_name_dialog():
                     try:
                         from src.core.models import Download
+                        from src.ui.dialogs.input_dialog import CenteredInputDialog
 
-                        # Fetch metadata first for proper naming
+                        # Fetch metadata first for proper default naming
                         track_name = "YouTube Music"
                         if metadata_service:
                             try:
@@ -158,10 +159,28 @@ class YouTubeHandler(LinkHandlerInterface):
                                     f"[YOUTUBE_HANDLER] Could not fetch music metadata: {e}"
                                 )
 
-                        # Create download with audio-only settings
+                        # Show name dialog with pre-filled default name
+                        dialog = CenteredInputDialog(
+                            text="Enter a name for this track:",
+                            title="YouTube Music Download",
+                        )
+                        # Pre-fill with fetched track name
+                        if track_name != "YouTube Music":
+                            dialog._entry.delete(0, "end")
+                            dialog._entry.insert(0, track_name)
+
+                        name = dialog.get_input()
+
+                        if not name:
+                            logger.info(
+                                "[YOUTUBE_HANDLER] User cancelled YouTube Music name dialog"
+                            )
+                            return
+
+                        # Create download with user-provided name
                         download = Download(
                             url=url,
-                            name=track_name,
+                            name=name,
                             service_type="youtube",
                         )
 
@@ -175,7 +194,7 @@ class YouTubeHandler(LinkHandlerInterface):
                         # Add to download queue via callback
                         download_callback(download)
                         logger.info(
-                            f"[YOUTUBE_HANDLER] YouTube Music download added: {track_name}"
+                            f"[YOUTUBE_HANDLER] YouTube Music download added: {name}"
                         )
 
                     except Exception as e:
@@ -204,7 +223,7 @@ class YouTubeHandler(LinkHandlerInterface):
                                 f"[YOUTUBE_HANDLER] Failed to show error dialog: {dialog_error}"
                             )
 
-                schedule_on_main_thread(root, create_music_download, immediate=True)
+                schedule_on_main_thread(root, show_music_name_dialog, immediate=True)
                 return
 
             # For regular YouTube videos, show cookie selection dialog first

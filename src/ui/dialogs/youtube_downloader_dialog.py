@@ -56,6 +56,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         self._metadata_ready = (
             False  # Flag to signal metadata is ready from worker thread
         )
+        self.selected_subtitles = []  # Store selected subtitles
 
         # Configure window
         self.title("YouTube Video Downloader")
@@ -87,11 +88,9 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             except Exception:
                 pass
 
-        # Hide dialog initially - will show after metadata is fetched
-        self.withdraw()
-
-        # Start metadata fetch directly since cookie selection is already handled
-        self._start_metadata_fetch()
+        # Don't hide dialog yet - loading overlay needs visible parent
+        # Show loading overlay immediately, then start fetch
+        self.after(10, self._start_metadata_fetch)
 
         # Start polling for metadata completion from main thread
         self._poll_metadata_completion()
@@ -100,9 +99,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         """Poll for metadata completion from the main thread."""
         if self._metadata_ready and not self._metadata_handler_called:
             logger.info("Metadata ready flag detected - calling handler")
-            print("\n" + "=" * 80)
-            print("POLLING DETECTED METADATA READY - CALLING HANDLER")
-            print("=" * 80 + "\n")
             try:
                 self._handle_metadata_fetched()
             except Exception as e:
@@ -181,17 +177,36 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
     def _start_metadata_fetch(self):
         """Start metadata fetching after cookie selection."""
-        logger.info("Starting metadata fetch process")
+        logger.debug("Starting metadata fetch process")
+
+        # Keep dialog hidden during metadata fetch
+        # The loading overlay will be created as a standalone dialog
+        self.withdraw()
+
         self._create_loading_overlay()
         self._fetch_metadata_async()
 
     def _create_loading_overlay(self):
         """Create loading overlay for metadata fetching."""
-        logger.info("Creating loading overlay")
-        self.loading_overlay = SimpleLoadingDialog(
-            self, "Fetching YouTube metadata", timeout=90
-        )
-        logger.info("Loading overlay created successfully")
+        logger.debug("Creating loading overlay")
+
+        try:
+            # Create overlay with root window as parent so it shows independently
+            # This allows the main dialog to stay hidden during fetch
+            self.loading_overlay = SimpleLoadingDialog(
+                self.master, "Fetching YouTube metadata...", timeout=90
+            )
+            logger.debug("Loading overlay created successfully")
+
+            # Make sure it's visible and on top
+            self.loading_overlay.lift()
+            self.loading_overlay.attributes("-topmost", True)
+            self.loading_overlay.focus_force()
+
+        except Exception as e:
+            logger.error(f"Failed to create loading overlay: {e}", exc_info=True)
+            # Continue without overlay
+            self.loading_overlay = None
 
     def _fetch_metadata_async(self):
         """Fetch metadata asynchronously."""
@@ -274,11 +289,9 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                     # Signal that metadata is ready - the main thread polling will detect this
                     logger.info("Setting metadata ready flag for main thread polling")
                     self._metadata_ready = True
-
-                    print("=" * 80)
-                    print("METADATA FETCH COMPLETE - SIGNALING MAIN THREAD")
-                    print(f"Metadata ready flag set to: {self._metadata_ready}")
-                    print("=" * 80)
+                    logger.debug(
+                        "Metadata ready flag set, main thread polling will detect this"
+                    )
                 else:
                     # No metadata service available
                     self.after(0, self._handle_metadata_error)
@@ -358,17 +371,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             logger.error(f"Error destroying dialog: {e}")
 
     def _handle_metadata_fetched(self):
-        """Handle metadata fetch completion."""
-        # FIRST LINE - absolute first thing executed
-        import sys
-
-        sys.stdout.write("\n" + "!" * 80 + "\n")
-        sys.stdout.write("!!! _handle_metadata_fetched CALLED !!!\n")
-        sys.stdout.write("!" * 80 + "\n")
-        sys.stdout.flush()
-        print("\n" + "!" * 80)
-        print("!!! _handle_metadata_fetched CALLED !!!")
-        print("!" * 80 + "\n")
+        """Handle metadata fetch completion - ONLY SHOWS DIALOG AFTER FETCH COMPLETE."""
         logger.info("=== _handle_metadata_fetched called ===")
         logger.info("Handling metadata fetch completion")
         self._metadata_handler_called = True  # Set flag to prevent timeout fallback
@@ -388,17 +391,20 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             self._handle_metadata_error()
             return
 
-        # Hide loading overlay
+        # CRITICAL: Close loading overlay FIRST, THEN show main dialog
         if self.loading_overlay:
             logger.info("Closing loading overlay")
             try:
-                self.loading_overlay.close()
+                if hasattr(self, "loading_overlay") and self.loading_overlay:
+                    self.loading_overlay.close()
+                    self.loading_overlay = None
             except Exception as e:
-                logger.warning(f"Error closing loading overlay: {e}")
+                logger.error(f"Error closing loading overlay: {e}")
             finally:
                 self.loading_overlay = None  # Clear reference
 
-        # Show the dialog now that metadata is ready
+        # IMPORTANT: Only NOW show the main options dialog after loading is complete
+        logger.info("Showing YouTube options dialog after metadata fetch complete")
         try:
             self.deiconify()
             self.lift()
@@ -415,7 +421,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         # Now that metadata is loaded, make the dialog modal
         try:
             self.grab_set()
-            logger.info("Dialog grab set - now modal")
+            logger.debug("Dialog grab set - now modal")
         except Exception as e:
             logger.warning(f"Could not set grab: {e}")
 
@@ -430,7 +436,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                 self._create_widgets()
                 logger.info("Widgets created successfully")
                 self._load_cached_selections()
-                logger.info("Cached selections loaded")
+                logger.debug("Cached selections loaded")
                 self.widgets_created = True
             except Exception as e:
                 logger.error(f"Error creating widgets: {e}", exc_info=True)
@@ -444,10 +450,10 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         # Show main interface
         if hasattr(self, "main_frame"):
-            logger.info("Packing main frame")
+            logger.debug("Packing main frame")
             try:
-                self.main_frame.pack(fill="both", expand=True, padx=10, pady=10)
-                logger.info("Main frame packed successfully")
+                self.main_frame.pack(fill="both", expand=True)
+                logger.debug("Main frame packed successfully")
             except Exception as e:
                 logger.error(f"Error packing main frame: {e}", exc_info=True)
                 return
@@ -459,7 +465,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         try:
             # Set a minimum size to ensure dialog is visible
             self.minsize(500, 400)
-            logger.info("Dialog size updated")
+            logger.debug("Dialog size updated")
         except Exception as e:
             logger.warning(f"Error updating dialog size: {e}")
 
@@ -469,7 +475,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             logger.warning(f"Could not update idletasks for geometry: {e}")
 
         # Show main window immediately
-        logger.info("Showing main window")
+        logger.debug("Showing main window")
         try:
             self._show_main_window()
         except Exception as e:
@@ -482,14 +488,14 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
     def _show_main_window(self):
         """Show the main window after loading is complete."""
-        logger.info("Showing main window - ensuring visibility")
+        logger.debug("Showing main window - ensuring visibility")
         # Show the main window now that everything is ready
         try:
             self.lift()
             self.focus_force()  # Force focus to this window
 
             # Update UI with metadata
-            logger.info("Updating UI with metadata")
+            logger.debug("Updating UI with metadata")
             self._update_ui_with_metadata()
 
             # Ensure window is visible by updating it
@@ -504,7 +510,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             except Exception as e:
                 logger.warning(f"Could not update in show_main_window: {e}")
 
-            logger.info("Main window should now be visible")
+            logger.debug("Main window shown")
         except Exception as e:
             logger.error(f"Error showing main window: {e}", exc_info=True)
 
@@ -701,7 +707,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.format_map = {
             "Video + Audio": "video",
             "Audio Only": "audio",
-            "Video Only": "video_only"
+            "Video Only": "video_only",
         }
 
         self.format_menu = ctk.CTkOptionMenu(
@@ -856,6 +862,12 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         # Set focus
         self.name_entry.focus()
 
+    def _on_subtitle_change(self, selected_subtitles: list) -> None:
+        """Handle subtitle selection change."""
+        logger.debug(f"Subtitle selection: {len(selected_subtitles)} selected")
+        # Store the selected subtitles for later use
+        self.selected_subtitles = selected_subtitles
+
     def _on_format_change(self) -> None:
         """Handle format selection change."""
         format_display = self.format_var.get()
@@ -867,19 +879,19 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         format_descriptions = {
             "video": "Video + Audio (MP4)",
             "audio": "Audio Only (MP3)",
-            "video_only": "Video Only (M4V)"
+            "video_only": "Video Only (M4V)",
         }
 
         # Update the quality options based on format
         self._update_quality_options_for_format(format_value)
-        logger.info(f"[YOUTUBE_DIALOG] Format changed to: {format_display} ({format_value}) - {format_descriptions.get(format_value, 'Unknown')}")
+        logger.debug(f"Format: {format_display} ({format_value})")
 
     def _update_quality_options_for_format(self, format_value: str) -> None:
         """Update available quality options based on format selection."""
         if format_value == "audio":
             # For audio only, show audio quality options
             audio_qualities = ["best", "high", "medium", "low"]
-            if hasattr(self, 'quality_menu'):
+            if hasattr(self, "quality_menu"):
                 current_quality = self.quality_var.get()
                 self.quality_menu.configure(values=audio_qualities)
                 # Set a sensible default if current quality is not in audio options
@@ -888,7 +900,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         else:
             # For video formats, show video quality options
             video_qualities = ["best", "1080p", "720p", "480p", "360p"]
-            if hasattr(self, 'quality_menu'):
+            if hasattr(self, "quality_menu"):
                 current_quality = self.quality_var.get()
                 self.quality_menu.configure(values=video_qualities)
                 # Set a sensible default if current quality is not in video options

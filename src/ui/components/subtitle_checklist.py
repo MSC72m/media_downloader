@@ -89,12 +89,12 @@ class SubtitleChecklist(ctk.CTkFrame):
         """Set subtitle options."""
         try:
             # Store the options
-            self.options = options or []
+            self.options = subtitles or []
 
             # Clear existing options
             self._clear_existing_options()
 
-            if not options:
+            if not subtitles:
                 self.placeholder_label.pack(pady=20)
                 self.button_frame.pack_forget()
                 return
@@ -104,7 +104,7 @@ class SubtitleChecklist(ctk.CTkFrame):
             self.button_frame.pack(fill="x", pady=(5, 0))
 
             # Create new options
-            for i, option in enumerate(options):
+            for i, option in enumerate(subtitles):
                 self._create_option_item(option, i)
 
             self._update_status()

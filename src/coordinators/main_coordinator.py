@@ -76,8 +76,15 @@ class EventCoordinator:
             url: URL to download
             name: Optional name for generic downloads
         """
+        # YouTube handler manages its own dialogs - just provide add_download callback
+        if platform == "youtube":
+            logger.warning(
+                "[EVENT_COORDINATOR] YouTube handler should manage dialogs directly, "
+                "coordinator should not be in the flow"
+            )
+            return
+
         platform_map = {
-            "youtube": self.platform_dialogs.show_youtube_dialog,
             "twitter": self.platform_dialogs.show_twitter_dialog,
             "instagram": self.platform_dialogs.show_instagram_dialog,
             "pinterest": self.platform_dialogs.show_pinterest_dialog,
@@ -111,10 +118,15 @@ class EventCoordinator:
             downloads_folder = self.container.get("downloads_folder") or "~/Downloads"
             status_bar = self.container.get("status_bar")
 
+            def on_directory_change(path: str) -> None:
+                """Update downloads folder when user selects new path."""
+                self.container.register("downloads_folder", path, singleton=True)
+                logger.info(f"[EVENT_COORDINATOR] Downloads folder updated to: {path}")
+
             FileManagerDialog(
                 self.root,
                 downloads_folder,
-                lambda path: None,  # Directory change callback (unused)
+                on_directory_change,
                 lambda msg: status_bar.show_message(msg) if status_bar else None,
             )
         except Exception as e:
@@ -171,7 +183,7 @@ class EventCoordinator:
                     "Cookie Error", f"Error loading cookie: {str(e)}"
                 )
 
-    # UIContextProtocol implementation - dynamic dispatch for platform downloads
+    # UIContextProtocol implementation via __getattr__ for dynamic dispatch
     def __getattr__(self, name: str):
         """Dynamic dispatch for platform_download methods.
 
@@ -188,6 +200,9 @@ class EventCoordinator:
 
         if name in platform_methods:
             platform = platform_methods[name]
+            # YouTube handler creates dialogs itself, just needs add_download callback
+            if platform == "youtube":
+                return lambda download: self.downloads.add_download(download)
             return lambda url, **kwargs: self.platform_download(
                 platform, url, kwargs.get("name")
             )

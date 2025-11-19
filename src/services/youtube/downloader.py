@@ -80,6 +80,7 @@ class YouTubeDownloader(BaseDownloader):
         if self.download_subtitles and self.selected_subtitles:
             options["writesubtitles"] = True
             options["writeautomaticsub"] = True
+            options["subtitlesformat"] = "srt"  # Request SRT format directly
             # Extract language codes from selected subtitles
             subtitle_langs = [
                 sub.get("language_code", sub.get("id", "en"))
@@ -88,6 +89,18 @@ class YouTubeDownloader(BaseDownloader):
             ]
             if subtitle_langs:
                 options["subtitleslangs"] = subtitle_langs
+
+            # Initialize postprocessors list if not exists
+            if "postprocessors" not in options:
+                options["postprocessors"] = []
+
+            # Add post-processor to convert subtitles to SRT format
+            options["postprocessors"].append(
+                {
+                    "key": "FFmpegSubtitlesConvertor",
+                    "format": "srt",
+                }
+            )
 
         # Use cookiesfrom_browser for direct browser cookie access (more reliable)
         if self.browser:
@@ -145,32 +158,34 @@ class YouTubeDownloader(BaseDownloader):
             sanitized_name = sanitizer.sanitize_filename(base_filename)
 
             # Extension depends on audio_only setting
-            ext = ".mp3" if self.audio_only else ".mp4"
             output_template = os.path.join(save_dir, sanitized_name)
 
             # Prepare options with output path
             opts = self.ytdl_opts.copy()
-            opts.update(
-                {
-                    "outtmpl": {"default": output_template + ext},
-                }
-            )
 
             # Add format selection based on format type and quality
             if self.format == "audio" or self.audio_only:
-                opts["format"] = "bestaudio"
-                opts["postprocessors"] = [
+                # Use better format selection for audio with fallback
+                # This works for both regular YouTube and YouTube Music
+                opts["format"] = "bestaudio/best"
+                # Don't add extension to outtmpl - FFmpegExtractAudio will add it
+                opts["outtmpl"] = {"default": output_template}
+                # Extend postprocessors instead of replacing
+                if "postprocessors" not in opts:
+                    opts["postprocessors"] = []
+                opts["postprocessors"].append(
                     {
                         "key": "FFmpegExtractAudio",
                         "preferredcodec": "mp3",
                         "preferredquality": "192",
                     }
-                ]
+                )
                 ext = ".mp3"
             elif self.format == "video_only" or self.video_only:
                 # Video only without audio
                 opts["format"] = "bestvideo"
                 ext = ".mp4"
+                opts["outtmpl"] = {"default": output_template + ext}
             else:
                 # Default: video + audio
                 # Use dictionary-based format selection
@@ -195,6 +210,8 @@ class YouTubeDownloader(BaseDownloader):
                         )
                 else:
                     opts["format"] = "best"
+                ext = ".mp4"
+                opts["outtmpl"] = {"default": output_template + ext}
 
             # Store expected output path for verification
             expected_output_path = output_template + ext
@@ -454,9 +471,20 @@ class YouTubeDownloader(BaseDownloader):
                 callback(progress, speed)
 
             elif status == "finished":
-                # Report 100% when finished
-                logger.debug("Download phase finished")
-                callback(100.0, 0.0)
+                # Only report 100% for video files, not subtitles or thumbnails
+                filename = d.get("filename", "")
+                info_dict = d.get("info_dict", {})
+
+                # Check if this is a subtitle or thumbnail file
+                is_subtitle = filename.endswith((".vtt", ".srt", ".ass", ".sub"))
+                is_thumbnail = filename.endswith((".jpg", ".png", ".webp"))
+
+                # Only report completion for the main video/audio file
+                if not is_subtitle and not is_thumbnail:
+                    logger.debug(f"Main download finished: {filename}")
+                    callback(100.0, 0.0)
+                else:
+                    logger.debug(f"Auxiliary file finished: {filename}")
 
             elif status == "error":
                 logger.error(
