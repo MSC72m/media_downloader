@@ -1,5 +1,4 @@
 import sys
-import tempfile
 from pathlib import Path
 
 from src.utils.common import ensure_gui_available
@@ -35,7 +34,6 @@ import customtkinter as ctk  # noqa: E402
 
 from src.core import ApplicationOrchestrator  # noqa: E402
 from src.services.events.queue import MessageQueue
-from src.ui.components.cookie_selector import CookieSelectorFrame  # noqa: E402
 from src.ui.components.download_list import DownloadListView  # noqa: E402
 from src.ui.components.main_action_buttons import ActionButtonBar  # noqa: E402
 from src.ui.components.options_bar import OptionsBar  # noqa: E402
@@ -161,18 +159,6 @@ class MediaDownloaderApp(ctk.CTk):
         )
         logger.info("[MAIN_APP] MessageQueue registered with status_bar")
 
-        # Cookie Selector (initially hidden)
-        self.cookie_selector = CookieSelectorFrame(
-            self.main_frame,
-            cookie_handler=self.orchestrator.get_service("cookie_handler"),
-            on_cookie_detected=lambda success: self.orchestrator.handle_cookie_detected(
-                "chrome", tempfile.gettempdir() + "/cookies"
-            )
-            if success
-            else None,
-            on_manual_select=self.orchestrator.handle_cookie_manual_select,
-        )
-
         # Pass UI components to orchestrator
         logger.info("[MAIN_APP] Passing UI components to orchestrator")
         self.orchestrator.set_ui_components(
@@ -181,7 +167,6 @@ class MediaDownloaderApp(ctk.CTk):
             download_list=self.download_list,
             action_buttons=self.action_buttons,
             status_bar=self.status_bar,
-            cookie_selector=self.cookie_selector,
         )
         logger.info("[MAIN_APP] UI components passed to orchestrator successfully")
 
