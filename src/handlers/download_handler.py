@@ -1,19 +1,37 @@
 """Concrete implementation of download handler."""
 
-from typing import Callable, List, Optional
+from typing import List, Optional
 
-from src.core.application.container import ServiceContainer
+from src.core.base.base_handler import BaseHandler
+from src.core.service_interfaces import (
+    IDownloadService,
+    IServiceFactory,
+    IAutoCookieManager,
+    IFileService,
+    IMessageQueue,
+)
 from src.core.models import Download, DownloadOptions
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-class DownloadHandler:
-    """Download handler using service container."""
+class DownloadHandler(BaseHandler):
+    """Download handler with proper dependency injection."""
 
-    def __init__(self, container: ServiceContainer):
-        self.container = container
+    def __init__(
+        self,
+        download_service: IDownloadService,
+        service_factory: IServiceFactory,
+        auto_cookie_manager: Optional[IAutoCookieManager] = None,
+        file_service: Optional[IFileService] = None,
+        message_queue: Optional[IMessageQueue] = None,
+    ):
+        super().__init__(message_queue)
+        self.download_service = download_service
+        self.service_factory = service_factory
+        self.auto_cookie_manager = auto_cookie_manager
+        self.file_service = file_service
         self._initialized = False
 
     def initialize(self) -> None:
@@ -28,25 +46,19 @@ class DownloadHandler:
 
     def add_download(self, download: Download) -> None:
         """Add a download item."""
-        if download_service := self.container.get("download_service"):
-            download_service.add_download(download)
+        self.download_service.add_download(download)
 
     def remove_downloads(self, indices: List[int]) -> None:
         """Remove download items by indices."""
-        if download_service := self.container.get("download_service"):
-            download_service.remove_downloads(indices)
+        self.download_service.remove_downloads(indices)
 
     def clear_downloads(self) -> None:
         """Clear all download items."""
-        if download_service := self.container.get("download_service"):
-            download_service.clear_downloads()
+        self.download_service.clear_downloads()
 
     def get_downloads(self) -> List[Download]:
         """Get all download items."""
-        if download_service := self.container.get("download_service"):
-            if downloads := download_service.get_downloads():
-                return downloads
-        return []
+        return self.download_service.get_downloads() or []
 
     def has_items(self) -> bool:
         """Check if there are any download items."""
@@ -96,23 +108,16 @@ class DownloadHandler:
         logger.info(f"[DOWNLOAD_HANDLER] Directory: {download_dir}")
 
         try:
-            # Early return: get service factory
-            service_factory = self.container.get("service_factory")
-            if not service_factory:
-                self._handle_download_failure(
-                    download, completion_callback, "Service factory not available"
-                )
-                return
-
+            # Use injected service factory (mandatory dependency)
             logger.info(
-                f"[DOWNLOAD_HANDLER] Service factory obtained: {service_factory}"
+                f"[DOWNLOAD_HANDLER] Using service factory: {self.service_factory}"
             )
 
             # Create a downloader with the download's specific options
             from src.core.enums import ServiceType
             from src.services.youtube.downloader import YouTubeDownloader
 
-            service_type = service_factory.detect_service_type(download.url)
+            service_type = self.service_factory.detect_service_type(download.url)
             logger.info(f"[DOWNLOAD_HANDLER] Detected service type: {service_type}")
 
             # Debug: Log all download attributes
@@ -129,7 +134,7 @@ class DownloadHandler:
 
             if service_type == ServiceType.YOUTUBE:
                 # Get cookie manager and set cookies BEFORE creating downloader
-                cookie_manager = service_factory.get_cookie_manager()
+                cookie_manager = self.service_factory.get_cookie_manager()
 
                 logger.info(
                     f"[DOWNLOAD_HANDLER] Cookie manager available: {cookie_manager is not None}"
@@ -164,7 +169,7 @@ class DownloadHandler:
                         )
 
                 # Get auto cookie manager from container
-                auto_cookie_manager = self.container.get("auto_cookie_manager")
+                auto_cookie_manager = self.auto_cookie_manager
 
                 # NOW create the downloader with the configured cookie_manager and browser
                 downloader = YouTubeDownloader(

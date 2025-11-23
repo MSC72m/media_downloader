@@ -6,6 +6,8 @@ import customtkinter as ctk
 
 from src.services.detection.link_detector import LinkDetector
 from src.services.events.event_bus import DownloadEventBus
+from src.ui.dialogs.file_manager_dialog import FileManagerDialog
+from src.ui.dialogs.network_status_dialog import NetworkStatusDialog
 from src.utils.logger import get_logger
 
 from .download_coordinator import DownloadCoordinator
@@ -101,8 +103,10 @@ class EventCoordinator:
 
         if platform == "generic":
             dialog_method(url, name, callback)
-        else:
-            dialog_method(url, callback)
+            return None
+
+        dialog_method(url, callback)
+        return None
 
     # Authentication
     def authenticate_instagram(self, parent_window) -> None:
@@ -113,8 +117,6 @@ class EventCoordinator:
     def show_file_manager(self) -> None:
         """Show file manager dialog."""
         try:
-            from src.ui.dialogs.file_manager_dialog import FileManagerDialog
-
             downloads_folder = self.container.get("downloads_folder") or "~/Downloads"
             status_bar = self.container.get("status_bar")
 
@@ -147,7 +149,6 @@ class EventCoordinator:
             return
 
         try:
-            from src.ui.dialogs.network_status_dialog import NetworkStatusDialog
 
             NetworkStatusDialog(self.root, network_checker)
         except Exception as e:

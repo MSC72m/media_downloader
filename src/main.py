@@ -10,24 +10,6 @@ sys.path.append(str(Path(__file__).parent.parent))
 logger = get_logger(__name__)
 
 
-def _ensure_gui_available():
-    try:
-        import tkinter as _tk  # noqa: F401
-
-        import customtkinter as _ctk  # noqa: F401
-
-        return True
-    except Exception as e:
-        msg = (
-            "Tkinter (GUI) is not available in this Python. "
-            "Please install Tcl/Tk and a Python build with _tkinter.\n"
-            "macOS with pyenv: brew install tcl-tk and reinstall Python with Tk support."
-        )
-        logger.error(msg)
-        print(msg)
-        raise SystemExit(1) from e
-
-
 # Only import GUI modules after confirming tkinter is available
 ensure_gui_available()
 import customtkinter as ctk  # noqa: E402
@@ -56,8 +38,7 @@ def _check_playwright_installation():
         import playwright  # noqa: F401
 
         logger.info("[MAIN_APP] Playwright is installed")
-        return True
-    except ImportError:
+    except ImportError as original_error:
         logger.error("[MAIN_APP] Playwright is NOT installed - showing critical error")
 
         # Create a minimal window to show the error
@@ -161,13 +142,11 @@ def _check_playwright_installation():
         # Check which button was clicked
         if exit_clicked["value"]:
             logger.info("[MAIN_APP] Exiting program as user requested")
-            import sys
-
-            sys.exit(1)
+            raise SystemExit(1)
 
         # If we reach here, user clicked Continue Anyway
         logger.warning("[MAIN_APP] Continuing without Playwright as user requested")
-        return True
+        raise original_error
 
 
 class MediaDownloaderApp(ctk.CTk):
@@ -347,19 +326,19 @@ class MediaDownloaderApp(ctk.CTk):
 
 
 if __name__ == "__main__":
-    # Check Playwright installation BEFORE creating the app
-    # This will call sys.exit(1) if user chooses to exit
     # Will return True if Playwright is installed or user chose to continue
-    should_continue = _check_playwright_installation()
-
-    # Only create app if we should continue
-    if should_continue:
+    try:
+        _check_playwright_installation()
+        # Only create app if we should continue
         logger.info("[MAIN_APP] Starting Media Downloader application")
         app = MediaDownloaderApp()
         app.mainloop()
-    else:
+        
+    except (SystemExit, ImportError):
         # Should not reach here, but just in case
-        logger.error("[MAIN_APP] Unexpected state - exiting")
-        import sys
+        logger.error("Missing Deps")
+        sys.exit(1)
 
+    except Exception as e:
+        logger.error(f"[MAIN_APP] Unexpected state - exiting Error: {e}")
         sys.exit(1)

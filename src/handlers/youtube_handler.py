@@ -3,6 +3,14 @@
 import re
 from typing import Any, Callable, Dict, Optional
 
+from src.core.application.di_container import get_container
+from src.core.base.base_handler import BaseHandler
+from src.core.service_interfaces import (
+    IAutoCookieManager,
+    ICookieHandler,
+    IMessageQueue,
+    IYouTubeMetadataService,
+)
 from src.services.detection.link_detector import (
     DetectionResult,
     LinkHandlerInterface,
@@ -10,7 +18,6 @@ from src.services.detection.link_detector import (
 )
 from src.utils.logger import get_logger
 from src.utils.type_helpers import (
-    get_container,
     get_platform_callback,
     get_root,
     schedule_on_main_thread,
@@ -20,7 +27,7 @@ logger = get_logger(__name__)
 
 
 @auto_register_handler
-class YouTubeHandler(LinkHandlerInterface):
+class YouTubeHandler(BaseHandler, LinkHandlerInterface):
     """Handler for YouTube URLs."""
 
     # YouTube URL patterns (including YouTube Music)
@@ -34,6 +41,42 @@ class YouTubeHandler(LinkHandlerInterface):
         r"^https?://music\.youtube\.com/watch\?v=[\w-]+",
         r"^https?://music\.youtube\.com/playlist\?list=[\w-]+",
     ]
+
+    def __init__(
+        self,
+        cookie_handler: ICookieHandler,
+        metadata_service: IYouTubeMetadataService,
+        auto_cookie_manager: IAutoCookieManager,
+        message_queue: IMessageQueue,
+    ):
+        """Initialize YouTube handler with injected dependencies."""
+        super().__init__(message_queue)
+        self.cookie_handler = cookie_handler
+        self.metadata_service = metadata_service
+        self.auto_cookie_manager = auto_cookie_manager
+
+    def _get_notification_templates(self) -> Dict[str, Dict[str, Any]]:
+        """Get YouTube-specific notification templates."""
+        base_templates = super()._get_notification_templates()
+        youtube_templates = {
+            "cookies_generating": {
+                "text": "YouTube cookies are being generated. Please wait a moment and try again.",
+                "title": "YouTube Cookies Generating",
+                "level": "INFO",
+            },
+            "cookies_unavailable": {
+                "text": "YouTube cookies are not available. Some videos may fail to download.",
+                "title": "YouTube Cookies Unavailable",
+                "level": "WARNING",
+            },
+            "service_unavailable": {
+                "text": "YouTube service is temporarily unavailable. Please try again later.",
+                "title": "YouTube Service Unavailable",
+                "level": "ERROR",
+            }
+        }
+        base_templates.update(youtube_templates)
+        return base_templates
 
     @classmethod
     def get_patterns(cls):
@@ -109,57 +152,19 @@ class YouTubeHandler(LinkHandlerInterface):
         def youtube_callback(url: str, ui_context: Any):
             """Callback for handling YouTube URLs."""
             logger.info(f"[YOUTUBE_HANDLER] YouTube callback called with URL: {url}")
-            logger.info(f"[YOUTUBE_HANDLER] UI context: {ui_context}")
-            logger.info(f"[YOUTUBE_HANDLER] UI context type: {type(ui_context)}")
-
-            # Get container and root using type-safe helpers
-            container = get_container(ui_context)
-            root = get_root(ui_context)
-
-            # Check auto cookie manager state
-            auto_cookie_manager = (
-                container.get("auto_cookie_manager") if container else None
-            )
-            if auto_cookie_manager and auto_cookie_manager.is_generating():
-                logger.info(
-                    "[YOUTUBE_HANDLER] Cookies are still generating, notifying user"
-                )
-                try:
-                    from src.core.enums.message_level import MessageLevel
-                    from src.services.events.queue import Message
-
-                    message_queue = (
-                        container.get("message_queue") if container else None
-                    )
-                    if message_queue:
-                        message_queue.add_message(
-                            Message(
-                                text="YouTube cookies are being generated. Please wait a moment and try again.",
-                                level=MessageLevel.INFO,
-                                title="Cookies Generating",
-                                duration=5000,
-                            )
-                        )
-                except Exception as e:
-                    logger.error(
-                        f"[YOUTUBE_HANDLER] Failed to show cookie message: {e}"
-                    )
-                return
-
-            logger.info(f"[YOUTUBE_HANDLER] Container: {container}")
-            logger.info(f"[YOUTUBE_HANDLER] Root: {root}")
-
-            cookie_handler = container.get("cookie_handler") if container else None
-            metadata_service = container.get("youtube_metadata") if container else None
-
-            logger.info(f"[YOUTUBE_HANDLER] Cookie handler: {cookie_handler}")
-            logger.info(f"[YOUTUBE_HANDLER] Metadata service: {metadata_service}")
 
             # Get download callback using type-safe helper
             download_callback = get_platform_callback(ui_context, "youtube")
             if not download_callback:
                 logger.error("[YOUTUBE_HANDLER] No download callback found")
                 return
+
+            # Check auto cookie manager state (polymorphic - no if/else chains)
+            if self.auto_cookie_manager.is_generating():
+                self._show_cookie_generating_message()
+                return
+
+            root = get_root(ui_context)
 
             # Check if this is a YouTube Music URL - show name dialog before downloading as audio
             is_music = self._is_youtube_music(url)
