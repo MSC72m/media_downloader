@@ -91,7 +91,9 @@ class ApplicationOrchestrator:
         self.container.register_singleton(IMetadataService, YouTubeMetadataService)
         self.container.register_singleton(INetworkChecker, NetworkChecker)
         self.container.register_singleton(IAutoCookieManager, AutoCookieManager)
-        self.container.register_singleton(IErrorHandler, ErrorHandler)
+
+        # ErrorHandler needs message_queue injected
+        self.container.register_factory(IErrorHandler, ErrorHandler)
 
         # Register service implementations
         self.container.register_singleton(ServiceFactory)

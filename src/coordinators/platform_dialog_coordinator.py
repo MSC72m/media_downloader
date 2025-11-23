@@ -1,9 +1,10 @@
-"""Platform Dialog Coordinator - Handles platform-specific UI dialogs."""
+"""Platform Dialog Coordinator - Handles platform-specific UI dialogs with clean DI."""
 
 import os
 from typing import Optional
 
 from src.core.enums.instagram_auth_status import InstagramAuthStatus
+from src.core.interfaces import ICookieHandler, IErrorHandler
 from src.core.models import Download
 from src.utils.logger import get_logger
 
@@ -13,43 +14,15 @@ logger = get_logger(__name__)
 class PlatformDialogCoordinator:
     """Coordinates platform-specific UI dialogs - delegates to platform handlers."""
 
-    def __init__(self, container, root_window):
-        """Initialize with service container and root window."""
-        self.container = container
+    def __init__(self, root_window, error_handler: IErrorHandler,
+                 cookie_handler: Optional[ICookieHandler] = None):
+        """Initialize with proper dependency injection."""
         self.root = root_window
-        self._cookie_handler = None
-        self._auth_handler = None
-        self.error_handler = None
+        self.error_handler = error_handler
+        self.cookie_handler = cookie_handler
 
-    # Instagram Authentication State Management
-    def _set_instagram_status(self, status) -> None:
-        """Set Instagram authentication status.
-
-        Args:
-            status: InstagramAuthStatus enum value
-        """
-        status_name = status.name if hasattr(status, "name") else str(status)
-        options_bar = self.container.get("options_bar")
-        if not options_bar:
-            logger.warning(
-                f"[PLATFORM_DIALOG_COORDINATOR] Options bar not available: {status_name}"
-            )
-            return
-
-        try:
-            options_bar.set_instagram_status(status)
-        except Exception as e:
-            logger.error(
-                f"[PLATFORM_DIALOG_COORDINATOR] Error setting Instagram {status_name} state: {e}"
-            )
-
-    def refresh_handlers(self):
-        """Refresh handler references from container."""
-        self._cookie_handler = self.container.get("cookie_handler")
-        self._auth_handler = self.container.get("auth_handler")
-        self.error_handler = self.container.get("error_handler")
-        logger.info("[PLATFORM_DIALOG_COORDINATOR] Handlers refreshed")
-
+    
+    
     # YouTube Dialog
     def show_youtube_dialog(self, url: str, on_download_callback) -> None:
         """Show YouTube download dialog.
@@ -270,23 +243,4 @@ class PlatformDialogCoordinator:
                     f"An error occurred during authentication: {str(e)}",
                 )
 
-    def _handle_instagram_auth_result(
-        self, success: bool, error_message: Optional[str] = None
-    ) -> None:
-        """Handle Instagram authentication result.
-
-        Thread-safe: Uses queue-based status bar and error handler.
-        """
-        status_bar = self.container.get("status_bar")
-
-        if success:
-            self._set_instagram_status(InstagramAuthStatus.AUTHENTICATED)
-            if status_bar:
-                status_bar.show_message("Instagram authenticated successfully")
-            return
-
-        self._set_instagram_status(InstagramAuthStatus.FAILED)
-        if error_message and self.error_handler:
-            self.error_handler.show_error("Instagram Authentication", error_message)
-        elif status_bar:
-            status_bar.show_error("Instagram authentication failed")
+    

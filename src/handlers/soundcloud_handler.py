@@ -3,6 +3,8 @@
 import re
 from typing import Any, Callable, Dict, Optional
 
+from src.core.base.base_handler import BaseHandler
+from src.core.interfaces import IMessageQueue
 from src.services.detection.link_detector import (
     DetectionResult,
     LinkHandlerInterface,
@@ -10,7 +12,6 @@ from src.services.detection.link_detector import (
 )
 from src.utils.logger import get_logger
 from src.utils.type_helpers import (
-    get_container,
     get_platform_callback,
     get_root,
     schedule_on_main_thread,
@@ -20,7 +21,7 @@ logger = get_logger(__name__)
 
 
 @auto_register_handler
-class SoundCloudHandler(LinkHandlerInterface):
+class SoundCloudHandler(BaseHandler, LinkHandlerInterface):
     """Handler for SoundCloud URLs."""
 
     # SoundCloud URL patterns
@@ -31,6 +32,10 @@ class SoundCloudHandler(LinkHandlerInterface):
         r"^https?://(?:m\.)?soundcloud\.com/[\w-]+/sets/[\w-]+",
         r"^https?://soundcloud\.app\.goo\.gl/[\w]+",
     ]
+
+    def __init__(self, message_queue: IMessageQueue):
+        """Initialize SoundCloud handler with proper dependency injection."""
+        super().__init__(message_queue)
 
     @classmethod
     def get_patterns(cls):
@@ -89,11 +94,9 @@ class SoundCloudHandler(LinkHandlerInterface):
             )
             logger.info(f"[SOUNDCLOUD_HANDLER] UI context: {ui_context}")
 
-            # Get container and root using type-safe helpers
-            container = get_container(ui_context)
+            # Get root using type-safe helper
             root = get_root(ui_context)
 
-            logger.info(f"[SOUNDCLOUD_HANDLER] Container: {container}")
             logger.info(f"[SOUNDCLOUD_HANDLER] Root: {root}")
 
             # Get download callback using type-safe helper
@@ -118,25 +121,10 @@ class SoundCloudHandler(LinkHandlerInterface):
                         f"[SOUNDCLOUD_HANDLER] Error processing SoundCloud download: {e}",
                         exc_info=True,
                     )
-                    # Show error dialog via message queue
-                    try:
-                        from src.core.enums.message_level import MessageLevel
-                        from src.services.events.queue import Message
-
-                        message_queue = (
-                            container.get("message_queue") if container else None
-                        )
-                        if message_queue:
-                            error_message = Message(
-                                text=f"Failed to process SoundCloud download: {str(e)}",
-                                level=MessageLevel.ERROR,
-                                title="SoundCloud Download Error",
-                            )
-                            message_queue.add_message(error_message)
-                    except Exception as dialog_error:
-                        logger.error(
-                            f"[SOUNDCLOUD_HANDLER] Failed to show error dialog: {dialog_error}"
-                        )
+                    # Show error dialog via BaseHandler's message queue
+                    self.notify_user("error",
+                        title="SoundCloud Download Error",
+                        message=f"Failed to process SoundCloud download: {str(e)}")
 
             # Schedule on main thread
             schedule_on_main_thread(root, process_soundcloud_download, immediate=True)

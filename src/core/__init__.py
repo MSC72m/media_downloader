@@ -1,7 +1,7 @@
 """Core application modules - shared primitives and application infrastructure."""
 
 # Models - All domain models
-from .application.container import ServiceContainer
+from .application.di_container import ServiceContainer
 
 # Application infrastructure
 from .application.orchestrator import ApplicationOrchestrator

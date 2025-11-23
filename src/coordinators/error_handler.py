@@ -1,5 +1,6 @@
 """Centralized error handler for consistent error display across all coordinators."""
 
+from src.core.interfaces import IMessageQueue, IErrorHandler
 from src.core.enums.message_level import MessageLevel
 from src.services.events.queue import Message
 from src.utils.logger import get_logger
@@ -7,21 +8,21 @@ from src.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-class ErrorHandler:
+class ErrorHandler(IErrorHandler):
     """Centralized error handling - single source of truth for error display.
 
     All errors are routed through message queue which displays them in status bar.
     This eliminates duplicate error handling code across coordinators.
     """
 
-    def __init__(self, container):
-        """Initialize with service container.
+    def __init__(self, message_queue: IMessageQueue):
+        """Initialize with proper dependency injection.
 
         Args:
-            container: Service container to access message_queue
+            message_queue: Message queue for displaying messages
         """
-        self.container = container
-        logger.info("[ERROR_HANDLER] Initialized")
+        self.message_queue = message_queue
+        logger.info("[ERROR_HANDLER] Initialized with DI")
 
     def show_error(self, title: str, message: str) -> None:
         """Show error message via message queue.
@@ -30,15 +31,8 @@ class ErrorHandler:
             title: Error title/category
             message: Error message text
         """
-        message_queue = self.container.get("message_queue")
-        if not message_queue:
-            logger.error(
-                f"[ERROR_HANDLER] Message queue not available - cannot show error: {title}: {message}"
-            )
-            return
-
         error_message = Message(text=message, level=MessageLevel.ERROR, title=title)
-        message_queue.add_message(error_message)
+        self.message_queue.add_message(error_message)
         logger.debug(f"[ERROR_HANDLER] Error queued: {title}")
 
     def show_warning(self, title: str, message: str) -> None:
@@ -48,15 +42,8 @@ class ErrorHandler:
             title: Warning title/category
             message: Warning message text
         """
-        message_queue = self.container.get("message_queue")
-        if not message_queue:
-            logger.warning(
-                f"[ERROR_HANDLER] Message queue not available - cannot show warning: {title}: {message}"
-            )
-            return
-
         warning_message = Message(text=message, level=MessageLevel.WARNING, title=title)
-        message_queue.add_message(warning_message)
+        self.message_queue.add_message(warning_message)
         logger.debug(f"[ERROR_HANDLER] Warning queued: {title}")
 
     def show_info(self, title: str, message: str) -> None:
@@ -66,13 +53,6 @@ class ErrorHandler:
             title: Info title/category
             message: Info message text
         """
-        message_queue = self.container.get("message_queue")
-        if not message_queue:
-            logger.info(
-                f"[ERROR_HANDLER] Message queue not available - cannot show info: {title}: {message}"
-            )
-            return
-
         info_message = Message(text=message, level=MessageLevel.INFO, title=title)
-        message_queue.add_message(info_message)
+        self.message_queue.add_message(info_message)
         logger.debug(f"[ERROR_HANDLER] Info queued: {title}")

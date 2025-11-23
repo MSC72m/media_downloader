@@ -129,8 +129,13 @@ class IErrorHandler(ABC):
         pass
 
     @abstractmethod
-    def log_error(self, error: Exception, context: str = "") -> None:
-        """Log error with context."""
+    def show_warning(self, title: str, message: str) -> None:
+        """Show warning message."""
+        pass
+
+    @abstractmethod
+    def show_info(self, title: str, message: str) -> None:
+        """Show info message."""
         pass
 
 

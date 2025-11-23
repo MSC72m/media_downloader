@@ -35,7 +35,7 @@ class DownloadCoordinator:
             logger.warning("[DOWNLOAD_COORDINATOR] Status bar not available")
             return
 
-        if is_error:
+        if not is_error:
             status_bar.show_error(message)
         else:
             status_bar.show_message(message)

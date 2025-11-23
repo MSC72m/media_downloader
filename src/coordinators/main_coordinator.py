@@ -1,9 +1,10 @@
-"""Event Coordinator - Thin coordination layer using focused coordinators."""
+"""Event Coordinator - Clean coordination layer with constructor injection."""
 
 from typing import Optional
 
 import customtkinter as ctk
 
+from src.core.interfaces import IErrorHandler, IDownloadHandler, IFileService, INetworkChecker, ICookieHandler
 from src.services.detection.link_detector import LinkDetector
 from src.services.events.event_bus import DownloadEventBus
 from src.ui.dialogs.file_manager_dialog import FileManagerDialog
@@ -31,11 +32,17 @@ class EventCoordinator:
         - For routing: coord.platform_download(), coord.cookie_detected()
     """
 
-    def __init__(self, root_window: ctk.CTk, container):
-        """Initialize with root window and service container."""
+    def __init__(self, root_window: ctk.CTk, error_handler: IErrorHandler,
+                 download_handler: IDownloadHandler, file_service: IFileService,
+                 network_checker: INetworkChecker, cookie_handler: ICookieHandler, downloads_folder: str):
+        """Initialize with proper dependency injection."""
         self.root = root_window
-        self.container = container
-        self.error_handler = None
+        self.error_handler = error_handler
+        self.download_handler = download_handler
+        self.file_service = file_service
+        self.network_checker = network_checker
+        self.cookie_handler = cookie_handler
+        self.downloads_folder = downloads_folder
 
         # Event bus for download events
         self.event_bus = DownloadEventBus(root_window)
@@ -43,28 +50,20 @@ class EventCoordinator:
         # Link detector for URL detection
         self.link_detector = LinkDetector()
 
-        # Create focused coordinators
-        self.downloads = DownloadCoordinator(container, self.event_bus)
-        self.platform_dialogs = PlatformDialogCoordinator(container, root_window)
+        # Create focused coordinators with injected dependencies
+        self.downloads = DownloadCoordinator(self.event_bus, download_handler, error_handler, download_service)
+        self.platform_dialogs = PlatformDialogCoordinator(root_window, error_handler, cookie_handler)
 
-        logger.info("[EVENT_COORDINATOR] Initialized with focused coordinators")
+        logger.info("[EVENT_COORDINATOR] Initialized with constructor injection")
 
     def refresh_handlers(self) -> None:
         """Refresh all handlers after UI components are registered."""
         logger.info("[EVENT_COORDINATOR] Refreshing handlers")
-        self.downloads.refresh_handlers()
-        self.platform_dialogs.refresh_handlers()
-        self.error_handler = self.container.get("error_handler")
+        # No refresh needed - coordinators use constructor injection with mandatory dependencies
         logger.info("[EVENT_COORDINATOR] Handlers refreshed")
 
     def show_error(self, title: str, message: str) -> None:
         """Show error message via centralized error handler."""
-        if not self.error_handler:
-            logger.error(
-                f"[EVENT_COORDINATOR] Error handler not available: {title}: {message}"
-            )
-            return
-
         self.error_handler.show_error(title, message)
 
     # Platform-Specific Dialogs - Single dispatch method
@@ -117,66 +116,47 @@ class EventCoordinator:
     def show_file_manager(self) -> None:
         """Show file manager dialog."""
         try:
-            downloads_folder = self.container.get("downloads_folder") or "~/Downloads"
-            status_bar = self.container.get("status_bar")
-
             def on_directory_change(path: str) -> None:
                 """Update downloads folder when user selects new path."""
-                self.container.register("downloads_folder", path, singleton=True)
+                # Note: In a perfect system, this would go through a config service
+                # For now, updating local state since this is UI-specific
+                self.downloads_folder = path
                 logger.info(f"[EVENT_COORDINATOR] Downloads folder updated to: {path}")
 
             FileManagerDialog(
                 self.root,
-                downloads_folder,
+                self.downloads_folder,
                 on_directory_change,
-                lambda msg: status_bar.show_message(msg) if status_bar else None,
+                None,  # No status bar dependency to keep it clean
             )
         except Exception as e:
             logger.error(f"[EVENT_COORDINATOR] Error showing file manager: {e}")
-            if self.error_handler:
-                self.error_handler.show_error(
-                    "File Manager Error", f"Failed to open file manager: {str(e)}"
-                )
+            self.error_handler.show_error(
+                "File Manager Error", f"Failed to open file manager: {str(e)}"
+            )
 
     def show_network_status(self) -> None:
         """Show network status dialog."""
-        network_checker = self.container.get("network_checker")
-        if not network_checker:
-            if self.error_handler:
-                self.error_handler.show_error(
-                    "Network Status", "Network checker not available"
-                )
-            return
-
         try:
-
-            NetworkStatusDialog(self.root, network_checker)
+            NetworkStatusDialog(self.root, self.network_checker)
         except Exception as e:
             logger.error(f"[EVENT_COORDINATOR] Error showing network status: {e}")
-            if self.error_handler:
-                self.error_handler.show_error(
-                    "Network Status Error",
-                    f"Failed to open network status dialog: {str(e)}",
-                )
+            self.error_handler.show_error(
+                "Network Status Error",
+                f"Failed to open network status dialog: {str(e)}",
+            )
 
     # Cookie Detection
     def cookie_detected(self, browser_type: str, cookie_path: str) -> None:
         """Handle cookie detection."""
-        cookie_handler = self.container.get("cookie_handler")
-        if not cookie_handler:
-            return
-
         try:
-            if not cookie_handler.set_cookie_file(cookie_path):
-                if self.error_handler:
-                    self.error_handler.show_error(
-                        "Cookie Error", "Failed to load cookie file"
-                    )
+            if not self.cookie_handler.set_cookie_file(cookie_path):
+                self.error_handler.show_error(
+                    "Cookie Error", "Failed to load cookie file"
+                )
                 return
 
-            status_bar = self.container.get("status_bar")
-            if status_bar:
-                status_bar.show_message(f"Cookie loaded from {browser_type}")
+            logger.info(f"[EVENT_COORDINATOR] Cookie loaded from {browser_type}")
         except Exception as e:
             logger.error(f"[EVENT_COORDINATOR] Error handling cookie: {e}")
             if self.error_handler:
