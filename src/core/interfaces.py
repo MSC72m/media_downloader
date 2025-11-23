@@ -148,6 +148,30 @@ class IServiceFactory(ABC):
         pass
 
 
+class IAutoCookieManager(ABC):
+    """Interface for automatic cookie management."""
+
+    @abstractmethod
+    def initialize(self) -> Any:
+        """Initialize cookie manager."""
+        pass
+
+    @abstractmethod
+    def is_ready(self) -> bool:
+        """Check if cookies are ready."""
+        pass
+
+    @abstractmethod
+    def is_generating(self) -> bool:
+        """Check if cookies are being generated."""
+        pass
+
+    @abstractmethod
+    def get_cookies(self) -> Optional[str]:
+        """Get cookie file path."""
+        pass
+
+
 class IUIState(ABC):
     """Interface for UI state management."""
 

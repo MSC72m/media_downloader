@@ -3,14 +3,15 @@
 from typing import List, Optional
 
 from src.core.base.base_handler import BaseHandler
-from src.core.service_interfaces import (
+from src.core.interfaces import (
     IDownloadService,
     IServiceFactory,
     IAutoCookieManager,
     IFileService,
     IMessageQueue,
+    IUIState,
 )
-from src.core.models import Download, DownloadOptions
+from src.core.models import UIState, Download, DownloadOptions
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -23,15 +24,17 @@ class DownloadHandler(BaseHandler):
         self,
         download_service: IDownloadService,
         service_factory: IServiceFactory,
+        file_service: IFileService,
+        ui_state: UIState,
         auto_cookie_manager: Optional[IAutoCookieManager] = None,
-        file_service: Optional[IFileService] = None,
         message_queue: Optional[IMessageQueue] = None,
     ):
         super().__init__(message_queue)
         self.download_service = download_service
         self.service_factory = service_factory
-        self.auto_cookie_manager = auto_cookie_manager
         self.file_service = file_service
+        self.ui_state = ui_state
+        self.auto_cookie_manager = auto_cookie_manager
         self._initialized = False
 
     def initialize(self) -> None:
@@ -168,9 +171,7 @@ class DownloadHandler(BaseHandler):
                             f"[DOWNLOAD_HANDLER] Cookie info for yt-dlp: {cookie_info}"
                         )
 
-                # Get auto cookie manager from container
-                auto_cookie_manager = self.auto_cookie_manager
-
+                
                 # NOW create the downloader with the configured cookie_manager and browser
                 downloader = YouTubeDownloader(
                     quality=getattr(download, "quality", "720p"),
@@ -179,7 +180,7 @@ class DownloadHandler(BaseHandler):
                     video_only=getattr(download, "video_only", False),
                     format=getattr(download, "format", "video"),
                     cookie_manager=cookie_manager,
-                    auto_cookie_manager=auto_cookie_manager,
+                    auto_cookie_manager=self.auto_cookie_manager,
                     download_subtitles=getattr(download, "download_subtitles", False),
                     selected_subtitles=getattr(download, "selected_subtitles", None),
                     download_thumbnail=getattr(download, "download_thumbnail", True),
@@ -384,28 +385,10 @@ class DownloadHandler(BaseHandler):
 
         logger.info(f"[DOWNLOAD_HANDLER] Sanitizing filename: {download.name}")
 
-        # Get file service with fallback
-        file_service = self.container.get("file_service")
-
-        if not file_service:
-            logger.warning(
-                "[DOWNLOAD_HANDLER] file_service not available, using fallback sanitization"
-            )
-            base_name = download.name or "download"
-            base_name = re.sub(r'[<>:"/\\|?*]', "_", base_name)
-            base_name = base_name.strip()[:200]
-            # Don't add extension - downloader will add it
-            output_path = str(target_dir / base_name)
-            logger.info(
-                f"[DOWNLOAD_HANDLER] Output path (without extension): {output_path}"
-            )
-            return output_path
-
-        base_name = file_service.sanitize_filename(download.name or "download")
-
-        # Don't add extension here - the downloader will add the appropriate extension
+        # Use injected file service directly
+        base_name = self.file_service.clean_filename(download.name or "download")
+        # Don't add extension - downloader will add it
         output_path = str(target_dir / base_name)
-
         logger.info(
             f"[DOWNLOAD_HANDLER] Output path (without extension): {output_path}"
         )
@@ -451,20 +434,14 @@ class DownloadHandler(BaseHandler):
 
     def has_active_downloads(self) -> bool:
         """Check if there are active downloads."""
-        if service_controller := self.container.get("service_controller"):
-            if result := service_controller.has_active_downloads():
-                return result
-        return False
+        return self.download_service.has_downloads()
 
     def get_options(self) -> DownloadOptions:
         """Get current download options."""
-        if ui_state := self.container.get("ui_state"):
-            return DownloadOptions(
-                save_directory=getattr(ui_state, "download_directory", "~/Downloads")
-            )
-        return DownloadOptions()
+        return DownloadOptions(
+            save_directory=getattr(self.ui_state, "download_directory", "~/Downloads")
+        )
 
     def set_options(self, options: DownloadOptions) -> None:
         """Set download options."""
-        if ui_state := self.container.get("ui_state"):
-            ui_state.download_directory = options.save_directory
+        self.ui_state.download_directory = options.save_directory

@@ -1,14 +1,22 @@
-"""Simplified Application Orchestrator - Thin initialization layer."""
+"""Application Orchestrator - Clean dependency injection initialization."""
 
 import os
 from typing import Any
 
 import customtkinter as ctk
 
+from src.core.interfaces import (
+    IDownloadService,
+    IServiceFactory,
+    IFileService,
+    IMessageQueue,
+    IErrorHandler,
+    IAutoCookieManager,
+    ICookieHandler,
+    IMetadataService,
+    INetworkChecker,
+)
 from src.coordinators.error_handler import ErrorHandler
-from src.handlers.auth_handler import AuthenticationHandler
-from src.handlers.cookie_handler import CookieHandler
-from src.handlers.download_handler import DownloadHandler
 from src.handlers.network_checker import NetworkChecker
 from src.handlers.service_detector import ServiceDetector
 from src.services.cookies import CookieManager as AutoCookieManager
@@ -16,153 +24,96 @@ from src.services.detection.link_detector import LinkDetector
 from src.services.downloads import DownloadService, ServiceFactory
 from src.services.events.queue import MessageQueue
 from src.services.file import FileService
-from src.services.network.checker import check_all_services, check_internet_connection
 from src.services.youtube.cookie_detector import (
     CookieDetector,
 )
-from src.services.youtube.cookie_detector import (
-    CookieManager as OldCookieManager,
-)
 from src.services.youtube.metadata_service import YouTubeMetadataService
 from src.utils.logger import get_logger
-from src.utils.type_helpers import safe_cleanup
 
 from ..models import UIState
-from .container import ServiceContainer
+from .di_container import ServiceContainer
 
 logger = get_logger(__name__)
 
 
 class ApplicationOrchestrator:
-    """Simplified orchestrator - initializes services and coordinates via event coordinator.
+    """Clean orchestrator - proper dependency injection without container access.
 
     Responsibilities:
-    1. Initialize service container
-    2. Register all services and handlers
-    3. Create event coordinator
-    4. Provide simple API for UI
+    1. Configure dependency injection container
+    2. Create all services with proper dependencies
+    3. Create coordinators with injected dependencies
+    4. Initialize application components
 
     Does NOT:
-    - Contain business logic
-    - Duplicate handler logic
-    - Manage UI directly
+    - Access container after initialization
+    - Use string-based dependency lookup
+    - Mix initialization with runtime logic
     """
 
     def __init__(self, root_window: ctk.CTk):
         """Initialize orchestrator with root window."""
         self.root = root_window
 
-        # Initialize container and core state
-        self.container = ServiceContainer()
-        self.ui_state = UIState()
+        # Core state
         self.downloads_folder = os.path.expanduser("~/Downloads")
         os.makedirs(self.downloads_folder, exist_ok=True)
 
-        # Initialize message queue
-        self.message_queue = MessageQueue(root_window)
+        # Configure DI container - let it handle everything
+        self.container = ServiceContainer()
+        self._configure_dependencies()
 
-        # Register core services
-        self._register_core_services()
+        # Get components through container - no manual creation
+        self.event_coordinator = self.container.get(EventCoordinator)
 
-        # Initialize handlers
-        self._initialize_handlers()
-
-        # Create event coordinator (uses our new coordinator)
-        # Import here to avoid circular import
-        from src.coordinators.main_coordinator import EventCoordinator
-
-        self.event_coordinator = EventCoordinator(root_window, self.container)
-        self.container.register(
-            "event_coordinator", self.event_coordinator, singleton=True
-        )
-
-        # Initialize link detector
+        # Initialize link detection and background tasks
         self.link_detector = LinkDetector()
-
-        # Register link handlers after coordinator is created
-        self._register_link_handlers()
-
-        # Initialize auto cookie manager in background
         self._initialize_cookies_background()
 
         # UI components (set by main.py)
         self.ui_components: dict[str, Any] = {}
 
-        logger.info("[ORCHESTRATOR] Initialization complete")
+        logger.info("[ORCHESTRATOR] Clean initialization complete")
 
-    def _register_core_services(self) -> None:
-        """Register core services in container."""
-        logger.info("[ORCHESTRATOR] Registering core services")
+    def _configure_dependencies(self) -> None:
+        """Configure all dependency injection mappings - let container handle everything."""
+        logger.info("[ORCHESTRATOR] Configuring dependencies")
 
-        # Register singletons
-        self.container.register("ui_state", self.ui_state, singleton=True)
-        self.container.register("message_queue", self.message_queue, singleton=True)
-        self.container.register(
-            "downloads_folder", self.downloads_folder, singleton=True
-        )
+        # Register core values/state
+        self.container.register_singleton(lambda: self.root, name="root")
+        self.container.register_singleton(lambda: self.downloads_folder, name="downloads_folder")
+        self.container.register_singleton(lambda: self.ui_state, name="ui_state")
 
-        # Register error handler for centralized error display
-        error_handler = ErrorHandler(self.container)
-        self.container.register("error_handler", error_handler, singleton=True)
+        # Register interface implementations
+        self.container.register_singleton(IMessageQueue, MessageQueue)
+        self.container.register_singleton(IFileService, FileService)
+        self.container.register_singleton(ICookieHandler, CookieHandler)
+        self.container.register_singleton(IMetadataService, YouTubeMetadataService)
+        self.container.register_singleton(INetworkChecker, NetworkChecker)
+        self.container.register_singleton(IAutoCookieManager, AutoCookieManager)
+        self.container.register_singleton(IErrorHandler, ErrorHandler)
 
-        # Register service factories
-        self.container.register_factory("cookie_detector", lambda: CookieDetector())
-        self.container.register_factory(
-            "youtube_metadata", lambda: YouTubeMetadataService()
-        )
-        self.container.register_factory("network_checker", lambda: NetworkChecker())
-        self.container.register_factory("service_detector", lambda: ServiceDetector())
-        self.container.register_factory("file_service", lambda: FileService())
+        # Register service implementations
+        self.container.register_singleton(ServiceFactory)
+        self.container.register_singleton(DownloadService)
+        self.container.register_singleton(ServiceDetector)
 
-        # Initialize new auto-generating cookie manager (don't initialize yet)
-        auto_cookie_manager = AutoCookieManager()
-        self.container.register(
-            "auto_cookie_manager", auto_cookie_manager, singleton=True
-        )
+        # Handlers are auto-registered via @auto_register_handler decorators
+        # The link detector will register all handlers automatically
 
-        # Keep old cookie manager for backward compatibility during transition
-        old_cookie_manager = OldCookieManager()
-        old_cookie_manager.initialize()
-        self.container.register("cookie_manager", old_cookie_manager, singleton=True)
+        # Register coordinators - container will create with all dependencies
+        from src.coordinators.main_coordinator import EventCoordinator
+        self.container.register_singleton(EventCoordinator)
 
-        # Initialize service factory and download service (use old manager for now)
-        service_factory = ServiceFactory(old_cookie_manager)
-        download_service = DownloadService(service_factory)
+        # Register factories
+        self.container.register_factory(CookieDetector)
+        self.container.register_factory(LinkDetector)
 
-        self.container.register("service_factory", service_factory, singleton=True)
-        self.container.register("download_service", download_service, singleton=True)
+        # Validate everything can be resolved
+        self.container.validate_dependencies()
+        logger.info("[ORCHESTRATOR] Dependencies configured and validated")
 
-        logger.info("[ORCHESTRATOR] Core services registered")
-
-    def _initialize_handlers(self) -> None:
-        """Initialize and register all handlers."""
-        logger.info("[ORCHESTRATOR] Initializing handlers")
-
-        # Create handlers
-        cookie_manager = self.container.get("cookie_manager")
-        cookie_handler = CookieHandler(cookie_manager)
-
-        auth_handler = AuthenticationHandler(self._create_simple_auth_manager())
-        auth_handler.initialize()
-
-        download_handler = DownloadHandler(self.container)
-        download_handler.initialize()
-
-        network_checker = NetworkChecker()
-        network_checker.initialize()
-
-        service_detector = ServiceDetector()
-        service_detector.initialize()
-
-        # Register handlers in container
-        self.container.register("cookie_handler", cookie_handler, singleton=True)
-        self.container.register("auth_handler", auth_handler, singleton=True)
-        self.container.register("download_handler", download_handler, singleton=True)
-        self.container.register("network_checker", network_checker, singleton=True)
-        self.container.register("service_detector", service_detector, singleton=True)
-
-        logger.info("[ORCHESTRATOR] Handlers initialized and registered")
-
+    
     def _initialize_cookies_background(self) -> None:
         """Initialize cookies in background thread to not block startup."""
         import threading
@@ -170,74 +121,41 @@ class ApplicationOrchestrator:
         def init_cookies():
             """Background task to initialize cookies."""
             try:
-                auto_cookie_manager = self.container.get("auto_cookie_manager")
-                if not auto_cookie_manager:
-                    logger.warning("[ORCHESTRATOR] Auto cookie manager not found")
-                    return
-
                 logger.info("[ORCHESTRATOR] Starting background cookie initialization")
 
-                # Show status to user if status bar available
-                status_bar = self.container.get("status_bar")
-                if status_bar:
-                    status_bar.show_message("Initializing YouTube cookies...")
-
                 # Initialize cookies (sync version)
-                state = auto_cookie_manager.initialize()
+                state = self.auto_cookie_manager.initialize()
 
                 if state.is_valid:
                     logger.info("[ORCHESTRATOR] Cookies initialized successfully")
-                    if status_bar:
-                        status_bar.show_message("YouTube cookies ready")
                 elif state.error_message:
                     logger.error(
                         f"[ORCHESTRATOR] Cookie initialization failed: {state.error_message}"
                     )
 
                     # Check if it's a Playwright installation issue
-                    if (
-                        "Playwright is not installed" in state.error_message
-                        or "playwright" in state.error_message.lower()
-                    ):
-                        # Show critical error dialog
-                        error_handler = self.container.get("error_handler")
-                        if error_handler:
-                            error_message = (
+                    if "Playwright is not installed" in state.error_message:
+                        error_message = (
                                 "CRITICAL: Playwright is not installed!\n\n"
                                 "The auto-cookie generation system requires Playwright to function.\n"
                                 "Without it, age-restricted YouTube videos will fail to download.\n\n"
                                 "To fix this, run the following commands:\n\n"
                                 "  pip install playwright\n"
                                 "  playwright install chromium\n\n"
-                                "Then restart the application.\n\n"
-                                "The app will continue to run, but YouTube downloads may fail for restricted content."
-                            )
-                            self.root.after(
-                                1000,
-                                lambda: error_handler.show_error(
-                                    "Playwright Not Installed - Action Required",
-                                    error_message,
-                                ),
-                            )
-
-                    if status_bar:
-                        status_bar.show_error(
-                            "Cookie system unavailable - Install Playwright!"
+                                "Then restart the application."
+                        )
+                        self.root.after(
+                            2000,
+                            lambda: self.error_handler.show_error(
+                                "Playwright Not Installed - Action Required",
+                                error_message,
+                            ),
                         )
                 else:
-                    logger.warning(
-                        "[ORCHESTRATOR] Cookies not valid after initialization"
-                    )
-                    if status_bar:
-                        status_bar.show_message("YouTube cookies not available")
+                    logger.warning("[ORCHESTRATOR] Cookies not valid after initialization")
 
             except Exception as e:
-                logger.error(
-                    f"[ORCHESTRATOR] Error initializing cookies: {e}", exc_info=True
-                )
-                status_bar = self.container.get("status_bar")
-                if status_bar:
-                    status_bar.show_error("Failed to initialize cookies")
+                logger.error(f"[ORCHESTRATOR] Error initializing cookies: {e}", exc_info=True)
 
         # Start background thread
         thread = threading.Thread(target=init_cookies, daemon=True, name="CookieInit")
@@ -523,35 +441,15 @@ class ApplicationOrchestrator:
         """Show network status dialog."""
         self.event_coordinator.show_network_status()
 
-    def handle_cookie_detected(self, browser_type: str, cookie_path: str) -> None:
-        """Handle cookie detection callback from UI."""
-        self.event_coordinator.cookie_detected(browser_type, cookie_path)
-
-    def handle_cookie_manual_select(self) -> None:
-        """Handle manual cookie selection callback from UI."""
-        cookie_path = self.event_coordinator.browse_files(["txt", "cookies"])
-        if cookie_path:
-            self.event_coordinator.cookie_detected("manual", cookie_path)
-
-    def get_service(self, service_name: str):
-        """Get a service from the container."""
-        return self.container.get(service_name)
-
+    
     def cleanup(self) -> None:
         """Clean up all services."""
         try:
             logger.info("[ORCHESTRATOR] Cleaning up services")
 
-            # Clean up handlers using type-safe helper
-            for handler_name in [
-                "cookie_handler",
-                "auth_handler",
-                "download_handler",
-                "network_checker",
-            ]:
-                handler = self.container.get(handler_name)
-                if handler:
-                    safe_cleanup(handler)
+            # Clean up main components with direct cleanup calls
+            if hasattr(self.event_coordinator, 'cleanup'):
+                self.event_coordinator.cleanup()
 
             # Clear container
             self.container.clear()

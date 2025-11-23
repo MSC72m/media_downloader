@@ -3,13 +3,12 @@
 import re
 from typing import Any, Callable, Dict, Optional
 
-from src.core.application.di_container import get_container
 from src.core.base.base_handler import BaseHandler
-from src.core.service_interfaces import (
+from src.core.interfaces import (
     IAutoCookieManager,
     ICookieHandler,
     IMessageQueue,
-    IYouTubeMetadataService,
+    IMetadataService,
 )
 from src.services.detection.link_detector import (
     DetectionResult,
@@ -45,7 +44,7 @@ class YouTubeHandler(BaseHandler, LinkHandlerInterface):
     def __init__(
         self,
         cookie_handler: ICookieHandler,
-        metadata_service: IYouTubeMetadataService,
+        metadata_service: IMetadataService,
         auto_cookie_manager: IAutoCookieManager,
         message_queue: IMessageQueue,
     ):

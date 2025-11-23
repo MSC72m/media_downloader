@@ -75,12 +75,8 @@ class InstagramHandler(LinkHandlerInterface):
             )
             logger.info(f"[INSTAGRAM_HANDLER] UI context: {ui_context}")
 
-            # Get container and root using type-safe helpers
-            container = get_container(ui_context)
+            # Get root using type-safe helper
             root = get_root(ui_context)
-
-            logger.info(f"[INSTAGRAM_HANDLER] Container: {container}")
-            logger.info(f"[INSTAGRAM_HANDLER] Root: {root}")
 
             # Get download callback using type-safe helper
             download_callback = get_platform_callback(ui_context, "instagram")
