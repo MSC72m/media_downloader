@@ -1,13 +1,6 @@
 """Core application modules - shared primitives and application infrastructure."""
 
 # Models - All domain models
-from .application.di_container import ServiceContainer
-
-# Application infrastructure
-from .application.orchestrator import ApplicationOrchestrator
-
-# Base classes
-from .base import BaseDownloader
 from .models import (
     AuthState,
     ButtonState,
@@ -19,6 +12,22 @@ from .models import (
     ServiceType,
     UIState,
 )
+
+# Base classes
+from .interfaces import BaseDownloader  # BaseDownloader from interfaces.py
+from .base.base_handler import BaseHandler  # Handler classes from base/ package
+from .base.user_notifier import BaseUserNotifier
+
+# Application infrastructure - lazy import to avoid circular dependencies
+def get_service_container():
+    """Get service container - lazy import to avoid circular dependencies."""
+    from .application.di_container import ServiceContainer
+    return ServiceContainer
+
+def get_application_orchestrator():
+    """Get application orchestrator - lazy import to avoid circular dependencies."""
+    from .application.orchestrator import ApplicationOrchestrator
+    return ApplicationOrchestrator
 
 __all__ = [
     # Models
@@ -33,7 +42,7 @@ __all__ = [
     "DownloadResult",
     # Base
     "BaseDownloader",
-    # Application
-    "ApplicationOrchestrator",
-    "ServiceContainer",
+    # Application factories (lazy)
+    "get_service_container",
+    "get_application_orchestrator",
 ]

@@ -1,6 +1,4 @@
 from typing import Any, Callable, Optional, TypeVar
-
-from src.core.application.container import ServiceContainer
 from src.interfaces.protocols import (
     HasCleanupProtocol,
     HasClearProtocol,
@@ -39,17 +37,19 @@ def get_ui_context(ui_context: Any) -> Optional[UIContextProtocol]:
     return None
 
 
-def get_container(ui_context: Any) -> Optional[ServiceContainer]:
-    """Safely extract container from UI context.
+def get_container(ui_context: Any) -> Optional[Any]:
+    """Safely extract container from UI context - DEPRECATED.
+
+    This function is deprecated and should be removed.
+    Container access should not be needed in handlers.
 
     Args:
         ui_context: UI context object
 
     Returns:
-        ServiceContainer if available, None otherwise
+        None always - this function is deprecated
     """
-    if ctx := get_ui_context(ui_context):
-        return ctx.container
+    logger.warning("[TYPE_HELPER] get_container() is deprecated and should not be used")
     return None
 
 

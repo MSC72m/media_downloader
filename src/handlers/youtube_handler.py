@@ -179,9 +179,9 @@ class YouTubeHandler(BaseHandler, LinkHandlerInterface):
 
                         # Fetch metadata first for proper default naming
                         track_name = "YouTube Music"
-                        if metadata_service:
+                        if self.metadata_service:
                             try:
-                                metadata = metadata_service.fetch_metadata(url)
+                                metadata = self.metadata_service.fetch_metadata(url)
                                 if metadata and metadata.title:
                                     track_name = metadata.title
                                     logger.info(
@@ -235,16 +235,13 @@ class YouTubeHandler(BaseHandler, LinkHandlerInterface):
                             f"[YOUTUBE_HANDLER] Failed to create music download: {e}",
                             exc_info=True,
                         )
-                        # Show error to user
+                        # Show error to user using injected message queue
                         try:
                             from src.core.enums.message_level import MessageLevel
                             from src.services.events.queue import Message
 
-                            message_queue = (
-                                container.get("message_queue") if container else None
-                            )
-                            if message_queue:
-                                message_queue.add_message(
+                            if self.message_queue:
+                                self.message_queue.add_message(
                                     Message(
                                         text=f"Failed to add YouTube Music download: {str(e)}",
                                         level=MessageLevel.ERROR,
@@ -267,28 +264,26 @@ class YouTubeHandler(BaseHandler, LinkHandlerInterface):
 
                     # Get auto-generated cookies if available
                     cookie_path = None
-                    if container:
-                        auto_cookie_manager = container.get("auto_cookie_manager")
-                        if auto_cookie_manager and auto_cookie_manager.is_ready():
-                            try:
-                                cookie_path = auto_cookie_manager.get_cookies()
-                                logger.info(
-                                    f"[YOUTUBE_HANDLER] Using auto-generated cookies: {cookie_path}"
-                                )
-                            except Exception as cookie_error:
-                                logger.warning(
-                                    f"[YOUTUBE_HANDLER] Failed to get auto cookies: {cookie_error}"
-                                )
-                        else:
-                            logger.warning(
-                                "[YOUTUBE_HANDLER] Auto cookies not ready yet"
+                    if self.auto_cookie_manager and self.auto_cookie_manager.is_ready():
+                        try:
+                            cookie_path = self.auto_cookie_manager.get_cookies()
+                            logger.info(
+                                f"[YOUTUBE_HANDLER] Using auto-generated cookies: {cookie_path}"
                             )
+                        except Exception as cookie_error:
+                            logger.warning(
+                                f"[YOUTUBE_HANDLER] Failed to get auto cookies: {cookie_error}"
+                            )
+                    else:
+                        logger.warning(
+                            "[YOUTUBE_HANDLER] Auto cookies not ready yet"
+                        )
 
                     YouTubeDownloaderDialog(
                         root,
                         url=url,
-                        cookie_handler=cookie_handler,
-                        metadata_service=metadata_service,
+                        cookie_handler=self.cookie_handler,
+                        metadata_service=self.metadata_service,
                         on_download=download_callback,
                         pre_fetched_metadata=None,
                         initial_cookie_path=cookie_path,

@@ -4,7 +4,15 @@ from typing import Optional
 
 import customtkinter as ctk
 
-from src.core.interfaces import IErrorHandler, IDownloadHandler, IFileService, INetworkChecker, ICookieHandler
+from src.core.interfaces import (
+    IErrorHandler,
+    IDownloadHandler,
+    IFileService,
+    INetworkChecker,
+    ICookieHandler,
+    IDownloadService,
+    IMessageQueue,
+)
 from src.services.detection.link_detector import LinkDetector
 from src.services.events.event_bus import DownloadEventBus
 from src.ui.dialogs.file_manager_dialog import FileManagerDialog
@@ -34,7 +42,9 @@ class EventCoordinator:
 
     def __init__(self, root_window: ctk.CTk, error_handler: IErrorHandler,
                  download_handler: IDownloadHandler, file_service: IFileService,
-                 network_checker: INetworkChecker, cookie_handler: ICookieHandler, downloads_folder: str):
+                 network_checker: INetworkChecker, cookie_handler: ICookieHandler,
+                 download_service: IDownloadService, message_queue: Optional[IMessageQueue] = None,
+                 downloads_folder: str = "~/Downloads"):
         """Initialize with proper dependency injection."""
         self.root = root_window
         self.error_handler = error_handler
@@ -42,6 +52,8 @@ class EventCoordinator:
         self.file_service = file_service
         self.network_checker = network_checker
         self.cookie_handler = cookie_handler
+        self.download_service = download_service
+        self.message_queue = message_queue
         self.downloads_folder = downloads_folder
 
         # Event bus for download events
@@ -51,7 +63,13 @@ class EventCoordinator:
         self.link_detector = LinkDetector()
 
         # Create focused coordinators with injected dependencies
-        self.downloads = DownloadCoordinator(self.event_bus, download_handler, error_handler, download_service)
+        self.downloads = DownloadCoordinator(
+            event_bus=self.event_bus,
+            download_handler=download_handler,
+            error_handler=self.error_handler,
+            download_service=self.download_service,
+            message_queue=self.message_queue,
+        )
         self.platform_dialogs = PlatformDialogCoordinator(root_window, error_handler, cookie_handler)
 
         logger.info("[EVENT_COORDINATOR] Initialized with constructor injection")

@@ -1,7 +1,6 @@
 """Handler implementations for the media downloader application."""
 
 # Application handlers - imported first to avoid circular imports
-from .auth_handler import AuthenticationHandler
 from .cookie_handler import CookieHandler
 from .download_handler import DownloadHandler
 from .network_checker import NetworkChecker
@@ -59,7 +58,6 @@ def __getattr__(name):
 __all__ = [
     # Application handlers
     "DownloadHandler",
-    "AuthenticationHandler",
     "ServiceDetector",
     "NetworkChecker",
     "CookieHandler",

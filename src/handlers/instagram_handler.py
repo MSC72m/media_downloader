@@ -10,7 +10,6 @@ from src.services.detection.link_detector import (
 )
 from src.utils.logger import get_logger
 from src.utils.type_helpers import (
-    get_container,
     get_platform_callback,
     get_root,
     schedule_on_main_thread,

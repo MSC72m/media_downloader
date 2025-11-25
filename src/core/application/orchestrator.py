@@ -7,6 +7,7 @@ import customtkinter as ctk
 
 from src.core.interfaces import (
     IDownloadService,
+    IDownloadHandler,
     IServiceFactory,
     IFileService,
     IMessageQueue,
@@ -15,6 +16,7 @@ from src.core.interfaces import (
     ICookieHandler,
     IMetadataService,
     INetworkChecker,
+    IUIState,
 )
 from src.coordinators.error_handler import ErrorHandler
 from src.handlers.network_checker import NetworkChecker
@@ -26,8 +28,11 @@ from src.services.events.queue import MessageQueue
 from src.services.file import FileService
 from src.services.youtube.cookie_detector import (
     CookieDetector,
+    ICookieDetector,
 )
 from src.services.youtube.metadata_service import YouTubeMetadataService
+from src.handlers.cookie_handler import CookieHandler
+from src.handlers.download_handler import DownloadHandler
 from src.utils.logger import get_logger
 
 from ..models import UIState
@@ -58,16 +63,15 @@ class ApplicationOrchestrator:
         # Core state
         self.downloads_folder = os.path.expanduser("~/Downloads")
         os.makedirs(self.downloads_folder, exist_ok=True)
+        self.ui_state = UIState()
 
         # Configure DI container - let it handle everything
         self.container = ServiceContainer()
         self._configure_dependencies()
 
-        # Get components through container - no manual creation
-        self.event_coordinator = self.container.get(EventCoordinator)
-
         # Initialize link detection and background tasks
         self.link_detector = LinkDetector()
+        self._import_link_handlers()  # Import handlers to trigger auto-registration decorators
         self._initialize_cookies_background()
 
         # UI components (set by main.py)
@@ -79,43 +83,90 @@ class ApplicationOrchestrator:
         """Configure all dependency injection mappings - let container handle everything."""
         logger.info("[ORCHESTRATOR] Configuring dependencies")
 
-        # Register core values/state
-        self.container.register_singleton(lambda: self.root, name="root")
-        self.container.register_singleton(lambda: self.downloads_folder, name="downloads_folder")
-        self.container.register_singleton(lambda: self.ui_state, name="ui_state")
+        # Register core instances
+        # Note: Some values like root are passed directly where needed
 
         # Register interface implementations
-        self.container.register_singleton(IMessageQueue, MessageQueue)
+        self.container.register_factory(IMessageQueue, lambda: MessageQueue(None))
         self.container.register_singleton(IFileService, FileService)
         self.container.register_singleton(ICookieHandler, CookieHandler)
         self.container.register_singleton(IMetadataService, YouTubeMetadataService)
         self.container.register_singleton(INetworkChecker, NetworkChecker)
         self.container.register_singleton(IAutoCookieManager, AutoCookieManager)
+        self.container.register_singleton(IUIState, UIState)
+        self.container.register_singleton(UIState, UIState)
+        self.container.register_singleton(IDownloadHandler, DownloadHandler)
 
         # ErrorHandler needs message_queue injected
-        self.container.register_factory(IErrorHandler, ErrorHandler)
+        def create_error_handler():
+            from src.coordinators.error_handler import ErrorHandler
+            message_queue = self.container.get(IMessageQueue)
+            return ErrorHandler(message_queue)
+
+        self.container.register_factory(IErrorHandler, create_error_handler)
 
         # Register service implementations
-        self.container.register_singleton(ServiceFactory)
-        self.container.register_singleton(DownloadService)
+        def create_service_factory():
+            from src.services.downloads import ServiceFactory
+            cookie_manager = self.container.get(IAutoCookieManager)
+            return ServiceFactory(cookie_manager)
+
+        self.container.register_singleton(IServiceFactory, create_service_factory)
+
+        def create_download_service():
+            from src.services.downloads import DownloadService
+            service_factory = self.container.get(IServiceFactory)
+            return DownloadService(service_factory)
+
+        self.container.register_singleton(IDownloadService, create_download_service)
         self.container.register_singleton(ServiceDetector)
 
         # Handlers are auto-registered via @auto_register_handler decorators
         # The link detector will register all handlers automatically
 
-        # Register coordinators - container will create with all dependencies
+        # Register coordinators - import EventCoordinator first
         from src.coordinators.main_coordinator import EventCoordinator
-        self.container.register_singleton(EventCoordinator)
 
-        # Register factories
-        self.container.register_factory(CookieDetector)
-        self.container.register_factory(LinkDetector)
+        def create_event_coordinator():
+            return EventCoordinator(
+                root_window=self.root,
+                error_handler=self.container.get(IErrorHandler),
+                download_handler=self.container.get(IDownloadHandler),
+                file_service=self.container.get(IFileService),
+                network_checker=self.container.get(INetworkChecker),
+                cookie_handler=self.container.get(ICookieHandler),
+                download_service=self.container.get(IDownloadService),
+                message_queue=self.container.get(IMessageQueue),
+                downloads_folder=self.downloads_folder
+            )
+
+        self.container.register_singleton(EventCoordinator, create_event_coordinator)
+
+        # Register detector services
+        self.container.register_singleton(ICookieDetector, CookieDetector)
+        self.container.register_singleton(LinkDetector, LinkDetector)
 
         # Validate everything can be resolved
         self.container.validate_dependencies()
         logger.info("[ORCHESTRATOR] Dependencies configured and validated")
 
     
+    @property
+    def auto_cookie_manager(self) -> IAutoCookieManager:
+        """Get auto cookie manager from container."""
+        return self.container.get(IAutoCookieManager)
+
+    @property
+    def error_handler(self) -> IErrorHandler:
+        """Get error handler from container."""
+        return self.container.get(IErrorHandler)
+
+    @property
+    def event_coordinator(self) -> 'EventCoordinator':
+        """Get event coordinator from container."""
+        from src.coordinators.main_coordinator import EventCoordinator
+        return self.container.get(EventCoordinator)
+
     def _initialize_cookies_background(self) -> None:
         """Initialize cookies in background thread to not block startup."""
         import threading
@@ -306,18 +357,23 @@ class ApplicationOrchestrator:
 
         return InstagramAuthManager(self)
 
-    def _register_link_handlers(self) -> None:
-        """Register link handlers for URL detection."""
+    def _import_link_handlers(self) -> None:
+        """Import link handler modules to trigger auto-registration decorators."""
         try:
-            from src.handlers import _register_link_handlers
+            # Import handler modules to trigger @auto_register_handler decorators
+            # The decorators will automatically register each handler with the LinkDetectionRegistry
+            from src.handlers import (
+                youtube_handler,
+                instagram_handler,
+                twitter_handler,
+                pinterest_handler,
+                soundcloud_handler,
+            )
 
-            handlers = _register_link_handlers()
-            logger.info(f"[ORCHESTRATOR] Registered {len(handlers)} link handlers")
-            for handler in handlers:
-                logger.info(f"[ORCHESTRATOR] - {handler.__name__}")
+            logger.info("[ORCHESTRATOR] Link handler modules imported - auto-registration triggered")
         except Exception as e:
             logger.error(
-                f"[ORCHESTRATOR] Failed to register link handlers: {e}", exc_info=True
+                f"[ORCHESTRATOR] Failed to import link handler modules: {e}", exc_info=True
             )
 
     def set_ui_components(self, **components) -> None:
@@ -326,9 +382,8 @@ class ApplicationOrchestrator:
 
         self.ui_components.update(components)
 
-        # Register UI components in container
-        for name, component in components.items():
-            self.container.register(name, component)
+        # UI components are stored in self.ui_components for reference
+        # No need to register them in DI container as they're not dependency injected
 
         # Refresh event coordinator handlers (so it picks up UI components)
         self.event_coordinator.refresh_handlers()
@@ -337,107 +392,40 @@ class ApplicationOrchestrator:
 
     # Convenience methods for UI
     def check_connectivity(self) -> None:
-        """Check network connectivity at startup - fast and non-blocking."""
+        """Check network connectivity at startup - delegate to event coordinator."""
         logger.info("[ORCHESTRATOR] Starting connectivity check")
 
-        # Ensure event coordinator and UI components are ready
+        # Ensure event coordinator is ready
         if not self.event_coordinator:
             logger.error("[ORCHESTRATOR] Event coordinator not initialized")
             return
 
-        # Update status bar - show ready immediately for better UX
-        status_bar = self.event_coordinator.container.get("status_bar")
-        if status_bar:
-            # Show ready immediately - don't block UI waiting for network
-            status_bar.show_message("Ready - Checking connectivity in background...")
-
-        # Run quick connectivity check in background
-        def connectivity_worker():
-            """Worker function to check connectivity in background."""
-            try:
-                # Quick check - just verify internet, skip detailed service checks
-                internet_connected, error_msg = check_internet_connection()
-
-                if internet_connected:
-                    # Internet works - assume services are OK, update status
-                    if status_bar:
-                        status_bar.show_message("Ready - All services connected")
-                    logger.info(
-                        "[ORCHESTRATOR] Internet connected - services assumed OK"
-                    )
-                else:
-                    # Only if internet fails, show error
-                    if status_bar:
-                        status_bar.show_error(f"No internet connection: {error_msg}")
-                    logger.warning(f"[ORCHESTRATOR] Internet check failed: {error_msg}")
-
-            except Exception as e:
-                logger.error(
-                    f"[ORCHESTRATOR] Error in connectivity check: {e}",
-                    exc_info=True,
-                )
-                # Don't block UI on error - just log it
-                if status_bar:
-                    status_bar.show_message("Ready - Connectivity check failed")
-
-        # Start background thread
-        import threading
-
-        thread = threading.Thread(
-            target=connectivity_worker, daemon=True, name="ConnectivityCheck"
-        )
-        thread.start()
-        logger.info("[ORCHESTRATOR] Connectivity check started in background thread")
+        # Delegate to event coordinator - it handles UI components
+        self.event_coordinator.check_connectivity()
 
     def _handle_connectivity_check(
         self, internet_connected: bool, error_msg: str, problem_services: list
     ) -> None:
-        """Handle connectivity check results."""
+        """Handle connectivity check results - delegate to event coordinator."""
         logger.info("[ORCHESTRATOR] Handling connectivity check results - START")
         logger.info(
             f"[ORCHESTRATOR] internet_connected={internet_connected}, problem_services={problem_services}"
         )
 
         try:
-            if not internet_connected:
-                logger.warning(f"[ORCHESTRATOR] No internet connection: {error_msg}")
-                # Use status bar only - no error dialogs
-                status_message = "Network connectivity issues detected"
-                if error_msg:
-                    status_message += f": {error_msg}"
-                status_bar = self.event_coordinator.container.get("status_bar")
-                if status_bar:
-                    status_bar.show_error(status_message)
-            elif problem_services:
-                problem_list = ", ".join([str(s) for s in problem_services])
-                logger.warning(f"[ORCHESTRATOR] Problem services: {problem_list}")
-                # Use status bar only - no warning dialogs
-                status_bar = self.event_coordinator.container.get("status_bar")
-                if status_bar:
-                    status_bar.show_error(f"Connection issues with: {problem_list}")
-            else:
-                logger.info("[ORCHESTRATOR] All services connected successfully")
-                logger.info(
-                    "[ORCHESTRATOR] *** STATUS: Ready - All services connected ***"
+            # Delegate to event coordinator - it handles UI updates
+            if self.event_coordinator:
+                self.event_coordinator.handle_connectivity_results(
+                    internet_connected, error_msg, problem_services
                 )
-                status_bar = self.event_coordinator.container.get("status_bar")
-                if status_bar:
-                    status_bar.show_message("Ready - All services connected")
+            else:
+                logger.warning("[ORCHESTRATOR] Event coordinator not available for connectivity results")
 
             logger.info("[ORCHESTRATOR] Connectivity check handling complete")
         except Exception as e:
             logger.error(
                 f"[ORCHESTRATOR] Error handling connectivity check: {e}", exc_info=True
             )
-            # Fallback to simple status update - DISABLED TO PREVENT CRASH
-            try:
-                status_bar = self.event_coordinator.container.get("status_bar")
-                if status_bar:
-                    status_bar.show_message("Ready")
-            except Exception as update_error:
-                logger.error(
-                    f"[ORCHESTRATOR] Failed fallback status update: {update_error}"
-                )
 
     def show_network_status(self) -> None:
         """Show network status dialog."""

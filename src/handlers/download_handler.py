@@ -1,10 +1,11 @@
 """Concrete implementation of download handler."""
 
-from typing import List, Optional
+from typing import List, Optional, Callable
 
 from src.core.base.base_handler import BaseHandler
 from src.core.interfaces import (
     IDownloadService,
+    IDownloadHandler,
     IServiceFactory,
     IAutoCookieManager,
     IFileService,
@@ -17,7 +18,7 @@ from src.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-class DownloadHandler(BaseHandler):
+class DownloadHandler(BaseHandler, IDownloadHandler):
     """Download handler with proper dependency injection."""
 
     def __init__(
@@ -445,3 +446,70 @@ class DownloadHandler(BaseHandler):
     def set_options(self, options: DownloadOptions) -> None:
         """Set download options."""
         self.ui_state.download_directory = options.save_directory
+
+    # IDownloadHandler interface implementation
+    def process_url(self, url: str, options: Optional[dict] = None) -> bool:
+        """Process a URL for download."""
+        try:
+            from src.core.models import Download
+
+            # Create download from URL
+            download = Download(
+                url=url,
+                name=self._extract_name_from_url(url),
+                service_type=self._detect_service_type(url)
+            )
+
+            # Add to download service
+            self.download_service.add_download(download)
+            logger.info(f"[DOWNLOAD_HANDLER] Added download: {url}")
+            return True
+
+        except Exception as e:
+            logger.error(f"[DOWNLOAD_HANDLER] Failed to process URL {url}: {e}")
+            return False
+
+    def handle_download_error(self, error: Exception) -> None:
+        """Handle download errors."""
+        logger.error(f"[DOWNLOAD_HANDLER] Download error: {error}")
+
+        # Show error message if message queue is available
+        if self.message_queue:
+            try:
+                from src.services.events.queue import Message
+                from src.core.enums.message_level import MessageLevel
+
+                self.message_queue.add_message(
+                    Message(
+                        text=f"Download failed: {str(error)}",
+                        level=MessageLevel.ERROR,
+                        title="Download Error"
+                    )
+                )
+            except Exception as msg_error:
+                logger.error(f"[DOWNLOAD_HANDLER] Failed to show error message: {msg_error}")
+
+    def is_available(self) -> bool:
+        """Check if handler is available."""
+        return self._initialized and self.download_service is not None
+
+    def _extract_name_from_url(self, url: str) -> str:
+        """Extract a default name from URL."""
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        return parsed.netloc or "download"
+
+    def _detect_service_type(self, url: str) -> str:
+        """Detect service type from URL."""
+        url_lower = url.lower()
+        if "youtube.com" in url_lower or "youtu.be" in url_lower:
+            return "youtube"
+        elif "twitter.com" in url_lower or "x.com" in url_lower:
+            return "twitter"
+        elif "instagram.com" in url_lower:
+            return "instagram"
+        elif "pinterest.com" in url_lower:
+            return "pinterest"
+        elif "soundcloud.com" in url_lower:
+            return "soundcloud"
+        return "unknown"

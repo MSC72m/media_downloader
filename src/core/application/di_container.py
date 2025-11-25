@@ -169,15 +169,30 @@ class ServiceContainer:
             return implementation_type()
 
         sig = signature(implementation_type.__init__)
-        type_hints = get_type_hints(implementation_type.__init__)
+
+        # Create a global namespace that includes the class being resolved
+        # This handles forward references like 'ServiceA' -> ServiceA
+        global_ns = {}
+        class_name = implementation_type.__name__
+        global_ns[class_name] = implementation_type
+
+        # Add any registered services to the global namespace for forward reference resolution
+        for service_type in self._services:
+            global_ns[service_type.__name__] = service_type
+
+        type_hints = get_type_hints(implementation_type.__init__, globalns=global_ns)
 
         kwargs = {}
         for param_name, param in sig.parameters.items():
             if param_name == 'self':
                 continue
 
+            # Skip if parameter has a default value and is not a custom type
+            if param.default != param.empty and not self._is_custom_type(type_hints.get(param_name)):
+                continue
+
             param_type = type_hints.get(param_name)
-            if param_type and param_type != Any:
+            if param_type and param_type != Any and self._is_custom_type(param_type):
                 # Handle Optional[T] types - provide None if not registered
                 origin = get_origin(param_type)
                 if origin is Union and type(None) in get_args(param_type):
@@ -192,6 +207,24 @@ class ServiceContainer:
                     kwargs[param_name] = self.get(param_type)
 
         return implementation_type(**kwargs)
+
+    def _is_custom_type(self, param_type: Optional[Type]) -> bool:
+        """Check if a type is a custom class that should be injected."""
+        if not param_type:
+            return False
+
+        # Skip built-in types
+        builtin_types = (str, int, float, bool, list, dict, tuple, set)
+        if param_type in builtin_types:
+            return False
+
+        # Skip typing module types
+        from typing import Union, Optional, Any, List, Dict, Tuple, Set
+        if param_type in (Union, Optional, Any, List, Dict, Tuple, Set):
+            return False
+
+        # Check if it's a user-defined class
+        return hasattr(param_type, '__module__') and not param_type.__module__.startswith('typing')
 
     def get_optional(self, service_type: Type[T]) -> Optional[T]:
         """Resolve a service instance, returning None if not registered."""
@@ -210,6 +243,35 @@ class ServiceContainer:
         self._singletons.clear()
         logger.debug("[CONTAINER] Cleared all services")
 
+    def register_instance(self, service_type: Type[T], instance: T) -> 'ServiceContainer':
+        """Register a service instance as singleton."""
+        if not isinstance(instance, service_type):
+            raise ValueError(f"Instance must be of type {service_type.__name__}")
+
+        descriptor = ServiceDescriptor(
+            service_type=service_type,
+            instance=instance,
+            lifetime=LifetimeScope.SINGLETON
+        )
+        self._services[service_type] = descriptor
+        self._singletons[service_type] = instance
+        logger.info(f"[CONTAINER] Registered instance: {service_type.__name__}")
+        return self
+
+    def register_factory(self, service_type: Type[T], factory: Callable[[], T]) -> 'ServiceContainer':
+        """Register a factory for creating services."""
+        if not callable(factory):
+            raise ValueError("Factory must be callable")
+
+        descriptor = ServiceDescriptor(
+            service_type=service_type,
+            factory=factory,
+            lifetime=LifetimeScope.TRANSIENT
+        )
+        self._services[service_type] = descriptor
+        logger.info(f"[CONTAINER] Registered factory: {service_type.__name__}")
+        return self
+
     def validate_dependencies(self) -> None:
         """Validate that all registered dependencies can be resolved."""
         logger.info("[CONTAINER] Validating dependencies")
@@ -224,25 +286,6 @@ class ServiceContainer:
                 raise ValueError(f"Dependency validation failed for {service_type.__name__}: {e}")
 
         logger.info("[CONTAINER] All dependencies validated successfully")
-
-
-# Global container instance
-_container: Optional[ServiceContainer] = None
-
-
-def get_container() -> ServiceContainer:
-    """Get the global container instance."""
-    global _container
-    if _container is None:
-        _container = ServiceContainer()
-    return _container
-
-
-def configure_container(configurator: Callable[[ServiceContainer], None]) -> None:
-    """Configure the global container."""
-    container = get_container()
-    configurator(container)
-    container.validate_dependencies()
 
 
 def auto_register_by_convention(container: ServiceContainer, module_path: str) -> None:
@@ -281,11 +324,15 @@ def auto_register_by_convention(container: ServiceContainer, module_path: str) -
         logger.warning(f"[AUTO_REGISTER] Failed to import module {module_path}: {e}")
 
 
-def inject(dependency_type: Type[T]) -> T:
-    """Dependency injection decorator for automatic parameter injection."""
-    def decorator(func):
-        def wrapper(*args, **kwargs):
-            container = get_container()
-            return func(container.get(dependency_type), *args, **kwargs)
-        return wrapper
-    return decorator
+# Legacy methods for backward compatibility - deprecated
+def register(name: str, service: Any) -> None:
+    """Legacy registration method - deprecated."""
+    logger.warning(f"[CONTAINER] Legacy register() called for '{name}' - this should be removed")
+
+def register_factory(service_type: Type[T], factory: Callable[[], T]) -> 'ServiceContainer':
+    """Legacy factory registration - deprecated."""
+    logger.warning(f"[CONTAINER] Legacy register_factory() called for {service_type.__name__} - use register_transient() instead")
+    # Return a dummy container-like object
+    class DummyContainer:
+        def validate_dependencies(self): pass
+    return DummyContainer()

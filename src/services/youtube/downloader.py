@@ -9,7 +9,7 @@ import yt_dlp
 from src.services.network.checker import check_site_connection
 from src.utils.logger import get_logger
 
-from ...core.base import BaseDownloader
+from ...core.interfaces import BaseDownloader
 from ...core.enums import ServiceType
 from ..file.sanitizer import FilenameSanitizer
 from .cookie_detector import CookieManager as OldCookieManager

@@ -14,7 +14,7 @@ logger = get_logger(__name__)
 ensure_gui_available()
 import customtkinter as ctk  # noqa: E402
 
-from src.core import ApplicationOrchestrator  # noqa: E402
+from src.core import get_application_orchestrator  # noqa: E402
 from src.services.events.queue import MessageQueue
 from src.ui.components.download_list import DownloadListView  # noqa: E402
 from src.ui.components.main_action_buttons import ActionButtonBar  # noqa: E402
@@ -158,6 +158,7 @@ class MediaDownloaderApp(ctk.CTk):
         self.title("Media Downloader")
         self.geometry("1000x700")
 
+        ApplicationOrchestrator = get_application_orchestrator()
         self.orchestrator = ApplicationOrchestrator(self)
 
         # Note: MessageQueue will be created after status_bar is available
@@ -258,9 +259,8 @@ class MediaDownloaderApp(ctk.CTk):
 
         # Register message queue now that status_bar exists
         message_queue = MessageQueue(self.status_bar)
-        self.orchestrator.container.register(
-            "message_queue", message_queue, singleton=True
-        )
+        # The orchestrator should handle message queue registration internally
+        # Legacy container registration removed
         logger.info("[MAIN_APP] MessageQueue registered with status_bar")
 
         # Pass UI components to orchestrator

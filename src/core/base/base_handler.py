@@ -3,7 +3,7 @@
 from typing import Dict, Any, Optional
 from enum import Enum
 
-from src.core.service_interfaces import IMessageQueue
+from src.core.interfaces import IMessageQueue
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)

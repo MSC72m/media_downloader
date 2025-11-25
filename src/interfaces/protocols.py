@@ -1,6 +1,9 @@
 from typing import Any, Callable, Optional, Protocol, runtime_checkable
 
-from src.core.application.container import ServiceContainer
+# ServiceContainer type hint for protocols
+class ServiceContainer:
+    """Placeholder ServiceContainer type for protocols."""
+    pass
 
 
 @runtime_checkable

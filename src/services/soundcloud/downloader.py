@@ -8,7 +8,7 @@ import yt_dlp
 
 from src.utils.logger import get_logger
 
-from ...core.base import BaseDownloader
+from ...core.interfaces import BaseDownloader
 
 logger = get_logger(__name__)
 

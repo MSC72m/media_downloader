@@ -10,7 +10,6 @@ from src.services.detection.link_detector import (
 )
 from src.utils.logger import get_logger
 from src.utils.type_helpers import (
-    get_container,
     get_platform_callback,
     get_root,
     schedule_on_main_thread,
@@ -93,11 +92,9 @@ class PinterestHandler(LinkHandlerInterface):
             )
             logger.info(f"[PINTEREST_HANDLER] UI context: {ui_context}")
 
-            # Get container and root using type-safe helpers
-            container = get_container(ui_context)
+            # Get root using type-safe helper
             root = get_root(ui_context)
 
-            logger.info(f"[PINTEREST_HANDLER] Container: {container}")
             logger.info(f"[PINTEREST_HANDLER] Root: {root}")
 
             # Get download callback using type-safe helper
