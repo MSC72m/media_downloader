@@ -210,4 +210,6 @@ ui:
   format_options: ["Video + Audio", "Audio Only", "Video Only"]
   message_timeout_seconds: 5  # Timeout for status bar messages in seconds (after which shows 'Ready' or next message)
   error_message_timeout_seconds: 15  # Timeout for error messages in seconds (longer than regular messages)
+  loading_dialog_max_dots: 3  # Maximum number of dots in loading dialog before cycling
+  loading_dialog_animation_interval: 500  # Milliseconds between dot animation updates in loading dialog
 

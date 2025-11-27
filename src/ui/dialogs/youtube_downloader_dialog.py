@@ -148,14 +148,18 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         self._fetch_metadata_async()
 
     def _create_loading_overlay(self):
-        """Create loading overlay for metadata fetching."""
+        """Create loading overlay for metadata fetching using centralized component."""
         logger.debug("Creating loading overlay")
 
         try:
             # Create overlay with root window as parent so it shows independently
             # This allows the main dialog to stay hidden during fetch
             self.loading_overlay = LoadingDialog(
-                self.master, "Fetching YouTube metadata...", timeout=self.config.ui.metadata_fetch_timeout
+                self.master,
+                message="Fetching YouTube metadata...",
+                timeout=self.config.ui.metadata_fetch_timeout,
+                max_dots=self.config.ui.loading_dialog_max_dots,
+                dot_animation_interval=self.config.ui.loading_dialog_animation_interval
             )
             logger.debug("Loading overlay created successfully")
 
@@ -293,7 +297,14 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             except Exception as e:
                 logger.warning(f"Error closing loading overlay: {e}")
             finally:
-                self.loading_overlay = None  # Clear reference
+                # Ensure cleanup in finally block
+                try:
+                    if hasattr(self.loading_overlay, 'destroy'):
+                        self.loading_overlay.destroy()
+                except Exception:
+                    pass
+                finally:
+                    self.loading_overlay = None  # Clear reference
 
         # Ensure dialog is visible for error message
         try:
@@ -351,13 +362,18 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         if self.loading_overlay:
             logger.info("Closing loading overlay")
             try:
-                if hasattr(self, "loading_overlay") and self.loading_overlay:
-                    self.loading_overlay.close()
-                    self.loading_overlay = None
+                self.loading_overlay.close()
             except Exception as e:
                 logger.error(f"Error closing loading overlay: {e}")
             finally:
-                self.loading_overlay = None  # Clear reference
+                # Ensure cleanup in finally block
+                try:
+                    if hasattr(self.loading_overlay, 'destroy'):
+                        self.loading_overlay.destroy()
+                except Exception:
+                    pass
+                finally:
+                    self.loading_overlay = None  # Clear reference
 
         # IMPORTANT: Only NOW show the main options dialog after loading is complete
         logger.info("Showing YouTube options dialog after metadata fetch complete")

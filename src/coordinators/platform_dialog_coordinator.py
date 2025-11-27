@@ -6,13 +6,14 @@ from abc import ABC, abstractmethod
 from functools import partial
 from typing import Callable, Optional
 
-from src.core.config import get_config
+from src.core.config import AppConfig, get_config
 from src.core.enums.instagram_auth_status import InstagramAuthStatus
 from src.core.models import Download
 from src.interfaces.service_interfaces import ICookieHandler, IErrorHandler
 from src.services.instagram.auth_manager import InstagramAuthManager
 from src.services.instagram.downloader import InstagramDownloader
 from src.services.soundcloud.downloader import SoundCloudDownloader
+from src.ui.components.loading_dialog import LoadingDialog
 from src.ui.dialogs.login_dialog import LoginDialog
 from src.utils.error_helpers import extract_error_context, format_user_friendly_error
 from src.utils.logger import get_logger
@@ -176,6 +177,7 @@ class PlatformDialogCoordinator:
         cookie_handler: Optional[ICookieHandler] = None,
         instagram_auth_manager: Optional[InstagramAuthManager] = None,
         orchestrator=None,
+        config: AppConfig = get_config()
     ):
         """Initialize with proper dependency injection.
 
@@ -191,6 +193,7 @@ class PlatformDialogCoordinator:
         self.cookie_handler = cookie_handler
         self.instagram_auth_manager = instagram_auth_manager
         self.orchestrator = orchestrator
+        self.config = config
 
         self._dialog_handlers = {
             "twitter": TwitterDialogHandler(error_handler),
@@ -257,7 +260,7 @@ class PlatformDialogCoordinator:
                 return
 
             username, password = credentials
-            loading_dialog = self._show_loading_dialog(parent_window)
+            loading_dialog = self._show_loading_dialog(parent_window, "Authenticating with Instagram...")
             
             thread = threading.Thread(
                 target=self._authenticate_in_background,
@@ -290,42 +293,28 @@ class PlatformDialogCoordinator:
 
         return (dialog.username, dialog.password)
 
-    def _show_loading_dialog(self, parent_window) -> Optional[object]:
+    def _show_loading_dialog(self, parent_window, message: str = "Loading...") -> Optional[object]:
         """Show loading dialog after credentials are entered.
         
+        Args:
+            parent_window: Parent window for the dialog
+            message: Customizable loading message text
+            
         Returns:
             Loading dialog instance or None
         """
-        if not self.root:
-            return self._create_loading_dialog(parent_window)
-
-        dialog_ref = {"dialog": None}
-        self.root.after(0, partial(self._store_loading_dialog, parent_window, dialog_ref))
-        self.root.update_idletasks()
-        return dialog_ref.get("dialog")
-
-    def _store_loading_dialog(self, parent_window, dialog_ref: dict) -> None:
-        """Store created loading dialog in reference dict."""
-        dialog_ref["dialog"] = self._create_loading_dialog(parent_window)
-
-    def _create_loading_dialog(self, parent_window) -> Optional[object]:
-        """Create loading dialog instance.
-        
-        Returns:
-            Loading dialog instance or None
-        """
-        from src.ui.components.loading_dialog import LoadingDialog
-        
         try:
             dialog = LoadingDialog(
                 parent_window,
-                message="Authenticating with Instagram...",
-                timeout=60
+                message=message,
+                timeout=60,
+                max_dots=self.config.ui.loading_dialog_max_dots,
+                dot_animation_interval=self.config.ui.loading_dialog_animation_interval
             )
-            logger.info("[PLATFORM_DIALOG_COORDINATOR] Loading dialog shown after credentials entered")
+            logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Loading dialog created: {message}")
             return dialog
         except Exception as e:
-            logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error showing loading dialog: {e}", exc_info=True)
+            logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error creating loading dialog: {e}", exc_info=True)
             return None
 
     def _authenticate_in_background(
@@ -338,7 +327,7 @@ class PlatformDialogCoordinator:
         """Perform authentication in background thread."""
         try:
             logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Auth worker started for user: {username[:3]}***")
-            downloader = InstagramDownloader(error_handler=self.error_handler, config=get_config())
+            downloader = InstagramDownloader(error_handler=self.error_handler, config=self.config)
             logger.info("[PLATFORM_DIALOG_COORDINATOR] Calling downloader.authenticate()")
             success = downloader.authenticate(username, password)
             logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Authentication result: {success}")
@@ -361,8 +350,13 @@ class PlatformDialogCoordinator:
         error_msg: str
     ) -> None:
         """Handle authentication completion on main thread."""
+        context = "success" if success else "failure"
+        
         def update_ui():
-            self._close_loading_dialog(loading_dialog)
+            logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Updating UI for {context} path, loading_dialog: {loading_dialog is not None}")
+            
+            # Close loading dialog first
+            self._close_loading_dialog(loading_dialog, error_path=not success)
             
             match success:
                 case True:
@@ -373,7 +367,7 @@ class PlatformDialogCoordinator:
             
             self._handle_auth_result(success, username, callback, error_msg)
 
-        self._schedule_ui_update(update_ui, "success path")
+        self._schedule_ui_update(update_ui, f"{context} path")
 
     def _handle_auth_exception(
         self,
@@ -384,42 +378,82 @@ class PlatformDialogCoordinator:
     ) -> None:
         """Handle authentication exception on main thread."""
         def update_ui():
+            logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Updating UI for exception path, loading_dialog: {loading_dialog is not None}")
             self._close_loading_dialog(loading_dialog, error_path=True)
             self.instagram_auth_manager.set_authenticating(False)
+            
+            # Show user-friendly error message
+            user_friendly_msg = "Instagram authentication failed. Please check your username and password, then try again."
+            self.error_handler.show_error("Instagram Authentication Failed", user_friendly_msg)
+            
             self._handle_auth_result(False, username, callback, str(error))
 
         self._schedule_ui_update(update_ui, "error path")
 
     def _close_loading_dialog(self, dialog: Optional[object], error_path: bool = False) -> None:
-        """Close loading dialog with robust error handling."""
+        """Close loading dialog with robust error handling using finally blocks.
+        
+        Args:
+            dialog: Loading dialog instance to close
+            error_path: Whether this is an error path (for logging)
+        """
+        path_suffix = " (error path)" if error_path else ""
+        
         if not dialog:
-            path_suffix = " (error path)" if error_path else ""
             logger.warning(f"[PLATFORM_DIALOG_COORDINATOR] No loading dialog to close{path_suffix}")
             return
 
-        path_suffix = " (error path)" if error_path else ""
-        logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Attempting to close loading dialog{path_suffix}, exists: {dialog is not None}")
+        logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Attempting to close loading dialog{path_suffix}, dialog type: {type(dialog).__name__}")
 
+        # Use finally block to ensure cleanup always happens
         try:
-            if not hasattr(dialog, 'winfo_exists'):
-                logger.info(f"[PLATFORM_DIALOG_COORDINATOR] No winfo_exists, destroying directly{path_suffix}")
-                dialog.destroy()
-                return
+            # Check if dialog still exists
+            if hasattr(dialog, 'winfo_exists'):
+                if not dialog.winfo_exists():
+                    logger.debug(f"[PLATFORM_DIALOG_COORDINATOR] Loading dialog already destroyed{path_suffix}")
+                    return
 
-            if not dialog.winfo_exists():
-                logger.debug(f"[PLATFORM_DIALOG_COORDINATOR] Loading dialog already destroyed{path_suffix}")
-                return
+            # Try close() first - this should release grab and destroy properly
+            if hasattr(dialog, 'close'):
+                try:
+                    dialog.close()
+                    logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Loading dialog closed via close(){path_suffix}")
+                    # Give it a moment to process
+                    if hasattr(dialog, 'update_idletasks'):
+                        dialog.update_idletasks()
+                    # Verify it's actually closed
+                    if hasattr(dialog, 'winfo_exists') and not dialog.winfo_exists():
+                        return
+                    # If still exists, fall through to destroy()
+                except Exception as close_error:
+                    logger.warning(f"[PLATFORM_DIALOG_COORDINATOR] close() failed{path_suffix}: {close_error}")
+                    # Fall through to destroy()
 
-            dialog.close()
-            logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Loading dialog closed via close(){path_suffix}")
-
-        except Exception as close_error:
-            logger.warning(f"[PLATFORM_DIALOG_COORDINATOR] close() failed{path_suffix}: {close_error}, trying destroy()")
-            try:
+            # Fallback to destroy() if close() doesn't exist or failed
+            if hasattr(dialog, 'destroy'):
                 dialog.destroy()
                 logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Loading dialog destroyed via destroy(){path_suffix}")
-            except Exception as destroy_error:
-                logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Even destroy() failed{path_suffix}: {destroy_error}")
+
+        except Exception as e:
+            logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error closing loading dialog{path_suffix}: {e}", exc_info=True)
+        finally:
+            # Ensure dialog is always cleaned up in finally block - always try to destroy
+            try:
+                if hasattr(dialog, 'winfo_exists'):
+                    if dialog.winfo_exists():
+                        if hasattr(dialog, 'destroy'):
+                            dialog.destroy()
+                            logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Loading dialog force-destroyed in finally block{path_suffix}")
+                elif hasattr(dialog, 'destroy'):
+                    # No winfo_exists, try destroy anyway as safety measure
+                    try:
+                        dialog.destroy()
+                        logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Loading dialog force-destroyed in finally block (no winfo_exists){path_suffix}")
+                    except Exception:
+                        # Already destroyed or error - ignore
+                        pass
+            except Exception as final_error:
+                logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error in finally block{path_suffix}: {final_error}", exc_info=True)
 
     def _schedule_ui_update(self, update_func: Callable, context: str) -> None:
         """Schedule UI update on main thread or execute immediately."""
@@ -429,7 +463,8 @@ class PlatformDialogCoordinator:
             return
 
         logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Scheduling UI update on main thread ({context})")
-        self.root.after(0, update_func)
+        # Use after_idle to ensure it runs after all pending events
+        self.root.after_idle(update_func)
 
     def _handle_auth_cancellation(self, callback: Optional[Callable]) -> None:
         """Handle authentication cancellation."""
@@ -468,7 +503,9 @@ class PlatformDialogCoordinator:
                 if callback:
                     logger.info("[PLATFORM_DIALOG_COORDINATOR] Calling callback with FAILED status")
                     callback(InstagramAuthStatus.FAILED)
-                error_msg = error_message or "Invalid credentials or authentication failed"
-                self.error_handler.handle_service_failure("Instagram", "authentication", error_msg, "")
+                
+                # Show user-friendly error message
+                user_friendly_msg = "Instagram authentication failed. Please check your username and password, then try again."
+                self.error_handler.show_error("Instagram Authentication Failed", user_friendly_msg)
 
     
