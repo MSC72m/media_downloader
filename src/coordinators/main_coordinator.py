@@ -5,6 +5,8 @@ from typing import Callable, Optional
 import customtkinter as ctk
 
 from src.core.config import AppConfig, get_config
+from src.core.enums.message_level import MessageLevel
+from src.core.models import Message
 
 from src.interfaces.service_interfaces import (
     IErrorHandler,
@@ -227,8 +229,6 @@ class EventCoordinator:
             if is_connected:
                 logger.info("[EVENT_COORDINATOR] Connectivity check: Connected")
                 if self.message_queue:
-                    from src.core.models import Message
-                    from src.core.enums.message_level import MessageLevel
                     message = Message(
                         text="Network connection is working",
                         level=MessageLevel.INFO,
@@ -238,8 +238,6 @@ class EventCoordinator:
             else:
                 logger.warning(f"[EVENT_COORDINATOR] Connectivity check failed: {error_message}")
                 if self.message_queue:
-                    from src.core.models import Message
-                    from src.core.enums.message_level import MessageLevel
                     message = Message(
                         text=f"Network issue: {error_message}",
                         level=MessageLevel.WARNING,

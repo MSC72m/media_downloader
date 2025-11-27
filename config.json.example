@@ -137,6 +137,17 @@
       "be": "Belarusian"
     }
   },
+  "twitter": {
+    "default_timeout": 10,
+    "url_patterns": [
+      "^https?://(?:www\\.)?twitter\\.com/[\\w]+/status/[\\d]+",
+      "^https?://(?:www\\.)?x\\.com/[\\w]+/status/[\\d]+",
+      "^https?://(?:www\\.)?twitter\\.com/i/spaces/[\\w]+",
+      "^https?://(?:www\\.)?x\\.com/i/spaces/[\\w]+",
+      "^https?://(?:mobile\\.)?twitter\\.com/[\\w]+/status/[\\d]+",
+      "^https?://(?:mobile\\.)?x\\.com/[\\w]+/status/[\\d]+"
+    ]
+  },
   "instagram": {
     "max_login_attempts": 3,
     "login_cooldown_seconds": 600,
@@ -145,8 +156,43 @@
       "^https?://(?:www\\.)?instagram\\.com/p/[\\w-]+",
       "^https?://(?:www\\.)?instagram\\.com/reel/[\\w-]+",
       "^https?://(?:www\\.)?instagram\\.com/stories/[\\w-]+",
-      "^https?://(?:www\\.)?instagram\\.com/tv/[\\w-]+"
+      "^https?://(?:www\\.)?instagram\\.com/tv/[\\w-]+",
+      "^https?://(?:www\\.)?instagram\\.com/[\\w]+/p/[\\w-]+",
+      "^https?://(?:www\\.)?instagram\\.com/[\\w]+/reel/[\\w-]+"
     ]
+  },
+  "pinterest": {
+    "default_timeout": 10,
+    "oembed_timeout": 10,
+    "url_patterns": [
+      "^https?://(?:www\\.)?pinterest\\.com/pin/[\\d]+",
+      "^https?://(?:www\\.)?pinterest\\.com/[\\w]+/[\\w-]+/[\\d]+",
+      "^https?://(?:www\\.)?pin\\.it/[\\w]+",
+      "^https?://(?:www\\.)?pinterest\\.com\\.au/pin/[\\d]+",
+      "^https?://(?:www\\.)?pinterest\\.ca/pin/[\\d]+",
+      "^https?://(?:www\\.)?pinterest\\.co\\.uk/pin/[\\d]+",
+      "^https?://(?:www\\.)?pinterest\\.de/pin/[\\d]+",
+      "^https?://(?:www\\.)?pinterest\\.fr/pin/[\\d]+"
+    ]
+  },
+  "soundcloud": {
+    "default_retries": 3,
+    "socket_timeout": 15,
+    "default_audio_format": "mp3",
+    "default_audio_quality": "best",
+    "url_patterns": [
+      "^https?://(?:www\\.)?soundcloud\\.com/[\\w-]+/[\\w-]+",
+      "^https?://(?:www\\.)?soundcloud\\.com/[\\w-]+/sets/[\\w-]+",
+      "^https?://(?:m\\.)?soundcloud\\.com/[\\w-]+/[\\w-]+",
+      "^https?://(?:m\\.)?soundcloud\\.com/[\\w-]+/sets/[\\w-]+",
+      "^https?://soundcloud\\.app\\.goo\\.gl/[\\w]+"
+    ]
+  },
+  "ui": {
+    "metadata_fetch_timeout": 90,
+    "polling_interval": 0.5,
+    "format_options": ["Video + Audio", "Audio Only", "Video Only"],
+    "message_timeout_seconds": 5
   }
 }
 

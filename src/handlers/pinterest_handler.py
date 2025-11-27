@@ -37,27 +37,16 @@ class PinterestHandler(BaseHandler, LinkHandlerInterface):
         super().__init__(message_queue, config)
         self.error_handler = error_handler
 
-    PINTEREST_PATTERNS = [
-        r"^https?://(?:www\.)?pinterest\.com/pin/[\d]+",
-        r"^https?://(?:www\.)?pinterest\.com/[\w]+/[\w-]+/[\d]+",
-        r"^https?://(?:www\.)?pin\.it/[\w]+",
-        r"^https?://(?:www\.)?pinterest\.com\.au/pin/[\d]+",
-        r"^https?://(?:www\.)?pinterest\.ca/pin/[\d]+",
-        r"^https?://(?:www\.)?pinterest\.co\.uk/pin/[\d]+",
-        r"^https?://(?:www\.)?pinterest\.de/pin/[\d]+",
-        r"^https?://(?:www\.)?pinterest\.fr/pin/[\d]+",
-    ]
-
     @classmethod
     def get_patterns(cls):
         """Get URL patterns for this handler."""
-        return cls.PINTEREST_PATTERNS
+        return get_config().pinterest.url_patterns
 
     def can_handle(self, url: str) -> DetectionResult:
         """Check if this is a Pinterest URL."""
         logger.debug(f"[PINTEREST_HANDLER] Testing if can handle URL: {url}")
 
-        for pattern in self.PINTEREST_PATTERNS:
+        for pattern in self.config.pinterest.url_patterns:
             if re.match(pattern, url):
                 logger.info(f"[PINTEREST_HANDLER] URL matches pattern: {pattern}")
                 result = DetectionResult(

@@ -1,8 +1,10 @@
 import queue
 import threading
+import time
 
 import customtkinter as ctk
 
+from src.core.config import get_config
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -17,7 +19,11 @@ class StatusBar(ctk.CTkFrame):
         # Get root window for scheduling
         self._root_window = self._get_root_window()
         self._update_queue = queue.Queue()
+        self._message_queue = queue.Queue()  # Queue for pending messages
         self._running = True
+        self._current_message: str | None = None
+        self._message_timeout: float | None = None
+        self._config = get_config()
 
         # Configure grid
         self.grid_columnconfigure(0, weight=1)
@@ -44,6 +50,8 @@ class StatusBar(ctk.CTkFrame):
 
         # Start processing updates from queue
         self._process_queue()
+        # Start processing messages with timeout
+        self._process_messages()
 
     def _get_root_window(self):
         """Get the root Tk window for scheduling."""
@@ -89,39 +97,71 @@ class StatusBar(ctk.CTkFrame):
             logger.error(f"[STATUS_BAR] Error queuing update: {e}", exc_info=True)
 
     def show_message(self, message: str):
-        """Show status message - thread-safe via queue."""
-
-        def _update():
-            try:
-                self.status_label.configure(text=message)
-            except Exception as e:
-                logger.error(f"[STATUS_BAR] Error updating message: {e}", exc_info=True)
-
-        self._queue_update(_update)
+        """Show status message - thread-safe via queue with timeout."""
+        self._add_message(message)
 
     def show_error(self, message: str):
-        """Show error message - thread-safe via queue."""
+        """Show error message - thread-safe via queue with timeout."""
         error_text = f"Error: {message}"
-
-        def _update():
-            try:
-                self.status_label.configure(text=error_text)
-            except Exception as e:
-                logger.error(f"[STATUS_BAR] Error updating error: {e}", exc_info=True)
-
-        self._queue_update(_update)
+        self._add_message(error_text)
 
     def show_warning(self, message: str):
-        """Show warning message - thread-safe via queue."""
+        """Show warning message - thread-safe via queue with timeout."""
         warning_text = f"Warning: {message}"
+        self._add_message(warning_text)
 
+    def _add_message(self, message: str):
+        """Add message to queue and process it with timeout."""
         def _update():
             try:
-                self.status_label.configure(text=warning_text)
+                # Add to message queue
+                self._message_queue.put(message)
+                # Process messages (will handle timeout)
+                self._process_messages()
             except Exception as e:
-                logger.error(f"[STATUS_BAR] Error updating warning: {e}", exc_info=True)
+                logger.error(f"[STATUS_BAR] Error adding message: {e}", exc_info=True)
 
         self._queue_update(_update)
+
+    def _process_messages(self):
+        """Process message queue with timeout handling."""
+        if not self._running:
+            return
+
+        try:
+            current_time = time.time()
+
+            # Check if current message has timed out
+            if self._current_message and self._message_timeout:
+                if current_time >= self._message_timeout:
+                    # Timeout reached - clear current message
+                    self._current_message = None
+                    self._message_timeout = None
+
+            # If no current message, get next from queue
+            if not self._current_message and not self._message_queue.empty():
+                try:
+                    self._current_message = self._message_queue.get_nowait()
+                    timeout_seconds = self._config.ui.message_timeout_seconds
+                    self._message_timeout = current_time + timeout_seconds
+                    # Display the message
+                    self.status_label.configure(text=self._current_message)
+                except queue.Empty:
+                    pass
+
+            # If still no message, show "Ready"
+            if not self._current_message:
+                self.status_label.configure(text="Ready")
+
+        except Exception as e:
+            logger.error(f"[STATUS_BAR] Error processing messages: {e}", exc_info=True)
+
+        # Schedule next check (check every 100ms for timeout)
+        if self._running and self._root_window:
+            try:
+                self._root_window.after(100, self._process_messages)
+            except Exception as e:
+                logger.error(f"[STATUS_BAR] Error scheduling message check: {e}")
 
     def update_progress(self, progress: float):
         """Update progress display - thread-safe via queue."""

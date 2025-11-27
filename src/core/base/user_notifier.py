@@ -4,8 +4,10 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
 from enum import Enum
 
-from src.utils.logger import get_logger
+from src.core.enums.message_level import MessageLevel
 from src.interfaces.service_interfaces import IMessageQueue
+from src.services.events.queue import Message
+from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -57,9 +59,6 @@ class BaseUserNotifier(ABC):
     def _send_notification(self, message_data: Dict[str, Any]) -> None:
         """Send notification - can be overridden for different notification methods."""
         try:
-            from src.core.enums.message_level import MessageLevel
-            from src.services.events.queue import Message
-
             self.message_queue.add_message(
                 Message(
                     text=message_data["text"],

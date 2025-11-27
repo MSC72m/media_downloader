@@ -26,15 +26,6 @@ logger = get_logger(__name__)
 class SoundCloudHandler(BaseHandler, LinkHandlerInterface):
     """Handler for SoundCloud URLs."""
 
-    # SoundCloud URL patterns
-    SOUNDCLOUD_PATTERNS = [
-        r"^https?://(?:www\.)?soundcloud\.com/[\w-]+/[\w-]+",
-        r"^https?://(?:www\.)?soundcloud\.com/[\w-]+/sets/[\w-]+",
-        r"^https?://(?:m\.)?soundcloud\.com/[\w-]+/[\w-]+",
-        r"^https?://(?:m\.)?soundcloud\.com/[\w-]+/sets/[\w-]+",
-        r"^https?://soundcloud\.app\.goo\.gl/[\w]+",
-    ]
-
     def __init__(self, message_queue: IMessageQueue, error_handler: Optional[IErrorHandler] = None, config: AppConfig = get_config()):
         """Initialize SoundCloud handler with proper dependency injection."""
         super().__init__(message_queue, config)
@@ -43,13 +34,13 @@ class SoundCloudHandler(BaseHandler, LinkHandlerInterface):
     @classmethod
     def get_patterns(cls):
         """Get URL patterns for this handler."""
-        return cls.SOUNDCLOUD_PATTERNS
+        return get_config().soundcloud.url_patterns
 
     def can_handle(self, url: str) -> DetectionResult:
         """Check if this is a SoundCloud URL."""
         logger.debug(f"[SOUNDCLOUD_HANDLER] Testing if can handle URL: {url}")
 
-        for pattern in self.SOUNDCLOUD_PATTERNS:
+        for pattern in self.config.soundcloud.url_patterns:
             if re.match(pattern, url):
                 logger.info(f"[SOUNDCLOUD_HANDLER] URL matches pattern: {pattern}")
                 result = DetectionResult(

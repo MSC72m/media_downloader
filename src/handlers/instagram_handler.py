@@ -50,7 +50,6 @@ class InstagramHandler(BaseHandler, LinkHandlerInterface):
     @classmethod
     def get_patterns(cls):
         """Get URL patterns for this handler."""
-        from src.core.config import get_config
         return get_config().instagram.url_patterns
 
     def can_handle(self, url: str) -> DetectionResult:

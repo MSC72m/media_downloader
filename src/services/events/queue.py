@@ -54,8 +54,6 @@ class MessageQueue(IMessageQueue):
         Args:
             message: Dictionary with 'text', 'level', 'title' keys
         """
-        from src.core.enums.message_level import MessageLevel
-        
         # Convert dict to Message object
         msg = Message(
             text=message.get('text', ''),

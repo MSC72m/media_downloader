@@ -246,6 +246,23 @@ class YouTubeConfig(BaseModel):
     )
 
 
+class TwitterConfig(BaseModel):
+    """Twitter/X-specific configuration."""
+    
+    default_timeout: int = Field(default=10, description="Default request timeout in seconds")
+    url_patterns: list[str] = Field(
+        default_factory=lambda: [
+            r"^https?://(?:www\.)?twitter\.com/[\w]+/status/[\d]+",
+            r"^https?://(?:www\.)?x\.com/[\w]+/status/[\d]+",
+            r"^https?://(?:www\.)?twitter\.com/i/spaces/[\w]+",
+            r"^https?://(?:www\.)?x\.com/i/spaces/[\w]+",
+            r"^https?://(?:mobile\.)?twitter\.com/[\w]+/status/[\d]+",
+            r"^https?://(?:mobile\.)?x\.com/[\w]+/status/[\d]+",
+        ],
+        description="Twitter/X URL validation patterns"
+    )
+
+
 class InstagramConfig(BaseModel):
     """Instagram-specific configuration."""
     
@@ -258,6 +275,8 @@ class InstagramConfig(BaseModel):
             r"^https?://(?:www\.)?instagram\.com/reel/[\w-]+",
             r"^https?://(?:www\.)?instagram\.com/stories/[\w-]+",
             r"^https?://(?:www\.)?instagram\.com/tv/[\w-]+",
+            r"^https?://(?:www\.)?instagram\.com/[\w]+/p/[\w-]+",
+            r"^https?://(?:www\.)?instagram\.com/[\w]+/reel/[\w-]+",
         ],
         description="Instagram URL validation patterns"
     )
@@ -268,6 +287,19 @@ class PinterestConfig(BaseModel):
     
     default_timeout: int = Field(default=10, description="Default request timeout in seconds")
     oembed_timeout: int = Field(default=10, description="OEmbed API timeout in seconds")
+    url_patterns: list[str] = Field(
+        default_factory=lambda: [
+            r"^https?://(?:www\.)?pinterest\.com/pin/[\d]+",
+            r"^https?://(?:www\.)?pinterest\.com/[\w]+/[\w-]+/[\d]+",
+            r"^https?://(?:www\.)?pin\.it/[\w]+",
+            r"^https?://(?:www\.)?pinterest\.com\.au/pin/[\d]+",
+            r"^https?://(?:www\.)?pinterest\.ca/pin/[\d]+",
+            r"^https?://(?:www\.)?pinterest\.co\.uk/pin/[\d]+",
+            r"^https?://(?:www\.)?pinterest\.de/pin/[\d]+",
+            r"^https?://(?:www\.)?pinterest\.fr/pin/[\d]+",
+        ],
+        description="Pinterest URL validation patterns"
+    )
 
 
 class SoundCloudConfig(BaseModel):
@@ -277,6 +309,16 @@ class SoundCloudConfig(BaseModel):
     socket_timeout: int = Field(default=15, description="Socket timeout in seconds")
     default_audio_format: str = Field(default="mp3", description="Default audio format")
     default_audio_quality: str = Field(default="best", description="Default audio quality")
+    url_patterns: list[str] = Field(
+        default_factory=lambda: [
+            r"^https?://(?:www\.)?soundcloud\.com/[\w-]+/[\w-]+",
+            r"^https?://(?:www\.)?soundcloud\.com/[\w-]+/sets/[\w-]+",
+            r"^https?://(?:m\.)?soundcloud\.com/[\w-]+/[\w-]+",
+            r"^https?://(?:m\.)?soundcloud\.com/[\w-]+/sets/[\w-]+",
+            r"^https?://soundcloud\.app\.goo\.gl/[\w]+",
+        ],
+        description="SoundCloud URL validation patterns"
+    )
 
 
 class UIConfig(BaseModel):
@@ -288,6 +330,7 @@ class UIConfig(BaseModel):
         default_factory=lambda: ["Video + Audio", "Audio Only", "Video Only"],
         description="Format options for download dialogs"
     )
+    message_timeout_seconds: int = Field(default=5, description="Timeout for status bar messages in seconds (after which shows 'Ready' or next message)")
 
 
 class AppConfig(BaseSettings):
@@ -319,6 +362,7 @@ class AppConfig(BaseSettings):
     downloads: DownloadConfig = Field(default_factory=DownloadConfig)
     network: NetworkConfig = Field(default_factory=NetworkConfig)
     youtube: YouTubeConfig = Field(default_factory=YouTubeConfig)
+    twitter: TwitterConfig = Field(default_factory=TwitterConfig)
     instagram: InstagramConfig = Field(default_factory=InstagramConfig)
     pinterest: PinterestConfig = Field(default_factory=PinterestConfig)
     soundcloud: SoundCloudConfig = Field(default_factory=SoundCloudConfig)

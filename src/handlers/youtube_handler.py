@@ -82,8 +82,6 @@ class YouTubeHandler(BaseHandler, LinkHandlerInterface):
     @classmethod
     def get_patterns(cls):
         """Get URL patterns for this handler."""
-        # Use config patterns - get config for classmethod
-        from src.core.config import get_config
         return get_config().youtube.url_patterns
 
     def can_handle(self, url: str) -> DetectionResult:

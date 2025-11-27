@@ -37,25 +37,16 @@ class TwitterHandler(BaseHandler, LinkHandlerInterface):
         super().__init__(message_queue, config)
         self.error_handler = error_handler
 
-    TWITTER_PATTERNS = [
-        r"^https?://(?:www\.)?twitter\.com/[\w]+/status/[\d]+",
-        r"^https?://(?:www\.)?x\.com/[\w]+/status/[\d]+",
-        r"^https?://(?:www\.)?twitter\.com/i/spaces/[\w]+",
-        r"^https?://(?:www\.)?x\.com/i/spaces/[\w]+",
-        r"^https?://(?:mobile\.)?twitter\.com/[\w]+/status/[\d]+",
-        r"^https?://(?:mobile\.)?x\.com/[\w]+/status/[\d]+",
-    ]
-
     @classmethod
     def get_patterns(cls):
         """Get URL patterns for this handler."""
-        return cls.TWITTER_PATTERNS
+        return get_config().twitter.url_patterns
 
     def can_handle(self, url: str) -> DetectionResult:
         """Check if this is a Twitter/X URL."""
         logger.debug(f"[TWITTER_HANDLER] Testing if can handle URL: {url}")
 
-        for pattern in self.TWITTER_PATTERNS:
+        for pattern in self.config.twitter.url_patterns:
             if re.match(pattern, url):
                 logger.info(f"[TWITTER_HANDLER] URL matches pattern: {pattern}")
                 result = DetectionResult(
