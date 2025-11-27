@@ -1,6 +1,7 @@
 """Platform Dialog Coordinator - SOLID polymorphic dialog handling."""
 
 import os
+import queue
 import threading
 from abc import ABC, abstractmethod
 from functools import partial
@@ -17,6 +18,7 @@ from src.ui.components.loading_dialog import LoadingDialog
 from src.ui.dialogs.login_dialog import LoginDialog
 from src.utils.error_helpers import extract_error_context, format_user_friendly_error
 from src.utils.logger import get_logger
+from src.utils.type_helpers import schedule_on_main_thread
 
 logger = get_logger(__name__)
 
@@ -194,6 +196,12 @@ class PlatformDialogCoordinator:
         self.instagram_auth_manager = instagram_auth_manager
         self.orchestrator = orchestrator
         self.config = config
+        
+        # Queue for thread-safe UI updates (like status bar)
+        self._ui_update_queue = queue.Queue()
+        self._queue_running = True
+        if self.root:
+            self._start_queue_processor()
 
         self._dialog_handlers = {
             "twitter": TwitterDialogHandler(error_handler),
@@ -334,6 +342,8 @@ class PlatformDialogCoordinator:
             logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Authentication result: {success}")
             
             error_msg = "" if success else "Authentication failed"
+            # DO NOT close dialog from background thread - it will crash Tkinter!
+            # Schedule UI update on main thread instead
             self._handle_auth_completion(success, username, downloader, loading_dialog, callback, error_msg, parent_window)
         except Exception as e:
             logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Authentication error: {e}", exc_info=True)
@@ -341,6 +351,8 @@ class PlatformDialogCoordinator:
             self.error_handler.handle_exception(e, "Instagram authentication", "Instagram")
             # Get parent_window from loading_dialog if available
             parent_window = getattr(loading_dialog, 'master', None) if loading_dialog else None
+            # DO NOT close dialog from background thread - it will crash Tkinter!
+            # Schedule UI update on main thread instead
             self._handle_auth_exception(username, loading_dialog, callback, e, parent_window)
 
     def _handle_auth_completion(
@@ -382,7 +394,15 @@ class PlatformDialogCoordinator:
                 except Exception as close_error:
                     logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error closing dialog in error handler: {close_error}", exc_info=True)
 
-        self._schedule_ui_update(update_ui, f"{context} path", parent_window)
+        # Try to execute immediately if we're on main thread, otherwise schedule
+        if threading.current_thread() is threading.main_thread():
+            logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Already on main thread, executing update immediately ({context} path)")
+            try:
+                update_ui()
+            except Exception as e:
+                logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error executing update on main thread: {e}", exc_info=True)
+        else:
+            self._schedule_ui_update(update_ui, f"{context} path", parent_window)
 
     def _handle_auth_exception(
         self,
@@ -480,41 +500,62 @@ class PlatformDialogCoordinator:
             except Exception as final_error:
                 logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error in finally block{path_suffix}: {final_error}", exc_info=True)
 
-    def _schedule_ui_update(self, update_func: Callable, context: str, parent_window=None) -> None:
-        """Schedule UI update on main thread or execute immediately."""
-        # Use parent_window if provided, otherwise fall back to self.root
-        target_window = parent_window or self.root
-        
-        if not target_window:
-            logger.error(f"[PLATFORM_DIALOG_COORDINATOR] No window available, calling update directly ({context})")
-            try:
-                update_func()
-            except Exception as e:
-                logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error executing update directly: {e}", exc_info=True)
+    def _start_queue_processor(self) -> None:
+        """Start the queue processor for thread-safe UI updates."""
+        if self.root:
+            self._process_queue()
+    
+    def _process_queue(self) -> None:
+        """Process queued UI updates on main thread."""
+        if not self._queue_running:
             return
 
-        logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Scheduling UI update on main thread ({context}), window: {type(target_window).__name__}")
-        # Use after(0, ...) for reliable cross-thread scheduling
-        # Store update_func and context in closure to avoid lambda capture issues
+        try:
+            # Process all pending updates
+            while not self._ui_update_queue.empty():
+                try:
+                    update_func = self._ui_update_queue.get_nowait()
+                    update_func()
+                except queue.Empty:
+                    break
+                except Exception as e:
+                    logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error processing queue update: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error in _process_queue: {e}", exc_info=True)
+
+        # Schedule next queue check
+        if self._queue_running and self.root:
+            try:
+                self.root.after(50, self._process_queue)
+            except Exception as e:
+                logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error scheduling next queue check: {e}")
+    
+    def _queue_update(self, update_func: Callable) -> None:
+        """Queue an update to be processed on main thread."""
+        try:
+            self._ui_update_queue.put(update_func)
+        except Exception as e:
+            logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error queuing update: {e}", exc_info=True)
+
+    def _schedule_ui_update(self, update_func: Callable, context: str, parent_window=None) -> None:
+        """Schedule UI update on main thread using queue (like status bar)."""
+        if not self.root:
+            logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Root window not available, cannot queue update ({context})")
+            return
+
+        logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Queuing UI update ({context})")
+        
+        # Wrap update_func with logging
         def execute_update():
             try:
                 logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Executing UI update ({context})")
                 update_func()
+                logger.info(f"[PLATFORM_DIALOG_COORDINATOR] UI update completed ({context})")
             except Exception as e:
                 logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error executing UI update ({context}): {e}", exc_info=True)
         
-        try:
-            target_window.after(0, execute_update)
-            # Force event processing to ensure it executes
-            target_window.update_idletasks()
-        except Exception as e:
-            logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error scheduling UI update: {e}", exc_info=True)
-            # Fallback: try to execute directly
-            try:
-                logger.warning(f"[PLATFORM_DIALOG_COORDINATOR] Executing update directly as fallback ({context})")
-                update_func()
-            except Exception as e2:
-                logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error executing update as fallback: {e2}", exc_info=True)
+        # Use queue-based approach like status bar - this is more reliable than after(0, ...)
+        self._queue_update(execute_update)
 
 
     def _handle_auth_cancellation(self, callback: Optional[Callable]) -> None:
