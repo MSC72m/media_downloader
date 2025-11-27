@@ -1,6 +1,6 @@
 """Event Coordinator - Clean coordination layer with constructor injection."""
 
-from typing import Optional
+from typing import Optional, Callable
 
 import customtkinter as ctk
 
@@ -82,6 +82,19 @@ class EventCoordinator:
         logger.info("[EVENT_COORDINATOR] Refreshing handlers")
         # No refresh needed - coordinators use constructor injection with mandatory dependencies
         logger.info("[EVENT_COORDINATOR] Handlers refreshed")
+
+    def set_message_queue(self, message_queue: IMessageQueue) -> None:
+        """Set message queue instance for late binding."""
+        self.message_queue = message_queue
+        if self.downloads:
+            self.downloads.set_message_queue(message_queue)
+        logger.info("[EVENT_COORDINATOR] Message queue updated")
+
+    def set_ui_callbacks(self, callbacks: dict[str, Callable]) -> None:
+        """Set UI callbacks for download coordinator."""
+        if self.downloads:
+            self.downloads.set_ui_callbacks(callbacks)
+        logger.info("[EVENT_COORDINATOR] UI callbacks propagated to download coordinator")
 
     def show_error(self, title: str, message: str) -> None:
         """Show error message via centralized error handler."""

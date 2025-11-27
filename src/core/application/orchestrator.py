@@ -2,6 +2,7 @@
 
 import os
 from typing import Any, Type
+from functools import partial
 
 import customtkinter as ctk
 
@@ -149,7 +150,7 @@ class ApplicationOrchestrator:
             message_queue = self.container.get_optional(IMessageQueue)
             return ErrorHandler(message_queue)
 
-        self.container.register_factory(IErrorHandler, create_error_handler)
+        self.container.register_singleton(IErrorHandler, create_error_handler)
 
         # Register service implementations
         def create_service_factory():
@@ -440,6 +441,19 @@ class ApplicationOrchestrator:
             # Replace the factory registration with an instance
             self.container.register_instance(IMessageQueue, message_queue)
             logger.info("[ORCHESTRATOR] MessageQueue registered in container with status_bar")
+            
+            # Update ErrorHandler with the message queue
+            if self.container.has(IErrorHandler):
+                try:
+                    error_handler = self.container.get(IErrorHandler)
+                    error_handler.set_message_queue(message_queue)
+                    logger.info("[ORCHESTRATOR] Updated ErrorHandler with MessageQueue")
+                except Exception as e:
+                    logger.warning(f"[ORCHESTRATOR] Failed to update ErrorHandler with MessageQueue: {e}")
+            
+            # Update EventCoordinator with message queue
+            if self.event_coordinator:
+                self.event_coordinator.set_message_queue(message_queue)
 
         # Set link detector on event coordinator so it uses the configured instance
         if hasattr(self.event_coordinator, 'link_detector'):
@@ -448,6 +462,40 @@ class ApplicationOrchestrator:
         # Set orchestrator reference on platform dialog coordinator for UI component access
         if hasattr(self.event_coordinator, 'platform_dialogs'):
             self.event_coordinator.platform_dialogs.orchestrator = self
+
+        # Define thread-safe UI callbacks using partial for cleaner closures
+
+        def safe_ui_update(func, *args, **kwargs):
+            """Execute UI update on main thread."""
+            if hasattr(self.root, 'run_on_main_thread'):
+                self.root.run_on_main_thread(partial(func, *args, **kwargs))
+            else:
+                self.root.after(0, partial(func, *args, **kwargs))
+
+        callbacks = {}
+        
+        if "download_list" in components:
+            dl_list = components["download_list"]
+            callbacks["refresh_download_list"] = partial(safe_ui_update, dl_list.refresh_items)
+            callbacks["update_download_progress"] = partial(safe_ui_update, dl_list.update_item_progress)
+        
+        if "action_buttons" in components:
+            buttons = components["action_buttons"]
+            callbacks["set_action_buttons_enabled"] = partial(safe_ui_update, buttons.set_enabled)
+        
+        if "status_bar" in components:
+            sb = components["status_bar"]
+            
+            def update_status_wrapper(msg: str, is_err: bool = False) -> None:
+                if is_err:
+                    sb.show_error(msg)
+                else:
+                    sb.show_message(msg)
+            
+            callbacks["update_status"] = partial(safe_ui_update, update_status_wrapper)
+            
+        if self.event_coordinator:
+            self.event_coordinator.set_ui_callbacks(callbacks)
 
         # Refresh event coordinator handlers (so it picks up UI components)
         self.event_coordinator.refresh_handlers()
@@ -458,6 +506,11 @@ class ApplicationOrchestrator:
     def check_connectivity(self) -> None:
         """Check network connectivity at startup - use injected network checker."""
         logger.info("[ORCHESTRATOR] Starting connectivity check")
+        
+        # Show checking message
+        status_bar = self.ui_components.get("status_bar")
+        if status_bar:
+            status_bar.show_message("Checking network connection...")
 
         def check_in_background():
             """Check connectivity in background thread."""
@@ -501,20 +554,15 @@ class ApplicationOrchestrator:
         if is_connected:
             logger.info("[ORCHESTRATOR] Connectivity check: Connected")
             if status_bar:
-                status_bar.show_message("Network: Connected")
+                status_bar.show_message("Ready!")
             if self.container.has(IMessageQueue):
                 try:
                     message_queue = self.container.get(IMessageQueue)
                     if message_queue:
                         from src.services.events.queue import Message
                         from src.core.enums.message_level import MessageLevel
-                        message_queue.add_message(
-                            Message(
-                                text="Network connection is working",
-                                level=MessageLevel.SUCCESS,
-                                title="Network Status",
-                            )
-                        )
+                        # We can optionally log this but "Ready!" on status bar is usually enough
+                        pass
                 except Exception as e:
                     logger.warning(f"[ORCHESTRATOR] Could not send message via queue: {e}")
         else:

@@ -157,6 +157,11 @@ class IErrorHandler(ABC):
         """Show info message."""
         pass
 
+    @abstractmethod
+    def set_message_queue(self, message_queue: IMessageQueue) -> None:
+        """Set message queue instance."""
+        pass
+
 
 class IServiceFactory(ABC):
     """Interface for service factory."""

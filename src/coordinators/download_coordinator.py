@@ -42,6 +42,16 @@ class DownloadCoordinator:
         # Subscribe to download events
         self._setup_event_subscriptions()
 
+    def set_message_queue(self, message_queue: IMessageQueue) -> None:
+        """Set message queue instance - used for late binding."""
+        self.message_queue = message_queue
+        logger.info("[DOWNLOAD_COORDINATOR] Message queue updated")
+
+    def set_ui_callbacks(self, callbacks: dict[str, Callable]) -> None:
+        """Set UI callbacks."""
+        self.ui_callbacks.update(callbacks)
+        logger.info(f"[DOWNLOAD_COORDINATOR] UI callbacks updated: {list(callbacks.keys())}")
+
     def _get_ui_callback(self, callback_name: str) -> Optional[Callable]:
         """Get a UI callback if available."""
         return self.ui_callbacks.get(callback_name)

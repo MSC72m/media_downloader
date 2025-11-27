@@ -37,53 +37,15 @@ class MessageQueue(IMessageQueue):
         Args:
             status_bar: StatusBar component to display messages
         """
-        self.queue: queue.Queue = queue.Queue()
         self.status_bar = status_bar
-        self.processing = False
-        self._start_processing()
-
-    def _start_processing(self):
-        """Start processing messages in the queue."""
-        if self.processing:
-            return
-
-        def process_messages():
-            try:
-                while True:
-                    try:
-                        msg = self.queue.get_nowait()
-                        self._show_message(msg)
-                        self.queue.task_done()
-                    except queue.Empty:
-                        break
-            except Exception as e:
-                logger.error(
-                    f"[MESSAGE_QUEUE] Error processing messages: {e}", exc_info=True
-                )
-            finally:
-                self.processing = False
-
-            # Schedule next check if there are messages
-            if not self.queue.empty():
-                self.processing = True
-                # Use status_bar's root for scheduling
-                if self.status_bar and hasattr(self.status_bar, "_root_window"):
-                    self.status_bar._root_window.after(100, process_messages)
-
-        self.processing = True
-        # Initial schedule
-        if self.status_bar and hasattr(self.status_bar, "_root_window"):
-            self.status_bar._root_window.after(100, process_messages)
 
     def add_message(self, message: Message):
-        """Add a message to the queue.
+        """Add a message to the queue (immediate forwarding to status bar).
 
         Args:
             message: Message to display
         """
-        self.queue.put(message)
-        if not self.processing:
-            self._start_processing()
+        self._show_message(message)
 
     # IMessageQueue interface implementation
     def send_message(self, message: dict) -> None:
@@ -131,6 +93,7 @@ class MessageQueue(IMessageQueue):
         text = f"{message.title}: {message.text}" if message.title else message.text
 
         # Route to appropriate status bar method based on level
+        # StatusBar methods are thread-safe (they use their own queue)
         if message.level == MessageLevel.ERROR:
             self.status_bar.show_error(text)
         elif message.level == MessageLevel.WARNING:
