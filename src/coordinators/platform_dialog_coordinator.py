@@ -264,7 +264,7 @@ class PlatformDialogCoordinator:
             
             thread = threading.Thread(
                 target=self._authenticate_in_background,
-                args=(username, password, loading_dialog, callback),
+                args=(username, password, loading_dialog, callback, parent_window),
                 daemon=True
             )
             thread.start()
@@ -322,7 +322,8 @@ class PlatformDialogCoordinator:
         username: str,
         password: str,
         loading_dialog: Optional[object],
-        callback: Optional[Callable]
+        callback: Optional[Callable],
+        parent_window=None
     ) -> None:
         """Perform authentication in background thread."""
         try:
@@ -333,12 +334,14 @@ class PlatformDialogCoordinator:
             logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Authentication result: {success}")
             
             error_msg = "" if success else "Authentication failed"
-            self._handle_auth_completion(success, username, downloader, loading_dialog, callback, error_msg)
+            self._handle_auth_completion(success, username, downloader, loading_dialog, callback, error_msg, parent_window)
         except Exception as e:
             logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Authentication error: {e}", exc_info=True)
             extract_error_context(e, "Instagram", "authentication", "")
             self.error_handler.handle_exception(e, "Instagram authentication", "Instagram")
-            self._handle_auth_exception(username, loading_dialog, callback, e)
+            # Get parent_window from loading_dialog if available
+            parent_window = getattr(loading_dialog, 'master', None) if loading_dialog else None
+            self._handle_auth_exception(username, loading_dialog, callback, e, parent_window)
 
     def _handle_auth_completion(
         self,
@@ -347,48 +350,70 @@ class PlatformDialogCoordinator:
         downloader: InstagramDownloader,
         loading_dialog: Optional[object],
         callback: Optional[Callable],
-        error_msg: str
+        error_msg: str,
+        parent_window=None
     ) -> None:
         """Handle authentication completion on main thread."""
         context = "success" if success else "failure"
         
         def update_ui():
-            logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Updating UI for {context} path, loading_dialog: {loading_dialog is not None}")
-            
-            # Close loading dialog first
-            self._close_loading_dialog(loading_dialog, error_path=not success)
-            
-            match success:
-                case True:
-                    self.instagram_auth_manager.set_authenticated_downloader(downloader)
-                    logger.info("[PLATFORM_DIALOG_COORDINATOR] Stored authenticated Instagram downloader instance")
-                case False:
-                    self.instagram_auth_manager.set_authenticating(False)
-            
-            self._handle_auth_result(success, username, callback, error_msg)
+            try:
+                logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Updating UI for {context} path, loading_dialog: {loading_dialog is not None}")
+                
+                # Close loading dialog first - CRITICAL
+                logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Closing loading dialog for {context} path")
+                self._close_loading_dialog(loading_dialog, error_path=not success)
+                logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Loading dialog closed for {context} path")
+                
+                match success:
+                    case True:
+                        self.instagram_auth_manager.set_authenticated_downloader(downloader)
+                        logger.info("[PLATFORM_DIALOG_COORDINATOR] Stored authenticated Instagram downloader instance")
+                    case False:
+                        self.instagram_auth_manager.set_authenticating(False)
+                        logger.info("[PLATFORM_DIALOG_COORDINATOR] Set authenticating flag to False")
+                
+                self._handle_auth_result(success, username, callback, error_msg)
+            except Exception as e:
+                logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error in update_ui for {context} path: {e}", exc_info=True)
+                # Still try to close the dialog even if there's an error
+                try:
+                    self._close_loading_dialog(loading_dialog, error_path=True)
+                except Exception as close_error:
+                    logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error closing dialog in error handler: {close_error}", exc_info=True)
 
-        self._schedule_ui_update(update_ui, f"{context} path")
+        self._schedule_ui_update(update_ui, f"{context} path", parent_window)
 
     def _handle_auth_exception(
         self,
         username: str,
         loading_dialog: Optional[object],
         callback: Optional[Callable],
-        error: Exception
+        error: Exception,
+        parent_window=None
     ) -> None:
         """Handle authentication exception on main thread."""
         def update_ui():
-            logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Updating UI for exception path, loading_dialog: {loading_dialog is not None}")
-            self._close_loading_dialog(loading_dialog, error_path=True)
-            self.instagram_auth_manager.set_authenticating(False)
-            
-            # Show user-friendly error message
-            user_friendly_msg = "Instagram authentication failed. Please check your username and password, then try again."
-            self.error_handler.show_error("Instagram Authentication Failed", user_friendly_msg)
-            
-            self._handle_auth_result(False, username, callback, str(error))
+            try:
+                logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Updating UI for exception path, loading_dialog: {loading_dialog is not None}")
+                self._close_loading_dialog(loading_dialog, error_path=True)
+                logger.info("[PLATFORM_DIALOG_COORDINATOR] Loading dialog closed for exception path")
+                self.instagram_auth_manager.set_authenticating(False)
+                
+                # Show user-friendly error message
+                user_friendly_msg = "Instagram authentication failed. Please check your username and password, then try again."
+                self.error_handler.show_error("Instagram Authentication Failed", user_friendly_msg)
+                
+                self._handle_auth_result(False, username, callback, str(error))
+            except Exception as e:
+                logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error in exception handler update_ui: {e}", exc_info=True)
+                # Still try to close the dialog
+                try:
+                    self._close_loading_dialog(loading_dialog, error_path=True)
+                except Exception as close_error:
+                    logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error closing dialog in exception handler: {close_error}", exc_info=True)
 
-        self._schedule_ui_update(update_ui, "error path")
+        self._schedule_ui_update(update_ui, "error path", parent_window)
 
     def _close_loading_dialog(self, dialog: Optional[object], error_path: bool = False) -> None:
         """Close loading dialog with robust error handling using finally blocks.
@@ -455,16 +480,42 @@ class PlatformDialogCoordinator:
             except Exception as final_error:
                 logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error in finally block{path_suffix}: {final_error}", exc_info=True)
 
-    def _schedule_ui_update(self, update_func: Callable, context: str) -> None:
+    def _schedule_ui_update(self, update_func: Callable, context: str, parent_window=None) -> None:
         """Schedule UI update on main thread or execute immediately."""
-        if not self.root:
-            logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Root window not available, calling update directly ({context})")
-            update_func()
+        # Use parent_window if provided, otherwise fall back to self.root
+        target_window = parent_window or self.root
+        
+        if not target_window:
+            logger.error(f"[PLATFORM_DIALOG_COORDINATOR] No window available, calling update directly ({context})")
+            try:
+                update_func()
+            except Exception as e:
+                logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error executing update directly: {e}", exc_info=True)
             return
 
-        logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Scheduling UI update on main thread ({context})")
-        # Use after_idle to ensure it runs after all pending events
-        self.root.after_idle(update_func)
+        logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Scheduling UI update on main thread ({context}), window: {type(target_window).__name__}")
+        # Use after(0, ...) for reliable cross-thread scheduling
+        # Store update_func and context in closure to avoid lambda capture issues
+        def execute_update():
+            try:
+                logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Executing UI update ({context})")
+                update_func()
+            except Exception as e:
+                logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error executing UI update ({context}): {e}", exc_info=True)
+        
+        try:
+            target_window.after(0, execute_update)
+            # Force event processing to ensure it executes
+            target_window.update_idletasks()
+        except Exception as e:
+            logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error scheduling UI update: {e}", exc_info=True)
+            # Fallback: try to execute directly
+            try:
+                logger.warning(f"[PLATFORM_DIALOG_COORDINATOR] Executing update directly as fallback ({context})")
+                update_func()
+            except Exception as e2:
+                logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error executing update as fallback: {e2}", exc_info=True)
+
 
     def _handle_auth_cancellation(self, callback: Optional[Callable]) -> None:
         """Handle authentication cancellation."""
