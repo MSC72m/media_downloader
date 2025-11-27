@@ -3,6 +3,7 @@
 import re
 from typing import Any, Callable, Dict, Optional
 
+from src.core.config import get_config, AppConfig
 from src.core.base.base_handler import BaseHandler
 from src.interfaces.service_interfaces import (
     IAutoCookieManager,
@@ -34,17 +35,6 @@ logger = get_logger(__name__)
 class YouTubeHandler(BaseHandler, LinkHandlerInterface):
     """Handler for YouTube URLs."""
 
-    # YouTube URL patterns (including YouTube Music)
-    YOUTUBE_PATTERNS = [
-        r"^https?://(?:www\.)?youtube\.com/watch\?v=[\w-]+",
-        r"^https?://(?:www\.)?youtube\.com/playlist\?list=[\w-]+",
-        r"^https?://(?:www\.)?youtu\.be/[\w-]+",
-        r"^https?://(?:www\.)?youtube\.com/embed/[\w-]+",
-        r"^https?://(?:www\.)?youtube\.com/v/[\w-]+",
-        r"^https?://(?:www\.)?youtube\.com/shorts/[\w-]+",
-        r"^https?://music\.youtube\.com/watch\?v=[\w-]+",
-        r"^https?://music\.youtube\.com/playlist\?list=[\w-]+",
-    ]
 
     def __init__(
         self,
@@ -53,9 +43,10 @@ class YouTubeHandler(BaseHandler, LinkHandlerInterface):
         auto_cookie_manager: IAutoCookieManager,
         message_queue: IMessageQueue,
         error_handler: Optional[IErrorHandler] = None,
+        config: AppConfig = get_config(),
     ):
         """Initialize YouTube handler with injected dependencies."""
-        super().__init__(message_queue)
+        super().__init__(message_queue, config)
         self.cookie_handler = cookie_handler
         self.metadata_service = metadata_service
         self.auto_cookie_manager = auto_cookie_manager
@@ -87,13 +78,15 @@ class YouTubeHandler(BaseHandler, LinkHandlerInterface):
     @classmethod
     def get_patterns(cls):
         """Get URL patterns for this handler."""
-        return cls.YOUTUBE_PATTERNS
+        # Use config patterns - get config for classmethod
+        from src.core.config import get_config
+        return get_config().youtube.url_patterns
 
     def can_handle(self, url: str) -> DetectionResult:
         """Check if this is a YouTube URL."""
         logger.debug(f"[YOUTUBE_HANDLER] Testing if can handle URL: {url}")
 
-        for pattern in self.YOUTUBE_PATTERNS:
+        for pattern in self.config.youtube.url_patterns:
             if re.match(pattern, url):
                 logger.info(f"[YOUTUBE_HANDLER] URL matches pattern: {pattern}")
                 result = DetectionResult(
@@ -141,9 +134,8 @@ class YouTubeHandler(BaseHandler, LinkHandlerInterface):
 
     def process_download(self, url: str, options: Dict[str, Any]) -> bool:
         """Process YouTube download."""
-        # This would integrate with your download system
-        print(f"Processing YouTube download: {url}")
-        print(f"Options: {options}")
+        logger.info(f"[YOUTUBE_HANDLER] Processing YouTube download: {url}")
+        logger.debug(f"[YOUTUBE_HANDLER] Options: {options}")
         # Actual download logic would go here
         return True
 

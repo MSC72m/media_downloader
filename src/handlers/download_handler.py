@@ -1,12 +1,17 @@
 """Concrete implementation of download handler."""
 
 import re
+import threading
 import time
 from pathlib import Path
 from threading import Thread
 from typing import Callable, List, Optional
+from urllib.parse import urlparse
 
-from src.core.config import get_config, AppConfig
+from src.core.config import AppConfig, get_config
+from src.core.models import Download
+from src.services.events.queue import Message
+from src.services.youtube.downloader import YouTubeDownloader
 from src.core.enums import ServiceType
 from src.core.enums.message_level import MessageLevel
 from src.core.models import Download, DownloadOptions, UIState
@@ -135,8 +140,6 @@ class DownloadHandler(BaseHandler, IDownloadHandler):
             )
 
             # Create a downloader with the download's specific options
-            from src.services.youtube.downloader import YouTubeDownloader
-
             service_type = self.service_factory.detect_service_type(download.url)
             logger.info(f"[DOWNLOAD_HANDLER] Detected service type: {service_type}")
 
@@ -216,8 +219,6 @@ class DownloadHandler(BaseHandler, IDownloadHandler):
     ) -> Optional[str]:
         """Validate and expand download directory. Returns validated path or None."""
         try:
-            from pathlib import Path
-
             expanded_dir = Path(download_dir).expanduser().resolve()
 
             if not expanded_dir.exists():
@@ -257,7 +258,6 @@ class DownloadHandler(BaseHandler, IDownloadHandler):
         completion_callback,
     ) -> None:
         """Start download threads with concurrency control."""
-        import threading
         max_concurrent = self.config.downloads.max_concurrent_downloads
         active_threads = []
 
@@ -281,8 +281,7 @@ class DownloadHandler(BaseHandler, IDownloadHandler):
             while len(active_threads) >= max_concurrent:
                 active_threads = [t for t in active_threads if t.is_alive()]
                 if len(active_threads) >= max_concurrent:
-                    import time
-                    time.sleep(config.downloads.thread_sleep_interval)
+                    time.sleep(self.config.downloads.thread_sleep_interval)
 
     def _prepare_download_path(self, download: Download, download_dir: str) -> str:
         """Prepare and return the output path for download.
@@ -362,8 +361,6 @@ class DownloadHandler(BaseHandler, IDownloadHandler):
     def process_url(self, url: str, options: Optional[dict] = None) -> bool:
         """Process a URL for download."""
         try:
-            from src.core.models import Download
-
             # Create download from URL
             download = Download(
                 url=url,
@@ -392,8 +389,6 @@ class DownloadHandler(BaseHandler, IDownloadHandler):
 
         if self.message_queue:
             try:
-                from src.services.events.queue import Message
-
                 self.message_queue.add_message(
                     Message(
                         text=f"Download failed: {str(error)}",
@@ -410,7 +405,6 @@ class DownloadHandler(BaseHandler, IDownloadHandler):
 
     def _extract_name_from_url(self, url: str) -> str:
         """Extract a default name from URL."""
-        from urllib.parse import urlparse
         parsed = urlparse(url)
         return parsed.netloc or "download"
 

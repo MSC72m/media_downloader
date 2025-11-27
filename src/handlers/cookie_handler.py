@@ -1,20 +1,28 @@
 """Handler for cookie detection and integration with the application."""
 
-from src.utils.logger import get_logger
 from typing import Optional
-from src.services.youtube.cookie_detector import CookieManager
-from src.interfaces.cookie_detection import BrowserType, PlatformType, ICookieManager
+
+from src.core.config import AppConfig
 from src.handlers.service_detector import ServiceDetector
+from src.interfaces.cookie_detection import BrowserType, ICookieManager, PlatformType
+from src.interfaces.service_interfaces import ICookieHandler
+from src.services.youtube.cookie_detector import CookieManager
+from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-from src.interfaces.service_interfaces import ICookieHandler
-
 class CookieHandler(ICookieHandler):
     """Handler for cookie detection and integration."""
 
-    def __init__(self, cookie_manager: Optional[ICookieManager] = None):
+    def __init__(self, config: AppConfig, cookie_manager: Optional[ICookieManager] = None):
+        """Initialize cookie handler.
+        
+        Args:
+            config: AppConfig instance (required, injected from DI)
+            cookie_manager: Optional cookie manager (defaults to CookieManager if None)
+        """
+        self.config = config
         self._cookie_manager = cookie_manager or CookieManager()
         self._service_detector = ServiceDetector()
         self._initialized = False

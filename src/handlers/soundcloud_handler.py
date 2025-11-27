@@ -3,6 +3,7 @@
 import re
 from typing import Any, Callable, Dict, Optional
 
+from src.core.config import get_config, AppConfig
 from src.core.base.base_handler import BaseHandler
 from src.interfaces.service_interfaces import IErrorHandler, IMessageQueue
 from src.services.detection.link_detector import (
@@ -34,9 +35,9 @@ class SoundCloudHandler(BaseHandler, LinkHandlerInterface):
         r"^https?://soundcloud\.app\.goo\.gl/[\w]+",
     ]
 
-    def __init__(self, message_queue: IMessageQueue, error_handler: Optional[IErrorHandler] = None):
+    def __init__(self, message_queue: IMessageQueue, error_handler: Optional[IErrorHandler] = None, config: AppConfig = get_config()):
         """Initialize SoundCloud handler with proper dependency injection."""
-        super().__init__(message_queue)
+        super().__init__(message_queue, config)
         self.error_handler = error_handler
 
     @classmethod

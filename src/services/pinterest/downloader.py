@@ -9,6 +9,7 @@ import requests
 from bs4 import BeautifulSoup
 from bs4.element import Tag
 
+from src.core.config import get_config, AppConfig
 from src.core.enums import ServiceType
 from src.interfaces.service_interfaces import BaseDownloader, IErrorHandler
 from ...utils.logger import get_logger
@@ -22,12 +23,14 @@ logger = get_logger(__name__)
 class PinterestDownloader(BaseDownloader):
     """Pinterest downloader service."""
 
-    def __init__(self, error_handler: Optional[IErrorHandler] = None):
+    def __init__(self, error_handler: Optional[IErrorHandler] = None, config=None):
         """Initialize Pinterest downloader.
 
         Args:
             error_handler: Optional error handler for user notifications
+            config: AppConfig instance (defaults to get_config() if None)
         """
+        super().__init__(config)
         self.error_handler = error_handler
 
     def download(
@@ -109,10 +112,10 @@ class PinterestDownloader(BaseDownloader):
             # Method 1: Try oembed endpoint
             oembed_url = f"https://www.pinterest.com/oembed/?url={url}"
             headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+                "User-Agent": self.config.network.user_agent
             }
 
-            response = requests.get(oembed_url, headers=headers, timeout=10)
+            response = requests.get(oembed_url, headers=headers, timeout=self.config.pinterest.oembed_timeout)
             if response.status_code == 200:
                 data = response.json()
                 # Try to get the image URL from oembed response
@@ -122,7 +125,7 @@ class PinterestDownloader(BaseDownloader):
                     return data["thumbnail_url"]
 
             # Method 2: Scrape the page directly
-            response = requests.get(url, headers=headers, timeout=10)
+            response = requests.get(url, headers=headers, timeout=self.config.pinterest.default_timeout)
             if response.status_code == 200:
                 soup = BeautifulSoup(response.content, "html.parser")
 

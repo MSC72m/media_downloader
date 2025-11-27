@@ -54,16 +54,7 @@ class YouTubeMetadataService(IYouTubeMetadataService):
 
     def __init__(self, error_handler: Optional[IErrorHandler] = None, config: AppConfig = get_config()):
         self.config = config
-        self._ytdlp_options = {
-            "quiet": True,
-            "no_warnings": True,
-            "extract_flat": "discard_in_playlist",
-            "playlistend": 1,
-            "writeinfojson": False,
-            "writesubtitles": False,
-            "writeautomaticsub": False,
-            "skip_download": True,
-        }
+        self._ytdlp_options = self.config.youtube.ytdlp_default_options.copy()
         self.error_handler = error_handler
 
     def fetch_metadata(

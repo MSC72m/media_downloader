@@ -3,6 +3,8 @@
 import re
 from typing import Any, Callable, Dict, Optional
 
+from src.core.config import get_config, AppConfig
+from src.core.base.base_handler import BaseHandler
 from src.interfaces.service_interfaces import IErrorHandler
 from src.services.detection.link_detector import (
     DetectionResult,
@@ -21,15 +23,18 @@ logger = get_logger(__name__)
 
 
 @auto_register_handler
-class InstagramHandler(LinkHandlerInterface):
+class InstagramHandler(BaseHandler, LinkHandlerInterface):
     """Handler for Instagram URLs."""
 
-    def __init__(self, error_handler: Optional[IErrorHandler] = None):
+    def __init__(self, error_handler: Optional[IErrorHandler] = None, message_queue=None, config: AppConfig = get_config()):
         """Initialize Instagram handler.
 
         Args:
             error_handler: Optional error handler for user notifications
+            message_queue: Optional message queue for notifications
+            config: AppConfig instance (defaults to get_config() if None)
         """
+        super().__init__(message_queue, config)
         self.error_handler = error_handler
 
     INSTAGRAM_PATTERNS = [
@@ -69,7 +74,7 @@ class InstagramHandler(LinkHandlerInterface):
 
     def process_download(self, url: str, options: Dict[str, Any]) -> bool:
         """Process Instagram download."""
-        print(f"Processing Instagram download: {url}")
+        logger.info(f"[INSTAGRAM_HANDLER] Processing Instagram download: {url}")
         # Actual Instagram download logic would go here
         return True
 

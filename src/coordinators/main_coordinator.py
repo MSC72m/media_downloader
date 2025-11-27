@@ -1,8 +1,10 @@
 """Event Coordinator - Clean coordination layer with constructor injection."""
 
-from typing import Optional, Callable
+from typing import Callable, Optional
 
 import customtkinter as ctk
+
+from src.core.config import AppConfig, get_config
 
 from src.interfaces.service_interfaces import (
     IErrorHandler,
@@ -44,12 +46,14 @@ class EventCoordinator:
                  download_handler: IDownloadHandler, file_service: IFileService,
                  network_checker: INetworkChecker, cookie_handler: ICookieHandler,
                  download_service: IDownloadService, message_queue: Optional[IMessageQueue] = None,
-                 downloads_folder: Optional[str] = None):
+                 downloads_folder: Optional[str] = None, config: Optional[AppConfig] = None):
         """Initialize with proper dependency injection."""
-        from src.core.config import get_config
+        if config is None:
+            config = get_config()
+        self.config = config
         
         if downloads_folder is None:
-            downloads_folder = str(get_config().paths.downloads_dir)
+            downloads_folder = str(self.config.paths.downloads_dir)
         
         self.root = root_window
         self.error_handler = error_handler

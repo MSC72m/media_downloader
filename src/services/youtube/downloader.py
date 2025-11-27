@@ -81,9 +81,8 @@ class YouTubeDownloader(BaseDownloader):
         }
 
         # Add speed limit if specified
-        KB_TO_BYTES = 1024  # Constant for KB to bytes conversion
         if self.speed_limit:
-            options["ratelimit"] = self.speed_limit * KB_TO_BYTES
+            options["ratelimit"] = self.speed_limit * self.config.downloads.kb_to_bytes
 
         # Add subtitle options
         if self.download_subtitles and self.selected_subtitles:

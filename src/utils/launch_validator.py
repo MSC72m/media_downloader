@@ -4,6 +4,7 @@ import os
 import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+from src.core.config import get_config, AppConfig
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -12,7 +13,8 @@ logger = get_logger(__name__)
 class LaunchValidator:
     """Validates system configuration and readiness for launch."""
 
-    def __init__(self):
+    def __init__(self, config: AppConfig = get_config()):
+        self.config = config
         self.validation_results: Dict[str, Tuple[bool, str]] = {}
 
     def validate_all(self) -> bool:
@@ -103,7 +105,7 @@ class LaunchValidator:
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=self.config.network.default_timeout
             )
 
             if result.returncode == 0:
@@ -118,7 +120,7 @@ class LaunchValidator:
     def _check_download_directory(self) -> Tuple[bool, str]:
         """Check default download directory."""
         try:
-            download_dir = Path.home() / "Downloads"
+            download_dir = self.config.paths.downloads_dir
 
             # Check if directory exists or can be created
             if not download_dir.exists():
@@ -155,7 +157,7 @@ class LaunchValidator:
             import requests
 
             # Test basic connectivity
-            response = requests.get('https://www.google.com', timeout=5)
+            response = requests.get('https://www.google.com', timeout=self.config.network.default_timeout)
             if response.status_code == 200:
                 return True, "Network connectivity OK"
             else:

@@ -23,5 +23,4 @@ def ensure_gui_available() -> bool:
             "reinstall Python with Tk support."
         )
         logger.error(msg)
-        print(msg)
         raise SystemExit(1) from e

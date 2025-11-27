@@ -5,6 +5,7 @@ from typing import Optional
 from src.core.enums.message_level import MessageLevel
 from src.interfaces.service_interfaces import IErrorHandler, IMessageQueue
 from src.services.events.queue import Message
+from src.utils.error_helpers import extract_error_context, format_user_friendly_error, classify_error_type, get_error_suggestion
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -77,26 +78,55 @@ class ErrorHandler(IErrorHandler):
         logger.debug(f"[ERROR_HANDLER] Info queued: {title}")
 
     def handle_exception(self, exception: Exception, context: str = "", service: str = "") -> None:
-        """Handle exception with automatic context extraction.
+        """Handle exception with automatic context extraction using utility functions.
 
         Args:
             exception: The exception that occurred
             context: Additional context about where the error occurred
             service: Service name where error occurred (e.g., 'YouTube', 'Twitter')
         """
-        error_msg = str(exception)
-        error_type = type(exception).__name__
-
+        # Extract error context using utility function
+        error_context = extract_error_context(exception, service=service, operation=context)
+        
+        # Format user-friendly message
+        message = format_user_friendly_error(error_context)
+        
+        # Classify error type for better handling
+        error_type = classify_error_type(str(exception))
+        
         title = f"{service} Error" if service else "Error"
-        if context:
-            message = f"{context}: {error_msg}"
-        else:
-            message = error_msg
-
-        logger.error(f"[ERROR_HANDLER] Exception in {service or 'unknown'}: {error_type} - {message}", exc_info=True)
+        
+        logger.error(f"[ERROR_HANDLER] Exception in {service or 'unknown'}: {error_context.get('error_type')} - {message}", exc_info=True)
         self.show_error(title, message)
 
     def handle_service_failure(self, service: str, operation: str, error_message: str, url: str = "") -> None:
+        """Handle service failure with consistent error formatting.
+        
+        Args:
+            service: Service name where error occurred
+            operation: Operation that failed
+            error_message: Error message
+            url: URL where error occurred (optional)
+        """
+        # Create error context dictionary
+        error_context = {
+            "error_type": "ServiceError",
+            "error_message": error_message,
+            "service": service,
+            "operation": operation,
+            "url": url,
+        }
+        
+        # Format user-friendly message
+        message = format_user_friendly_error(error_context)
+        
+        # Classify error type
+        error_type = classify_error_type(error_message)
+        
+        title = f"{service} {operation.title()} Failed" if service and operation else "Service Error"
+        
+        logger.error(f"[ERROR_HANDLER] Service failure: {service or 'unknown'} - {operation or 'unknown'}: {message}")
+        self.show_error(title, message)
         """Handle service failure with service name and operation context.
 
         Args:

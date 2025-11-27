@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 
 import instaloader
 
+from src.core.config import get_config, AppConfig
 from src.interfaces.service_interfaces import BaseDownloader
 from ...core.enums import ServiceType
 from src.interfaces.service_interfaces import IErrorHandler
@@ -21,16 +22,18 @@ logger = get_logger(__name__)
 class InstagramDownloader(BaseDownloader):
     """Instagram downloader service with authentication support."""
 
-    def __init__(self, error_handler: Optional[IErrorHandler] = None):
+    def __init__(self, error_handler: Optional[IErrorHandler] = None, config=None):
         """Initialize Instagram downloader.
 
         Args:
             error_handler: Optional error handler for user notifications
+            config: AppConfig instance (defaults to get_config() if None)
         """
+        super().__init__(config)
         self.loader = None
         self.authenticated = False
         self.login_attempts = 0
-        self.max_login_attempts = 3
+        self.max_login_attempts = self.config.instagram.max_login_attempts
         self.last_login_attempt = 0
         self.error_handler = error_handler
 
@@ -51,8 +54,8 @@ class InstagramDownloader(BaseDownloader):
         current_time = time.time()
         if (
             self.login_attempts >= self.max_login_attempts
-            and current_time - self.last_login_attempt < 600
-        ):  # 10 minutes
+            and current_time - self.last_login_attempt < self.config.instagram.login_cooldown_seconds
+        ):
             error_msg = "Too many login attempts. Please try again later."
             logger.error(error_msg)
             return False
@@ -70,7 +73,7 @@ class InstagramDownloader(BaseDownloader):
         try:
             logger.info("[INSTAGRAM_DOWNLOADER] Creating Instaloader instance")
             # Use realistic browser User-Agent to avoid 400 errors
-            user_agent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            user_agent = self.config.network.cookie_user_agent
 
             self.loader = instaloader.Instaloader(
                 download_videos=True,
@@ -124,7 +127,7 @@ class InstagramDownloader(BaseDownloader):
             # Initialize instaloader if not already done
             if not self.loader:
                 # Use realistic browser User-Agent to avoid 400 errors
-                user_agent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                user_agent = self.config.network.cookie_user_agent
 
                 self.loader = instaloader.Instaloader(
                     download_videos=True,

@@ -3,6 +3,8 @@
 import re
 from typing import Any, Callable, Dict, Optional
 
+from src.core.config import get_config, AppConfig
+from src.core.base.base_handler import BaseHandler
 from src.interfaces.service_interfaces import IErrorHandler
 from src.services.detection.link_detector import (
     DetectionResult,
@@ -21,15 +23,18 @@ logger = get_logger(__name__)
 
 
 @auto_register_handler
-class PinterestHandler(LinkHandlerInterface):
+class PinterestHandler(BaseHandler, LinkHandlerInterface):
     """Handler for Pinterest URLs."""
 
-    def __init__(self, error_handler: Optional[IErrorHandler] = None):
+    def __init__(self, error_handler: Optional[IErrorHandler] = None, message_queue=None, config: AppConfig = get_config()):
         """Initialize Pinterest handler.
 
         Args:
             error_handler: Optional error handler for user notifications
+            message_queue: Optional message queue for notifications
+            config: AppConfig instance (defaults to get_config() if None)
         """
+        super().__init__(message_queue, config)
         self.error_handler = error_handler
 
     PINTEREST_PATTERNS = [

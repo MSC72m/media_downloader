@@ -107,7 +107,8 @@ class FileDownloader:
 
                         if progress_callback:
                             # If file size unknown, report indeterminate progress
-                            progress_to_report = progress if progress >= 0 else min(99, downloaded / (1024 * 1024))
+                            mb_to_bytes = self.config.downloads.kb_to_bytes * 1024
+                            progress_to_report = progress if progress >= 0 else min(99, downloaded / mb_to_bytes)
                             progress_callback(progress_to_report, speed)
 
             # Rename temp file to final filename
@@ -117,7 +118,8 @@ class FileDownloader:
                 progress_callback(100, 0)  # Final progress update
 
             download_time = time.time() - start_time
-            logger.info(f"Download completed: {save_path} ({downloaded/1024/1024:.2f} MB in {download_time:.2f}s)")
+            mb_to_bytes = self.config.downloads.kb_to_bytes * 1024
+            logger.info(f"Download completed: {save_path} ({downloaded/mb_to_bytes:.2f} MB in {download_time:.2f}s)")
 
             return DownloadResult(
                 success=True,

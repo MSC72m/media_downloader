@@ -1,14 +1,17 @@
 """Application configuration using Pydantic Settings with YAML/JSON file support."""
 
-from cachetools import cached, TTLCache
+from functools import cache
 import json
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import yaml
 from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from src.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class CookieConfig(BaseModel):
@@ -61,6 +64,7 @@ class DownloadConfig(BaseModel):
     chunk_size: int = Field(default=8192, description="Download chunk size in bytes")
     thread_sleep_interval: float = Field(default=0.1, description="Thread sleep interval in seconds")
     default_timeout: int = Field(default=10, description="Default download timeout in seconds")
+    kb_to_bytes: int = Field(default=1024, description="KB to bytes conversion constant")
 
 
 class NetworkConfig(BaseModel):
@@ -129,6 +133,20 @@ class YouTubeConfig(BaseModel):
     audio_codec: str = Field(default="mp3", description="Default audio codec")
     playlist_item_limit: str = Field(default="1", description="Playlist item limit (single item)")
     default_retry_wait: int = Field(default=3, description="Default retry wait time in seconds")
+    ytdlp_default_options: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "quiet": True,
+            "no_warnings": True,
+            "ignoreerrors": True,
+            "extract_flat": "discard_in_playlist",
+            "playlistend": 1,
+            "writeinfojson": False,
+            "writesubtitles": False,
+            "writeautomaticsub": False,
+            "skip_download": True,
+        },
+        description="Default yt-dlp options for metadata fetching"
+    )
     url_patterns: list[str] = Field(
         default_factory=lambda: [
             r"^https?://(?:www\.)?youtube\.com/watch\?v=[\w-]+",
@@ -228,35 +246,35 @@ class YouTubeConfig(BaseModel):
     )
 
 
-class AppConfig(BaseSettings):
-    """Main application configuration.
+class InstagramConfig(BaseModel):
+    """Instagram-specific configuration."""
     
-    Supports YAML and JSON config files. Looks for config.yaml or config.json in:
-    1. Current directory
-    2. User config directory (~/.media_downloader/)
-    3. Environment variables (APP_*)
-    
-    Example config file:
-        cookies:
-          storage_dir: ~/.media_downloader
-          cookie_expiry_hours: 8
-        downloads:
-          max_concurrent_downloads: 3
-          retry_count: 3
-    """
+    max_login_attempts: int = Field(default=3, description="Maximum login attempts")
+    login_cooldown_seconds: int = Field(default=600, description="Cooldown period after max login attempts in seconds")
+    default_timeout: int = Field(default=10, description="Default request timeout in seconds")
 
-    model_config = SettingsConfigDict(
-        env_prefix="APP_",
-        case_sensitive=False,
-        env_nested_delimiter="__",
-        arbitrary_types_allowed=True,
-    )
+
+class PinterestConfig(BaseModel):
+    """Pinterest-specific configuration."""
+    
+    default_timeout: int = Field(default=10, description="Default request timeout in seconds")
+    oembed_timeout: int = Field(default=10, description="OEmbed API timeout in seconds")
+
+
+class SoundCloudConfig(BaseModel):
+    """SoundCloud-specific configuration."""
+    
+    default_retries: int = Field(default=3, description="Default number of retries")
+    socket_timeout: int = Field(default=15, description="Socket timeout in seconds")
+    default_audio_format: str = Field(default="mp3", description="Default audio format")
+    default_audio_quality: str = Field(default="best", description="Default audio quality")
+
 
 class UIConfig(BaseModel):
     """UI-related configuration."""
 
     metadata_fetch_timeout: int = Field(default=90, description="Metadata fetch dialog timeout in seconds")
-    polling_interval: float = Field(default=0.5, description="Polling interval for async operations in seconds")
+    metadata_poll_interval: float = Field(default=0.5, description="Polling interval for metadata fetch status in seconds")
     format_options: list[str] = Field(
         default_factory=lambda: ["Video + Audio", "Audio Only", "Video Only"],
         description="Format options for download dialogs"
@@ -292,6 +310,9 @@ class AppConfig(BaseSettings):
     downloads: DownloadConfig = Field(default_factory=DownloadConfig)
     network: NetworkConfig = Field(default_factory=NetworkConfig)
     youtube: YouTubeConfig = Field(default_factory=YouTubeConfig)
+    instagram: InstagramConfig = Field(default_factory=InstagramConfig)
+    pinterest: PinterestConfig = Field(default_factory=PinterestConfig)
+    soundcloud: SoundCloudConfig = Field(default_factory=SoundCloudConfig)
     ui: UIConfig = Field(default_factory=UIConfig)
 
     @classmethod
@@ -327,7 +348,7 @@ class AppConfig(BaseSettings):
                         else:
                             return json.load(f)
                 except Exception as e:
-                    print(f"Warning: Failed to load config file {config_file}: {e}")
+                    logger.warning(f"Failed to load config file {config_file}: {e}")
                     # Continue to next file instead of returning None
                     continue
                 
@@ -362,7 +383,7 @@ class AppConfig(BaseSettings):
 _config_instance: Optional[AppConfig] = None
 
 
-@cached(cache=TTLCache(maxsize=1, ttl=60 * 60 * 24))
+@cache
 def get_config() -> AppConfig:
     """Get the singleton configuration instance.
 

@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict, Optional
 
 import yt_dlp
 
+from src.core.config import get_config, AppConfig
 from src.interfaces.service_interfaces import BaseDownloader, IErrorHandler
 from ...utils.logger import get_logger
 
@@ -17,34 +18,37 @@ class SoundCloudDownloader(BaseDownloader):
 
     def __init__(
         self,
-        audio_format: str = "mp3",
-        audio_quality: str = "best",
+        audio_format: str = None,
+        audio_quality: str = None,
         download_playlist: bool = False,
         embed_metadata: bool = True,
         download_thumbnail: bool = True,
         speed_limit: Optional[int] = None,
-        retries: int = 3,
+        retries: Optional[int] = None,
         error_handler: Optional[IErrorHandler] = None,
+        config=None,
     ):
         """Initialize SoundCloud downloader.
 
         Args:
-            audio_format: Output audio format (mp3, aac, wav, etc.)
-            audio_quality: Audio quality (best, 320, 256, 192, 128)
+            audio_format: Output audio format (mp3, aac, wav, etc.) - uses config default if None
+            audio_quality: Audio quality (best, 320, 256, 192, 128) - uses config default if None
             download_playlist: Whether to download entire playlists/sets
             embed_metadata: Whether to embed metadata in audio files
             download_thumbnail: Whether to download artwork/thumbnail
             speed_limit: Speed limit in KB/s (None for unlimited)
-            retries: Number of retries on failure
+            retries: Number of retries on failure - uses config default if None
             error_handler: Optional error handler for user notifications
+            config: AppConfig instance (defaults to get_config() if None)
         """
-        self.audio_format = audio_format
-        self.audio_quality = audio_quality
+        super().__init__(config)
+        self.audio_format = audio_format or self.config.soundcloud.default_audio_format
+        self.audio_quality = audio_quality or self.config.soundcloud.default_audio_quality
         self.download_playlist = download_playlist
         self.embed_metadata = embed_metadata
         self.download_thumbnail = download_thumbnail
         self.speed_limit = speed_limit
-        self.retries = retries
+        self.retries = retries or self.config.soundcloud.default_retries
         self.error_handler = error_handler
         self.ytdl_opts = self._get_ytdl_options()
 
@@ -57,7 +61,7 @@ class SoundCloudDownloader(BaseDownloader):
             "ignoreerrors": True,
             "retries": self.retries,
             "fragment_retries": self.retries,
-            "socket_timeout": 15,
+            "socket_timeout": self.config.soundcloud.socket_timeout,
             "extractor_retries": self.retries,
             "nocheckcertificate": True,
             "writethumbnail": self.download_thumbnail,
@@ -104,7 +108,7 @@ class SoundCloudDownloader(BaseDownloader):
 
         # Speed limit
         if self.speed_limit:
-            options["ratelimit"] = self.speed_limit * 1024  # KB/s to bytes/s
+            options["ratelimit"] = self.speed_limit * self.config.downloads.kb_to_bytes
 
         # Playlist handling
         if not self.download_playlist:
@@ -253,7 +257,8 @@ class SoundCloudDownloader(BaseDownloader):
 
                 # Get speed
                 speed = d.get("speed", 0) or 0
-                speed_mbps = speed / (1024 * 1024) if speed else 0.0
+                mb_to_bytes = self.config.downloads.kb_to_bytes * 1024
+                speed_mbps = speed / mb_to_bytes if speed else 0.0
 
                 # Call progress callback
                 try:

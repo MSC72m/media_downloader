@@ -1,9 +1,13 @@
 """Thread-safe utilities for GUI operations."""
 
 import threading
+from collections.abc import Callable
 from functools import wraps
 from typing import Any
-from collections.abc import Callable
+
+from src.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class ThreadSafeDialogMixin:
@@ -32,9 +36,7 @@ class ThreadSafeDialogMixin:
             if callable(func):
                 return func(*args, **kwargs)
         except Exception as e:
-            print(f"Error in safe_execute: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"Error in safe_execute: {e}", exc_info=True)
 
     def safe_configure(self, widget, **kwargs):
         """Thread-safe widget configuration."""
@@ -42,7 +44,7 @@ class ThreadSafeDialogMixin:
             try:
                 widget.configure(**kwargs)
             except Exception as e:
-                print(f"Error configuring widget: {e}")
+                logger.error(f"Error configuring widget: {e}", exc_info=True)
         else:
             self.after(0, lambda: self._safe_configure(widget, **kwargs))
 
@@ -51,7 +53,7 @@ class ThreadSafeDialogMixin:
         try:
             widget.configure(**kwargs)
         except Exception as e:
-            print(f"Error in safe configure: {e}")
+            logger.error(f"Error in safe configure: {e}", exc_info=True)
 
     def safe_destroy(self):
         """Thread-safe window destruction."""
@@ -59,7 +61,7 @@ class ThreadSafeDialogMixin:
             try:
                 self.destroy()
             except Exception as e:
-                print(f"Error destroying window: {e}")
+                logger.error(f"Error destroying window: {e}", exc_info=True)
         else:
             self.after(0, self._safe_destroy)
 
@@ -68,7 +70,7 @@ class ThreadSafeDialogMixin:
         try:
             self.destroy()
         except Exception as e:
-            print(f"Error in safe destroy: {e}")
+            logger.error(f"Error in safe destroy: {e}", exc_info=True)
 
     def safe_update(self):
         """Thread-safe UI update."""
@@ -76,7 +78,7 @@ class ThreadSafeDialogMixin:
             try:
                 self.update()
             except Exception as e:
-                print(f"Error updating UI: {e}")
+                logger.error(f"Error updating UI: {e}", exc_info=True)
         else:
             self.after(0, self._safe_update)
 
@@ -85,7 +87,7 @@ class ThreadSafeDialogMixin:
         try:
             self.update()
         except Exception as e:
-            print(f"Error in safe update: {e}")
+            logger.error(f"Error in safe update: {e}", exc_info=True)
 
 
 def thread_safe_dialog(method):
@@ -111,7 +113,7 @@ class ThreadSafeOperations:
             try:
                 return widget.after(0, lambda: func(*args, **kwargs))
             except Exception as e:
-                print(f"Error scheduling main thread execution: {e}")
+                logger.error(f"Error scheduling main thread execution: {e}", exc_info=True)
         return None
 
     @staticmethod
@@ -121,7 +123,7 @@ class ThreadSafeOperations:
             if widget.winfo_exists():
                 widget.configure(state=state)
         except Exception as e:
-            print(f"Error changing widget state: {e}")
+            logger.error(f"Error changing widget state: {e}", exc_info=True)
 
     @staticmethod
     def safe_widget_config(widget, **kwargs):
@@ -130,4 +132,4 @@ class ThreadSafeOperations:
             if widget.winfo_exists():
                 widget.configure(**kwargs)
         except Exception as e:
-            print(f"Error configuring widget: {e}")
+            logger.error(f"Error configuring widget: {e}", exc_info=True)

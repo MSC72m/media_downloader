@@ -214,7 +214,7 @@ class LinkDetector:
             try:
                 return handler.can_handle(url)
             except Exception as e:
-                print(f"Error getting URL info: {e}")
+                logger.error(f"Error getting URL info: {e}", exc_info=True)
         return None
 
 

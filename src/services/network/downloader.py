@@ -60,7 +60,8 @@ def download_file(
                 elapsed = time.time() - start_time
                 speed = downloaded / elapsed if elapsed > 0 else 0
                 if progress_callback:
-                    progress_to_report = progress if progress >= 0 else min(99, downloaded / (1024 * 1024))
+                    mb_to_bytes = config.downloads.kb_to_bytes * 1024
+                    progress_to_report = progress if progress >= 0 else min(99, downloaded / mb_to_bytes)
                     progress_callback(progress_to_report, speed)
 
         os.replace(temp_file, save_path)
