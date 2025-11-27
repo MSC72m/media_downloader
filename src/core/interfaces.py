@@ -68,13 +68,23 @@ class ICookieHandler(ABC):
     """Interface for cookie handling."""
 
     @abstractmethod
-    def detect_cookies(self, callback: Callable[[str, str], None]) -> None:
-        """Detect available cookies."""
+    def detect_cookies_for_browser(self, browser: str) -> Optional[str]:
+        """Detect cookies for a specific browser."""
         pass
 
     @abstractmethod
-    def validate_cookies(self, cookie_path: str) -> bool:
-        """Validate cookie file."""
+    def set_cookie_file(self, cookie_path: str) -> bool:
+        """Set cookie file from user selection."""
+        pass
+
+    @abstractmethod
+    def has_valid_cookies(self) -> bool:
+        """Check if valid cookies are currently set."""
+        pass
+
+    @abstractmethod
+    def get_cookie_info_for_ytdlp(self) -> Optional[dict]:
+        """Get cookie information for yt-dlp integration."""
         pass
 
 

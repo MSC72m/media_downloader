@@ -270,7 +270,9 @@ class MediaDownloaderApp(ctk.CTk):
             coord.downloads.clear_downloads()
 
         def on_download() -> None:
-            coord.downloads.start_downloads()
+            downloads = coord.downloads.get_downloads()
+            # Filter for pending downloads if needed, but start_downloads usually handles status check
+            coord.downloads.start_downloads(downloads, coord.downloads_folder)
 
         def on_manage_files() -> None:
             coord.show_file_manager()
@@ -360,11 +362,10 @@ if __name__ == "__main__":
         app = MediaDownloaderApp()
         app.mainloop()
         
-    except (SystemExit, ImportError):
-        # Should not reach here, but just in case
-        logger.error("Missing Deps")
+    except (SystemExit, ImportError) as e:
+        logger.error(f"[MAIN_APP] Missing dependencies: {e}", exc_info=True)
         sys.exit(1)
 
     except Exception as e:
-        logger.error(f"[MAIN_APP] Unexpected state - exiting Error: {e}")
+        logger.error(f"[MAIN_APP] Unexpected error - exiting: {e}", exc_info=True)
         sys.exit(1)

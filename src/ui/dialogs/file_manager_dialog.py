@@ -82,7 +82,8 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
             self.file_list.update_items(self.current_path)
         except OSError as oe:
             logger.error(f"Error accessing directory: {oe}")
-            self.show_status("Error: Unable to access the specified directory.")
+            if self.show_status:
+                self.show_status("Error: Unable to access the specified directory.")
 
     def on_item_double_click(self, event):
         """Handle double-click on file/directory."""
@@ -109,7 +110,8 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
         if os.path.exists(self.current_path) and os.path.isdir(self.current_path):
             self.on_directory_change(self.current_path)
             logger.info(f"Download directory changed to: {self.current_path}")
-            self.show_status(f"Download directory changed to: {self.current_path}")
+            if self.show_status:
+                self.show_status(f"Download directory changed to: {self.current_path}")
             self.destroy()
         else:
             messagebox.showerror("Error", "Please select a valid directory.")
@@ -127,5 +129,6 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
                 self.update_file_list()
             except OSError as oe:
                 logger.error(f"Error creating folder: {oe}")
-                self.show_status("Error: Unable to create the folder.")
+                if self.show_status:
+                    self.show_status("Error: Unable to create the folder.")
                 messagebox.showerror("Error", f"Unable to create folder: {str(oe)}")

@@ -3,6 +3,7 @@
 import re
 from typing import Any, Callable, Dict, Optional
 
+from src.core.interfaces import IErrorHandler
 from src.services.detection.link_detector import (
     DetectionResult,
     LinkHandlerInterface,
@@ -22,7 +23,14 @@ logger = get_logger(__name__)
 class TwitterHandler(LinkHandlerInterface):
     """Handler for Twitter/X URLs."""
 
-    # Twitter/X URL patterns
+    def __init__(self, error_handler: Optional[IErrorHandler] = None):
+        """Initialize Twitter handler.
+
+        Args:
+            error_handler: Optional error handler for user notifications
+        """
+        self.error_handler = error_handler
+
     TWITTER_PATTERNS = [
         r"^https?://(?:www\.)?twitter\.com/[\w]+/status/[\d]+",
         r"^https?://(?:www\.)?x\.com/[\w]+/status/[\d]+",
@@ -91,13 +99,14 @@ class TwitterHandler(LinkHandlerInterface):
 
             logger.info(f"[TWITTER_HANDLER] Root: {root}")
 
-            # Get download callback using type-safe helper
             download_callback = get_platform_callback(ui_context, "twitter")
             if not download_callback:
-                # Try generic fallback
                 download_callback = get_platform_callback(ui_context, "generic")
                 if not download_callback:
-                    logger.error("[TWITTER_HANDLER] No download callback found")
+                    error_msg = "No download callback found"
+                    logger.error(f"[TWITTER_HANDLER] {error_msg}")
+                    if self.error_handler:
+                        self.error_handler.handle_service_failure("Twitter Handler", "callback", error_msg, url)
                     return
 
             # Call the platform download method which will show the dialog (or fallback)
@@ -110,10 +119,9 @@ class TwitterHandler(LinkHandlerInterface):
                     download_callback(url)
                     logger.info("[TWITTER_HANDLER] Download callback executed")
                 except Exception as e:
-                    logger.error(
-                        f"[TWITTER_HANDLER] Error processing Twitter download: {e}",
-                        exc_info=True,
-                    )
+                    logger.error(f"[TWITTER_HANDLER] Error processing Twitter download: {e}", exc_info=True)
+                    if self.error_handler:
+                        self.error_handler.handle_exception(e, "Processing Twitter download", "Twitter")
 
             # Schedule on main thread
             schedule_on_main_thread(root, process_twitter_download, immediate=True)

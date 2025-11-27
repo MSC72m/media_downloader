@@ -6,13 +6,11 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
 import yt_dlp
 
-from src.services.network.checker import check_site_connection
-from src.utils.logger import get_logger
-
-from ...core.interfaces import BaseDownloader
 from ...core.enums import ServiceType
+from ...core.interfaces import BaseDownloader, ICookieHandler, IErrorHandler
 from ..file.sanitizer import FilenameSanitizer
-from .cookie_detector import CookieManager as OldCookieManager
+from ..network.checker import check_site_connection
+from ...utils.logger import get_logger
 from .metadata_service import YouTubeMetadataService
 
 if TYPE_CHECKING:
@@ -31,7 +29,7 @@ class YouTubeDownloader(BaseDownloader):
         audio_only: bool = False,
         video_only: bool = False,
         format: str = "video",
-        cookie_manager: Optional[OldCookieManager] = None,
+        cookie_manager: Optional[ICookieHandler] = None,
         auto_cookie_manager: Optional["AutoCookieManager"] = None,
         download_subtitles: bool = False,
         selected_subtitles: Optional[list] = None,
@@ -39,21 +37,23 @@ class YouTubeDownloader(BaseDownloader):
         embed_metadata: bool = True,
         speed_limit: Optional[int] = None,
         retries: int = 3,
+        error_handler: Optional[IErrorHandler] = None,
     ):
         self.quality = quality
         self.download_playlist = download_playlist
         self.audio_only = audio_only
         self.video_only = video_only
         self.format = format
-        self.cookie_manager = cookie_manager  # Old system (backward compat)
-        self.auto_cookie_manager = auto_cookie_manager  # New system
+        self.cookie_manager = cookie_manager
+        self.auto_cookie_manager = auto_cookie_manager
         self.download_subtitles = download_subtitles
         self.selected_subtitles = selected_subtitles or []
         self.download_thumbnail = download_thumbnail
         self.embed_metadata = embed_metadata
         self.speed_limit = speed_limit
         self.retries = retries
-        self.metadata_service = YouTubeMetadataService()
+        self.error_handler = error_handler
+        self.metadata_service = YouTubeMetadataService(error_handler=error_handler)
         self.ytdl_opts = self._get_simple_ytdl_options()
 
     def _get_simple_ytdl_options(self) -> Dict[str, Any]:
@@ -132,7 +132,7 @@ class YouTubeDownloader(BaseDownloader):
                 )
         elif self.cookie_manager:
             # Fallback to old cookie file system
-            cookie_info = self.cookie_manager.get_youtube_cookie_info()
+            cookie_info = self.cookie_manager.get_cookie_info_for_ytdlp()
             if cookie_info:
                 options.update(cookie_info)
                 logger.info("[YOUTUBE_DOWNLOADER] Using old cookie system")
@@ -161,10 +161,11 @@ class YouTubeDownloader(BaseDownloader):
         Returns:
             True if download was successful, False otherwise
         """
-        # Check connectivity to YouTube
         connected, error_msg = check_site_connection(ServiceType.YOUTUBE)
         if not connected:
             logger.error(f"Cannot download from YouTube: {error_msg}")
+            if self.error_handler:
+                self.error_handler.handle_service_failure("YouTube", "download", error_msg or "Connection failed", url)
             return False
 
         download_successful = False
@@ -255,35 +256,27 @@ class YouTubeDownloader(BaseDownloader):
                     with yt_dlp.YoutubeDL(opts) as ydl:  # type: ignore
                         info = ydl.extract_info(url, download=True)
                         if not info:
-                            logger.error("No video information extracted from YouTube")
+                            error_msg = "No video information extracted from YouTube"
+                            logger.error(error_msg)
+                            if self.error_handler:
+                                self.error_handler.handle_service_failure("YouTube", "download", error_msg, url)
                             return False
 
-                        # Mark download as potentially successful
                         download_successful = True
-                        break  # Exit retry loop
+                        break
 
                 except Exception as e:
                     error_msg = str(e)
+                    error_type_name = type(e).__name__
 
-                    # Only handle download errors
-                    if "DownloadError" in str(type(e).__name__):
-                        logger.warning(
-                            f"YouTube download error (attempt {attempt + 1}/{max_retries}): {error_msg}"
-                        )
+                    if "DownloadError" in error_type_name:
+                        logger.warning(f"YouTube download error (attempt {attempt + 1}/{max_retries}): {error_msg}")
 
-                        # Handle error using dispatcher pattern
                         error_type = self._classify_download_error(error_msg)
-
                         error_handlers = {
-                            "rate_limit": lambda: self._handle_rate_limit_error(
-                                attempt, retry_wait
-                            ),
-                            "network": lambda: self._handle_network_error(
-                                attempt, max_retries, retry_wait, error_msg
-                            ),
-                            "format": lambda: self._handle_format_error(
-                                attempt, opts, url
-                            ),
+                            "rate_limit": lambda: self._handle_rate_limit_error(attempt, retry_wait),
+                            "network": lambda: self._handle_network_error(attempt, max_retries, retry_wait, error_msg),
+                            "format": lambda: self._handle_format_error(attempt, opts, url),
                         }
 
                         handler = error_handlers.get(error_type)
@@ -293,22 +286,27 @@ class YouTubeDownloader(BaseDownloader):
                         if not handler:
                             self._log_specific_error(error_msg)
 
-                        return False
-                    else:
-                        # Other exceptions
-                        logger.error(f"Error downloading from YouTube: {error_msg}")
-                        self._log_specific_error(error_msg)
+                        if self.error_handler:
+                            self.error_handler.handle_exception(e, "YouTube download", "YouTube")
                         return False
 
-            # All retries exhausted
+                    logger.error(f"Error downloading from YouTube: {error_msg}")
+                    self._log_specific_error(error_msg)
+                    if self.error_handler:
+                        self.error_handler.handle_exception(e, "YouTube download", "YouTube")
+                    return False
+
             if not download_successful:
-                logger.error("All download attempts failed")
+                error_msg = "All download attempts failed"
+                logger.error(error_msg)
+                if self.error_handler:
+                    self.error_handler.handle_service_failure("YouTube", "download", error_msg, url)
                 return False
 
         except Exception as e:
-            logger.error(
-                f"Unexpected error downloading from YouTube: {str(e)}", exc_info=True
-            )
+            logger.error(f"Unexpected error downloading from YouTube: {str(e)}", exc_info=True)
+            if self.error_handler:
+                self.error_handler.handle_exception(e, "YouTube download", "YouTube")
             return False
 
         # Verify the download actually completed successfully
@@ -356,12 +354,7 @@ class YouTubeDownloader(BaseDownloader):
         """Classify the type of download error using pattern matching."""
         error_patterns = {
             "rate_limit": ["HTTP Error 429"],
-            "network": [
-                "Connection refused",
-                "Network Error",
-                "Unable to download",
-                "Errno 111",
-            ],
+            "network": ["Connection refused", "Network Error", "Unable to download", "Errno 111"],
             "format": ["Requested format is not available", "No video formats found"],
         }
 

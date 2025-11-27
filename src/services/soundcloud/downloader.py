@@ -6,9 +6,8 @@ from typing import Any, Callable, Dict, Optional
 
 import yt_dlp
 
-from src.utils.logger import get_logger
-
-from ...core.interfaces import BaseDownloader
+from ...core.interfaces import BaseDownloader, IErrorHandler
+from ...utils.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -25,6 +24,7 @@ class SoundCloudDownloader(BaseDownloader):
         download_thumbnail: bool = True,
         speed_limit: Optional[int] = None,
         retries: int = 3,
+        error_handler: Optional[IErrorHandler] = None,
     ):
         """Initialize SoundCloud downloader.
 
@@ -36,6 +36,7 @@ class SoundCloudDownloader(BaseDownloader):
             download_thumbnail: Whether to download artwork/thumbnail
             speed_limit: Speed limit in KB/s (None for unlimited)
             retries: Number of retries on failure
+            error_handler: Optional error handler for user notifications
         """
         self.audio_format = audio_format
         self.audio_quality = audio_quality
@@ -44,6 +45,7 @@ class SoundCloudDownloader(BaseDownloader):
         self.download_thumbnail = download_thumbnail
         self.speed_limit = speed_limit
         self.retries = retries
+        self.error_handler = error_handler
         self.ytdl_opts = self._get_ytdl_options()
 
     def _get_ytdl_options(self) -> Dict[str, Any]:
@@ -128,15 +130,18 @@ class SoundCloudDownloader(BaseDownloader):
             bool: True if download successful, False otherwise
         """
         if not url:
-            logger.error("[SOUNDCLOUD_DOWNLOADER] No URL provided")
+            error_msg = "No URL provided"
+            logger.error(f"[SOUNDCLOUD_DOWNLOADER] {error_msg}")
+            if self.error_handler:
+                self.error_handler.handle_service_failure("SoundCloud", "download", error_msg, "")
             return False
 
-        # Create the output directory if it doesn't exist
         save_dir = os.path.dirname(save_path)
         if save_dir and not os.path.exists(save_dir):
-            logger.error(
-                f"[SOUNDCLOUD_DOWNLOADER] Save directory does not exist: {save_dir}"
-            )
+            error_msg = f"Save directory does not exist: {save_dir}"
+            logger.error(f"[SOUNDCLOUD_DOWNLOADER] {error_msg}")
+            if self.error_handler:
+                self.error_handler.handle_service_failure("SoundCloud", "download", error_msg, url)
             return False
 
         logger.info(f"[SOUNDCLOUD_DOWNLOADER] Starting download: {url}")
@@ -148,17 +153,15 @@ class SoundCloudDownloader(BaseDownloader):
         try:
             info = self.get_info(url)
             if info and self._is_premium_track(info):
-                error_msg = (
-                    "This track requires SoundCloud Go+ subscription and cannot be downloaded.\n\n"
-                    "Premium tracks are not accessible without a paid subscription."
-                )
+                error_msg = "This track requires SoundCloud Go+ subscription and cannot be downloaded"
                 logger.warning(f"[SOUNDCLOUD_DOWNLOADER] Premium track detected: {url}")
+                if self.error_handler:
+                    self.error_handler.handle_service_failure("SoundCloud", "download", error_msg, url)
                 return False
         except Exception as check_error:
-            logger.warning(
-                f"[SOUNDCLOUD_DOWNLOADER] Could not check premium status: {check_error}"
-            )
-            # Continue with download attempt
+            logger.warning(f"[SOUNDCLOUD_DOWNLOADER] Could not check premium status: {check_error}")
+            if self.error_handler:
+                self.error_handler.handle_exception(check_error, "Checking premium status", "SoundCloud")
 
         try:
             # Create progress hook
@@ -177,7 +180,10 @@ class SoundCloudDownloader(BaseDownloader):
                 info = ydl.extract_info(url, download=True)
 
                 if not info:
-                    logger.error("[SOUNDCLOUD_DOWNLOADER] Failed to extract info")
+                    error_msg = "Failed to extract track information"
+                    logger.error(f"[SOUNDCLOUD_DOWNLOADER] {error_msg}")
+                    if self.error_handler:
+                        self.error_handler.handle_service_failure("SoundCloud", "download", error_msg, url)
                     return False
 
                 logger.info("[SOUNDCLOUD_DOWNLOADER] Download completed successfully")
@@ -200,20 +206,20 @@ class SoundCloudDownloader(BaseDownloader):
 
             # Check for premium/Go+ errors first
             if premium_error_pattern.search(error_msg):
-                logger.error(
-                    f"[SOUNDCLOUD_DOWNLOADER] Premium content error: {error_msg}"
-                )
+                logger.error(f"[SOUNDCLOUD_DOWNLOADER] Premium content error: {error_msg}")
                 self._handle_download_error(error_msg)
+                if self.error_handler:
+                    self.error_handler.handle_service_failure("SoundCloud", "download", "Track requires SoundCloud Go+ subscription", url)
                 return False
 
-            # Check if it's a DownloadError
             if "DownloadError" in type(e).__name__:
                 logger.error(f"[SOUNDCLOUD_DOWNLOADER] Download error: {error_msg}")
                 self._handle_download_error(error_msg)
             else:
-                logger.error(
-                    f"[SOUNDCLOUD_DOWNLOADER] Unexpected error: {e}", exc_info=True
-                )
+                logger.error(f"[SOUNDCLOUD_DOWNLOADER] Unexpected error: {e}", exc_info=True)
+
+            if self.error_handler:
+                self.error_handler.handle_exception(e, "SoundCloud download", "SoundCloud")
             return False
 
     def _create_progress_hook(

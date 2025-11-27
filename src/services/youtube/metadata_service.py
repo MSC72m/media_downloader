@@ -2,16 +2,23 @@
 
 import os
 import re
+import shutil
 import subprocess
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from urllib.parse import parse_qs, urlparse
 
+from ...core.interfaces import IErrorHandler
 from ...interfaces.youtube_metadata import (
     IYouTubeMetadataService,
     SubtitleInfo,
     YouTubeMetadata,
 )
+from ...utils.error_helpers import classify_error_type, format_user_friendly_error, extract_error_context
 from ...utils.logger import get_logger
+
+if TYPE_CHECKING:
+    from ...handlers.cookie_handler import CookieHandler
+    from ...interfaces.cookie_detection import BrowserType
 
 logger = get_logger(__name__)
 
@@ -44,7 +51,7 @@ def _safe_decode_bytes(byte_data: bytes) -> str:
 class YouTubeMetadataService(IYouTubeMetadataService):
     """Service for fetching YouTube video metadata."""
 
-    def __init__(self):
+    def __init__(self, error_handler: Optional[IErrorHandler] = None):
         self._ytdlp_options = {
             "quiet": True,
             "no_warnings": True,
@@ -54,8 +61,8 @@ class YouTubeMetadataService(IYouTubeMetadataService):
             "writesubtitles": False,
             "writeautomaticsub": False,
             "skip_download": True,
-            # Don't fetch formats by default to avoid storyboard noise
         }
+        self.error_handler = error_handler
 
     def fetch_metadata(
         self, url: str, cookie_path: Optional[str] = None, browser: Optional[str] = None
@@ -65,14 +72,18 @@ class YouTubeMetadataService(IYouTubeMetadataService):
             logger.info(f"Fetching metadata for URL: {url}")
 
             if not self.validate_url(url):
-                return YouTubeMetadata(error="Invalid YouTube URL")
+                error_msg = "Invalid YouTube URL"
+                if self.error_handler:
+                    self.error_handler.handle_service_failure("YouTube", "metadata fetch", error_msg, url)
+                return YouTubeMetadata(error=error_msg)
 
-            # Get basic video info without fetching formats to avoid storyboard noise
             info = self._get_basic_video_info(url, cookie_path, browser)
             if not info:
-                return YouTubeMetadata(error="Failed to fetch video information")
+                error_msg = "Failed to fetch video information"
+                if self.error_handler:
+                    self.error_handler.handle_service_failure("YouTube", "metadata fetch", error_msg, url)
+                return YouTubeMetadata(error=error_msg)
 
-            # Extract available qualities and formats (static options)
             available_qualities = self._extract_qualities(info)
             available_formats = self._extract_formats(info)
             available_subtitles = self._extract_subtitles(info)
@@ -94,7 +105,9 @@ class YouTubeMetadataService(IYouTubeMetadataService):
 
         except Exception as e:
             error_msg = str(e)
-            logger.error(f"Error fetching metadata: {error_msg}")
+            logger.error(f"Error fetching metadata: {error_msg}", exc_info=True)
+            if self.error_handler:
+                self.error_handler.handle_exception(e, "YouTube metadata fetch", "YouTube")
             return YouTubeMetadata(error=f"Failed to fetch metadata: {error_msg}")
 
     def _get_basic_video_info(
@@ -102,9 +115,6 @@ class YouTubeMetadataService(IYouTubeMetadataService):
     ) -> Optional[Dict[str, Any]]:
         """Get basic video info using command line yt-dlp instead of Python API."""
         try:
-            # Build command line arguments - use system yt-dlp or find it in PATH
-            import shutil
-
             ytdlp_path = shutil.which("yt-dlp")
             if not ytdlp_path:
                 # Fallback to common installation paths
@@ -120,9 +130,10 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                         break
 
                 if not ytdlp_path:
-                    raise RuntimeError(
-                        "yt-dlp not found in PATH or common installation locations"
-                    )
+                    error_msg = "yt-dlp not found in PATH or common installation locations"
+                    if self.error_handler:
+                        self.error_handler.handle_service_failure("YouTube", "metadata fetch", error_msg, url)
+                    raise RuntimeError(error_msg)
 
             cmd = [ytdlp_path]
 
@@ -224,13 +235,22 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                     logger.warning(f"Failed to parse output: {e}")
                     logger.debug(f"Raw output: {result.stdout[:500]}...")
             else:
-                logger.warning(f"Command failed with return code {result.returncode}")
+                error_msg = f"yt-dlp command failed with return code {result.returncode}"
+                logger.warning(error_msg)
                 logger.debug(f"Error output: {result.stderr}")
+                if self.error_handler and result.stderr:
+                    stderr_msg = result.stderr[:200] if len(result.stderr) > 200 else result.stderr
+                    self.error_handler.handle_service_failure("YouTube", "metadata fetch", stderr_msg, url)
 
         except subprocess.TimeoutExpired:
-            logger.warning("Command line yt-dlp timed out")
+            error_msg = "yt-dlp command timed out"
+            logger.warning(error_msg)
+            if self.error_handler:
+                self.error_handler.handle_service_failure("YouTube", "metadata fetch", error_msg, url)
         except Exception as e:
-            logger.warning(f"Command line extraction failed: {e}")
+            logger.warning(f"Command line extraction failed: {e}", exc_info=True)
+            if self.error_handler:
+                self.error_handler.handle_exception(e, "YouTube metadata fetch", "YouTube")
 
         # Fallback without cookies if cookies failed
         if cookie_path or browser:
@@ -366,7 +386,6 @@ class YouTubeMetadataService(IYouTubeMetadataService):
             from ...handlers.cookie_handler import CookieHandler
             from ...interfaces.cookie_detection import BrowserType
 
-            # Convert browser string to BrowserType enum
             browser_type_map = {
                 "chrome": BrowserType.CHROME,
                 "firefox": BrowserType.FIREFOX,
@@ -378,22 +397,21 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                 logger.warning(f"Unsupported browser: {browser}")
                 return None
 
-            # Create cookie handler and detect cookies
             cookie_handler = CookieHandler()
             cookie_handler.initialize()
 
             detected_path = cookie_handler.detect_cookies_for_browser(browser_type)
             if detected_path:
-                logger.info(
-                    f"Successfully detected cookies for {browser}: {detected_path}"
-                )
+                logger.info(f"Successfully detected cookies for {browser}: {detected_path}")
                 return detected_path
-            else:
-                logger.info(f"No cookies found for {browser}")
-                return None
+
+            logger.info(f"No cookies found for {browser}")
+            return None
 
         except Exception as e:
-            logger.error(f"Error detecting cookies for {browser}: {e}")
+            logger.error(f"Error detecting cookies for {browser}: {e}", exc_info=True)
+            if self.error_handler:
+                self.error_handler.handle_exception(e, f"Cookie detection for {browser}", "YouTube")
             return None
 
     def _get_real_subtitles(
@@ -602,6 +620,9 @@ class YouTubeMetadataService(IYouTubeMetadataService):
             r"^https?://(?:www\.)?youtu\.be/[\w-]+",
             r"^https?://(?:www\.)?youtube\.com/embed/[\w-]+",
             r"^https?://(?:www\.)?youtube\.com/v/[\w-]+",
+            r"^https?://(?:www\.)?youtube\.com/shorts/[\w-]+",
+            r"^https?://music\.youtube\.com/watch\?v=[\w-]+",
+            r"^https?://music\.youtube\.com/playlist\?list=[\w-]+",
         ]
 
         return any(re.match(pattern, url) for pattern in youtube_patterns)

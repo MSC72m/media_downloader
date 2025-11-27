@@ -4,7 +4,7 @@ import re
 from typing import Any, Callable, Dict, Optional
 
 from src.core.base.base_handler import BaseHandler
-from src.core.interfaces import IMessageQueue
+from src.core.interfaces import IErrorHandler, IMessageQueue
 from src.services.detection.link_detector import (
     DetectionResult,
     LinkHandlerInterface,
@@ -33,9 +33,10 @@ class SoundCloudHandler(BaseHandler, LinkHandlerInterface):
         r"^https?://soundcloud\.app\.goo\.gl/[\w]+",
     ]
 
-    def __init__(self, message_queue: IMessageQueue):
+    def __init__(self, message_queue: IMessageQueue, error_handler: Optional[IErrorHandler] = None):
         """Initialize SoundCloud handler with proper dependency injection."""
         super().__init__(message_queue)
+        self.error_handler = error_handler
 
     @classmethod
     def get_patterns(cls):
@@ -99,13 +100,14 @@ class SoundCloudHandler(BaseHandler, LinkHandlerInterface):
 
             logger.info(f"[SOUNDCLOUD_HANDLER] Root: {root}")
 
-            # Get download callback using type-safe helper
             download_callback = get_platform_callback(ui_context, "soundcloud")
             if not download_callback:
-                # Try generic fallback
                 download_callback = get_platform_callback(ui_context, "generic")
                 if not download_callback:
-                    logger.error("[SOUNDCLOUD_HANDLER] No download callback found")
+                    error_msg = "No download callback found"
+                    logger.error(f"[SOUNDCLOUD_HANDLER] {error_msg}")
+                    if self.error_handler:
+                        self.error_handler.handle_service_failure("SoundCloud Handler", "callback", error_msg, url)
                     return
 
             # Call the platform download method
@@ -117,14 +119,11 @@ class SoundCloudHandler(BaseHandler, LinkHandlerInterface):
                     download_callback(url)
                     logger.info("[SOUNDCLOUD_HANDLER] Download callback executed")
                 except Exception as e:
-                    logger.error(
-                        f"[SOUNDCLOUD_HANDLER] Error processing SoundCloud download: {e}",
-                        exc_info=True,
-                    )
-                    # Show error dialog via BaseHandler's message queue
-                    self.notify_user("error",
-                        title="SoundCloud Download Error",
-                        message=f"Failed to process SoundCloud download: {str(e)}")
+                    logger.error(f"[SOUNDCLOUD_HANDLER] Error processing SoundCloud download: {e}", exc_info=True)
+                    if self.error_handler:
+                        self.error_handler.handle_exception(e, "Processing SoundCloud download", "SoundCloud")
+                    else:
+                        self.notify_user("error", title="SoundCloud Download Error", message=f"Failed to process SoundCloud download: {str(e)}")
 
             # Schedule on main thread
             schedule_on_main_thread(root, process_soundcloud_download, immediate=True)

@@ -166,7 +166,7 @@ class EventCoordinator:
                 self.root,
                 self.downloads_folder,
                 on_directory_change,
-                None,  # No status bar dependency to keep it clean
+                lambda msg: self.error_handler.show_info("File Manager", msg),
             )
         except Exception as e:
             logger.error(f"[EVENT_COORDINATOR] Error showing file manager: {e}")

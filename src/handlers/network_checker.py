@@ -1,8 +1,9 @@
 """Concrete implementation of network checker."""
 
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 from src.core.enums import ServiceType
+from src.core.interfaces import IErrorHandler
 from src.services.network.checker import (
     check_internet_connection,
     check_site_connection,
@@ -16,8 +17,14 @@ logger = get_logger(__name__)
 class NetworkChecker:
     """Network checker for verifying connectivity to services."""
 
-    def __init__(self):
+    def __init__(self, error_handler: Optional[IErrorHandler] = None):
+        """Initialize network checker.
+
+        Args:
+            error_handler: Optional error handler for user notifications
+        """
         self._initialized = False
+        self.error_handler = error_handler
 
     def initialize(self) -> None:
         """Initialize the network checker."""
@@ -41,7 +48,10 @@ class NetworkChecker:
         try:
             return check_site_connection(service)
         except Exception as e:
-            logger.error(f"Error checking service connection for {service.value}: {e}")
+            error_msg = f"Error checking service connection for {service.value}: {e}"
+            logger.error(error_msg, exc_info=True)
+            if self.error_handler:
+                self.error_handler.handle_exception(e, f"Checking {service.value} connection", "Network Checker")
             return False, str(e)
 
     def get_problem_services(self) -> List[str]:

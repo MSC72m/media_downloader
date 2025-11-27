@@ -3,6 +3,7 @@
 import re
 from typing import Any, Callable, Dict, Optional
 
+from src.core.interfaces import IErrorHandler
 from src.services.detection.link_detector import (
     DetectionResult,
     LinkHandlerInterface,
@@ -22,7 +23,14 @@ logger = get_logger(__name__)
 class PinterestHandler(LinkHandlerInterface):
     """Handler for Pinterest URLs."""
 
-    # Pinterest URL patterns
+    def __init__(self, error_handler: Optional[IErrorHandler] = None):
+        """Initialize Pinterest handler.
+
+        Args:
+            error_handler: Optional error handler for user notifications
+        """
+        self.error_handler = error_handler
+
     PINTEREST_PATTERNS = [
         r"^https?://(?:www\.)?pinterest\.com/pin/[\d]+",
         r"^https?://(?:www\.)?pinterest\.com/[\w]+/[\w-]+/[\d]+",
@@ -97,13 +105,14 @@ class PinterestHandler(LinkHandlerInterface):
 
             logger.info(f"[PINTEREST_HANDLER] Root: {root}")
 
-            # Get download callback using type-safe helper
             download_callback = get_platform_callback(ui_context, "pinterest")
             if not download_callback:
-                # Try generic fallback
                 download_callback = get_platform_callback(ui_context, "generic")
                 if not download_callback:
-                    logger.error("[PINTEREST_HANDLER] No download callback found")
+                    error_msg = "No download callback found"
+                    logger.error(f"[PINTEREST_HANDLER] {error_msg}")
+                    if self.error_handler:
+                        self.error_handler.handle_service_failure("Pinterest Handler", "callback", error_msg, url)
                     return
 
             # Call the platform download method which will show the dialog (or fallback)
@@ -116,10 +125,9 @@ class PinterestHandler(LinkHandlerInterface):
                     download_callback(url)
                     logger.info("[PINTEREST_HANDLER] Download callback executed")
                 except Exception as e:
-                    logger.error(
-                        f"[PINTEREST_HANDLER] Error processing Pinterest download: {e}",
-                        exc_info=True,
-                    )
+                    logger.error(f"[PINTEREST_HANDLER] Error processing Pinterest download: {e}", exc_info=True)
+                    if self.error_handler:
+                        self.error_handler.handle_exception(e, "Processing Pinterest download", "Pinterest")
 
             # Schedule on main thread
             schedule_on_main_thread(root, process_pinterest_download, immediate=True)

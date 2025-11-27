@@ -136,12 +136,35 @@ class ApplicationOrchestrator:
         
         self.container.register_singleton(IFileService, FileService)
         self.container.register_singleton(ICookieHandler, CookieHandler)
-        self.container.register_singleton(IMetadataService, YouTubeMetadataService)
-        self.container.register_singleton(INetworkChecker, NetworkChecker)
+        
+        def create_metadata_service():
+            error_handler = self.container.get_optional(IErrorHandler)
+            return YouTubeMetadataService(error_handler=error_handler)
+        
+        self.container.register_singleton(IMetadataService, create_metadata_service)
+        
+        def create_network_checker():
+            error_handler = self.container.get_optional(IErrorHandler)
+            return NetworkChecker(error_handler=error_handler)
+        
+        self.container.register_singleton(INetworkChecker, create_network_checker)
         self.container.register_singleton(IAutoCookieManager, AutoCookieManager)
         self.container.register_singleton(IUIState, UIState)
         self.container.register_singleton(UIState, UIState)
-        self.container.register_singleton(IDownloadHandler, DownloadHandler)
+        
+        def create_download_handler():
+            return DownloadHandler(
+                download_service=self.container.get(IDownloadService),
+                service_factory=self.container.get(IServiceFactory),
+                file_service=self.container.get(IFileService),
+                ui_state=self.container.get(IUIState),
+                cookie_handler=self.container.get(ICookieHandler),
+                auto_cookie_manager=self.container.get(IAutoCookieManager),
+                message_queue=self.container.get_optional(IMessageQueue),
+                error_handler=self.container.get_optional(IErrorHandler),
+            )
+        
+        self.container.register_singleton(IDownloadHandler, create_download_handler)
 
         # ErrorHandler needs message_queue injected
         # Use get_optional since message queue may not be registered yet
@@ -156,7 +179,8 @@ class ApplicationOrchestrator:
         def create_service_factory():
             from src.services.downloads import ServiceFactory
             cookie_manager = self.container.get(IAutoCookieManager)
-            return ServiceFactory(cookie_manager)
+            error_handler = self.container.get_optional(IErrorHandler)
+            return ServiceFactory(cookie_manager, error_handler=error_handler)
 
         self.container.register_singleton(IServiceFactory, create_service_factory)
 
@@ -193,9 +217,12 @@ class ApplicationOrchestrator:
         self.container.register_singleton(ICookieDetector, CookieDetector)
         self.container.register_singleton(LinkDetector, LinkDetector)
 
-        # Validate everything can be resolved
-        self.container.validate_dependencies()
-        logger.info("[ORCHESTRATOR] Dependencies configured and validated")
+        try:
+            self.container.validate_dependencies()
+            logger.info("[ORCHESTRATOR] Dependencies configured and validated")
+        except Exception as e:
+            logger.error(f"[ORCHESTRATOR] Dependency validation failed: {e}", exc_info=True)
+            raise
 
     
     @property

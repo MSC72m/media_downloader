@@ -7,10 +7,10 @@ from urllib.parse import urlparse
 
 import instaloader
 
-from src.utils.logger import get_logger
-
 from ...core import BaseDownloader
 from ...core.enums import ServiceType
+from ...core.interfaces import IErrorHandler
+from ...utils.logger import get_logger
 from ..file.sanitizer import FilenameSanitizer
 from ..file.service import FileService
 from ..network.checker import check_site_connection
@@ -21,12 +21,18 @@ logger = get_logger(__name__)
 class InstagramDownloader(BaseDownloader):
     """Instagram downloader service with authentication support."""
 
-    def __init__(self):
+    def __init__(self, error_handler: Optional[IErrorHandler] = None):
+        """Initialize Instagram downloader.
+
+        Args:
+            error_handler: Optional error handler for user notifications
+        """
         self.loader = None
         self.authenticated = False
         self.login_attempts = 0
         self.max_login_attempts = 3
         self.last_login_attempt = 0
+        self.error_handler = error_handler
 
     def authenticate(self, username: str, password: str) -> bool:
         """
@@ -51,10 +57,11 @@ class InstagramDownloader(BaseDownloader):
             logger.error(error_msg)
             return False
 
-        # First check internet connectivity to Instagram
         connected, error_msg = check_site_connection(ServiceType.INSTAGRAM)
         if not connected:
             logger.error(f"Cannot authenticate with Instagram: {error_msg}")
+            if self.error_handler:
+                self.error_handler.handle_service_failure("Instagram", "authentication", error_msg or "Connection failed", "")
             return False
 
         self.login_attempts += 1
@@ -85,6 +92,8 @@ class InstagramDownloader(BaseDownloader):
             logger.error(f"[INSTAGRAM_DOWNLOADER] ❌ Instagram authentication failed: {str(e)}")
             logger.error(f"[INSTAGRAM_DOWNLOADER] Exception type: {type(e).__name__}")
             self.authenticated = False
+            if self.error_handler:
+                self.error_handler.handle_exception(e, "Instagram authentication", "Instagram")
             return False
 
     def download(
@@ -105,10 +114,11 @@ class InstagramDownloader(BaseDownloader):
             True if download was successful, False otherwise
         """
         try:
-            # Check connectivity to Instagram
             connected, error_msg = check_site_connection(ServiceType.INSTAGRAM)
             if not connected:
                 logger.error(f"Cannot download from Instagram: {error_msg}")
+                if self.error_handler:
+                    self.error_handler.handle_service_failure("Instagram", "download", error_msg or "Connection failed", url)
                 return False
 
             # Initialize instaloader if not already done
@@ -131,21 +141,28 @@ class InstagramDownloader(BaseDownloader):
             path_parts = parsed.path.strip("/").split("/")
 
             if len(path_parts) < 2:
-                logger.error("Invalid Instagram URL format")
+                error_msg = "Invalid Instagram URL format"
+                logger.error(error_msg)
+                if self.error_handler:
+                    self.error_handler.handle_service_failure("Instagram", "download", error_msg, url)
                 return False
 
-            content_type = path_parts[0]  # 'p' for posts, 'reel' for reels
+            content_type = path_parts[0]
             shortcode = path_parts[1]
 
-            # Download based on content type
             if content_type in ["p", "reel"]:
                 return self._download_post(shortcode, save_path, progress_callback)
-            else:
-                logger.error(f"Unsupported Instagram content type: {content_type}")
-                return False
+
+            error_msg = f"Unsupported Instagram content type: {content_type}"
+            logger.error(error_msg)
+            if self.error_handler:
+                self.error_handler.handle_service_failure("Instagram", "download", error_msg, url)
+            return False
 
         except Exception as e:
-            logger.error(f"Error downloading from Instagram: {str(e)}")
+            logger.error(f"Error downloading from Instagram: {str(e)}", exc_info=True)
+            if self.error_handler:
+                self.error_handler.handle_exception(e, "Instagram download", "Instagram")
             return False
 
     def _download_post(
@@ -227,5 +244,7 @@ class InstagramDownloader(BaseDownloader):
                 return success
 
         except Exception as e:
-            logger.error(f"Error downloading Instagram post: {str(e)}")
+            logger.error(f"Error downloading Instagram post: {str(e)}", exc_info=True)
+            if self.error_handler:
+                self.error_handler.handle_exception(e, f"Downloading Instagram post {shortcode}", "Instagram")
             return False

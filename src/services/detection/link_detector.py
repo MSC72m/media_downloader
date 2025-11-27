@@ -120,7 +120,7 @@ class LinkDetectionRegistry:
                 else:
                     logger.warning(f"[DETECTION] No factory available for {handler_name}, trying direct instantiation")
                     # Fallback: try direct instantiation (for handlers without dependencies)
-                handler = handler_class()
+                    handler = handler_class()
                 
                 logger.debug(f"[DETECTION] Created handler instance: {handler}")
                 result = handler.can_handle(url)

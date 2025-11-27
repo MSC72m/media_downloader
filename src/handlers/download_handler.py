@@ -1,18 +1,24 @@
 """Concrete implementation of download handler."""
 
-from typing import List, Optional, Callable
+import re
+import time
+from pathlib import Path
+from threading import Thread
+from typing import Callable, List, Optional
 
 from src.core.base.base_handler import BaseHandler
 from src.core.interfaces import (
-    IDownloadService,
-    IDownloadHandler,
-    IServiceFactory,
     IAutoCookieManager,
+    ICookieHandler,
+    IDownloadHandler,
+    IDownloadService,
+    IErrorHandler,
     IFileService,
     IMessageQueue,
+    IServiceFactory,
     IUIState,
 )
-from src.core.models import UIState, Download, DownloadOptions
+from src.core.models import Download, DownloadOptions, UIState
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -26,16 +32,20 @@ class DownloadHandler(BaseHandler, IDownloadHandler):
         download_service: IDownloadService,
         service_factory: IServiceFactory,
         file_service: IFileService,
-        ui_state: UIState,
+        ui_state: IUIState,
+        cookie_handler: ICookieHandler,
         auto_cookie_manager: Optional[IAutoCookieManager] = None,
         message_queue: Optional[IMessageQueue] = None,
+        error_handler: Optional[IErrorHandler] = None,
     ):
         super().__init__(message_queue)
         self.download_service = download_service
         self.service_factory = service_factory
         self.file_service = file_service
         self.ui_state = ui_state
+        self.cookie_handler = cookie_handler
         self.auto_cookie_manager = auto_cookie_manager
+        self.error_handler = error_handler
         self._initialized = False
 
     def initialize(self) -> None:
@@ -136,93 +146,24 @@ class DownloadHandler(BaseHandler, IDownloadHandler):
                     f"[DOWNLOAD_HANDLER] cookie_path value: {download.cookie_path}"
                 )
 
+            downloader = self.service_factory.get_downloader(download.url)
+            if not downloader:
+                error_msg = f"No downloader available for URL: {download.url}"
+                if self.error_handler:
+                    self.error_handler.handle_service_failure("Download Handler", "downloader creation", error_msg, download.url)
+                self._handle_download_failure(download, completion_callback, error_msg)
+                return
+
             if service_type == ServiceType.YOUTUBE:
-                # Get cookie manager and set cookies BEFORE creating downloader
-                cookie_manager = self.service_factory.get_cookie_manager()
-
-                logger.info(
-                    f"[DOWNLOAD_HANDLER] Cookie manager available: {cookie_manager is not None}"
-                )
-
-                # Set cookies from download options
-                if cookie_manager:
-                    # Use cookie from download if specified
-                    if hasattr(download, "cookie_path") and download.cookie_path:
-                        logger.info(
-                            f"[DOWNLOAD_HANDLER] Setting cookie from download: {download.cookie_path}"
-                        )
-                        try:
-                            cookie_manager.set_youtube_cookies(download.cookie_path)
-                            logger.info(
-                                "[DOWNLOAD_HANDLER] Successfully set cookies for download"
-                            )
-                        except Exception as e:
-                            logger.error(
-                                f"[DOWNLOAD_HANDLER] Failed to set cookies: {e}"
-                            )
-
-                    # Verify cookies are set
-                    has_cookies = cookie_manager.has_valid_cookies()
-                    logger.info(
-                        f"[DOWNLOAD_HANDLER] Cookie manager has valid cookies: {has_cookies}"
-                    )
-                    if has_cookies:
-                        cookie_info = cookie_manager.get_youtube_cookie_info()
-                        logger.info(
-                            f"[DOWNLOAD_HANDLER] Cookie info for yt-dlp: {cookie_info}"
-                        )
-
-                
-                # NOW create the downloader with the configured cookie_manager and browser
-                downloader = YouTubeDownloader(
-                    quality=getattr(download, "quality", "720p"),
-                    download_playlist=getattr(download, "download_playlist", False),
-                    audio_only=getattr(download, "audio_only", False),
-                    video_only=getattr(download, "video_only", False),
-                    format=getattr(download, "format", "video"),
-                    cookie_manager=cookie_manager,
-                    auto_cookie_manager=self.auto_cookie_manager,
-                    download_subtitles=getattr(download, "download_subtitles", False),
-                    selected_subtitles=getattr(download, "selected_subtitles", None),
-                    download_thumbnail=getattr(download, "download_thumbnail", True),
-                    embed_metadata=getattr(download, "embed_metadata", True),
-                    speed_limit=getattr(download, "speed_limit", None),
-                    retries=getattr(download, "retries", 3),
-                )
-                logger.info(
-                    f"[DOWNLOAD_HANDLER] Created YouTubeDownloader with quality={getattr(download, 'quality', '720p')}, "
-                    f"audio_only={getattr(download, 'audio_only', False)}, "
-                    f"video_only={getattr(download, 'video_only', False)}, "
-                    f"format={getattr(download, 'format', 'video')}"
-                )
-            elif service_type == ServiceType.SOUNDCLOUD:
-                # Create SoundCloud downloader with download-specific options
-                from src.services.soundcloud.downloader import SoundCloudDownloader
-
-                downloader = SoundCloudDownloader(
-                    audio_format=getattr(download, "audio_format", "mp3"),
-                    audio_quality=getattr(download, "audio_quality", "best"),
-                    download_playlist=getattr(download, "download_playlist", False),
-                    embed_metadata=getattr(download, "embed_metadata", True),
-                    download_thumbnail=getattr(download, "download_thumbnail", True),
-                    speed_limit=getattr(download, "speed_limit", None),
-                    retries=getattr(download, "retries", 3),
-                )
-                logger.info(
-                    f"[DOWNLOAD_HANDLER] Created SoundCloudDownloader with audio_format={getattr(download, 'audio_format', 'mp3')}, "
-                    f"audio_quality={getattr(download, 'audio_quality', 'best')}"
-                )
-            else:
-                # Fallback to factory's default downloader for other services
-                downloader = service_factory.get_downloader(download.url)
-
-                if not downloader:
-                    self._handle_download_failure(
-                        download,
-                        completion_callback,
-                        f"No downloader available for URL: {download.url}",
-                    )
-                    return
+                cookie_manager = self.cookie_handler
+                if cookie_manager and hasattr(download, "cookie_path") and download.cookie_path:
+                    try:
+                        cookie_manager.set_cookie_file(download.cookie_path)
+                        logger.info("[DOWNLOAD_HANDLER] Successfully set cookies for download")
+                    except Exception as e:
+                        logger.error(f"[DOWNLOAD_HANDLER] Failed to set cookies: {e}")
+                        if self.error_handler:
+                            self.error_handler.handle_exception(e, "Setting cookies for download", "Download Handler")
 
             logger.info(
                 f"[DOWNLOAD_HANDLER] Downloader obtained: {type(downloader).__name__}"
@@ -263,41 +204,6 @@ class DownloadHandler(BaseHandler, IDownloadHandler):
             )
             self._handle_download_failure(download, completion_callback, error_msg)
 
-    def _handle_youtube_download(
-        self,
-        download: Download,
-        download_dir: str,
-        progress_callback,
-        completion_callback,
-    ):
-        """Deprecated: unified through factory in _download_worker."""
-        self._download_worker(
-            download, download_dir, progress_callback, completion_callback
-        )
-
-    def _handle_twitter_download(
-        self,
-        download: Download,
-        download_dir: str,
-        progress_callback,
-        completion_callback,
-    ):
-        """Deprecated: unified through factory in _download_worker."""
-        self._download_worker(
-            download, download_dir, progress_callback, completion_callback
-        )
-
-    def _handle_instagram_download(
-        self,
-        download: Download,
-        download_dir: str,
-        progress_callback,
-        completion_callback,
-    ):
-        """Deprecated: unified through factory in _download_worker."""
-        self._download_worker(
-            download, download_dir, progress_callback, completion_callback
-        )
 
     def _validate_download_directory(
         self, download_dir: str, completion_callback
@@ -378,9 +284,6 @@ class DownloadHandler(BaseHandler, IDownloadHandler):
 
         Note: Returns path WITHOUT extension - the downloader will add the appropriate extension.
         """
-        import re
-        from pathlib import Path
-
         target_dir = Path(download_dir)
         target_dir.mkdir(parents=True, exist_ok=True)
 
@@ -422,6 +325,8 @@ class DownloadHandler(BaseHandler, IDownloadHandler):
         """Handle download failure."""
         logger.error(f"[DOWNLOAD_HANDLER] {message}")
         download.mark_failed(message)
+        if self.error_handler:
+            self.error_handler.handle_service_failure("Download Handler", "download", message, download.url)
         self._invoke_completion_callback(completion_callback, False, message)
 
     def _invoke_completion_callback(
@@ -466,14 +371,19 @@ class DownloadHandler(BaseHandler, IDownloadHandler):
             return True
 
         except Exception as e:
-            logger.error(f"[DOWNLOAD_HANDLER] Failed to process URL {url}: {e}")
+            logger.error(f"[DOWNLOAD_HANDLER] Failed to process URL {url}: {e}", exc_info=True)
+            if self.error_handler:
+                self.error_handler.handle_exception(e, "Processing URL", "Download Handler")
             return False
 
     def handle_download_error(self, error: Exception) -> None:
         """Handle download errors."""
-        logger.error(f"[DOWNLOAD_HANDLER] Download error: {error}")
+        logger.error(f"[DOWNLOAD_HANDLER] Download error: {error}", exc_info=True)
+        
+        if self.error_handler:
+            self.error_handler.handle_exception(error, "Download operation", "Download Handler")
+            return
 
-        # Show error message if message queue is available
         if self.message_queue:
             try:
                 from src.services.events.queue import Message

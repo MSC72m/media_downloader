@@ -23,33 +23,27 @@ def get_ui_context(ui_context: Any) -> Optional[UIContextProtocol]:
     Returns:
         UIContextProtocol if valid, None otherwise
     """
-    # Check if it has the required attributes (container and root)
-    if hasattr(ui_context, "container") and hasattr(ui_context, "root"):
-        return ui_context
+    # Check if it has the required attributes (root and download methods)
+    # Note: container attribute is optional as EventCoordinator might not have it
+    if hasattr(ui_context, "root"):
+        # Check for explicit methods or dynamic dispatch capability
+        if hasattr(ui_context, "platform_download") or hasattr(ui_context, "youtube_download"):
+            return ui_context
+        
+        # Check if it has container (Orchestrator case) which might delegate
+        if hasattr(ui_context, "container"):
+             # If orchestrator doesn't have download methods, checking event_coordinator
+             if hasattr(ui_context, "event_coordinator"):
+                 return ui_context.event_coordinator
+             return ui_context
 
-    # Check if it has an event_coordinator attribute
+    # Check if it has an event_coordinator attribute (Orchestrator wrapper case)
     if hasattr(ui_context, "event_coordinator"):
         return ui_context.event_coordinator
 
     logger.warning(
         f"[TYPE_HELPER] ui_context is not a valid UIContextProtocol: {type(ui_context)}"
     )
-    return None
-
-
-def get_container(ui_context: Any) -> Optional[Any]:
-    """Safely extract container from UI context - DEPRECATED.
-
-    This function is deprecated and should be removed.
-    Container access should not be needed in handlers.
-
-    Args:
-        ui_context: UI context object
-
-    Returns:
-        None always - this function is deprecated
-    """
-    logger.warning("[TYPE_HELPER] get_container() is deprecated and should not be used")
     return None
 
 

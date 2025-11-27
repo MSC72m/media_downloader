@@ -7,14 +7,18 @@ from src.core.base.base_handler import BaseHandler
 from src.core.interfaces import (
     IAutoCookieManager,
     ICookieHandler,
+    IErrorHandler,
     IMessageQueue,
     IMetadataService,
 )
+from src.core.models import Download
 from src.services.detection.link_detector import (
     DetectionResult,
     LinkHandlerInterface,
     auto_register_handler,
 )
+from src.ui.dialogs.input_dialog import CenteredInputDialog
+from src.ui.dialogs.youtube_downloader_dialog import YouTubeDownloaderDialog
 from src.utils.logger import get_logger
 from src.utils.type_helpers import (
     get_platform_callback,
@@ -47,12 +51,14 @@ class YouTubeHandler(BaseHandler, LinkHandlerInterface):
         metadata_service: IMetadataService,
         auto_cookie_manager: IAutoCookieManager,
         message_queue: IMessageQueue,
+        error_handler: Optional[IErrorHandler] = None,
     ):
         """Initialize YouTube handler with injected dependencies."""
         super().__init__(message_queue)
         self.cookie_handler = cookie_handler
         self.metadata_service = metadata_service
         self.auto_cookie_manager = auto_cookie_manager
+        self.error_handler = error_handler
 
     def _get_notification_templates(self) -> Dict[str, Dict[str, Any]]:
         """Get YouTube-specific notification templates."""
@@ -146,16 +152,16 @@ class YouTubeHandler(BaseHandler, LinkHandlerInterface):
         """Get the UI callback for YouTube URLs."""
         logger.info("[YOUTUBE_HANDLER] Getting UI callback")
 
-        from src.ui.dialogs.youtube_downloader_dialog import YouTubeDownloaderDialog
-
         def youtube_callback(url: str, ui_context: Any):
             """Callback for handling YouTube URLs."""
             logger.info(f"[YOUTUBE_HANDLER] YouTube callback called with URL: {url}")
 
-            # Get download callback using type-safe helper
             download_callback = get_platform_callback(ui_context, "youtube")
             if not download_callback:
-                logger.error("[YOUTUBE_HANDLER] No download callback found")
+                error_msg = "No download callback found"
+                logger.error(f"[YOUTUBE_HANDLER] {error_msg}")
+                if self.error_handler:
+                    self.error_handler.handle_service_failure("YouTube Handler", "callback", error_msg, url)
                 return
 
             # Check auto cookie manager state (polymorphic - no if/else chains)
@@ -174,30 +180,22 @@ class YouTubeHandler(BaseHandler, LinkHandlerInterface):
 
                 def show_music_name_dialog():
                     try:
-                        from src.core.models import Download
-                        from src.ui.dialogs.input_dialog import CenteredInputDialog
-
-                        # Fetch metadata first for proper default naming
                         track_name = "YouTube Music"
                         if self.metadata_service:
                             try:
                                 metadata = self.metadata_service.fetch_metadata(url)
                                 if metadata and metadata.title:
                                     track_name = metadata.title
-                                    logger.info(
-                                        f"[YOUTUBE_HANDLER] Music metadata fetched: {track_name}"
-                                    )
+                                    logger.info(f"[YOUTUBE_HANDLER] Music metadata fetched: {track_name}")
                             except Exception as e:
-                                logger.warning(
-                                    f"[YOUTUBE_HANDLER] Could not fetch music metadata: {e}"
-                                )
+                                logger.warning(f"[YOUTUBE_HANDLER] Could not fetch music metadata: {e}")
+                                if self.error_handler:
+                                    self.error_handler.handle_exception(e, "Fetching music metadata", "YouTube")
 
-                        # Show name dialog with pre-filled default name
                         dialog = CenteredInputDialog(
                             text="Enter a name for this track:",
                             title="YouTube Music Download",
                         )
-                        # Pre-fill with fetched track name
                         if track_name != "YouTube Music":
                             dialog._entry.delete(0, "end")
                             dialog._entry.insert(0, track_name)
@@ -205,52 +203,37 @@ class YouTubeHandler(BaseHandler, LinkHandlerInterface):
                         name = dialog.get_input()
 
                         if not name:
-                            logger.info(
-                                "[YOUTUBE_HANDLER] User cancelled YouTube Music name dialog"
-                            )
+                            logger.info("[YOUTUBE_HANDLER] User cancelled YouTube Music name dialog")
                             return
 
-                        # Create download with user-provided name
                         download = Download(
                             url=url,
                             name=name,
                             service_type="youtube",
                         )
 
-                        # Set audio-only options (these will be used by YouTubeDownloader)
                         download.audio_only = True
                         download.format = "audio"
                         download.quality = "best"
                         download.download_thumbnail = True
                         download.embed_metadata = True
 
-                        # Add to download queue via callback
                         download_callback(download)
-                        logger.info(
-                            f"[YOUTUBE_HANDLER] YouTube Music download added: {name}"
-                        )
+                        logger.info(f"[YOUTUBE_HANDLER] YouTube Music download added: {name}")
 
                     except Exception as e:
-                        logger.error(
-                            f"[YOUTUBE_HANDLER] Failed to create music download: {e}",
-                            exc_info=True,
-                        )
-                        # Show error to user using injected message queue
-                        try:
+                        logger.error(f"[YOUTUBE_HANDLER] Failed to create music download: {e}", exc_info=True)
+                        if self.error_handler:
+                            self.error_handler.handle_exception(e, "Creating YouTube Music download", "YouTube")
+                        elif self.message_queue:
                             from src.core.enums.message_level import MessageLevel
                             from src.services.events.queue import Message
-
-                            if self.message_queue:
-                                self.message_queue.add_message(
-                                    Message(
-                                        text=f"Failed to add YouTube Music download: {str(e)}",
-                                        level=MessageLevel.ERROR,
-                                        title="YouTube Music Error",
-                                    )
+                            self.message_queue.add_message(
+                                Message(
+                                    text=f"Failed to add YouTube Music download: {str(e)}",
+                                    level=MessageLevel.ERROR,
+                                    title="YouTube Music Error",
                                 )
-                        except Exception as dialog_error:
-                            logger.error(
-                                f"[YOUTUBE_HANDLER] Failed to show error dialog: {dialog_error}"
                             )
 
                 schedule_on_main_thread(root, show_music_name_dialog, immediate=True)
@@ -292,10 +275,9 @@ class YouTubeHandler(BaseHandler, LinkHandlerInterface):
                         "[YOUTUBE_HANDLER] YouTubeDownloaderDialog created successfully"
                     )
                 except Exception as e:
-                    logger.error(
-                        f"[YOUTUBE_HANDLER] Failed to create YouTubeDownloaderDialog: {e}",
-                        exc_info=True,
-                    )
+                    logger.error(f"[YOUTUBE_HANDLER] Failed to create YouTubeDownloaderDialog: {e}", exc_info=True)
+                    if self.error_handler:
+                        self.error_handler.handle_exception(e, "Creating YouTube dialog", "YouTube")
 
             # Schedule dialog creation on main thread (non-blocking)
             schedule_on_main_thread(root, create_youtube_dialog, immediate=True)

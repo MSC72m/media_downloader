@@ -3,9 +3,12 @@
 import threading
 import time
 from collections.abc import Callable
+from tkinter import messagebox
+from typing import Optional
 
 import customtkinter as ctk
 
+from ...core.interfaces import IErrorHandler, IMessageQueue
 from ...interfaces.youtube_metadata import YouTubeMetadata
 from ...utils.logger import get_logger
 from ...utils.window import WindowCenterMixin
@@ -27,6 +30,8 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         metadata_service=None,
         pre_fetched_metadata: YouTubeMetadata | None = None,
         initial_cookie_path: str | None = None,
+        error_handler: Optional[IErrorHandler] = None,
+        message_queue: Optional[IMessageQueue] = None,
     ):
         super().__init__(parent)
 
@@ -34,17 +39,15 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.cookie_handler = cookie_handler
         self.on_download = on_download
         self.metadata_service = metadata_service
-        self.video_metadata = (
-            pre_fetched_metadata  # Use pre-fetched metadata if provided
-        )
+        self.video_metadata = pre_fetched_metadata
+        self.error_handler = error_handler
+        self.message_queue = message_queue
         self.loading_overlay: SimpleLoadingDialog | None = None
         self.selected_cookie_path = initial_cookie_path
         self.widgets_created = False
-        self._metadata_handler_called = False  # Flag to track if handler was called
-        self._metadata_ready = (
-            False  # Flag to signal metadata is ready from worker thread
-        )
-        self.selected_subtitles = []  # Store selected subtitles
+        self._metadata_handler_called = False
+        self._metadata_ready = False
+        self.selected_subtitles = []
 
         # Configure window
         self.title("YouTube Video Downloader")
@@ -85,6 +88,17 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
     def _poll_metadata_completion(self):
         """Poll for metadata completion from the main thread."""
+        # Check for errors first
+        if self.video_metadata and self.video_metadata.error and not self._metadata_handler_called:
+            logger.info("Metadata error detected - calling error handler")
+            try:
+                self._handle_metadata_error()
+                self._metadata_handler_called = True
+                return
+            except Exception as e:
+                logger.error(f"Error in metadata error handler: {e}", exc_info=True)
+        
+        # Check for successful completion
         if self._metadata_ready and not self._metadata_handler_called:
             logger.info("Metadata ready flag detected - calling handler")
             try:
@@ -92,7 +106,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             except Exception as e:
                 logger.error(f"Error in metadata handler: {e}", exc_info=True)
         elif not self._metadata_handler_called:
-            # Continue polling every 100ms until metadata is ready
+            # Continue polling every 100ms until metadata is ready or error occurs
             self.after(100, self._poll_metadata_completion)
 
     def _safe_deiconify(self):
@@ -217,11 +231,11 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                     )
                     logger.info(f"Metadata type: {type(self.video_metadata)}")
 
-                    # Check if metadata fetch failed
                     if self.video_metadata and self.video_metadata.error:
-                        logger.error(
-                            f"Metadata fetch failed with error: {self.video_metadata.error}"
-                        )
+                        error_msg = self.video_metadata.error
+                        logger.error(f"Metadata fetch failed with error: {error_msg}")
+                        if self.error_handler:
+                            self.error_handler.handle_service_failure("YouTube", "metadata fetch", error_msg, self.url)
                         self.after(0, self._handle_metadata_error)
                         return
 
@@ -232,30 +246,35 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                         "Metadata ready flag set, main thread polling will detect this"
                     )
                 else:
-                    # No metadata service available
+                    error_msg = "No metadata service available"
+                    if self.error_handler:
+                        self.error_handler.handle_service_failure("YouTube", "metadata fetch", error_msg, self.url)
                     self.after(0, self._handle_metadata_error)
                     return
 
             except Exception as e:
-                logger.error(f"Error fetching metadata: {e}")
-                # Provide more user-friendly error message
+                logger.error(f"Error fetching metadata: {e}", exc_info=True)
                 error_msg = str(e)
-                if "429" in error_msg:
-                    error_msg = "YouTube rate limit exceeded. Please try again later or use browser cookies."
-                elif "403" in error_msg:
-                    error_msg = "Access forbidden. This video may require age verification or cookies."
+                
+                error_map = {
+                    "429": "YouTube rate limit exceeded. Please try again later or use browser cookies.",
+                    "403": "Access forbidden. This video may require age verification or cookies.",
+                }
+                
+                if any(code in error_msg for code in error_map.keys()):
+                    for code, msg in error_map.items():
+                        if code in error_msg:
+                            error_msg = msg
+                            break
                 elif "timeout" in error_msg.lower():
                     error_msg = "Connection timed out. Please check your internet connection and try again."
 
-                # Create error metadata object if needed
                 if not hasattr(self, "video_metadata") or not self.video_metadata:
-                    from ...interfaces.youtube_metadata import YouTubeMetadata
+                    self.video_metadata = YouTubeMetadata(video_id=None, title=None, error=error_msg)
 
-                    self.video_metadata = YouTubeMetadata(
-                        video_id=None, title=None, error=error_msg
-                    )
+                if self.error_handler:
+                    self.error_handler.handle_exception(e, "YouTube metadata fetch", "YouTube")
 
-                # Close the dialog if metadata fetch fails
                 self.after(0, self._handle_metadata_error)
 
         threading.Thread(target=fetch_worker, daemon=True).start()
@@ -283,27 +302,24 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         except Exception as e:
             logger.warning(f"Could not update idletasks in error handler: {e}")
 
-        # Show error message and close dialog
-        from tkinter import messagebox
-
-        error_msg = (
-            "Failed to fetch video metadata. Please check the URL and try again."
-        )
+        error_msg = "Failed to fetch video metadata. Please check the URL and try again."
         if self.video_metadata and self.video_metadata.error:
             error_msg = f"Failed to fetch video metadata: {self.video_metadata.error}"
 
-        # Add suggestions for common issues
-        error_msg += "\n\nSuggestions:"
-        error_msg += "\n• Check your internet connection"
-        error_msg += "\n• Verify the YouTube URL is correct"
-        error_msg += "\n• Wait for cookies to finish generating"
+        if self.error_handler:
+            self.error_handler.handle_service_failure("YouTube", "metadata fetch", error_msg, self.url)
+        elif self.message_queue:
+            from src.core.enums.message_level import MessageLevel
+            from src.services.events.queue import Message
+            self.message_queue.add_message(
+                Message(text=error_msg, level=MessageLevel.ERROR, title="YouTube Metadata Error")
+            )
 
         try:
             messagebox.showerror("Metadata Error", error_msg)
         except Exception as e:
             logger.error(f"Error showing error message: {e}")
 
-        # Close the dialog
         try:
             self.destroy()
         except Exception as e:
@@ -324,9 +340,11 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                 f"Video metadata error: {getattr(self.video_metadata, 'error', 'No error')}"
             )
 
-        # Check if metadata has an error
         if self.video_metadata and self.video_metadata.error:
-            logger.error(f"Metadata fetch error: {self.video_metadata.error}")
+            error_msg = self.video_metadata.error
+            logger.error(f"Metadata fetch error: {error_msg}")
+            if self.error_handler:
+                self.error_handler.handle_service_failure("YouTube", "metadata fetch", error_msg, self.url)
             self._handle_metadata_error()
             return
 

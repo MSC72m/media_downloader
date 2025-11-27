@@ -3,6 +3,7 @@
 import re
 from typing import Any, Callable, Dict, Optional
 
+from src.core.interfaces import IErrorHandler
 from src.services.detection.link_detector import (
     DetectionResult,
     LinkHandlerInterface,
@@ -21,6 +22,14 @@ logger = get_logger(__name__)
 @auto_register_handler
 class InstagramHandler(LinkHandlerInterface):
     """Handler for Instagram URLs."""
+
+    def __init__(self, error_handler: Optional[IErrorHandler] = None):
+        """Initialize Instagram handler.
+
+        Args:
+            error_handler: Optional error handler for user notifications
+        """
+        self.error_handler = error_handler
 
     INSTAGRAM_PATTERNS = [
         r"^https?://(?:www\.)?instagram\.com/p/[\w-]+",
@@ -77,13 +86,14 @@ class InstagramHandler(LinkHandlerInterface):
             # Get root using type-safe helper
             root = get_root(ui_context)
 
-            # Get download callback using type-safe helper
             download_callback = get_platform_callback(ui_context, "instagram")
             if not download_callback:
-                # Try generic fallback
                 download_callback = get_platform_callback(ui_context, "generic")
                 if not download_callback:
-                    logger.error("[INSTAGRAM_HANDLER] No download callback found")
+                    error_msg = "No download callback found"
+                    logger.error(f"[INSTAGRAM_HANDLER] {error_msg}")
+                    if self.error_handler:
+                        self.error_handler.handle_service_failure("Instagram Handler", "callback", error_msg, url)
                     return
 
             # Call the platform download method which will show the dialog (or fallback)
@@ -96,10 +106,9 @@ class InstagramHandler(LinkHandlerInterface):
                     download_callback(url)
                     logger.info("[INSTAGRAM_HANDLER] Download callback executed")
                 except Exception as e:
-                    logger.error(
-                        f"[INSTAGRAM_HANDLER] Error processing Instagram download: {e}",
-                        exc_info=True,
-                    )
+                    logger.error(f"[INSTAGRAM_HANDLER] Error processing Instagram download: {e}", exc_info=True)
+                    if self.error_handler:
+                        self.error_handler.handle_exception(e, "Processing Instagram download", "Instagram")
 
             # Schedule on main thread
             schedule_on_main_thread(root, process_instagram_download, immediate=True)

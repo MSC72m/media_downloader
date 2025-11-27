@@ -9,7 +9,9 @@ from src.handlers.service_detector import ServiceDetector
 logger = get_logger(__name__)
 
 
-class CookieHandler:
+from src.core.interfaces import ICookieHandler
+
+class CookieHandler(ICookieHandler):
     """Handler for cookie detection and integration."""
 
     def __init__(self, cookie_manager: Optional[ICookieManager] = None):

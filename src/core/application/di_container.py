@@ -360,16 +360,3 @@ def auto_register_by_convention(container: ServiceContainer, module_path: str) -
     except ImportError as e:
         logger.warning(f"[AUTO_REGISTER] Failed to import module {module_path}: {e}")
 
-
-# Legacy methods for backward compatibility - deprecated
-def register(name: str, service: Any) -> None:
-    """Legacy registration method - deprecated."""
-    logger.warning(f"[CONTAINER] Legacy register() called for '{name}' - this should be removed")
-
-def register_factory(service_type: Type[T], factory: Callable[[], T]) -> 'ServiceContainer':
-    """Legacy factory registration - deprecated."""
-    logger.warning(f"[CONTAINER] Legacy register_factory() called for {service_type.__name__} - use register_transient() instead")
-    # Return a dummy container-like object
-    class DummyContainer:
-        def validate_dependencies(self): pass
-    return DummyContainer()

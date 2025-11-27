@@ -266,26 +266,16 @@ class PlatformDialogCoordinator:
             def auth_worker():
                 """Background thread worker for authentication."""
                 try:
-                    logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Auth worker started for {username[:3]}***")
                     downloader = InstagramDownloader()
                     success = downloader.authenticate(username, password)
-                    logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Auth finished. Success: {success}")
                     error_msg = "" if success else "Authentication failed"
 
                     # Update UI on main thread - capture variables in closure
                     def update_ui():
                         logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Calling _handle_auth_result: success={success}")
-                        try:
-                            self._handle_auth_result(success, username, options_bar, callback, error_msg)
-                        except Exception as e:
-                            logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error in _handle_auth_result: {e}", exc_info=True)
+                        self._handle_auth_result(success, username, options_bar, callback, error_msg)
                     
-                    if hasattr(parent_window, 'run_on_main_thread'):
-                        logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Scheduling update_ui using run_on_main_thread")
-                        parent_window.run_on_main_thread(update_ui)
-                    else:
-                        logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Scheduling update_ui using after()")
-                        parent_window.after(0, update_ui)
+                    self.root.after(0, update_ui)
                 except Exception as e:
                     logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Authentication error: {e}", exc_info=True)
                     error_msg = str(e)
@@ -293,17 +283,9 @@ class PlatformDialogCoordinator:
                     # Update UI on main thread - capture error in closure
                     def update_ui_error():
                         logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Calling _handle_auth_result with error: {error_msg}")
-                        try:
-                            self._handle_auth_result(False, username, options_bar, callback, error_msg)
-                        except Exception as e:
-                            logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error in _handle_auth_result (error path): {e}", exc_info=True)
+                        self._handle_auth_result(False, username, options_bar, callback, error_msg)
                     
-                    if hasattr(parent_window, 'run_on_main_thread'):
-                        logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Scheduling update_ui_error using run_on_main_thread")
-                        parent_window.run_on_main_thread(update_ui_error)
-                    else:
-                        logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Scheduling update_ui_error using after()")
-                        parent_window.after(0, update_ui_error)
+                    self.root.after(0, update_ui_error)
 
             import threading
             thread = threading.Thread(target=auth_worker, daemon=True)
