@@ -27,6 +27,7 @@ from src.services.cookies import CookieManager as AutoCookieManager
 from src.services.detection.link_detector import LinkDetector
 from src.services.events.queue import Message, MessageLevel, MessageQueue
 from src.services.file import FileService
+from src.services.instagram import InstagramAuthManager
 from src.services.youtube.cookie_detector import CookieDetector, ICookieDetector
 from src.utils.logger import get_logger
 
@@ -114,6 +115,7 @@ class ApplicationOrchestrator:
         self.container.register_factory(IMessageQueue, lambda: None)
         self.container.register_singleton(IFileService, FileService)
         self.container.register_singleton(IAutoCookieManager, AutoCookieManager)
+        self.container.register_singleton(InstagramAuthManager, self.factory_registry.create_instagram_auth_manager)
         self.container.register_singleton(IUIState, UIState)
         self.container.register_singleton(UIState, UIState)
         self.container.register_singleton(ServiceDetector)
@@ -266,6 +268,7 @@ class ApplicationOrchestrator:
         # Set orchestrator reference on platform dialog coordinator
         if hasattr(self.event_coordinator, 'platform_dialogs'):
             self.event_coordinator.platform_dialogs.orchestrator = self
+            logger.info("[ORCHESTRATOR] Set orchestrator reference on PlatformDialogCoordinator")
 
         # Create thread-safe UI callbacks
         callbacks = self._create_ui_callbacks(components)

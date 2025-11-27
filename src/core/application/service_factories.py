@@ -21,6 +21,7 @@ from src.interfaces.service_interfaces import (
     IUIState,
 )
 from src.services.downloads import DownloadService, ServiceFactory
+from src.services.instagram import InstagramAuthManager
 from src.services.youtube.metadata_service import YouTubeMetadataService
 from src.core.config import AppConfig
 from src.core.application.di_container import ServiceContainer
@@ -59,11 +60,18 @@ class ServiceFactoryRegistry:
         error_handler = self.container.get_optional(IErrorHandler)
         return NetworkChecker(error_handler=error_handler)
 
+    def create_instagram_auth_manager(self) -> InstagramAuthManager:
+        """Factory for InstagramAuthManager."""
+        error_handler = self.container.get_optional(IErrorHandler)
+        config = self.container.get(AppConfig)
+        return InstagramAuthManager(error_handler=error_handler, config=config)
+
     def create_service_factory(self) -> ServiceFactory:
         """Factory for ServiceFactory."""
         cookie_manager = self.container.get(IAutoCookieManager)
         error_handler = self.container.get_optional(IErrorHandler)
-        return ServiceFactory(cookie_manager, error_handler=error_handler)
+        instagram_auth_manager = self.container.get_optional(InstagramAuthManager)
+        return ServiceFactory(cookie_manager, error_handler=error_handler, instagram_auth_manager=instagram_auth_manager)
 
     def create_download_service(self) -> DownloadService:
         """Factory for DownloadService."""
@@ -85,6 +93,7 @@ class ServiceFactoryRegistry:
 
     def create_event_coordinator(self, downloads_folder: str) -> EventCoordinator:
         """Factory for EventCoordinator."""
+        instagram_auth_manager = self.container.get_optional(InstagramAuthManager)
         return EventCoordinator(
             root_window=self.root_window,
             error_handler=self.container.get(IErrorHandler),
@@ -95,5 +104,6 @@ class ServiceFactoryRegistry:
             download_service=self.container.get(IDownloadService),
             message_queue=self.container.get_optional(IMessageQueue),
             downloads_folder=downloads_folder,
+            instagram_auth_manager=instagram_auth_manager,
         )
 

@@ -136,6 +136,17 @@
       "mn": "Mongolian",
       "be": "Belarusian"
     }
+  },
+  "instagram": {
+    "max_login_attempts": 3,
+    "login_cooldown_seconds": 600,
+    "default_timeout": 10,
+    "url_patterns": [
+      "^https?://(?:www\\.)?instagram\\.com/p/[\\w-]+",
+      "^https?://(?:www\\.)?instagram\\.com/reel/[\\w-]+",
+      "^https?://(?:www\\.)?instagram\\.com/stories/[\\w-]+",
+      "^https?://(?:www\\.)?instagram\\.com/tv/[\\w-]+"
+    ]
   }
 }
 

@@ -212,6 +212,8 @@ class IAutoCookieManager(ABC):
         pass
 
 
+
+
 class IUIState(ABC):
     """Interface for UI state management."""
 

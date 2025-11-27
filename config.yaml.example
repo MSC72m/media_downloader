@@ -141,6 +141,17 @@ youtube:
     mn: Mongolian
     be: Belarusian
 
+# Instagram-specific configuration
+instagram:
+  max_login_attempts: 3  # Maximum login attempts before cooldown
+  login_cooldown_seconds: 600  # Cooldown period after max login attempts in seconds
+  default_timeout: 10  # Default request timeout in seconds
+  url_patterns:
+    - "^https?://(?:www\\.)?instagram\\.com/p/[\\w-]+"
+    - "^https?://(?:www\\.)?instagram\\.com/reel/[\\w-]+"
+    - "^https?://(?:www\\.)?instagram\\.com/stories/[\\w-]+"
+    - "^https?://(?:www\\.)?instagram\\.com/tv/[\\w-]+"
+
 # UI configuration
 ui:
   metadata_fetch_timeout: 90  # Metadata fetch dialog timeout in seconds

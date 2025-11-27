@@ -252,6 +252,15 @@ class InstagramConfig(BaseModel):
     max_login_attempts: int = Field(default=3, description="Maximum login attempts")
     login_cooldown_seconds: int = Field(default=600, description="Cooldown period after max login attempts in seconds")
     default_timeout: int = Field(default=10, description="Default request timeout in seconds")
+    url_patterns: list[str] = Field(
+        default_factory=lambda: [
+            r"^https?://(?:www\.)?instagram\.com/p/[\w-]+",
+            r"^https?://(?:www\.)?instagram\.com/reel/[\w-]+",
+            r"^https?://(?:www\.)?instagram\.com/stories/[\w-]+",
+            r"^https?://(?:www\.)?instagram\.com/tv/[\w-]+",
+        ],
+        description="Instagram URL validation patterns"
+    )
 
 
 class PinterestConfig(BaseModel):

@@ -15,6 +15,7 @@ from src.interfaces.service_interfaces import (
     IDownloadService,
     IMessageQueue,
 )
+from src.services.instagram import InstagramAuthManager
 from src.services.detection.link_detector import LinkDetector
 from src.services.events.event_bus import DownloadEventBus
 from src.ui.dialogs.file_manager_dialog import FileManagerDialog
@@ -46,7 +47,8 @@ class EventCoordinator:
                  download_handler: IDownloadHandler, file_service: IFileService,
                  network_checker: INetworkChecker, cookie_handler: ICookieHandler,
                  download_service: IDownloadService, message_queue: Optional[IMessageQueue] = None,
-                 downloads_folder: Optional[str] = None, config: Optional[AppConfig] = None):
+                 downloads_folder: Optional[str] = None, config: Optional[AppConfig] = None,
+                 instagram_auth_manager: Optional[InstagramAuthManager] = None):
         """Initialize with proper dependency injection."""
         if config is None:
             config = get_config()
@@ -82,7 +84,13 @@ class EventCoordinator:
         )
         # Platform dialog coordinator needs orchestrator reference for UI components
         # We'll set it after orchestrator is fully initialized
-        self.platform_dialogs = PlatformDialogCoordinator(root_window, error_handler, cookie_handler, orchestrator=None)
+        self.platform_dialogs = PlatformDialogCoordinator(
+            root_window, 
+            error_handler, 
+            cookie_handler, 
+            instagram_auth_manager=instagram_auth_manager,
+            orchestrator=None
+        )
 
         logger.info("[EVENT_COORDINATOR] Initialized with constructor injection")
 

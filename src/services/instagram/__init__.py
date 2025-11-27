@@ -1,5 +1,6 @@
 """Instagram service for downloading Instagram content."""
 
+from .auth_manager import InstagramAuthManager
 from .downloader import InstagramDownloader
 
-__all__ = ["InstagramDownloader"]
+__all__ = ["InstagramAuthManager", "InstagramDownloader"]

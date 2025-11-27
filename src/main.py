@@ -240,15 +240,7 @@ class MediaDownloaderApp(ctk.CTk):
         )
 
         # Options Bar
-        def on_instagram_auth_status(status):
-            """Callback to update Instagram button state."""
-            if hasattr(self, 'options_bar'):
-                self.options_bar.set_instagram_status(status)
-        
-        self.options_bar = OptionsBar(
-            self.main_frame,
-            on_instagram_login=lambda: coord.authenticate_instagram(self, on_instagram_auth_status),
-        )
+        self.options_bar = OptionsBar(self.main_frame)
 
         # Download List
         self.download_list = DownloadListView(
@@ -310,15 +302,16 @@ class MediaDownloaderApp(ctk.CTk):
 
         self.main_frame.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
         self.main_frame.grid_columnconfigure(0, weight=1)
-        self.main_frame.grid_rowconfigure(3, weight=1)
+        self.main_frame.grid_rowconfigure(2, weight=1)  # Download list row
 
         # Arrange widgets
         self.title_label.grid(row=0, column=0, pady=(0, 20))
         self.url_entry.grid(row=1, column=0, sticky="ew", pady=(0, 10))
-        self.options_bar.grid(row=2, column=0, sticky="ew", pady=(0, 10))
-        self.download_list.grid(row=3, column=0, sticky="nsew", pady=(0, 10))
-        self.action_buttons.grid(row=4, column=0, sticky="ew", pady=(0, 10))
-        self.status_bar.grid(row=5, column=0, sticky="ew")
+        # OptionsBar is empty (no content) - skip gridding to avoid empty space
+        # self.options_bar.grid(row=2, column=0, sticky="ew", pady=(0, 10))
+        self.download_list.grid(row=2, column=0, sticky="nsew", pady=(0, 10))
+        self.action_buttons.grid(row=3, column=0, sticky="ew", pady=(0, 10))
+        self.status_bar.grid(row=4, column=0, sticky="ew")
 
     def _setup_menu(self):
         """Set up application menu."""
