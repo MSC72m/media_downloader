@@ -167,8 +167,8 @@ class DownloadHandler(BaseHandler, IDownloadHandler):
                 cookie_manager = self.cookie_handler
                 if cookie_manager and hasattr(download, "cookie_path") and download.cookie_path:
                     try:
-                        cookie_manager.set_cookie_file(download.cookie_path)
-                        logger.info("[DOWNLOAD_HANDLER] Successfully set cookies for download")
+                            cookie_manager.set_cookie_file(download.cookie_path)
+                            logger.info("[DOWNLOAD_HANDLER] Successfully set cookies for download")
                     except Exception as e:
                         logger.error(f"[DOWNLOAD_HANDLER] Failed to set cookies: {e}")
                         if self.error_handler:
@@ -382,7 +382,7 @@ class DownloadHandler(BaseHandler, IDownloadHandler):
     def handle_download_error(self, error: Exception) -> None:
         """Handle download errors."""
         logger.error(f"[DOWNLOAD_HANDLER] Download error: {error}", exc_info=True)
-        
+
         if self.error_handler:
             self.error_handler.handle_exception(error, "Download operation", "Download Handler")
             return

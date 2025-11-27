@@ -1,9 +1,12 @@
 import os
 from collections.abc import Callable
-from tkinter import messagebox
+from typing import Optional
 
 import customtkinter as ctk
 
+from src.core.enums.message_level import MessageLevel
+from src.interfaces.service_interfaces import IErrorHandler, IMessageQueue
+from src.services.events.queue import Message
 from src.utils.logger import get_logger
 from src.utils.window import WindowCenterMixin
 
@@ -22,6 +25,8 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
         initial_path: str,
         on_directory_change: Callable[[str], None],
         show_status: Callable[[str], None],
+        error_handler: Optional[IErrorHandler] = None,
+        message_queue: Optional[IMessageQueue] = None,
     ):
         super().__init__(parent)
 
@@ -36,6 +41,8 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.current_path = os.path.expanduser(initial_path)
         self.on_directory_change = on_directory_change
         self.show_status = show_status
+        self.error_handler = error_handler
+        self.message_queue = message_queue
 
         # Configure grid
         self.grid_columnconfigure(0, weight=1)
@@ -114,7 +121,15 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
                 self.show_status(f"Download directory changed to: {self.current_path}")
             self.destroy()
         else:
-            messagebox.showerror("Error", "Please select a valid directory.")
+            error_msg = "Please select a valid directory."
+            if self.error_handler:
+                self.error_handler.show_error("File Manager Error", error_msg)
+            elif self.message_queue:
+                self.message_queue.add_message(
+                    Message(text=error_msg, level=MessageLevel.ERROR, title="File Manager Error")
+                )
+            elif self.show_status:
+                self.show_status(error_msg)
 
     def create_folder(self):
         """Create a new folder."""
@@ -129,6 +144,12 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
                 self.update_file_list()
             except OSError as oe:
                 logger.error(f"Error creating folder: {oe}")
-                if self.show_status:
-                    self.show_status("Error: Unable to create the folder.")
-                messagebox.showerror("Error", f"Unable to create folder: {str(oe)}")
+                error_msg = f"Unable to create folder: {str(oe)}"
+                if self.error_handler:
+                    self.error_handler.show_error("File Manager Error", error_msg)
+                elif self.message_queue:
+                    self.message_queue.add_message(
+                        Message(text=error_msg, level=MessageLevel.ERROR, title="File Manager Error")
+                    )
+                elif self.show_status:
+                    self.show_status(f"Error: {error_msg}")

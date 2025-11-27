@@ -1,9 +1,13 @@
 """Multi-select dropdown component with checkbox support."""
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Dict, List
 
 import customtkinter as ctk
+
+from src.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class MultiSelectDropdown(ctk.CTkFrame):
@@ -192,7 +196,7 @@ class MultiSelectDropdown(ctk.CTkFrame):
             self.checkboxes[option_id] = var
 
         except Exception as e:
-            print(f"Error creating option item: {e}")
+            logger.error(f"Error creating option item: {e}", exc_info=True)
             # Don't let one broken option break the whole dropdown
 
     def _handle_option_change(self, option_id: str, is_selected: bool):

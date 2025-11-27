@@ -7,6 +7,10 @@ from typing import Any, Dict, List
 
 import customtkinter as ctk
 
+from src.utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 class SubtitleChecklist(ctk.CTkFrame):
     """Simple scrollable checklist for subtitle selection."""
@@ -110,7 +114,7 @@ class SubtitleChecklist(ctk.CTkFrame):
             self._update_status()
 
         except Exception as e:
-            print(f"Error setting subtitle options: {e}")
+            logger.error(f"Error setting subtitle options: {e}", exc_info=True)
 
     def _clear_existing_options(self):
         """Clear existing option widgets."""
@@ -160,7 +164,7 @@ class SubtitleChecklist(ctk.CTkFrame):
             self.checkboxes[option_id] = checkbox
 
         except Exception as e:
-            print(f"Error creating option item {index}: {e}")
+            logger.error(f"Error creating option item {index}: {e}")
 
     def _handle_option_change(self, option_id: str, is_selected: bool):
         """Handle option selection change."""
@@ -176,7 +180,7 @@ class SubtitleChecklist(ctk.CTkFrame):
                 self.on_change(self.selected_options.copy())
 
         except Exception as e:
-            print(f"Error handling option change: {e}")
+            logger.error(f"Error handling option change: {e}")
 
     def _update_status(self):
         """Update the status label."""
@@ -192,7 +196,7 @@ class SubtitleChecklist(ctk.CTkFrame):
             self.status_label.configure(text=text)
 
         except Exception as e:
-            print(f"Error updating status: {e}")
+            logger.error(f"Error updating status: {e}")
 
     def _select_all(self):
         """Select all options."""
@@ -208,7 +212,7 @@ class SubtitleChecklist(ctk.CTkFrame):
                 self.on_change(self.selected_options.copy())
 
         except Exception as e:
-            print(f"Error selecting all: {e}")
+            logger.error(f"Error selecting all: {e}")
 
     def _clear_all(self):
         """Clear all selections."""
@@ -223,7 +227,7 @@ class SubtitleChecklist(ctk.CTkFrame):
                 self.on_change([])
 
         except Exception as e:
-            print(f"Error clearing all: {e}")
+            logger.error(f"Error clearing all: {e}")
 
     def get_selected_subtitles(self) -> list[dict[str, str]]:
         """Get currently selected subtitle dictionaries."""
@@ -254,7 +258,7 @@ class SubtitleChecklist(ctk.CTkFrame):
             self._update_status()
 
         except Exception as e:
-            print(f"Error setting selected subtitles: {e}")
+            logger.error(f"Error setting selected subtitles: {e}")
 
     def clear_selection(self):
         """Clear all selections (alias for _clear_all)."""

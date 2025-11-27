@@ -237,6 +237,19 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                 error_msg = f"yt-dlp command failed with return code {result.returncode}"
                 logger.warning(error_msg)
                 logger.debug(f"Error output: {result.stderr}")
+                
+                # Check if this is a cookie error that requires regeneration
+                stderr_text = result.stderr if result.stderr else ""
+                is_cookie_error = (
+                    "Sign in to confirm" in stderr_text or
+                    "bot" in stderr_text.lower() or
+                    "Use --cookies" in stderr_text
+                )
+                
+                if is_cookie_error and cookie_path:
+                    logger.warning("[METADATA_SERVICE] Cookie error detected - cookies may need regeneration")
+                    # Note: Cookie regeneration will be triggered by the handler
+                
                 if self.error_handler and result.stderr:
                     stderr_msg = result.stderr[:200] if len(result.stderr) > 200 else result.stderr
                     self.error_handler.handle_service_failure("YouTube", "metadata fetch", stderr_msg, url)
@@ -407,8 +420,8 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                 logger.info(f"Successfully detected cookies for {browser}: {detected_path}")
                 return detected_path
 
-            logger.info(f"No cookies found for {browser}")
-            return None
+                logger.info(f"No cookies found for {browser}")
+                return None
 
         except Exception as e:
             logger.error(f"Error detecting cookies for {browser}: {e}", exc_info=True)

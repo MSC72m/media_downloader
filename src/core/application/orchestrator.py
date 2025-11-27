@@ -8,11 +8,7 @@ from typing import Any, Type
 import customtkinter as ctk
 
 from src.core.config import AppConfig, get_config
-from src.coordinators.error_handler import ErrorHandler
 from src.coordinators.main_coordinator import EventCoordinator
-from src.handlers.cookie_handler import CookieHandler
-from src.handlers.download_handler import DownloadHandler
-from src.handlers.network_checker import NetworkChecker
 from src.handlers.service_detector import ServiceDetector
 from src.interfaces.service_interfaces import (
     IAutoCookieManager,
@@ -29,15 +25,14 @@ from src.interfaces.service_interfaces import (
 )
 from src.services.cookies import CookieManager as AutoCookieManager
 from src.services.detection.link_detector import LinkDetector
-from src.services.downloads import DownloadService, ServiceFactory
 from src.services.events.queue import Message, MessageLevel, MessageQueue
 from src.services.file import FileService
 from src.services.youtube.cookie_detector import CookieDetector, ICookieDetector
-from src.services.youtube.metadata_service import YouTubeMetadataService
 from src.utils.logger import get_logger
 
 from ..models import UIState
 from .di_container import ServiceContainer
+from .service_factories import ServiceFactoryRegistry
 
 logger = get_logger(__name__)
 
@@ -74,6 +69,7 @@ class ApplicationOrchestrator:
 
         # Configure DI container - let it handle everything
         self.container = ServiceContainer()
+        self.factory_registry = ServiceFactoryRegistry(self.container, self.root)
         self._configure_dependencies()
 
         # Get injected dependencies
@@ -124,88 +120,28 @@ class ApplicationOrchestrator:
 
     def _register_handlers(self) -> None:
         """Register application handlers."""
-        # CookieHandler gets config from DI container
-        self.container.register_singleton(ICookieHandler, self._create_cookie_handler)
-        
-        # ErrorHandler needs message_queue (may be None initially)
-        self.container.register_singleton(IErrorHandler, self._create_error_handler)
-        
-        # DownloadHandler depends on multiple services
-        self.container.register_singleton(IDownloadHandler, self._create_download_handler)
+        self.container.register_singleton(ICookieHandler, self.factory_registry.create_cookie_handler)
+        self.container.register_singleton(IErrorHandler, self.factory_registry.create_error_handler)
+        self.container.register_singleton(IDownloadHandler, self.factory_registry.create_download_handler)
 
     def _register_services(self) -> None:
         """Register service implementations."""
-        self.container.register_singleton(IMetadataService, self._create_metadata_service)
-        self.container.register_singleton(INetworkChecker, self._create_network_checker)
-        self.container.register_singleton(IServiceFactory, self._create_service_factory)
-        self.container.register_singleton(IDownloadService, self._create_download_service)
+        self.container.register_singleton(IMetadataService, self.factory_registry.create_metadata_service)
+        self.container.register_singleton(INetworkChecker, self.factory_registry.create_network_checker)
+        self.container.register_singleton(IServiceFactory, self.factory_registry.create_service_factory)
+        self.container.register_singleton(IDownloadService, self.factory_registry.create_download_service)
 
     def _register_coordinators(self) -> None:
         """Register coordinators."""
-        self.container.register_singleton(EventCoordinator, self._create_event_coordinator)
+        self.container.register_singleton(
+            EventCoordinator,
+            lambda: self.factory_registry.create_event_coordinator(self.downloads_folder)
+        )
 
     def _register_detectors(self) -> None:
         """Register detector services."""
         self.container.register_singleton(ICookieDetector, CookieDetector)
         self.container.register_singleton(LinkDetector, LinkDetector)
-
-    def _create_cookie_handler(self) -> CookieHandler:
-        """Factory for CookieHandler - gets config from DI."""
-        config = self.container.get(AppConfig)
-        return CookieHandler(config=config)
-
-    def _create_error_handler(self) -> ErrorHandler:
-        """Factory for ErrorHandler."""
-        message_queue = self.container.get_optional(IMessageQueue)
-        return ErrorHandler(message_queue)
-
-    def _create_metadata_service(self) -> YouTubeMetadataService:
-        """Factory for YouTubeMetadataService."""
-        error_handler = self.container.get_optional(IErrorHandler)
-        return YouTubeMetadataService(error_handler=error_handler)
-
-    def _create_network_checker(self) -> NetworkChecker:
-        """Factory for NetworkChecker."""
-        error_handler = self.container.get_optional(IErrorHandler)
-        return NetworkChecker(error_handler=error_handler)
-
-    def _create_service_factory(self) -> ServiceFactory:
-        """Factory for ServiceFactory."""
-        cookie_manager = self.container.get(IAutoCookieManager)
-        error_handler = self.container.get_optional(IErrorHandler)
-        return ServiceFactory(cookie_manager, error_handler=error_handler)
-
-    def _create_download_service(self) -> DownloadService:
-        """Factory for DownloadService."""
-        service_factory = self.container.get(IServiceFactory)
-        return DownloadService(service_factory)
-
-    def _create_download_handler(self) -> DownloadHandler:
-        """Factory for DownloadHandler."""
-        return DownloadHandler(
-            download_service=self.container.get(IDownloadService),
-            service_factory=self.container.get(IServiceFactory),
-            file_service=self.container.get(IFileService),
-            ui_state=self.container.get(IUIState),
-            cookie_handler=self.container.get(ICookieHandler),
-            auto_cookie_manager=self.container.get(IAutoCookieManager),
-            message_queue=self.container.get_optional(IMessageQueue),
-            error_handler=self.container.get_optional(IErrorHandler),
-        )
-
-    def _create_event_coordinator(self) -> EventCoordinator:
-        """Factory for EventCoordinator."""
-        return EventCoordinator(
-            root_window=self.root,
-            error_handler=self.container.get(IErrorHandler),
-            download_handler=self.container.get(IDownloadHandler),
-            file_service=self.container.get(IFileService),
-            network_checker=self.container.get(INetworkChecker),
-            cookie_handler=self.container.get(ICookieHandler),
-            download_service=self.container.get(IDownloadService),
-            message_queue=self.container.get_optional(IMessageQueue),
-            downloads_folder=self.downloads_folder,
-        )
 
     def _create_handler_factory(self) -> callable:
         """Create handler factory for LinkDetector."""
@@ -260,13 +196,13 @@ class ApplicationOrchestrator:
                     logger.error(f"[ORCHESTRATOR] Cookie initialization failed: {state.error_message}")
                     if "Playwright is not installed" in state.error_message:
                         error_message = (
-                            "CRITICAL: Playwright is not installed!\n\n"
-                            "The auto-cookie generation system requires Playwright to function.\n"
-                            "Without it, age-restricted YouTube videos will fail to download.\n\n"
-                            "To fix this, run the following commands:\n\n"
-                            "  pip install playwright\n"
-                            "  playwright install chromium\n\n"
-                            "Then restart the application."
+                                "CRITICAL: Playwright is not installed!\n\n"
+                                "The auto-cookie generation system requires Playwright to function.\n"
+                                "Without it, age-restricted YouTube videos will fail to download.\n\n"
+                                "To fix this, run the following commands:\n\n"
+                                "  pip install playwright\n"
+                                "  playwright install chromium\n\n"
+                                "Then restart the application."
                         )
                         self.root.after(
                             2000,
@@ -343,14 +279,14 @@ class ApplicationOrchestrator:
     def _create_ui_callbacks(self, components: dict) -> dict:
         """Create thread-safe UI callbacks from components."""
         callbacks = {}
-        
+
         def safe_ui_update(func, *args, **kwargs):
             """Execute UI update on main thread."""
             if hasattr(self.root, 'run_on_main_thread'):
                 self.root.run_on_main_thread(partial(func, *args, **kwargs))
             else:
                 self.root.after(0, partial(func, *args, **kwargs))
-
+        
         if "download_list" in components:
             dl_list = components["download_list"]
             callbacks["refresh_download_list"] = partial(safe_ui_update, dl_list.refresh_items)
@@ -370,7 +306,7 @@ class ApplicationOrchestrator:
                     sb.show_message(msg)
             
             callbacks["update_status"] = partial(safe_ui_update, update_status_wrapper)
-        
+            
         return callbacks
 
     def check_connectivity(self) -> None:
@@ -385,7 +321,7 @@ class ApplicationOrchestrator:
             """Check connectivity in background thread."""
             try:
                 is_connected, error_message = self.network_checker.check_connectivity()
-                
+
                 def update_ui():
                     logger.info(f"[ORCHESTRATOR] Connectivity check complete: connected={is_connected}, error={error_message}")
                     self._handle_connectivity_result(is_connected, error_message)
@@ -396,7 +332,7 @@ class ApplicationOrchestrator:
                     self.root.after(0, update_ui)
             except Exception as e:
                 logger.error(f"[ORCHESTRATOR] Error checking connectivity: {e}", exc_info=True)
-                
+
                 def update_ui_error():
                     logger.info(f"[ORCHESTRATOR] Connectivity check error: {str(e)}")
                     self._handle_connectivity_result(False, str(e))
@@ -442,7 +378,7 @@ class ApplicationOrchestrator:
     def show_network_status(self) -> None:
         """Show network status dialog."""
         self.event_coordinator.show_network_status()
-
+    
     def cleanup(self) -> None:
         """Clean up all services."""
         try:

@@ -160,7 +160,7 @@ class InstagramDownloader(BaseDownloader):
             logger.error(error_msg)
             if self.error_handler:
                 self.error_handler.handle_service_failure("Instagram", "download", error_msg, url)
-            return False
+                return False
 
         except Exception as e:
             logger.error(f"Error downloading from Instagram: {str(e)}", exc_info=True)

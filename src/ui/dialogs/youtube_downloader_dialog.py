@@ -3,13 +3,15 @@
 import threading
 import time
 from collections.abc import Callable
-from tkinter import messagebox
 from typing import Optional
 
 import customtkinter as ctk
 
 from src.core.config import get_config, AppConfig
+from src.core.enums.message_level import MessageLevel
+from src.core.models import Download
 from src.interfaces.service_interfaces import IErrorHandler, IMessageQueue
+from src.services.events.queue import Message
 from ...interfaces.youtube_metadata import YouTubeMetadata
 from ...utils.logger import get_logger
 from ...utils.window import WindowCenterMixin
@@ -309,19 +311,13 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         if self.video_metadata and self.video_metadata.error:
             error_msg = f"Failed to fetch video metadata: {self.video_metadata.error}"
 
+        # Show error via status bar only - no popup dialogs
         if self.error_handler:
             self.error_handler.handle_service_failure("YouTube", "metadata fetch", error_msg, self.url)
         elif self.message_queue:
-            from src.core.enums.message_level import MessageLevel
-            from src.services.events.queue import Message
             self.message_queue.add_message(
                 Message(text=error_msg, level=MessageLevel.ERROR, title="YouTube Metadata Error")
             )
-
-        try:
-            messagebox.showerror("Metadata Error", error_msg)
-        except Exception as e:
-            logger.error(f"Error showing error message: {e}")
 
         try:
             self.destroy()
@@ -398,11 +394,12 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                 self.widgets_created = True
             except Exception as e:
                 logger.error(f"Error creating widgets: {e}", exc_info=True)
-                # Try to show error message and continue
-                from tkinter import messagebox
-
-                messagebox.showerror(
-                    "Error", f"Failed to create download options: {str(e)}"
+                # Show error via status bar only
+                if self.error_handler:
+                    self.error_handler.handle_exception(e, "Creating download options", "YouTube Dialog")
+                elif self.message_queue:
+                    self.message_queue.add_message(
+                        Message(text=f"Failed to create download options: {str(e)}", level=MessageLevel.ERROR, title="Dialog Error")
                 )
                 return
 
@@ -829,7 +826,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                 self.quality_menu.configure(values=video_qualities)
                 # Set a sensible default if current quality is not in video options
                 if current_quality not in video_qualities:
-                    self.quality_var.set(config.youtube.default_quality)
+                    self.quality_var.set(self.config.youtube.default_quality)
 
     def _handle_add_to_downloads(self):
         """Handle add to downloads button click."""
@@ -879,8 +876,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             selected_subtitles = self.subtitle_dropdown.get_selected_subtitles()
 
             # Create Download object with all options
-            from src.core.models import Download
-
             download = Download(
                 url=self.url,
                 name=name,

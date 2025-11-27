@@ -1,12 +1,16 @@
 """Platform Dialog Coordinator - SOLID polymorphic dialog handling."""
 
 import os
+import threading
 from abc import ABC, abstractmethod
 from typing import Callable, Optional
 
 from src.core.enums.instagram_auth_status import InstagramAuthStatus
 from src.core.models import Download
 from src.interfaces.service_interfaces import ICookieHandler, IErrorHandler
+from src.services.instagram.downloader import InstagramDownloader
+from src.services.soundcloud.downloader import SoundCloudDownloader
+from src.ui.dialogs.login_dialog import LoginDialog
 from src.utils.error_helpers import extract_error_context, format_user_friendly_error
 from src.utils.logger import get_logger
 
@@ -225,7 +229,7 @@ class PlatformDialogCoordinator:
 
     def authenticate_instagram(self, parent_window, callback: Optional[Callable] = None) -> None:
         """Show Instagram authentication dialog with full login flow.
-
+        
         Args:
             parent_window: Parent window for dialogs
             callback: Optional callback to update button state (receives InstagramAuthStatus)
@@ -233,7 +237,7 @@ class PlatformDialogCoordinator:
         logger.info("[PLATFORM_DIALOG_COORDINATOR] Starting Instagram authentication")
 
         options_bar = self._get_options_bar(parent_window)
-
+        
         if options_bar:
             options_bar.set_instagram_status(InstagramAuthStatus.LOGGING_IN)
         elif callback:
@@ -241,7 +245,11 @@ class PlatformDialogCoordinator:
 
         try:
 
-            dialog = LoginDialog(parent_window)
+            dialog = LoginDialog(
+                parent_window,
+                error_handler=self.error_handler,
+                message_queue=None,  # LoginDialog doesn't need message_queue as it's modal
+            )
             dialog.wait_window()
 
             if not dialog.username or not dialog.password:
@@ -250,7 +258,7 @@ class PlatformDialogCoordinator:
                     options_bar.set_instagram_status(InstagramAuthStatus.FAILED)
                 elif callback:
                     callback(InstagramAuthStatus.FAILED)
-                self.error_handler.show_info("Instagram Login", "Login cancelled")
+                    self.error_handler.show_info("Instagram Login", "Login cancelled")
                 return
 
             username = dialog.username
@@ -264,7 +272,7 @@ class PlatformDialogCoordinator:
                     error_msg = "" if success else "Authentication failed"
 
                     def update_ui():
-                        self._handle_auth_result(success, username, options_bar, callback, error_msg)
+                            self._handle_auth_result(success, username, options_bar, callback, error_msg)
 
                     self.root.after(0, update_ui)
                 except Exception as e:
@@ -320,7 +328,7 @@ class PlatformDialogCoordinator:
                 options_bar.set_instagram_status(InstagramAuthStatus.AUTHENTICATED)
             elif callback:
                 callback(InstagramAuthStatus.AUTHENTICATED)
-            self.error_handler.show_info("Instagram Login", f"Successfully authenticated as {username}")
+                self.error_handler.show_info("Instagram Login", f"Successfully authenticated as {username}")
         else:
             logger.warning(f"[PLATFORM_DIALOG_COORDINATOR] Instagram authentication failed for {username[:3]}***")
             if options_bar:
@@ -329,3 +337,4 @@ class PlatformDialogCoordinator:
                 callback(InstagramAuthStatus.FAILED)
             error_msg = error_message or "Invalid credentials or authentication failed"
             self.error_handler.handle_service_failure("Instagram", "authentication", error_msg, "")
+    

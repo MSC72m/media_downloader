@@ -111,9 +111,9 @@ class CookieManager:
                 
                 self._state = loop.run_until_complete(self._regenerate_cookies())
                 
-                if not self._state or not self._state.is_valid:
-                    logger.warning("[COOKIE_MANAGER] Cookie generation failed")
-                    return None
+            if not self._state or not self._state.is_valid:
+                logger.warning("[COOKIE_MANAGER] Cookie generation failed")
+                return None
 
             netscape_path = self.generator.convert_to_netscape_text()
 
@@ -181,6 +181,38 @@ class CookieManager:
             return True
 
         logger.info("[COOKIE_MANAGER] Cookies are still valid")
+        return False
+
+    def invalidate_and_regenerate(self) -> bool:
+        """Invalidate current cookies and trigger regeneration.
+        
+        This is called when cookies are detected to be invalid during use.
+        
+        Returns:
+            True if regeneration was triggered, False otherwise
+        """
+        logger.info("[COOKIE_MANAGER] Invalidating cookies and triggering regeneration")
+        
+        with self._lock:
+            # Invalidate current state
+            if self._state:
+                self._state.is_valid = False
+                self._state.error_message = "Cookies invalidated due to failure"
+            
+            # Trigger regeneration
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            
+            self._state = loop.run_until_complete(self._regenerate_cookies())
+            
+            if self._state and self._state.is_valid:
+                logger.info("[COOKIE_MANAGER] Cookies regenerated successfully after invalidation")
+                return True
+            else:
+                logger.warning("[COOKIE_MANAGER] Cookie regeneration failed after invalidation")
         return False
 
     def is_ready(self) -> bool:

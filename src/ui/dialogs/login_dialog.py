@@ -1,7 +1,10 @@
-from tkinter import messagebox
+from typing import Optional
 
 import customtkinter as ctk
 
+from src.core.enums.message_level import MessageLevel
+from src.interfaces.service_interfaces import IErrorHandler, IMessageQueue
+from src.services.events.queue import Message
 from src.utils.logger import get_logger
 from src.utils.window import WindowCenterMixin
 
@@ -9,7 +12,12 @@ logger = get_logger(__name__)
 
 
 class LoginDialog(ctk.CTkToplevel, WindowCenterMixin):
-    def __init__(self, parent):
+    def __init__(
+        self,
+        parent,
+        error_handler: Optional[IErrorHandler] = None,
+        message_queue: Optional[IMessageQueue] = None,
+    ):
         logger.info(f"[LOGIN_DIALOG] Initializing with parent: {parent}")
         super().__init__(parent)
 
@@ -23,6 +31,8 @@ class LoginDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         self.username: str | None = None
         self.password: str | None = None
+        self.error_handler = error_handler
+        self.message_queue = message_queue
 
         # Create widgets FIRST
         logger.info("[LOGIN_DIALOG] Creating widgets")
@@ -91,6 +101,10 @@ class LoginDialog(ctk.CTkToplevel, WindowCenterMixin):
             self.destroy()
         else:
             logger.warning("[LOGIN_DIALOG] Missing credentials, showing error")
-            messagebox.showerror(
-                "Error", "Please enter both username and password", parent=self
+            error_msg = "Please enter both username and password"
+            if self.error_handler:
+                self.error_handler.show_error("Login Error", error_msg)
+            elif self.message_queue:
+                self.message_queue.add_message(
+                    Message(text=error_msg, level=MessageLevel.ERROR, title="Login Error")
             )

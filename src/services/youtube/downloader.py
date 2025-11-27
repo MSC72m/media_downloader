@@ -11,6 +11,7 @@ from src.interfaces.service_interfaces import BaseDownloader, ICookieHandler, IE
 from ..file.sanitizer import FilenameSanitizer
 from ..network.checker import check_site_connection
 from ...utils.logger import get_logger
+from .audio_extractor import AudioExtractor
 from .metadata_service import YouTubeMetadataService
 
 if TYPE_CHECKING:
@@ -56,7 +57,9 @@ class YouTubeDownloader(BaseDownloader):
         self.retries = retries
         self.error_handler = error_handler
         self.metadata_service = YouTubeMetadataService(error_handler=error_handler, config=self.config)
+        self.audio_extractor = AudioExtractor(config=self.config, error_handler=error_handler)
         self.ytdl_opts = self._get_simple_ytdl_options()
+        self._extract_audio_separately = False  # Flag for Audio + Video format
 
     def _get_simple_ytdl_options(self) -> Dict[str, Any]:
         """Generate simple yt-dlp options without format specifications."""
@@ -211,13 +214,21 @@ class YouTubeDownloader(BaseDownloader):
                 )
                 ext = self.config.youtube.file_extensions["audio"]
             elif self.format == "video_only" or self.video_only:
-                # Video only without audio
-                opts["format"] = "bestvideo"
+                # Video only without audio - use bestvideo but ensure we get video, not thumbnail
+                # Respect quality selection
+                if self.quality.endswith("p"):
+                    height = self.quality.replace("p", "")
+                    if height.isdigit():
+                        opts["format"] = f"bestvideo[height<={height}][ext=mp4]/bestvideo[height<={height}]/bestvideo[ext=mp4]/bestvideo/best[height>=360]/best"
+                    else:
+                        opts["format"] = "bestvideo[ext=mp4]/bestvideo/best[height>=360]/best"
+                else:
+                    opts["format"] = "bestvideo[ext=mp4]/bestvideo/best[height>=360]/best"
                 ext = ".mp4"
                 opts["outtmpl"] = {"default": output_template + ext}
             else:
-                # Default: video + audio
-                # Use dictionary-based format selection
+                # Default: video + audio - download video with selected quality
+                # Use yt-dlp postprocessor to extract audio while keeping video
                 format_map = {
                     "highest": self.config.youtube.quality_format_map["highest"],
                     "lowest": self.config.youtube.quality_format_map["lowest"],
@@ -241,6 +252,10 @@ class YouTubeDownloader(BaseDownloader):
                     opts["format"] = self.config.youtube.quality_format_map["best"]
                 ext = self.config.youtube.file_extensions["video"]
                 opts["outtmpl"] = {"default": output_template + ext}
+                
+                # For "Audio + Video" format, we'll extract audio after video download
+                # yt-dlp's FFmpegExtractAudio removes the original, so we do it manually
+                self._extract_audio_separately = True
 
             # Store expected output path for verification
             expected_output_path = output_template + ext
@@ -295,11 +310,11 @@ class YouTubeDownloader(BaseDownloader):
                             self.error_handler.handle_exception(e, "YouTube download", "YouTube")
                         return False
 
-                    logger.error(f"Error downloading from YouTube: {error_msg}")
-                    self._log_specific_error(error_msg)
+                        logger.error(f"Error downloading from YouTube: {error_msg}")
+                        self._log_specific_error(error_msg)
                     if self.error_handler:
                         self.error_handler.handle_exception(e, "YouTube download", "YouTube")
-                    return False
+                        return False
 
             if not download_successful:
                 error_msg = "All download attempts failed"
@@ -316,7 +331,16 @@ class YouTubeDownloader(BaseDownloader):
 
         # Verify the download actually completed successfully
         if download_successful and expected_output_path:
-            return self._verify_download_completion(expected_output_path)
+            verified = self._verify_download_completion(expected_output_path)
+            
+            # For "Audio + Video" format, extract audio separately after video download
+            if verified and self._extract_audio_separately:
+                audio_extracted = self.audio_extractor.extract_audio(expected_output_path)
+                if not audio_extracted:
+                    logger.warning("[YOUTUBE_DOWNLOADER] Video downloaded but audio extraction failed")
+                    # Don't fail the download if audio extraction fails
+            
+            return verified
 
         return False
 

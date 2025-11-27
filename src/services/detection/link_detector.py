@@ -1,9 +1,8 @@
 import logging
 import re
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Type
-
-from pydantic import BaseModel, Field
 
 from src.utils.logger import get_logger
 
@@ -13,12 +12,13 @@ logging.basicConfig(
 logger = get_logger(__name__)
 
 
-class DetectionResult(BaseModel):
+@dataclass
+class DetectionResult:
     """Result of link detection."""
 
-    service_type: str = Field(description="Type of service detected")
-    confidence: float = Field(ge=0.0, le=1.0, description="Confidence level from 0.0 to 1.0")
-    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional metadata about the detection")
+    service_type: str
+    confidence: float  # 0.0 to 1.0
+    metadata: Dict[str, Any] | None = None
 
 
 class LinkHandlerInterface(ABC):
@@ -115,10 +115,8 @@ class LinkDetectionRegistry:
                 
                 # Use factory if available, otherwise try direct instantiation
                 if cls._handler_factory:
-                    logger.debug(f"[DETECTION] Using factory for {handler_name}")
                     handler = cls._handler_factory(handler_class)
                 else:
-                    logger.warning(f"[DETECTION] No factory available for {handler_name}, trying direct instantiation")
                     # Fallback: try direct instantiation (for handlers without dependencies)
                     handler = handler_class()
                 
@@ -214,7 +212,7 @@ class LinkDetector:
             try:
                 return handler.can_handle(url)
             except Exception as e:
-                logger.error(f"Error getting URL info: {e}", exc_info=True)
+                logger.error(f"[LINK_DETECTOR] Error getting URL info: {e}", exc_info=True)
         return None
 
 

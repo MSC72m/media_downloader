@@ -176,6 +176,8 @@ class EventCoordinator:
                 self.downloads_folder,
                 on_directory_change,
                 lambda msg: self.error_handler.show_info("File Manager", msg),
+                error_handler=self.error_handler,
+                message_queue=self.message_queue,
             )
         except Exception as e:
             logger.error(f"[EVENT_COORDINATOR] Error showing file manager: {e}")

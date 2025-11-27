@@ -18,6 +18,9 @@ from src.services.detection.link_detector import (
     LinkHandlerInterface,
     auto_register_handler,
 )
+from src.core.enums.message_level import MessageLevel
+from src.services.events.queue import Message
+from src.services.youtube.metadata_service import YouTubeMetadataService
 from src.ui.dialogs.input_dialog import CenteredInputDialog
 from src.ui.dialogs.youtube_downloader_dialog import YouTubeDownloaderDialog
 from src.utils.error_helpers import extract_error_context, format_user_friendly_error
@@ -26,6 +29,7 @@ from src.utils.type_helpers import (
     get_platform_callback,
     get_root,
     schedule_on_main_thread,
+    safe_getattr,
 )
 
 logger = get_logger(__name__)
@@ -110,10 +114,8 @@ class YouTubeHandler(BaseHandler, LinkHandlerInterface):
 
     def get_metadata(self, url: str) -> Dict[str, Any]:
         """Get YouTube metadata for the URL."""
-
         try:
-            metadata_service = YouTubeMetadataService()
-            video_info = metadata_service.fetch_metadata(url)
+            video_info = self.metadata_service.fetch_metadata(url)
 
             return {
                 "title": safe_getattr(video_info, "title", "Unknown"),
@@ -219,12 +221,12 @@ class YouTubeHandler(BaseHandler, LinkHandlerInterface):
                             error_context = extract_error_context(e, "YouTube", "music download creation", url)
                             self.error_handler.handle_exception(e, "Creating YouTube Music download", "YouTube")
                         elif self.message_queue:
-                            self.message_queue.add_message(
-                                Message(
-                                    text=f"Failed to add YouTube Music download: {str(e)}",
-                                    level=MessageLevel.ERROR,
-                                    title="YouTube Music Error",
-                                )
+                                self.message_queue.add_message(
+                                    Message(
+                                        text=f"Failed to add YouTube Music download: {str(e)}",
+                                        level=MessageLevel.ERROR,
+                                        title="YouTube Music Error",
+                                    )
                             )
 
                 schedule_on_main_thread(root, show_music_name_dialog, immediate=True)

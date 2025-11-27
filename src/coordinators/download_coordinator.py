@@ -3,6 +3,7 @@
 from typing import Any, Callable, List, Optional
 
 from src.core.config import get_config, AppConfig
+from src.core.enums.message_level import MessageLevel
 from src.interfaces.service_interfaces import (
     IDownloadHandler,
     IDownloadService,
@@ -11,6 +12,7 @@ from src.interfaces.service_interfaces import (
 )
 from src.core.models import Download, DownloadStatus
 from src.services.events.event_bus import DownloadEvent, DownloadEventBus
+from src.services.events.queue import Message
 from src.utils.error_helpers import extract_error_context
 from src.utils.logger import get_logger
 
@@ -233,7 +235,7 @@ class DownloadCoordinator:
             
             # Disable buttons while downloading
             self._refresh_ui_after_event(enable_buttons=False)
-                
+            
         except Exception as e:
             logger.error(f"[DOWNLOAD_COORDINATOR] Error starting downloads: {e}", exc_info=True)
             self._update_status(f"Failed to start downloads: {e}", is_error=True)

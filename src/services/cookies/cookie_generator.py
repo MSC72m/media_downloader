@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
+from playwright.async_api import async_playwright
+
 from src.core.config import get_config, AppConfig
 from src.core.models import CookieState
 from src.utils.logger import get_logger
@@ -44,9 +46,6 @@ class CookieGenerator:
         )
 
         try:
-            # Import playwright
-            from playwright.async_api import async_playwright
-
             async with async_playwright() as p:
                 logger.info("[COOKIE_GENERATOR] Launching Chromium browser")
 
@@ -161,8 +160,6 @@ class CookieGenerator:
         Args:
             cookies: List of cookie dicts from Playwright
         """
-        from datetime import datetime
-
         netscape_cookies = []
         valid_count = 0
         skipped_count = 0
@@ -251,13 +248,8 @@ class CookieGenerator:
                         expiration = int(expiration)
 
                     if expiration >= 0 and domain and name:
-                        f.write(
-                            f"{domain}\t{flag}\t{path}\t{secure}\t{expiration}\t{name}\t{value}\n"
-                        )
+                        f.write(f"{domain}\t{flag}\t{path}\t{secure}\t{expiration}\t{name}\t{value}\n")
                         valid_cookies += 1
-                    else:
-                        skipped_cookies += 1
-                        logger.debug(f"[COOKIE_GENERATOR] Skipping invalid cookie: {name}")
 
             if skipped_cookies > 0:
                 logger.warning(f"[COOKIE_GENERATOR] Skipped {skipped_cookies} invalid cookies during conversion")
@@ -283,8 +275,6 @@ class CookieGenerator:
             True if file is valid, False otherwise
         """
         try:
-            from pathlib import Path
-
             if not Path(file_path).exists():
                 return False
 
@@ -320,8 +310,6 @@ class CookieGenerator:
             True if Chromium is installed, False otherwise
         """
         try:
-            from playwright.async_api import async_playwright
-
             async with async_playwright() as p:
                 browser_type = p.chromium
                 if browser_type:

@@ -100,6 +100,7 @@ def _check_playwright_installation():
             exit_clicked["value"] = True
 
             # Print clear instructions to terminal FIRST
+            # We dont want this to have structured logging!
             print("\n" + "=" * 70)
             print("  PLAYWRIGHT INSTALLATION REQUIRED")
             print("=" * 70)
