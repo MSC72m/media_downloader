@@ -4,7 +4,7 @@ from typing import Optional, Callable
 
 import customtkinter as ctk
 
-from src.core.interfaces import (
+from src.interfaces.service_interfaces import (
     IErrorHandler,
     IDownloadHandler,
     IFileService,
@@ -44,8 +44,13 @@ class EventCoordinator:
                  download_handler: IDownloadHandler, file_service: IFileService,
                  network_checker: INetworkChecker, cookie_handler: ICookieHandler,
                  download_service: IDownloadService, message_queue: Optional[IMessageQueue] = None,
-                 downloads_folder: str = "~/Downloads"):
+                 downloads_folder: Optional[str] = None):
         """Initialize with proper dependency injection."""
+        from src.core.config import get_config
+        
+        if downloads_folder is None:
+            downloads_folder = str(get_config().paths.downloads_dir)
+        
         self.root = root_window
         self.error_handler = error_handler
         self.download_handler = download_handler

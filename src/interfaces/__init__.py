@@ -9,6 +9,23 @@ from .protocols import (
     TkRootProtocol,
     UIContextProtocol,
 )
+from .service_interfaces import (
+    BaseDownloader,
+    IAutoCookieManager,
+    ICookieHandler,
+    IDownloadHandler,
+    IDownloadService,
+    IErrorHandler,
+    IFileService,
+    IMessageQueue,
+    IMetadataService,
+    INetworkChecker,
+    IServiceFactory,
+    IUIState,
+    AuthenticationError,
+    NetworkError,
+    ServiceError,
+)
 from .youtube_metadata import IYouTubeMetadataService, SubtitleInfo, YouTubeMetadata
 
 __all__ = [
@@ -28,4 +45,21 @@ __all__ = [
     "HasClearProtocol",
     "HasCompletedDownloadsProtocol",
     "TkRootProtocol",
+    # Service Interfaces
+    "IDownloadService",
+    "IDownloadHandler",
+    "ICookieHandler",
+    "IMetadataService",
+    "INetworkChecker",
+    "IFileService",
+    "IMessageQueue",
+    "IErrorHandler",
+    "IServiceFactory",
+    "IAutoCookieManager",
+    "IUIState",
+    "BaseDownloader",
+    # Exceptions
+    "NetworkError",
+    "AuthenticationError",
+    "ServiceError",
 ]

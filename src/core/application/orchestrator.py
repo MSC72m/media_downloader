@@ -6,7 +6,7 @@ from functools import partial
 
 import customtkinter as ctk
 
-from src.core.interfaces import (
+from src.interfaces.service_interfaces import (
     IDownloadService,
     IDownloadHandler,
     IServiceFactory,
@@ -62,7 +62,9 @@ class ApplicationOrchestrator:
         self.root = root_window
 
         # Core state
-        self.downloads_folder = os.path.expanduser("~/Downloads")
+        from src.core.config import get_config
+        config = get_config()
+        self.downloads_folder = str(config.paths.downloads_dir)
         os.makedirs(self.downloads_folder, exist_ok=True)
         self.ui_state = UIState()
 

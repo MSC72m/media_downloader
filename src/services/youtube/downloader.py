@@ -6,8 +6,8 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
 import yt_dlp
 
-from ...core.enums import ServiceType
-from ...core.interfaces import BaseDownloader, ICookieHandler, IErrorHandler
+from src.core.enums import ServiceType
+from src.interfaces.service_interfaces import BaseDownloader, ICookieHandler, IErrorHandler
 from ..file.sanitizer import FilenameSanitizer
 from ..network.checker import check_site_connection
 from ...utils.logger import get_logger
@@ -58,18 +58,23 @@ class YouTubeDownloader(BaseDownloader):
 
     def _get_simple_ytdl_options(self) -> Dict[str, Any]:
         """Generate simple yt-dlp options without format specifications."""
+        from src.core.config import get_config
+        
+        config = get_config()
         options = {
             "quiet": True,
             "no_warnings": True,
             "ignoreerrors": True,
-            "retries": self.retries,
-            "fragment_retries": self.retries,
-            "retry_sleep_functions": {"fragment": lambda x: 3 * (x + 1)},
-            "socket_timeout": 15,
-            "extractor_retries": self.retries,
+            "retries": self.retries or config.downloads.retry_count,
+            "fragment_retries": self.retries or config.downloads.retry_count,
+            "retry_sleep_functions": {
+                "fragment": lambda x: config.youtube.retry_sleep_multiplier * (x + 1)
+            },
+            "socket_timeout": config.downloads.socket_timeout,
+            "extractor_retries": self.retries or config.downloads.retry_count,
             "hls_prefer_native": True,
             "nocheckcertificate": True,
-            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            "user_agent": config.network.user_agent,
             "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
             "writethumbnail": self.download_thumbnail,
             "embedmetadata": self.embed_metadata,

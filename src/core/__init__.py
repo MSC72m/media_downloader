@@ -14,9 +14,11 @@ from .models import (
 )
 
 # Base classes
-from .interfaces import BaseDownloader  # BaseDownloader from interfaces.py
 from .base.base_handler import BaseHandler  # Handler classes from base/ package
 from .base.user_notifier import BaseUserNotifier
+
+# Configuration
+from .config import AppConfig, get_config, reset_config, set_config
 
 # Application infrastructure - lazy import to avoid circular dependencies
 def get_service_container():
@@ -38,10 +40,12 @@ __all__ = [
     "UIState",
     "AuthState",
     "ButtonState",
-    "ConnectionResult",
     "DownloadResult",
-    # Base
-    "BaseDownloader",
+    # Configuration
+    "AppConfig",
+    "get_config",
+    "set_config",
+    "reset_config",
     # Application factories (lazy)
     "get_service_container",
     "get_application_orchestrator",

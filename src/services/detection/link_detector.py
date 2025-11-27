@@ -1,8 +1,9 @@
 import logging
 import re
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Type
+
+from pydantic import BaseModel, Field
 
 from src.utils.logger import get_logger
 
@@ -12,13 +13,12 @@ logging.basicConfig(
 logger = get_logger(__name__)
 
 
-@dataclass
-class DetectionResult:
+class DetectionResult(BaseModel):
     """Result of link detection."""
 
-    service_type: str
-    confidence: float  # 0.0 to 1.0
-    metadata: Dict[str, Any] | None = None
+    service_type: str = Field(description="Type of service detected")
+    confidence: float = Field(ge=0.0, le=1.0, description="Confidence level from 0.0 to 1.0")
+    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional metadata about the detection")
 
 
 class LinkHandlerInterface(ABC):

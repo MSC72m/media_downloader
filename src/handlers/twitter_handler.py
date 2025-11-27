@@ -3,12 +3,13 @@
 import re
 from typing import Any, Callable, Dict, Optional
 
-from src.core.interfaces import IErrorHandler
+from src.interfaces.service_interfaces import IErrorHandler
 from src.services.detection.link_detector import (
     DetectionResult,
     LinkHandlerInterface,
     auto_register_handler,
 )
+from src.utils.error_helpers import extract_error_context
 from src.utils.logger import get_logger
 from src.utils.type_helpers import (
     get_platform_callback,
@@ -121,6 +122,7 @@ class TwitterHandler(LinkHandlerInterface):
                 except Exception as e:
                     logger.error(f"[TWITTER_HANDLER] Error processing Twitter download: {e}", exc_info=True)
                     if self.error_handler:
+                        error_context = extract_error_context(e, "Twitter", "download processing", url)
                         self.error_handler.handle_exception(e, "Processing Twitter download", "Twitter")
 
             # Schedule on main thread

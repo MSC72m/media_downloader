@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
+from .config import get_config
 from .enums.download_status import DownloadStatus
 from .enums.service_type import ServiceType
 
@@ -131,13 +132,17 @@ class Download(BaseModel):
 class DownloadOptions(BaseModel):
     """Options for downloading media."""
 
-    save_directory: str = Field(default="~/Downloads")
+    save_directory: str = Field(
+        default_factory=lambda: str(get_config().paths.downloads_dir)
+    )
 
 
 class UIState(BaseModel):
     """Main UI state model."""
 
-    download_directory: str = Field(default="~/Downloads")
+    download_directory: str = Field(
+        default_factory=lambda: str(get_config().paths.downloads_dir)
+    )
     show_options_panel: bool = Field(default=False)
     selected_indices: list = Field(default_factory=list)
 

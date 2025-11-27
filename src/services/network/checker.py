@@ -1,22 +1,26 @@
 """Network connectivity services following SOLID principles."""
-import socket
+
 import http.client
+import socket
 import time
-from src.utils.logger import get_logger
 from abc import ABC, abstractmethod
-from typing import Dict, Tuple, List, Optional, Protocol
-from dataclasses import dataclass
+from typing import Dict, List, Optional, Protocol, Tuple
+
+from pydantic import BaseModel, Field
+
 from src.core.enums import ServiceType
+from src.interfaces.service_interfaces import IErrorHandler
+from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-@dataclass
-class ConnectionResult:
+
+class ConnectionResult(BaseModel):
     """Result of a connection check."""
-    is_connected: bool
-    error_message: str = ""
-    response_time: float = 0.0
-    service_type: Optional[ServiceType] = None
+    is_connected: bool = Field(description="Whether the connection was successful")
+    error_message: str = Field(default="", description="Error message if connection failed")
+    response_time: float = Field(default=0.0, description="Response time in seconds")
+    service_type: Optional[ServiceType] = Field(default=None, description="Type of service checked")
 
 class NetworkChecker(Protocol):
     """Protocol for network checking services."""
@@ -40,7 +44,44 @@ class BaseNetworkChecker(ABC):
 class HTTPNetworkChecker(BaseNetworkChecker):
     """HTTP-based network checker."""
 
-    DEFAULT_TIMEOUT = 10  # seconds
+    def __init__(self, timeout: Optional[int] = None, error_handler: Optional[IErrorHandler] = None):
+        """Initialize network checker.
+        
+        Args:
+            timeout: Network timeout in seconds (uses config if not provided)
+            error_handler: Error handler instance
+        """
+        from src.core.config import get_config
+        
+        config = get_config()
+        self.timeout = timeout or config.network.default_timeout
+        self.error_handler = error_handler
+        self.user_agent = config.network.user_agent
+        self._service_configs = self._get_service_configs()
+    
+    def _get_service_configs(self):
+        """Get service-specific configurations using config."""
+        return {
+            ServiceType.TWITTER: {
+                'requires_js': True,
+                'fallback_urls': ['api.x.com', 'mobile.x.com'],
+                'user_agent': self.user_agent,
+                'check_endpoints': ['/', '/i/flow/login']
+            },
+            ServiceType.YOUTUBE: {
+                'requires_js': True,
+                'fallback_urls': ['www.youtube.com', 'm.youtube.com', 'music.youtube.com'],
+                'user_agent': self.user_agent,
+                'check_endpoints': ['/', '/watch', '/feed/trending']
+            },
+            ServiceType.INSTAGRAM: {
+                'requires_js': True,
+                'fallback_urls': ['www.instagram.com', 'm.instagram.com', 'graph.instagram.com'],
+                'user_agent': self.user_agent,
+                'check_endpoints': ['/', '/explore/', '/accounts/login/']
+            }
+        }
+    
     SERVICE_URLS = {
         ServiceType.GOOGLE: "www.google.com",
         ServiceType.YOUTUBE: "www.youtube.com",
@@ -49,30 +90,6 @@ class HTTPNetworkChecker(BaseNetworkChecker):
         ServiceType.PINTEREST: "www.pinterest.com"
     }
 
-    # Service-specific configurations
-    SERVICE_CONFIGS = {
-        ServiceType.TWITTER: {
-            'requires_js': True,
-            'fallback_urls': ['api.x.com', 'mobile.x.com'],
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'check_endpoints': ['/', '/i/flow/login']
-        },
-        ServiceType.YOUTUBE: {
-            'requires_js': True,
-            'fallback_urls': ['www.youtube.com', 'm.youtube.com', 'music.youtube.com'],
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'check_endpoints': ['/', '/watch', '/feed/trending']
-        },
-        ServiceType.INSTAGRAM: {
-            'requires_js': True,
-            'fallback_urls': ['www.instagram.com', 'm.instagram.com', 'graph.instagram.com'],
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'check_endpoints': ['/', '/explore/', '/accounts/login/']
-        }
-    }
-
-    def __init__(self, timeout: int = DEFAULT_TIMEOUT):
-        self.timeout = timeout
 
     def check_connectivity(self) -> ConnectionResult:
         """Check basic internet connectivity using Google DNS."""
@@ -197,7 +214,7 @@ class HTTPNetworkChecker(BaseNetworkChecker):
 
     def _check_twitter_connectivity(self, start_time: float) -> ConnectionResult:
         """Specialized connectivity checking for Twitter/X."""
-        config = self.SERVICE_CONFIGS.get(ServiceType.TWITTER, {})
+        config = self._service_configs.get(ServiceType.TWITTER, {})
         primary_url = self.SERVICE_URLS[ServiceType.TWITTER]
 
         # Try primary domain first
@@ -332,7 +349,7 @@ class HTTPNetworkChecker(BaseNetworkChecker):
 
     def _check_youtube_connectivity(self, start_time: float) -> ConnectionResult:
         """Specialized connectivity checking for YouTube."""
-        config = self.SERVICE_CONFIGS.get(ServiceType.YOUTUBE, {})
+        config = self._service_configs.get(ServiceType.YOUTUBE, {})
         primary_url = self.SERVICE_URLS[ServiceType.YOUTUBE]
 
         # Try primary domain first
@@ -352,7 +369,7 @@ class HTTPNetworkChecker(BaseNetworkChecker):
 
     def _check_instagram_connectivity(self, start_time: float) -> ConnectionResult:
         """Specialized connectivity checking for Instagram."""
-        config = self.SERVICE_CONFIGS.get(ServiceType.INSTAGRAM, {})
+        config = self._service_configs.get(ServiceType.INSTAGRAM, {})
         primary_url = self.SERVICE_URLS[ServiceType.INSTAGRAM]
 
         # Try primary domain first
@@ -407,8 +424,8 @@ class HTTPNetworkChecker(BaseNetworkChecker):
 class NetworkService:
     """High-level network service interface."""
 
-    def __init__(self, checker: NetworkChecker = None):
-        self.checker = checker or HTTPNetworkChecker()
+    def __init__(self, checker: Optional[NetworkChecker] = None, error_handler: Optional[IErrorHandler] = None):
+        self.checker = checker or HTTPNetworkChecker(error_handler=error_handler)
 
     def check_internet_connection(self) -> Tuple[bool, str]:
         """Check if the device has working internet connection."""

@@ -6,7 +6,7 @@ from typing import Optional, Callable, Dict
 from pydantic import BaseModel, Field
 
 from src.core.enums import MessageLevel
-from src.core.interfaces import IMessageQueue
+from src.interfaces.service_interfaces import IMessageQueue
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)

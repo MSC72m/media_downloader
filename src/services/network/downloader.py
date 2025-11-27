@@ -2,20 +2,35 @@
 
 import os
 import time
-from typing import Optional, Callable
+from typing import Callable, Optional
+
 import requests
+
+from src.core.config import get_config
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-DEFAULT_TIMEOUT = 10
 
 def download_file(
     url: str,
     save_path: str,
     progress_callback: Optional[Callable[[float, float], None]] = None,
-    chunk_size: int = 8192,
+    chunk_size: Optional[int] = None,
 ) -> bool:
+    """Download a file from URL.
+    
+    Args:
+        url: URL to download from
+        save_path: Path to save the file
+        progress_callback: Optional callback for progress updates
+        chunk_size: Chunk size in bytes (uses config if not provided)
+    """
+    config = get_config()
+    
+    if chunk_size is None:
+        chunk_size = config.downloads.chunk_size
+    
     os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
 
     session = requests.Session()
@@ -23,13 +38,9 @@ def download_file(
 
     try:
         headers = {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/91.0.4472.124 Safari/537.36"
-            )
+            "User-Agent": config.network.user_agent
         }
-        response = session.get(url, stream=True, headers=headers, timeout=DEFAULT_TIMEOUT)
+        response = session.get(url, stream=True, headers=headers, timeout=config.network.default_timeout)
         response.raise_for_status()
 
         file_size = int(response.headers.get("content-length", 0))
@@ -64,5 +75,3 @@ def download_file(
         if os.path.exists(temp_file):
             os.remove(temp_file)
         return False
-
-

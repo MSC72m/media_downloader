@@ -6,7 +6,7 @@ from typing import Any, Callable, Dict, Optional
 
 import yt_dlp
 
-from ...core.interfaces import BaseDownloader, IErrorHandler
+from src.interfaces.service_interfaces import BaseDownloader, IErrorHandler
 from ...utils.logger import get_logger
 
 logger = get_logger(__name__)

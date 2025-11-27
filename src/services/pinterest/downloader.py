@@ -9,9 +9,8 @@ import requests
 from bs4 import BeautifulSoup
 from bs4.element import Tag
 
-from ...core import BaseDownloader
-from ...core.enums import ServiceType
-from ...core.interfaces import IErrorHandler
+from src.core.enums import ServiceType
+from src.interfaces.service_interfaces import BaseDownloader, IErrorHandler
 from ...utils.logger import get_logger
 from ..file.sanitizer import FilenameSanitizer
 from ..file.service import FileService

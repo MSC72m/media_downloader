@@ -7,7 +7,9 @@ from pathlib import Path
 from threading import Lock
 from typing import Optional
 
+from src.core.config import get_config
 from src.core.models import CookieState
+from src.utils.error_helpers import extract_error_context
 from src.utils.logger import get_logger
 
 from .cookie_generator import CookieGenerator
@@ -22,12 +24,13 @@ class CookieManager:
         """Initialize cookie manager.
 
         Args:
-            storage_dir: Directory to store cookies and state (default: ~/.media_downloader)
+            storage_dir: Directory to store cookies and state (uses config if not provided)
         """
-        self.storage_dir = storage_dir or Path.home() / ".media_downloader"
+        config = get_config()
+        self.storage_dir = storage_dir or config.cookies.storage_dir
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
-        self.state_file = self.storage_dir / "cookie_state.json"
+        self.state_file = self.storage_dir / config.cookies.state_file_name
         self.generator = CookieGenerator(storage_dir=self.storage_dir)
 
         self._state: Optional[CookieState] = None
@@ -86,27 +89,42 @@ class CookieManager:
 
     def get_cookies(self) -> Optional[str]:
         """Get path to cookie file for use with yt-dlp.
+        
+        If no valid cookies exist, triggers generation automatically.
 
         Returns:
             Path to Netscape format cookie file, or None if not available
         """
         if not self._initialization_complete:
-            logger.warning("[COOKIE_MANAGER] Manager not initialized, initializing now")
+            logger.info("[COOKIE_MANAGER] Manager not initialized, initializing now")
             self.initialize()
 
         with self._lock:
-            if not self._state or not self._state.is_valid:
-                logger.warning("[COOKIE_MANAGER] No valid cookies available")
-                return None
+            if not self._state or not self._state.is_valid or self._state.should_regenerate():
+                logger.info("[COOKIE_MANAGER] No valid cookies available, triggering generation")
+                try:
+                    loop = asyncio.get_event_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                
+                self._state = loop.run_until_complete(self._regenerate_cookies())
+                
+                if not self._state or not self._state.is_valid:
+                    logger.warning("[COOKIE_MANAGER] Cookie generation failed")
+                    return None
 
-            # Convert JSON to Netscape format for yt-dlp
             netscape_path = self.generator.convert_to_netscape_text()
 
-            if netscape_path and Path(netscape_path).exists():
-                logger.info(f"[COOKIE_MANAGER] Returning cookie file: {netscape_path}")
+            if not netscape_path or not Path(netscape_path).exists():
+                logger.warning("[COOKIE_MANAGER] Cookie conversion failed")
+                return None
+
+            if self.generator.validate_netscape_file(netscape_path):
+                logger.info(f"[COOKIE_MANAGER] Returning validated cookie file: {netscape_path}")
                 return netscape_path
 
-            logger.warning("[COOKIE_MANAGER] Cookie conversion failed")
+            logger.warning("[COOKIE_MANAGER] Generated cookie file is invalid")
             return None
 
     def get_state(self) -> CookieState:

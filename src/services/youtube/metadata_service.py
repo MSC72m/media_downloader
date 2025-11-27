@@ -7,7 +7,7 @@ import subprocess
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from urllib.parse import parse_qs, urlparse
 
-from ...core.interfaces import IErrorHandler
+from src.interfaces.service_interfaces import IErrorHandler
 from ...interfaces.youtube_metadata import (
     IYouTubeMetadataService,
     SubtitleInfo,
@@ -114,6 +114,7 @@ class YouTubeMetadataService(IYouTubeMetadataService):
         self, url: str, cookie_path: Optional[str] = None, browser: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
         """Get basic video info using command line yt-dlp instead of Python API."""
+        result = None
         try:
             ytdlp_path = shutil.which("yt-dlp")
             if not ytdlp_path:
@@ -145,9 +146,11 @@ class YouTubeMetadataService(IYouTubeMetadataService):
             if cookie_path:
                 if os.path.exists(cookie_path):
                     cmd.extend(["--cookies", cookie_path])
-                    logger.debug(f"Using cookies file: {cookie_path}")
+                    logger.info(f"[METADATA_SERVICE] Using cookies file: {cookie_path}")
+                    file_size = os.path.getsize(cookie_path)
+                    logger.debug(f"[METADATA_SERVICE] Cookie file size: {file_size} bytes")
                 else:
-                    logger.warning(f"Cookie file does not exist: {cookie_path}")
+                    logger.warning(f"[METADATA_SERVICE] Cookie file does not exist: {cookie_path}")
 
             # Priority 2: Use browser parameter if provided - try to detect actual cookies
             elif browser:
@@ -173,6 +176,8 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                     "--no-warnings",
                     "--skip-download",
                     "--no-playlist",
+                    "--extractor-args",
+                    "youtube:player_client=web",
                     "--print",
                     "title",
                     "--print",
@@ -181,7 +186,8 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                 ]
             )
 
-            logger.debug(f"Running command: {' '.join(cmd)}")
+            logger.info(f"[METADATA_SERVICE] Running yt-dlp command with cookies: {' '.join(cmd[:5])}... [cookie file] ... {url}")
+            logger.debug(f"[METADATA_SERVICE] Full command: {' '.join(cmd)}")
 
             # Run the command with reduced timeout and proper encoding
             env = os.environ.copy()
@@ -252,18 +258,20 @@ class YouTubeMetadataService(IYouTubeMetadataService):
             if self.error_handler:
                 self.error_handler.handle_exception(e, "YouTube metadata fetch", "YouTube")
 
-        # Fallback without cookies if cookies failed
-        if cookie_path or browser:
-            logger.info("Trying fallback without cookies...")
+        # Fallback: Try cookies-from-browser if cookie file failed
+        if cookie_path and (result is None or result.returncode != 0):
+            logger.info("[METADATA_SERVICE] Cookie file failed, trying cookies-from-browser (chrome)...")
             try:
                 cmd_fallback = [
-                    ".venv/bin/yt-dlp",
+                    ytdlp_path,
+                    "--cookies-from-browser",
+                    "chrome",
                     "--quiet",
                     "--no-warnings",
                     "--skip-download",
                     "--no-playlist",
                     "--extractor-args",
-                    "youtube:player_client=web",  # Use web client for fallback
+                    "youtube:player_client=web",
                     "--print",
                     "title",
                     "--print",
@@ -271,7 +279,8 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                     url,
                 ]
 
-                logger.debug(f"Running fallback command: {' '.join(cmd_fallback)}")
+                logger.info(f"[METADATA_SERVICE] Running fallback command with cookies-from-browser")
+                logger.debug(f"[METADATA_SERVICE] Fallback command: {' '.join(cmd_fallback)}")
                 result = subprocess.run(
                     cmd_fallback,
                     capture_output=True,
@@ -326,13 +335,13 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                 logger.error(f"Fallback command line extraction failed: {e}")
 
             # Final fallback: Try different client types
-            logger.info("Trying final fallback with different clients...")
+            logger.info("[METADATA_SERVICE] Trying final fallback with different clients...")
             clients_to_try = ["android", "ios", "tv_embedded", "web"]
 
             for client in clients_to_try:
                 try:
                     cmd_final = [
-                        ".venv/bin/yt-dlp",
+                        ytdlp_path,
                         "--quiet",
                         "--no-warnings",
                         "--skip-download",
@@ -744,20 +753,19 @@ class YouTubeMetadataService(IYouTubeMetadataService):
         return subtitles
 
     def _get_language_name(self, lang_code: str) -> str:
-        """Convert language code to readable language name."""
-        language_names = {
-            "en": "English",
-            "es": "Spanish",
-            "fr": "French",
-            "de": "German",
-            "it": "Italian",
-            "pt": "Portuguese",
-            "ru": "Russian",
-            "ja": "Japanese",
-            "ko": "Korean",
-            "zh": "Chinese",
-            "ar": "Arabic",
-            "hi": "Hindi",
-        }
-
-        return language_names.get(lang_code.split("-")[0], lang_code)
+        """Convert language code to readable language name.
+        
+        Supports all languages - if a language code is not in the mapping,
+        the code itself is returned. The config contains common language mappings.
+        
+        Args:
+            lang_code: Language code (e.g., "en", "en-US", "fr")
+            
+        Returns:
+            Language name if found in config, otherwise the language code
+        """
+        from src.core.config import get_config
+        
+        config = get_config()
+        base_code = lang_code.split("-")[0].lower()
+        return config.youtube.supported_languages.get(base_code, lang_code)

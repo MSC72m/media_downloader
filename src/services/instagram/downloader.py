@@ -7,9 +7,9 @@ from urllib.parse import urlparse
 
 import instaloader
 
-from ...core import BaseDownloader
+from src.interfaces.service_interfaces import BaseDownloader
 from ...core.enums import ServiceType
-from ...core.interfaces import IErrorHandler
+from src.interfaces.service_interfaces import IErrorHandler
 from ...utils.logger import get_logger
 from ..file.sanitizer import FilenameSanitizer
 from ..file.service import FileService

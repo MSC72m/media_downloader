@@ -3,7 +3,7 @@
 from typing import Optional
 
 from src.core.enums.message_level import MessageLevel
-from src.core.interfaces import IErrorHandler, IMessageQueue
+from src.interfaces.service_interfaces import IErrorHandler, IMessageQueue
 from src.services.events.queue import Message
 from src.utils.logger import get_logger
 

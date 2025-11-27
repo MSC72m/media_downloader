@@ -4,12 +4,13 @@ import re
 from typing import Any, Callable, Dict, Optional
 
 from src.core.base.base_handler import BaseHandler
-from src.core.interfaces import IErrorHandler, IMessageQueue
+from src.interfaces.service_interfaces import IErrorHandler, IMessageQueue
 from src.services.detection.link_detector import (
     DetectionResult,
     LinkHandlerInterface,
     auto_register_handler,
 )
+from src.utils.error_helpers import extract_error_context
 from src.utils.logger import get_logger
 from src.utils.type_helpers import (
     get_platform_callback,
@@ -121,6 +122,7 @@ class SoundCloudHandler(BaseHandler, LinkHandlerInterface):
                 except Exception as e:
                     logger.error(f"[SOUNDCLOUD_HANDLER] Error processing SoundCloud download: {e}", exc_info=True)
                     if self.error_handler:
+                        error_context = extract_error_context(e, "SoundCloud", "download processing", url)
                         self.error_handler.handle_exception(e, "Processing SoundCloud download", "SoundCloud")
                     else:
                         self.notify_user("error", title="SoundCloud Download Error", message=f"Failed to process SoundCloud download: {str(e)}")

@@ -4,7 +4,7 @@ import re
 from typing import Any, Callable, Dict, Optional
 
 from src.core.base.base_handler import BaseHandler
-from src.core.interfaces import (
+from src.interfaces.service_interfaces import (
     IAutoCookieManager,
     ICookieHandler,
     IErrorHandler,
@@ -19,6 +19,7 @@ from src.services.detection.link_detector import (
 )
 from src.ui.dialogs.input_dialog import CenteredInputDialog
 from src.ui.dialogs.youtube_downloader_dialog import YouTubeDownloaderDialog
+from src.utils.error_helpers import extract_error_context, format_user_friendly_error
 from src.utils.logger import get_logger
 from src.utils.type_helpers import (
     get_platform_callback,
@@ -116,8 +117,6 @@ class YouTubeHandler(BaseHandler, LinkHandlerInterface):
 
     def get_metadata(self, url: str) -> Dict[str, Any]:
         """Get YouTube metadata for the URL."""
-        from src.services.youtube.metadata_service import YouTubeMetadataService
-        from src.utils.type_helpers import safe_getattr
 
         try:
             metadata_service = YouTubeMetadataService()
@@ -188,8 +187,9 @@ class YouTubeHandler(BaseHandler, LinkHandlerInterface):
                                     track_name = metadata.title
                                     logger.info(f"[YOUTUBE_HANDLER] Music metadata fetched: {track_name}")
                             except Exception as e:
-                                logger.warning(f"[YOUTUBE_HANDLER] Could not fetch music metadata: {e}")
+                                logger.warning(f"[YOUTUBE_HANDLER] Could not fetch music metadata: {e}", exc_info=True)
                                 if self.error_handler:
+                                    error_context = extract_error_context(e, "YouTube", "metadata fetch", url)
                                     self.error_handler.handle_exception(e, "Fetching music metadata", "YouTube")
 
                         dialog = CenteredInputDialog(
@@ -224,10 +224,9 @@ class YouTubeHandler(BaseHandler, LinkHandlerInterface):
                     except Exception as e:
                         logger.error(f"[YOUTUBE_HANDLER] Failed to create music download: {e}", exc_info=True)
                         if self.error_handler:
+                            error_context = extract_error_context(e, "YouTube", "music download creation", url)
                             self.error_handler.handle_exception(e, "Creating YouTube Music download", "YouTube")
                         elif self.message_queue:
-                            from src.core.enums.message_level import MessageLevel
-                            from src.services.events.queue import Message
                             self.message_queue.add_message(
                                 Message(
                                     text=f"Failed to add YouTube Music download: {str(e)}",
@@ -270,6 +269,8 @@ class YouTubeHandler(BaseHandler, LinkHandlerInterface):
                         on_download=download_callback,
                         pre_fetched_metadata=None,
                         initial_cookie_path=cookie_path,
+                        error_handler=self.error_handler,
+                        message_queue=self.message_queue,
                     )
                     logger.info(
                         "[YOUTUBE_HANDLER] YouTubeDownloaderDialog created successfully"
@@ -277,6 +278,7 @@ class YouTubeHandler(BaseHandler, LinkHandlerInterface):
                 except Exception as e:
                     logger.error(f"[YOUTUBE_HANDLER] Failed to create YouTubeDownloaderDialog: {e}", exc_info=True)
                     if self.error_handler:
+                        error_context = extract_error_context(e, "YouTube", "dialog creation", url)
                         self.error_handler.handle_exception(e, "Creating YouTube dialog", "YouTube")
 
             # Schedule dialog creation on main thread (non-blocking)

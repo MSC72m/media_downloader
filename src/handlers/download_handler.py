@@ -6,8 +6,12 @@ from pathlib import Path
 from threading import Thread
 from typing import Callable, List, Optional
 
+from src.core.config import get_config
+from src.core.enums import ServiceType
+from src.core.enums.message_level import MessageLevel
+from src.core.models import Download, DownloadOptions, UIState
 from src.core.base.base_handler import BaseHandler
-from src.core.interfaces import (
+from src.interfaces.service_interfaces import (
     IAutoCookieManager,
     ICookieHandler,
     IDownloadHandler,
@@ -18,7 +22,7 @@ from src.core.interfaces import (
     IServiceFactory,
     IUIState,
 )
-from src.core.models import Download, DownloadOptions, UIState
+from src.services.events.queue import Message
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -82,11 +86,15 @@ class DownloadHandler(BaseHandler, IDownloadHandler):
     def start_downloads(
         self,
         downloads: List[Download],
-        download_dir: str = "~/Downloads",
+        download_dir: Optional[str] = None,
         progress_callback: Optional[Callable[[Download, float], None]] = None,
         completion_callback: Optional[Callable[[bool, Optional[str]], None]] = None,
     ) -> None:
         """Start downloads by delegating to appropriate service handlers."""
+        from src.core.config import get_config
+        
+        if download_dir is None:
+            download_dir = str(get_config().paths.downloads_dir)
         logger.info(f"[DOWNLOAD_HANDLER] Starting {len(downloads)} downloads")
 
         # Early return: validate inputs
@@ -128,7 +136,6 @@ class DownloadHandler(BaseHandler, IDownloadHandler):
             )
 
             # Create a downloader with the download's specific options
-            from src.core.enums import ServiceType
             from src.services.youtube.downloader import YouTubeDownloader
 
             service_type = self.service_factory.detect_service_type(download.url)
@@ -252,9 +259,10 @@ class DownloadHandler(BaseHandler, IDownloadHandler):
     ) -> None:
         """Start download threads with concurrency control."""
         import threading
-        import time
-
-        max_concurrent = 3
+        from src.core.config import get_config
+        
+        config = get_config()
+        max_concurrent = config.downloads.max_concurrent_downloads
         active_threads = []
 
         for download in downloads:
@@ -277,7 +285,8 @@ class DownloadHandler(BaseHandler, IDownloadHandler):
             while len(active_threads) >= max_concurrent:
                 active_threads = [t for t in active_threads if t.is_alive()]
                 if len(active_threads) >= max_concurrent:
-                    time.sleep(0.1)
+                    import time
+                    time.sleep(config.downloads.thread_sleep_interval)
 
     def _prepare_download_path(self, download: Download, download_dir: str) -> str:
         """Prepare and return the output path for download.
@@ -344,8 +353,9 @@ class DownloadHandler(BaseHandler, IDownloadHandler):
 
     def get_options(self) -> DownloadOptions:
         """Get current download options."""
+        default_dir = str(get_config().paths.downloads_dir)
         return DownloadOptions(
-            save_directory=getattr(self.ui_state, "download_directory", "~/Downloads")
+            save_directory=getattr(self.ui_state, "download_directory", default_dir)
         )
 
     def set_options(self, options: DownloadOptions) -> None:
@@ -387,7 +397,6 @@ class DownloadHandler(BaseHandler, IDownloadHandler):
         if self.message_queue:
             try:
                 from src.services.events.queue import Message
-                from src.core.enums.message_level import MessageLevel
 
                 self.message_queue.add_message(
                     Message(

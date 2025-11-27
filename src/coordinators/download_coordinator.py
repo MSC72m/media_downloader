@@ -1,8 +1,8 @@
 """Download Coordinator - Delegates all download operations to download_handler."""
 
-from typing import List, Optional, Callable, Any
+from typing import Any, Callable, List, Optional
 
-from src.core.interfaces import (
+from src.interfaces.service_interfaces import (
     IDownloadHandler,
     IDownloadService,
     IErrorHandler,
@@ -10,6 +10,7 @@ from src.core.interfaces import (
 )
 from src.core.models import Download, DownloadStatus
 from src.services.events.event_bus import DownloadEvent, DownloadEventBus
+from src.utils.error_helpers import extract_error_context
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -65,14 +66,14 @@ class DownloadCoordinator:
                 status_callback(message, is_error)
                 return
             except Exception as e:
-                logger.warning(f"[DOWNLOAD_COORDINATOR] UI status callback failed: {e}")
+                logger.warning(f"[DOWNLOAD_COORDINATOR] UI status callback failed: {e}", exc_info=True)
                 if self.error_handler:
+                    error_context = extract_error_context(e, "Download Coordinator", "UI status callback", "")
                     self.error_handler.handle_exception(e, "UI status callback", "Download Coordinator")
 
         if self.message_queue:
             try:
                 from src.services.events.queue import Message
-                from src.core.enums.message_level import MessageLevel
 
                 level = MessageLevel.ERROR if is_error else MessageLevel.INFO
                 self.message_queue.add_message(Message(text=message, level=level))
@@ -148,7 +149,6 @@ class DownloadCoordinator:
         if self.message_queue:
             try:
                 from src.services.events.queue import Message
-                from src.core.enums.message_level import MessageLevel
 
                 self.message_queue.add_message(
                     Message(
@@ -184,11 +184,16 @@ class DownloadCoordinator:
     def start_downloads(
         self,
         downloads: List[Download],
-        download_dir: str = "~/Downloads",
+        download_dir: Optional[str] = None,
         progress_callback: Optional[Callable[[Download, float], None]] = None,
         completion_callback: Optional[Callable[[bool, Optional[str]], None]] = None,
     ) -> None:
         """Start downloads via the download handler."""
+        from src.core.config import get_config
+        
+        if download_dir is None:
+            download_dir = str(get_config().paths.downloads_dir)
+        
         if not self.download_handler:
             logger.error("[DOWNLOAD_COORDINATOR] Download handler not available")
             return

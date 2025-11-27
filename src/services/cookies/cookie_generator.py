@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
+from src.core.config import get_config
 from src.core.models import CookieState
 from src.utils.logger import get_logger
 
@@ -19,11 +20,12 @@ class CookieGenerator:
         """Initialize cookie generator.
 
         Args:
-            storage_dir: Directory to store cookies (default: ~/.media_downloader)
+            storage_dir: Directory to store cookies (uses config if not provided)
         """
-        self.storage_dir = storage_dir or Path.home() / ".media_downloader"
+        config = get_config()
+        self.storage_dir = storage_dir or config.cookies.storage_dir
         self.storage_dir.mkdir(parents=True, exist_ok=True)
-        self.cookie_file = self.storage_dir / "cookies.json"
+        self.cookie_file = self.storage_dir / config.cookies.cookie_file_name
         self._playwright = None
         self._browser = None
 
@@ -62,30 +64,57 @@ class CookieGenerator:
                     user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 )
 
-                # Create page and visit YouTube
                 page = await context.new_page()
                 logger.info("[COOKIE_GENERATOR] Navigating to YouTube")
 
+                config = get_config()
+                cookie_config = config.cookies
+
                 try:
-                    await page.goto("https://www.youtube.com", wait_until="networkidle", timeout=30000)
+                    await page.goto(
+                        "https://www.youtube.com",
+                        wait_until="domcontentloaded",
+                        timeout=cookie_config.generation_timeout * 1000
+                    )
                     logger.info("[COOKIE_GENERATOR] YouTube loaded successfully")
+
+                    await asyncio.sleep(cookie_config.wait_after_load)
+
+                    try:
+                        await page.wait_for_load_state(
+                            "networkidle",
+                            timeout=int(cookie_config.wait_for_network_idle * 1000)
+                        )
+                    except Exception:
+                        logger.debug("[COOKIE_GENERATOR] Network idle timeout, continuing")
+
+                    await asyncio.sleep(cookie_config.wait_after_load)
+
+                    try:
+                        await page.evaluate("() => window.scrollTo(0, 100)")
+                        await asyncio.sleep(cookie_config.scroll_delay)
+                    except Exception:
+                        logger.debug("[COOKIE_GENERATOR] Scroll interaction failed, continuing")
+
                 except Exception as e:
                     logger.error(f"[COOKIE_GENERATOR] Failed to navigate to YouTube: {e}")
-                    # Retry once more time
                     try:
-                        await asyncio.sleep(2)
-                        await page.goto("https://www.youtube.com", wait_until="networkidle", timeout=30000)
+                        await asyncio.sleep(cookie_config.wait_after_load)
+                        await page.goto(
+                            "https://www.youtube.com",
+                            wait_until="domcontentloaded",
+                            timeout=cookie_config.generation_timeout * 1000
+                        )
+                        await asyncio.sleep(cookie_config.wait_after_load)
                         logger.info("[COOKIE_GENERATOR] YouTube loaded successfully on retry")
                     except Exception as retry_e:
                         logger.error(f"[COOKIE_GENERATOR] Retry also failed: {retry_e}")
                         raise retry_e
 
-                # Wait a bit for any dynamic content
-                await asyncio.sleep(2)
-
-                # Get cookies
                 cookies = await context.cookies()
-                logger.info(f"[COOKIE_GENERATOR] Retrieved {len(cookies)} cookies")
+                youtube_cookies = [c for c in cookies if "youtube.com" in c.get("domain", "")]
+                google_cookies = [c for c in cookies if "google.com" in c.get("domain", "")]
+                logger.info(f"[COOKIE_GENERATOR] Retrieved {len(cookies)} total cookies ({len(youtube_cookies)} YouTube, {len(google_cookies)} Google)")
 
                 # Save cookies to file
                 self._save_cookies(cookies)
@@ -94,8 +123,9 @@ class CookieGenerator:
                 await browser.close()
 
                 # Update state
+                config = get_config()
                 state.generated_at = datetime.now()
-                state.expires_at = datetime.now() + timedelta(hours=8)
+                state.expires_at = datetime.now() + timedelta(hours=config.cookies.cookie_expiry_hours)
                 state.is_valid = True
                 state.is_generating = False
                 state.cookie_path = str(self.cookie_file)
@@ -132,29 +162,50 @@ class CookieGenerator:
         Args:
             cookies: List of cookie dicts from Playwright
         """
-        # Convert Playwright cookies to Netscape format
+        from datetime import datetime
+
         netscape_cookies = []
+        valid_count = 0
+        skipped_count = 0
 
         for cookie in cookies:
-            # Netscape format: domain, flag, path, secure, expiration, name, value
+            name = cookie.get("name", "")
+            value = cookie.get("value", "")
+            domain = cookie.get("domain", "")
+
+            if not name or not domain:
+                skipped_count += 1
+                continue
+
+            expires = cookie.get("expires", -1)
+            if expires == -1 or expires is None:
+                expires = 0
+            elif expires > 0:
+                expires = int(expires)
+                if expires < 0:
+                    expires = 0
+            else:
+                expires = 0
+
             netscape_cookie = {
-                "domain": cookie.get("domain", ""),
-                "flag": "TRUE" if cookie.get("domain", "").startswith(".") else "FALSE",
+                "domain": domain,
+                "flag": "TRUE" if domain.startswith(".") else "FALSE",
                 "path": cookie.get("path", "/"),
                 "secure": "TRUE" if cookie.get("secure", False) else "FALSE",
-                "expiration": int(cookie.get("expires", -1)),
-                "name": cookie.get("name", ""),
-                "value": cookie.get("value", ""),
+                "expiration": expires,
+                "name": name,
+                "value": value,
             }
             netscape_cookies.append(netscape_cookie)
+            valid_count += 1
 
-        # Save to JSON
+        if skipped_count > 0:
+            logger.warning(f"[COOKIE_GENERATOR] Skipped {skipped_count} invalid cookies")
+
         with open(self.cookie_file, "w", encoding="utf-8") as f:
             json.dump(netscape_cookies, f, indent=2)
 
-        logger.info(
-            f"[COOKIE_GENERATOR] Saved {len(netscape_cookies)} cookies to {self.cookie_file}"
-        )
+        logger.info(f"[COOKIE_GENERATOR] Saved {valid_count} valid cookies to {self.cookie_file}")
 
     def convert_to_netscape_text(self) -> Optional[str]:
         """Convert JSON cookies to Netscape text format for yt-dlp.
@@ -167,12 +218,13 @@ class CookieGenerator:
             return None
 
         try:
-            # Load JSON cookies
             with open(self.cookie_file, "r", encoding="utf-8") as f:
                 cookies = json.load(f)
 
-            # Create Netscape format file
-            netscape_file = self.storage_dir / "cookies.txt"
+            config = get_config()
+            netscape_file = self.storage_dir / config.cookies.netscape_file_name
+            valid_cookies = 0
+            skipped_cookies = 0
 
             with open(netscape_file, "w", encoding="utf-8") as f:
                 f.write("# Netscape HTTP Cookie File\n")
@@ -181,28 +233,87 @@ class CookieGenerator:
 
                 for cookie in cookies:
                     domain = cookie.get("domain", "")
+                    name = cookie.get("name", "")
+                    value = cookie.get("value", "")
+
+                    if not domain or not name:
+                        skipped_cookies += 1
+                        continue
+
                     flag = cookie.get("flag", "FALSE")
                     path = cookie.get("path", "/")
                     secure = cookie.get("secure", "FALSE")
                     expiration = cookie.get("expiration", -1)
-                    name = cookie.get("name", "")
-                    value = cookie.get("value", "")
 
-                    # Write in Netscape format
-                    f.write(
-                        f"{domain}\t{flag}\t{path}\t{secure}\t{expiration}\t{name}\t{value}\n"
-                    )
+                    if expiration == -1 or expiration is None:
+                        expiration = 0
+                    elif expiration < 0:
+                        expiration = 0
+                    else:
+                        expiration = int(expiration)
 
-            logger.info(
-                f"[COOKIE_GENERATOR] Converted cookies to Netscape format: {netscape_file}"
-            )
+                    if expiration >= 0 and domain and name:
+                        f.write(
+                            f"{domain}\t{flag}\t{path}\t{secure}\t{expiration}\t{name}\t{value}\n"
+                        )
+                        valid_cookies += 1
+                    else:
+                        skipped_cookies += 1
+                        logger.debug(f"[COOKIE_GENERATOR] Skipping invalid cookie: {name}")
+
+            if skipped_cookies > 0:
+                logger.warning(f"[COOKIE_GENERATOR] Skipped {skipped_cookies} invalid cookies during conversion")
+
+            if valid_cookies == 0:
+                logger.error("[COOKIE_GENERATOR] No valid cookies to write")
+                return None
+
+            logger.info(f"[COOKIE_GENERATOR] Converted {valid_cookies} cookies to Netscape format: {netscape_file}")
             return str(netscape_file)
 
         except Exception as e:
-            logger.error(
-                f"[COOKIE_GENERATOR] Failed to convert cookies: {e}", exc_info=True
-            )
+            logger.error(f"[COOKIE_GENERATOR] Failed to convert cookies: {e}", exc_info=True)
             return None
+
+    def validate_netscape_file(self, file_path: str) -> bool:
+        """Validate that a Netscape cookie file is valid and contains valid cookies.
+
+        Args:
+            file_path: Path to Netscape format cookie file
+
+        Returns:
+            True if file is valid, False otherwise
+        """
+        try:
+            from pathlib import Path
+
+            if not Path(file_path).exists():
+                return False
+
+            valid_lines = 0
+            with open(file_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+
+                    parts = line.split("\t")
+                    if len(parts) < 7:
+                        continue
+
+                    expiration = parts[4]
+                    try:
+                        exp_int = int(expiration)
+                        if exp_int >= 0:
+                            valid_lines += 1
+                    except ValueError:
+                        continue
+
+            return valid_lines > 0
+
+        except Exception as e:
+            logger.error(f"[COOKIE_GENERATOR] Error validating cookie file: {e}", exc_info=True)
+            return False
 
     async def ensure_chromium_installed(self) -> bool:
         """Ensure Chromium browser is installed for Playwright.
@@ -214,7 +325,6 @@ class CookieGenerator:
             from playwright.async_api import async_playwright
 
             async with async_playwright() as p:
-                # Try to get browser
                 browser_type = p.chromium
                 if browser_type:
                     logger.info("[COOKIE_GENERATOR] Chromium is available")
@@ -223,7 +333,7 @@ class CookieGenerator:
             return False
 
         except Exception as e:
-            logger.error(f"[COOKIE_GENERATOR] Failed to check Chromium: {e}")
+            logger.error(f"[COOKIE_GENERATOR] Failed to check Chromium: {e}", exc_info=True)
             return False
 
     def cleanup(self) -> None:

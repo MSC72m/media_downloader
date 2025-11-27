@@ -3,7 +3,7 @@
 from typing import List, Optional, Tuple
 
 from src.core.enums import ServiceType
-from src.core.interfaces import IErrorHandler
+from src.interfaces.service_interfaces import IErrorHandler
 from src.services.network.checker import (
     check_internet_connection,
     check_site_connection,

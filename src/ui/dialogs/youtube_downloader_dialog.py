@@ -8,7 +8,7 @@ from typing import Optional
 
 import customtkinter as ctk
 
-from ...core.interfaces import IErrorHandler, IMessageQueue
+from src.interfaces.service_interfaces import IErrorHandler, IMessageQueue
 from ...interfaces.youtube_metadata import YouTubeMetadata
 from ...utils.logger import get_logger
 from ...utils.window import WindowCenterMixin
