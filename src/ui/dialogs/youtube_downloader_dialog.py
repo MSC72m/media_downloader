@@ -8,6 +8,7 @@ from typing import Optional
 
 import customtkinter as ctk
 
+from src.core.config import get_config, AppConfig
 from src.interfaces.service_interfaces import IErrorHandler, IMessageQueue
 from ...interfaces.youtube_metadata import YouTubeMetadata
 from ...utils.logger import get_logger
@@ -32,9 +33,11 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         initial_cookie_path: str | None = None,
         error_handler: Optional[IErrorHandler] = None,
         message_queue: Optional[IMessageQueue] = None,
+        config: AppConfig = get_config(),
     ):
         super().__init__(parent)
 
+        self.config = config
         self.url = url
         self.cookie_handler = cookie_handler
         self.on_download = on_download
@@ -150,7 +153,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             # Create overlay with root window as parent so it shows independently
             # This allows the main dialog to stay hidden during fetch
             self.loading_overlay = SimpleLoadingDialog(
-                self.master, "Fetching YouTube metadata...", timeout=90
+                self.master, "Fetching YouTube metadata...", timeout=self.config.ui.metadata_fetch_timeout
             )
             logger.debug("Loading overlay created successfully")
 
@@ -211,7 +214,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                         not fetch_completed[0]
                         and (time.time() - start_time) < timeout_seconds
                     ):
-                        time.sleep(0.5)
+                        time.sleep(self.config.ui.metadata_poll_interval)
 
                     # Check result
                     if not fetch_completed[0]:
@@ -605,18 +608,8 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         )
         quality_label.pack(side="left", padx=(0, 10))
 
-        self.quality_var = ctk.StringVar(value="720p")
-        quality_options = [
-            "144p",
-            "240p",
-            "360p",
-            "480p",
-            "720p",
-            "1080p",
-            "1440p",
-            "4K",
-            "8K",
-        ]
+        self.quality_var = ctk.StringVar(value=self.config.youtube.default_quality)
+        quality_options = self.config.youtube.supported_qualities
 
         self.quality_menu = ctk.CTkOptionMenu(
             quality_frame,
@@ -631,8 +624,8 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         format_label = ctk.CTkLabel(quality_frame, text="Format:", font=("Roboto", 11))
         format_label.pack(side="left", padx=(0, 10))
 
-        self.format_var = ctk.StringVar(value="Video + Audio")
-        format_options = ["Video + Audio", "Audio Only", "Video Only"]
+        self.format_var = ctk.StringVar(value=self.config.ui.format_options[0])
+        format_options = self.config.ui.format_options
 
         # Map user-friendly names to internal values
         self.format_map = {
@@ -830,13 +823,13 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                     self.quality_var.set("high")
         else:
             # For video formats, show video quality options
-            video_qualities = ["best", "1080p", "720p", "480p", "360p"]
+            video_qualities = self.config.youtube.video_qualities
             if hasattr(self, "quality_menu"):
                 current_quality = self.quality_var.get()
                 self.quality_menu.configure(values=video_qualities)
                 # Set a sensible default if current quality is not in video options
                 if current_quality not in video_qualities:
-                    self.quality_var.set("720p")
+                    self.quality_var.set(config.youtube.default_quality)
 
     def _handle_add_to_downloads(self):
         """Handle add to downloads button click."""

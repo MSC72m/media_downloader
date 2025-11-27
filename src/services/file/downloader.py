@@ -6,6 +6,7 @@ from src.utils.logger import get_logger
 from typing import Optional, Callable
 import requests
 
+from src.core.config import get_config, AppConfig
 from .models import DownloadResult
 from ...core.models import ServiceType
 
@@ -15,12 +16,10 @@ logger = get_logger(__name__)
 class FileDownloader:
     """HTTP-based file downloader with progress monitoring."""
 
-    DEFAULT_TIMEOUT = 10  # seconds
-    DEFAULT_CHUNK_SIZE = 8192
-
-    def __init__(self, timeout: int = DEFAULT_TIMEOUT, chunk_size: int = DEFAULT_CHUNK_SIZE):
-        self.timeout = timeout
-        self.chunk_size = chunk_size
+    def __init__(self, timeout: Optional[int] = None, chunk_size: Optional[int] = None, config: AppConfig = get_config()):
+        self.config = config
+        self.timeout = timeout or self.config.downloads.default_timeout
+        self.chunk_size = chunk_size or self.config.downloads.chunk_size
         self.network_service = None
 
     def set_network_service(self, network_service):
@@ -82,7 +81,7 @@ class FileDownloader:
         try:
             # Make a streaming request with simple custom headers
             headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+                "User-Agent": self.config.network.user_agent
             }
 
             response = session.get(url, stream=True, headers=headers, timeout=self.timeout)

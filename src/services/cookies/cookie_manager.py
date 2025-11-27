@@ -7,7 +7,7 @@ from pathlib import Path
 from threading import Lock
 from typing import Optional
 
-from src.core.config import get_config
+from src.core.config import get_config, AppConfig
 from src.core.models import CookieState
 from src.utils.error_helpers import extract_error_context
 from src.utils.logger import get_logger
@@ -20,18 +20,19 @@ logger = get_logger(__name__)
 class CookieManager:
     """Manages cookie lifecycle, state, and automatic regeneration."""
 
-    def __init__(self, storage_dir: Optional[Path] = None):
+    def __init__(self, storage_dir: Optional[Path] = None, config: AppConfig = get_config()):
         """Initialize cookie manager.
 
         Args:
             storage_dir: Directory to store cookies and state (uses config if not provided)
+            config: AppConfig instance (defaults to get_config() if None)
         """
-        config = get_config()
-        self.storage_dir = storage_dir or config.cookies.storage_dir
+        self.config = config
+        self.storage_dir = storage_dir or self.config.cookies.storage_dir
         self.storage_dir.mkdir(parents=True, exist_ok=True)
 
-        self.state_file = self.storage_dir / config.cookies.state_file_name
-        self.generator = CookieGenerator(storage_dir=self.storage_dir)
+        self.state_file = self.storage_dir / self.config.cookies.state_file_name
+        self.generator = CookieGenerator(storage_dir=self.storage_dir, config=self.config)
 
         self._state: Optional[CookieState] = None
         self._lock = Lock()

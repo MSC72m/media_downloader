@@ -1,5 +1,6 @@
 """Application configuration using Pydantic Settings with YAML/JSON file support."""
 
+from cachetools import cached, TTLCache
 import json
 import os
 from pathlib import Path
@@ -25,6 +26,8 @@ class CookieConfig(BaseModel):
     wait_after_load: float = Field(default=1.0, description="Wait time after page load in seconds")
     wait_for_network_idle: float = Field(default=5.0, description="Wait time for network idle in seconds")
     scroll_delay: float = Field(default=0.5, description="Delay after scroll interaction in seconds")
+    viewport_width: int = Field(default=1920, description="Browser viewport width")
+    viewport_height: int = Field(default=1080, description="Browser viewport height")
 
 
 class PathConfig(BaseModel):
@@ -57,15 +60,35 @@ class DownloadConfig(BaseModel):
     socket_timeout: int = Field(default=15, description="Socket timeout in seconds")
     chunk_size: int = Field(default=8192, description="Download chunk size in bytes")
     thread_sleep_interval: float = Field(default=0.1, description="Thread sleep interval in seconds")
+    default_timeout: int = Field(default=10, description="Default download timeout in seconds")
 
 
 class NetworkConfig(BaseModel):
     """Network-related configuration."""
 
     default_timeout: int = Field(default=10, description="Default network timeout in seconds")
+    twitter_api_timeout: int = Field(default=10, description="Twitter API timeout in seconds")
     user_agent: str = Field(
         default="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
         description="Default user agent string"
+    )
+    cookie_user_agent: str = Field(
+        default="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        description="User agent for cookie generation"
+    )
+    minimal_user_agent: str = Field(
+        default="Mozilla/5.0",
+        description="Minimal user agent for basic requests"
+    )
+    service_domains: dict[str, list[str]] = Field(
+        default_factory=lambda: {
+            "youtube": ["youtube.com", "youtu.be", "www.youtube.com"],
+            "twitter": ["twitter.com", "x.com", "api.x.com", "mobile.x.com"],
+            "instagram": ["instagram.com", "www.instagram.com", "m.instagram.com"],
+            "pinterest": ["pinterest.com", "www.pinterest.com"],
+            "soundcloud": ["soundcloud.com", "www.soundcloud.com"],
+        },
+        description="Service domain mappings"
     )
 
 
@@ -76,7 +99,53 @@ class YouTubeConfig(BaseModel):
     metadata_timeout: int = Field(default=30, description="Metadata fetch timeout in seconds")
     fallback_timeout: int = Field(default=20, description="Fallback command timeout in seconds")
     subtitle_timeout: int = Field(default=5, description="Subtitle fetch timeout in seconds")
+    client_fallback_timeout: int = Field(default=15, description="Client fallback timeout in seconds")
     retry_sleep_multiplier: int = Field(default=3, description="Retry sleep multiplier for fragment retries")
+    default_quality: str = Field(default="720p", description="Default video quality")
+    supported_qualities: list[str] = Field(
+        default_factory=lambda: ["144p", "240p", "360p", "480p", "720p", "1080p", "1440p", "4K", "8K"],
+        description="Supported video quality options"
+    )
+    video_qualities: list[str] = Field(
+        default_factory=lambda: ["best", "1080p", "720p", "480p", "360p"],
+        description="Video quality options for video formats"
+    )
+    quality_format_map: dict[str, str] = Field(
+        default_factory=lambda: {
+            "best": "best",
+            "highest": "best",
+            "lowest": "worst",
+            "192": "192",  # Audio quality
+        },
+        description="Quality to format mapping"
+    )
+    file_extensions: dict[str, str] = Field(
+        default_factory=lambda: {
+            "video": ".mp4",
+            "audio": ".mp3",
+        },
+        description="File extensions by format type"
+    )
+    audio_codec: str = Field(default="mp3", description="Default audio codec")
+    playlist_item_limit: str = Field(default="1", description="Playlist item limit (single item)")
+    default_retry_wait: int = Field(default=3, description="Default retry wait time in seconds")
+    url_patterns: list[str] = Field(
+        default_factory=lambda: [
+            r"^https?://(?:www\.)?youtube\.com/watch\?v=[\w-]+",
+            r"^https?://(?:www\.)?youtube\.com/playlist\?list=[\w-]+",
+            r"^https?://(?:www\.)?youtu\.be/[\w-]+",
+            r"^https?://(?:www\.)?youtube\.com/embed/[\w-]+",
+            r"^https?://(?:www\.)?youtube\.com/v/[\w-]+",
+            r"^https?://(?:www\.)?youtube\.com/shorts/[\w-]+",
+            r"^https?://music\.youtube\.com/watch\?v=[\w-]+",
+            r"^https?://music\.youtube\.com/playlist\?list=[\w-]+",
+        ],
+        description="YouTube URL validation patterns"
+    )
+    youtube_domains: list[str] = Field(
+        default_factory=lambda: ["www.youtube.com", "youtube.com", "youtu.be"],
+        description="Valid YouTube domain names"
+    )
     supported_languages: dict[str, str] = Field(
         default_factory=lambda: {
             "en": "English",
@@ -183,11 +252,47 @@ class AppConfig(BaseSettings):
         arbitrary_types_allowed=True,
     )
 
+class UIConfig(BaseModel):
+    """UI-related configuration."""
+
+    metadata_fetch_timeout: int = Field(default=90, description="Metadata fetch dialog timeout in seconds")
+    polling_interval: float = Field(default=0.5, description="Polling interval for async operations in seconds")
+    format_options: list[str] = Field(
+        default_factory=lambda: ["Video + Audio", "Audio Only", "Video Only"],
+        description="Format options for download dialogs"
+    )
+
+
+class AppConfig(BaseSettings):
+    """Main application configuration.
+    
+    Supports YAML and JSON config files. Looks for config.yaml or config.json in:
+    1. Current directory
+    2. User config directory (~/.media_downloader/)
+    3. Environment variables (APP_*)
+    
+    Example config file:
+        cookies:
+          storage_dir: ~/.media_downloader
+          cookie_expiry_hours: 8
+        downloads:
+          max_concurrent_downloads: 3
+          retry_count: 3
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix="APP_",
+        case_sensitive=False,
+        env_nested_delimiter="__",
+        arbitrary_types_allowed=True,
+    )
+
     cookies: CookieConfig = Field(default_factory=CookieConfig)
     paths: PathConfig = Field(default_factory=PathConfig)
     downloads: DownloadConfig = Field(default_factory=DownloadConfig)
     network: NetworkConfig = Field(default_factory=NetworkConfig)
     youtube: YouTubeConfig = Field(default_factory=YouTubeConfig)
+    ui: UIConfig = Field(default_factory=UIConfig)
 
     @classmethod
     def _load_config_file(cls) -> Optional[dict]:
@@ -257,6 +362,7 @@ class AppConfig(BaseSettings):
 _config_instance: Optional[AppConfig] = None
 
 
+@cached(cache=TTLCache(maxsize=1, ttl=60 * 60 * 24))
 def get_config() -> AppConfig:
     """Get the singleton configuration instance.
 

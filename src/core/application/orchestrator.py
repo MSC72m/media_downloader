@@ -62,9 +62,9 @@ class ApplicationOrchestrator:
         self.root = root_window
 
         # Core state
-        from src.core.config import get_config
-        config = get_config()
-        self.downloads_folder = str(config.paths.downloads_dir)
+        from src.core.config import get_config, AppConfig
+        self.config: AppConfig = get_config()
+        self.downloads_folder = str(self.config.paths.downloads_dir)
         os.makedirs(self.downloads_folder, exist_ok=True)
         self.ui_state = UIState()
 

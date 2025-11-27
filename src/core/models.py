@@ -55,7 +55,7 @@ class Download(BaseModel):
     service_type: Optional[ServiceType] = None
 
     # Individual download options for YouTube items
-    quality: Optional[str] = Field(default="720p")
+    quality: Optional[str] = Field(default_factory=lambda: get_config().youtube.default_quality)
     format: Optional[str] = Field(default="video")
     audio_only: bool = Field(default=False)
     video_only: bool = Field(default=False)

@@ -7,6 +7,7 @@ import subprocess
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from urllib.parse import parse_qs, urlparse
 
+from src.core.config import get_config, AppConfig
 from src.interfaces.service_interfaces import IErrorHandler
 from ...interfaces.youtube_metadata import (
     IYouTubeMetadataService,
@@ -51,7 +52,8 @@ def _safe_decode_bytes(byte_data: bytes) -> str:
 class YouTubeMetadataService(IYouTubeMetadataService):
     """Service for fetching YouTube video metadata."""
 
-    def __init__(self, error_handler: Optional[IErrorHandler] = None):
+    def __init__(self, error_handler: Optional[IErrorHandler] = None, config: AppConfig = get_config()):
+        self.config = config
         self._ytdlp_options = {
             "quiet": True,
             "no_warnings": True,
@@ -201,7 +203,7 @@ class YouTubeMetadataService(IYouTubeMetadataService):
             result = subprocess.run(
                 cmd,
                 capture_output=True,
-                timeout=30,
+                timeout=self.config.youtube.metadata_timeout,
                 encoding="utf-8",
                 errors="replace",
                 env=env,
@@ -284,7 +286,7 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                 result = subprocess.run(
                     cmd_fallback,
                     capture_output=True,
-                    timeout=20,
+                    timeout=self.config.youtube.fallback_timeout,
                     encoding="utf-8",
                     errors="replace",
                     env=env,
@@ -357,7 +359,7 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                     result = subprocess.run(
                         cmd_final,
                         capture_output=True,
-                        timeout=15,
+                        timeout=self.config.youtube.client_fallback_timeout,
                         encoding="utf-8",
                         errors="replace",
                         env=env,
@@ -477,7 +479,7 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                 result = subprocess.run(
                     cmd,
                     capture_output=True,
-                    timeout=5,
+                    timeout=self.config.youtube.subtitle_timeout,
                     encoding="utf-8",
                     errors="replace",
                     env=env,
@@ -623,25 +625,14 @@ class YouTubeMetadataService(IYouTubeMetadataService):
 
     def validate_url(self, url: str) -> bool:
         """Validate if URL is a valid YouTube URL."""
-        youtube_patterns = [
-            r"^https?://(?:www\.)?youtube\.com/watch\?v=[\w-]+",
-            r"^https?://(?:www\.)?youtube\.com/playlist\?list=[\w-]+",
-            r"^https?://(?:www\.)?youtu\.be/[\w-]+",
-            r"^https?://(?:www\.)?youtube\.com/embed/[\w-]+",
-            r"^https?://(?:www\.)?youtube\.com/v/[\w-]+",
-            r"^https?://(?:www\.)?youtube\.com/shorts/[\w-]+",
-            r"^https?://music\.youtube\.com/watch\?v=[\w-]+",
-            r"^https?://music\.youtube\.com/playlist\?list=[\w-]+",
-        ]
-
-        return any(re.match(pattern, url) for pattern in youtube_patterns)
+        return any(re.match(pattern, url) for pattern in self.config.youtube.url_patterns)
 
     def extract_video_id(self, url: str) -> Optional[str]:
         """Extract video ID from YouTube URL."""
         try:
             parsed_url = urlparse(url)
 
-            if parsed_url.hostname in ["www.youtube.com", "youtube.com"]:
+            if parsed_url.hostname in self.config.youtube.youtube_domains:
                 if parsed_url.path == "/watch":
                     query = parse_qs(parsed_url.query)
                     return query.get("v", [None])[0]
@@ -697,8 +688,7 @@ class YouTubeMetadataService(IYouTubeMetadataService):
 
     def _extract_qualities(self, info: Dict[str, Any]) -> List[str]:
         """Return standard video qualities from 144p to 4K."""
-        # Just return the standard quality options, yt-dlp will handle fallbacks
-        return ["144p", "240p", "360p", "480p", "720p", "1080p", "1440p", "4K"]
+        return self.config.youtube.supported_qualities
 
     def _extract_formats(self, info: Dict[str, Any]) -> List[str]:
         """Extract available formats - always return the 4 main options."""
@@ -764,8 +754,5 @@ class YouTubeMetadataService(IYouTubeMetadataService):
         Returns:
             Language name if found in config, otherwise the language code
         """
-        from src.core.config import get_config
-        
-        config = get_config()
         base_code = lang_code.split("-")[0].lower()
-        return config.youtube.supported_languages.get(base_code, lang_code)
+        return self.config.youtube.supported_languages.get(base_code, lang_code)

@@ -12,6 +12,8 @@ cookies:
   wait_after_load: 1.0  # Seconds to wait after page load
   wait_for_network_idle: 5.0  # Seconds to wait for network idle
   scroll_delay: 0.5  # Seconds to wait after scroll interaction
+  viewport_width: 1920  # Browser viewport width
+  viewport_height: 1080  # Browser viewport height
 
 # Path configuration
 paths:
@@ -26,11 +28,21 @@ downloads:
   socket_timeout: 15  # Socket timeout in seconds
   chunk_size: 8192  # Download chunk size in bytes
   thread_sleep_interval: 0.1  # Thread sleep interval in seconds
+  default_timeout: 10  # Default download timeout in seconds
 
 # Network configuration
 network:
   default_timeout: 10  # Default network timeout in seconds
+  twitter_api_timeout: 10  # Twitter API timeout in seconds
   user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+  cookie_user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+  minimal_user_agent: "Mozilla/5.0"
+  service_domains:
+    youtube: ["youtube.com", "youtu.be", "www.youtube.com"]
+    twitter: ["twitter.com", "x.com", "api.x.com", "mobile.x.com"]
+    instagram: ["instagram.com", "www.instagram.com", "m.instagram.com"]
+    pinterest: ["pinterest.com", "www.pinterest.com"]
+    soundcloud: ["soundcloud.com", "www.soundcloud.com"]
 
 # YouTube-specific configuration
 youtube:
@@ -38,7 +50,21 @@ youtube:
   metadata_timeout: 30  # Metadata fetch timeout in seconds
   fallback_timeout: 20  # Fallback command timeout in seconds
   subtitle_timeout: 5  # Subtitle fetch timeout in seconds
+  client_fallback_timeout: 15  # Client fallback timeout in seconds
   retry_sleep_multiplier: 3  # Retry sleep multiplier for fragment retries
+  default_quality: 720p  # Default video quality
+  supported_qualities: ["144p", "240p", "360p", "480p", "720p", "1080p", "1440p", "4K", "8K"]
+  video_qualities: ["best", "1080p", "720p", "480p", "360p"]
+  url_patterns:
+    - "^https?://(?:www\\.)?youtube\\.com/watch\\?v=[\\w-]+"
+    - "^https?://(?:www\\.)?youtube\\.com/playlist\\?list=[\\w-]+"
+    - "^https?://(?:www\\.)?youtu\\.be/[\\w-]+"
+    - "^https?://(?:www\\.)?youtube\\.com/embed/[\\w-]+"
+    - "^https?://(?:www\\.)?youtube\\.com/v/[\\w-]+"
+    - "^https?://(?:www\\.)?youtube\\.com/shorts/[\\w-]+"
+    - "^https?://music\\.youtube\\.com/watch\\?v=[\\w-]+"
+    - "^https?://music\\.youtube\\.com/playlist\\?list=[\\w-]+"
+  youtube_domains: ["www.youtube.com", "youtube.com", "youtu.be"]
   supported_languages:
     en: English
     es: Spanish
@@ -114,4 +140,10 @@ youtube:
     uz: Uzbek
     mn: Mongolian
     be: Belarusian
+
+# UI configuration
+ui:
+  metadata_fetch_timeout: 90  # Metadata fetch dialog timeout in seconds
+  polling_interval: 0.5  # Polling interval for async operations in seconds
+  format_options: ["Video + Audio", "Audio Only", "Video Only"]
 

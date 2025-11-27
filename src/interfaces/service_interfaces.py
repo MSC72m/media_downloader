@@ -3,6 +3,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional, Callable, Any
 
+from src.core.config import get_config, AppConfig
 from src.core.models import Download, DownloadOptions
 
 
@@ -241,6 +242,14 @@ class IUIState(ABC):
 
 class BaseDownloader(ABC):
     """Base class for all media downloaders."""
+
+    def __init__(self, config: AppConfig = get_config()):
+        """Initialize base downloader with config injection.
+        
+        Args:
+            config: AppConfig instance (defaults to get_config() if None)
+        """
+        self.config = config
 
     @abstractmethod
     def download(

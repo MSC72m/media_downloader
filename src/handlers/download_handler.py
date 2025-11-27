@@ -6,7 +6,7 @@ from pathlib import Path
 from threading import Thread
 from typing import Callable, List, Optional
 
-from src.core.config import get_config
+from src.core.config import get_config, AppConfig
 from src.core.enums import ServiceType
 from src.core.enums.message_level import MessageLevel
 from src.core.models import Download, DownloadOptions, UIState
@@ -41,8 +41,9 @@ class DownloadHandler(BaseHandler, IDownloadHandler):
         auto_cookie_manager: Optional[IAutoCookieManager] = None,
         message_queue: Optional[IMessageQueue] = None,
         error_handler: Optional[IErrorHandler] = None,
+        config: AppConfig = get_config(),
     ):
-        super().__init__(message_queue)
+        super().__init__(message_queue, config)
         self.download_service = download_service
         self.service_factory = service_factory
         self.file_service = file_service
@@ -91,10 +92,8 @@ class DownloadHandler(BaseHandler, IDownloadHandler):
         completion_callback: Optional[Callable[[bool, Optional[str]], None]] = None,
     ) -> None:
         """Start downloads by delegating to appropriate service handlers."""
-        from src.core.config import get_config
-        
         if download_dir is None:
-            download_dir = str(get_config().paths.downloads_dir)
+            download_dir = str(self.config.paths.downloads_dir)
         logger.info(f"[DOWNLOAD_HANDLER] Starting {len(downloads)} downloads")
 
         # Early return: validate inputs
@@ -259,10 +258,7 @@ class DownloadHandler(BaseHandler, IDownloadHandler):
     ) -> None:
         """Start download threads with concurrency control."""
         import threading
-        from src.core.config import get_config
-        
-        config = get_config()
-        max_concurrent = config.downloads.max_concurrent_downloads
+        max_concurrent = self.config.downloads.max_concurrent_downloads
         active_threads = []
 
         for download in downloads:
@@ -353,7 +349,7 @@ class DownloadHandler(BaseHandler, IDownloadHandler):
 
     def get_options(self) -> DownloadOptions:
         """Get current download options."""
-        default_dir = str(get_config().paths.downloads_dir)
+        default_dir = str(self.config.paths.downloads_dir)
         return DownloadOptions(
             save_directory=getattr(self.ui_state, "download_directory", default_dir)
         )
@@ -421,14 +417,8 @@ class DownloadHandler(BaseHandler, IDownloadHandler):
     def _detect_service_type(self, url: str) -> str:
         """Detect service type from URL."""
         url_lower = url.lower()
-        if "youtube.com" in url_lower or "youtu.be" in url_lower:
-            return "youtube"
-        elif "twitter.com" in url_lower or "x.com" in url_lower:
-            return "twitter"
-        elif "instagram.com" in url_lower:
-            return "instagram"
-        elif "pinterest.com" in url_lower:
-            return "pinterest"
-        elif "soundcloud.com" in url_lower:
-            return "soundcloud"
+        
+        for service_name, domains in self.config.network.service_domains.items():
+            if any(domain in url_lower for domain in domains):
+                return service_name
         return "unknown"

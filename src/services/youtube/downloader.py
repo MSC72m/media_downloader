@@ -24,7 +24,7 @@ class YouTubeDownloader(BaseDownloader):
 
     def __init__(
         self,
-        quality: str = "720p",
+        quality: Optional[str] = None,
         download_playlist: bool = False,
         audio_only: bool = False,
         video_only: bool = False,
@@ -36,10 +36,12 @@ class YouTubeDownloader(BaseDownloader):
         download_thumbnail: bool = True,
         embed_metadata: bool = True,
         speed_limit: Optional[int] = None,
-        retries: int = 3,
+        retries: Optional[int] = None,
         error_handler: Optional[IErrorHandler] = None,
+        config=None,
     ):
-        self.quality = quality
+        super().__init__(config)
+        self.quality = quality or self.config.youtube.default_quality
         self.download_playlist = download_playlist
         self.audio_only = audio_only
         self.video_only = video_only
@@ -53,36 +55,35 @@ class YouTubeDownloader(BaseDownloader):
         self.speed_limit = speed_limit
         self.retries = retries
         self.error_handler = error_handler
-        self.metadata_service = YouTubeMetadataService(error_handler=error_handler)
+        self.metadata_service = YouTubeMetadataService(error_handler=error_handler, config=self.config)
         self.ytdl_opts = self._get_simple_ytdl_options()
 
     def _get_simple_ytdl_options(self) -> Dict[str, Any]:
         """Generate simple yt-dlp options without format specifications."""
-        from src.core.config import get_config
-        
-        config = get_config()
+        retry_count = self.retries or self.config.downloads.retry_count
         options = {
             "quiet": True,
             "no_warnings": True,
             "ignoreerrors": True,
-            "retries": self.retries or config.downloads.retry_count,
-            "fragment_retries": self.retries or config.downloads.retry_count,
+            "retries": retry_count,
+            "fragment_retries": retry_count,
             "retry_sleep_functions": {
-                "fragment": lambda x: config.youtube.retry_sleep_multiplier * (x + 1)
+                "fragment": lambda x: self.config.youtube.retry_sleep_multiplier * (x + 1)
             },
-            "socket_timeout": config.downloads.socket_timeout,
-            "extractor_retries": self.retries or config.downloads.retry_count,
+            "socket_timeout": self.config.downloads.socket_timeout,
+            "extractor_retries": retry_count,
             "hls_prefer_native": True,
             "nocheckcertificate": True,
-            "user_agent": config.network.user_agent,
+            "user_agent": self.config.network.user_agent,
             "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
             "writethumbnail": self.download_thumbnail,
             "embedmetadata": self.embed_metadata,
         }
 
         # Add speed limit if specified
+        KB_TO_BYTES = 1024  # Constant for KB to bytes conversion
         if self.speed_limit:
-            options["ratelimit"] = self.speed_limit * 1024  # Convert KB/s to bytes/s
+            options["ratelimit"] = self.speed_limit * KB_TO_BYTES
 
         # Add subtitle options
         if self.download_subtitles and self.selected_subtitles:
@@ -145,7 +146,7 @@ class YouTubeDownloader(BaseDownloader):
         # Handle playlists
         if not self.download_playlist:
             options["noplaylist"] = True
-            options["playlist_items"] = "1"
+            options["playlist_items"] = self.config.youtube.playlist_item_limit
 
         return options
 
@@ -205,11 +206,11 @@ class YouTubeDownloader(BaseDownloader):
                 opts["postprocessors"].append(
                     {
                         "key": "FFmpegExtractAudio",
-                        "preferredcodec": "mp3",
-                        "preferredquality": "192",
+                        "preferredcodec": self.config.youtube.audio_codec,
+                        "preferredquality": self.config.youtube.quality_format_map["192"],
                     }
                 )
-                ext = ".mp3"
+                ext = self.config.youtube.file_extensions["audio"]
             elif self.format == "video_only" or self.video_only:
                 # Video only without audio
                 opts["format"] = "bestvideo"
@@ -219,8 +220,8 @@ class YouTubeDownloader(BaseDownloader):
                 # Default: video + audio
                 # Use dictionary-based format selection
                 format_map = {
-                    "highest": "best",
-                    "lowest": "worst",
+                    "highest": self.config.youtube.quality_format_map["highest"],
+                    "lowest": self.config.youtube.quality_format_map["lowest"],
                 }
 
                 if self.quality in format_map:
@@ -231,15 +232,15 @@ class YouTubeDownloader(BaseDownloader):
                         logger.warning(
                             f"Invalid quality format: {self.quality}, using best"
                         )
-                        opts["format"] = "best"
+                        opts["format"] = self.config.youtube.quality_format_map["best"]
                     else:
                         opts["format"] = f"bestvideo[height<={height}]+bestaudio/best"
                         logger.info(
                             f"Using format selection for {self.quality}: {opts['format']}"
                         )
                 else:
-                    opts["format"] = "best"
-                ext = ".mp4"
+                    opts["format"] = self.config.youtube.quality_format_map["best"]
+                ext = self.config.youtube.file_extensions["video"]
                 opts["outtmpl"] = {"default": output_template + ext}
 
             # Store expected output path for verification
@@ -253,8 +254,8 @@ class YouTubeDownloader(BaseDownloader):
             logger.info(f"Expected output path: {expected_output_path}")
 
             # Retry mechanism for network issues
-            max_retries = 3
-            retry_wait = 3  # seconds
+            max_retries = self.config.downloads.retry_count
+            retry_wait = self.config.youtube.default_retry_wait
 
             for attempt in range(max_retries):
                 try:
@@ -399,10 +400,10 @@ class YouTubeDownloader(BaseDownloader):
         """Handle format error using fallback strategy."""
         fallback_strategies = {
             0: (
-                "best",
+                self.config.youtube.quality_format_map["best"],
                 f"Format not available ({opts.get('format', 'unknown')}), retrying with 'best'",
             ),
-            1: ("worst", "Best format failed, trying 'worst' as fallback"),
+            1: (self.config.youtube.quality_format_map["lowest"], "Best format failed, trying 'worst' as fallback"),
         }
 
         strategy = fallback_strategies.get(attempt)

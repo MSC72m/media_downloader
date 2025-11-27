@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Protocol, Tuple
 
 from pydantic import BaseModel, Field
 
+from src.core.config import get_config, AppConfig
 from src.core.enums import ServiceType
 from src.interfaces.service_interfaces import IErrorHandler
 from src.utils.logger import get_logger
@@ -44,19 +45,18 @@ class BaseNetworkChecker(ABC):
 class HTTPNetworkChecker(BaseNetworkChecker):
     """HTTP-based network checker."""
 
-    def __init__(self, timeout: Optional[int] = None, error_handler: Optional[IErrorHandler] = None):
+    def __init__(self, timeout: Optional[int] = None, error_handler: Optional[IErrorHandler] = None, config: AppConfig = get_config()):
         """Initialize network checker.
         
         Args:
             timeout: Network timeout in seconds (uses config if not provided)
             error_handler: Error handler instance
+            config: AppConfig instance (defaults to get_config() if None)
         """
-        from src.core.config import get_config
-        
-        config = get_config()
-        self.timeout = timeout or config.network.default_timeout
+        self.config = config
+        self.timeout = timeout or self.config.network.default_timeout
         self.error_handler = error_handler
-        self.user_agent = config.network.user_agent
+        self.user_agent = self.config.network.user_agent
         self._service_configs = self._get_service_configs()
     
     def _get_service_configs(self):
@@ -169,7 +169,7 @@ class HTTPNetworkChecker(BaseNetworkChecker):
             # Step 3: If socket fails, try HTTP as fallback (some services block direct socket)
             try:
                 conn = http.client.HTTPSConnection(url, timeout=self.timeout)
-                conn.request("HEAD", "/", headers={"User-Agent": "Mozilla/5.0"})
+                conn.request("HEAD", "/", headers={"User-Agent": self.config.network.minimal_user_agent})
                 response = conn.getresponse()
                 conn.close()
 
@@ -234,7 +234,7 @@ class HTTPNetworkChecker(BaseNetworkChecker):
 
     def _try_service_urls(self, urls: List[str], start_time: float, config: dict, service_type: ServiceType) -> ConnectionResult:
         """Generic method to try multiple URLs for any service connectivity."""
-        user_agent = config.get('user_agent', 'Mozilla/5.0')
+        user_agent = config.get('user_agent', self.config.network.minimal_user_agent)
         service_name = service_type.value if hasattr(service_type, 'value') else str(service_type)
 
         for url in urls:

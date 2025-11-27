@@ -17,6 +17,7 @@ def download_file(
     save_path: str,
     progress_callback: Optional[Callable[[float, float], None]] = None,
     chunk_size: Optional[int] = None,
+    config=None,
 ) -> bool:
     """Download a file from URL.
     
@@ -25,8 +26,10 @@ def download_file(
         save_path: Path to save the file
         progress_callback: Optional callback for progress updates
         chunk_size: Chunk size in bytes (uses config if not provided)
+        config: AppConfig instance (defaults to get_config() if None)
     """
-    config = get_config()
+    if config is None:
+        config = get_config()
     
     if chunk_size is None:
         chunk_size = config.downloads.chunk_size

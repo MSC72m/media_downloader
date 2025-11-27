@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
-from src.core.config import get_config
+from src.core.config import get_config, AppConfig
 from src.core.models import CookieState
 from src.utils.logger import get_logger
 
@@ -16,16 +16,17 @@ logger = get_logger(__name__)
 class CookieGenerator:
     """Generates YouTube cookies using Playwright headless browser."""
 
-    def __init__(self, storage_dir: Optional[Path] = None):
+    def __init__(self, storage_dir: Optional[Path] = None, config: AppConfig = get_config()):
         """Initialize cookie generator.
 
         Args:
             storage_dir: Directory to store cookies (uses config if not provided)
+            config: AppConfig instance (defaults to get_config() if None)
         """
-        config = get_config()
-        self.storage_dir = storage_dir or config.cookies.storage_dir
+        self.config = config
+        self.storage_dir = storage_dir or self.config.cookies.storage_dir
         self.storage_dir.mkdir(parents=True, exist_ok=True)
-        self.cookie_file = self.storage_dir / config.cookies.cookie_file_name
+        self.cookie_file = self.storage_dir / self.config.cookies.cookie_file_name
         self._playwright = None
         self._browser = None
 
@@ -60,15 +61,14 @@ class CookieGenerator:
 
                 # Create incognito context
                 context = await browser.new_context(
-                    viewport={"width": 1920, "height": 1080},
-                    user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    viewport={"width": self.config.cookies.viewport_width, "height": self.config.cookies.viewport_height},
+                    user_agent=self.config.network.cookie_user_agent,
                 )
 
                 page = await context.new_page()
                 logger.info("[COOKIE_GENERATOR] Navigating to YouTube")
 
-                config = get_config()
-                cookie_config = config.cookies
+                cookie_config = self.config.cookies
 
                 try:
                     await page.goto(
@@ -123,9 +123,8 @@ class CookieGenerator:
                 await browser.close()
 
                 # Update state
-                config = get_config()
                 state.generated_at = datetime.now()
-                state.expires_at = datetime.now() + timedelta(hours=config.cookies.cookie_expiry_hours)
+                state.expires_at = datetime.now() + timedelta(hours=self.config.cookies.cookie_expiry_hours)
                 state.is_valid = True
                 state.is_generating = False
                 state.cookie_path = str(self.cookie_file)
@@ -221,8 +220,7 @@ class CookieGenerator:
             with open(self.cookie_file, "r", encoding="utf-8") as f:
                 cookies = json.load(f)
 
-            config = get_config()
-            netscape_file = self.storage_dir / config.cookies.netscape_file_name
+            netscape_file = self.storage_dir / self.config.cookies.netscape_file_name
             valid_cookies = 0
             skipped_cookies = 0
 

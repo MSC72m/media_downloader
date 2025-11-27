@@ -2,6 +2,7 @@
 
 from typing import Any, Callable, List, Optional
 
+from src.core.config import get_config, AppConfig
 from src.interfaces.service_interfaces import (
     IDownloadHandler,
     IDownloadService,
@@ -31,8 +32,10 @@ class DownloadCoordinator:
         download_service: IDownloadService,
         message_queue: Optional[IMessageQueue] = None,
         ui_callbacks: Optional[dict[str, Callable]] = None,
+        config: AppConfig = get_config(),
     ):
         """Initialize with injected dependencies and optional UI callbacks."""
+        self.config = config
         self.event_bus = event_bus
         self.download_handler = download_handler
         self.error_handler = error_handler
@@ -189,10 +192,8 @@ class DownloadCoordinator:
         completion_callback: Optional[Callable[[bool, Optional[str]], None]] = None,
     ) -> None:
         """Start downloads via the download handler."""
-        from src.core.config import get_config
-        
         if download_dir is None:
-            download_dir = str(get_config().paths.downloads_dir)
+            download_dir = str(self.config.paths.downloads_dir)
         
         if not self.download_handler:
             logger.error("[DOWNLOAD_COORDINATOR] Download handler not available")

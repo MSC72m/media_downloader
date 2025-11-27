@@ -20,12 +20,14 @@ logger = get_logger(__name__)
 class TwitterDownloader(BaseDownloader):
     """Twitter downloader service."""
 
-    def __init__(self, error_handler: Optional[IErrorHandler] = None):
+    def __init__(self, error_handler: Optional[IErrorHandler] = None, config=None):
         """Initialize Twitter downloader.
 
         Args:
             error_handler: Optional error handler for user notifications
+            config: AppConfig instance (defaults to get_config() if None)
         """
+        super().__init__(config)
         self.error_handler = error_handler
 
     def download(
@@ -95,7 +97,7 @@ class TwitterDownloader(BaseDownloader):
             response = requests.get(
                 f'https://api.vxtwitter.com/Twitter/status/{tweet_id}',
                 verify=True,
-                timeout=10
+                timeout=self.config.network.twitter_api_timeout
             )
             response.raise_for_status()
             return response.json().get('media_extended', [])

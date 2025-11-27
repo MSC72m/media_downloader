@@ -3,6 +3,7 @@
 from typing import Dict, Any, Optional
 from enum import Enum
 
+from src.core.config import get_config, AppConfig
 from src.interfaces.service_interfaces import IMessageQueue
 from src.utils.logger import get_logger
 
@@ -20,7 +21,14 @@ class NotificationType(Enum):
 class BaseHandler:
     """Base handler with common notification behavior for all handlers."""
 
-    def __init__(self, message_queue: Optional[IMessageQueue] = None):
+    def __init__(self, message_queue: Optional[IMessageQueue] = None, config: AppConfig = get_config()):
+        """Initialize base handler with config injection.
+        
+        Args:
+            message_queue: Optional message queue for notifications
+            config: AppConfig instance (defaults to get_config() if None)
+        """
+        self.config = config
         self.message_queue = message_queue
         self._notification_templates = self._get_notification_templates()
 
