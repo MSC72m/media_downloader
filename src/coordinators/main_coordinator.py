@@ -59,8 +59,9 @@ class EventCoordinator:
         # Event bus for download events
         self.event_bus = DownloadEventBus(root_window)
 
-        # Link detector for URL detection
-        self.link_detector = LinkDetector()
+        # Link detector will be set by orchestrator after initialization
+        # Don't create here to avoid duplicate instances
+        self.link_detector = None
 
         # Create focused coordinators with injected dependencies
         self.downloads = DownloadCoordinator(
@@ -70,7 +71,9 @@ class EventCoordinator:
             download_service=self.download_service,
             message_queue=self.message_queue,
         )
-        self.platform_dialogs = PlatformDialogCoordinator(root_window, error_handler, cookie_handler)
+        # Platform dialog coordinator needs orchestrator reference for UI components
+        # We'll set it after orchestrator is fully initialized
+        self.platform_dialogs = PlatformDialogCoordinator(root_window, error_handler, cookie_handler, orchestrator=None)
 
         logger.info("[EVENT_COORDINATOR] Initialized with constructor injection")
 
@@ -126,9 +129,14 @@ class EventCoordinator:
         return None
 
     # Authentication
-    def authenticate_instagram(self, parent_window) -> None:
-        """Show Instagram authentication dialog - delegates to platform coordinator."""
-        self.platform_dialogs.authenticate_instagram(parent_window)
+    def authenticate_instagram(self, parent_window, callback=None) -> None:
+        """Show Instagram authentication dialog - delegates to platform coordinator.
+        
+        Args:
+            parent_window: Parent window for dialogs
+            callback: Optional callback to update button state (receives InstagramAuthStatus)
+        """
+        self.platform_dialogs.authenticate_instagram(parent_window, callback)
 
     # UI Dialogs
     def show_file_manager(self) -> None:
@@ -177,6 +185,46 @@ class EventCoordinator:
             logger.info(f"[EVENT_COORDINATOR] Cookie loaded from {browser_type}")
         except Exception as e:
             logger.error(f"[EVENT_COORDINATOR] Error handling cookie: {e}")
+
+    # Connectivity Check
+    def check_connectivity(self) -> None:
+        """Check network connectivity and show status."""
+        try:
+            is_connected, error_message = self.network_checker.check_connectivity()
+
+            if is_connected:
+                logger.info("[EVENT_COORDINATOR] Connectivity check: Connected")
+                if self.message_queue:
+                    from src.core.models import Message
+                    from src.core.enums.message_level import MessageLevel
+                    message = Message(
+                        text="Network connection is working",
+                        level=MessageLevel.INFO,
+                        title="Network Status"
+                    )
+                    self.message_queue.add_message(message)
+            else:
+                logger.warning(f"[EVENT_COORDINATOR] Connectivity check failed: {error_message}")
+                if self.message_queue:
+                    from src.core.models import Message
+                    from src.core.enums.message_level import MessageLevel
+                    message = Message(
+                        text=f"Network issue: {error_message}",
+                        level=MessageLevel.WARNING,
+                        title="Network Issue"
+                    )
+                    self.message_queue.add_message(message)
+
+                # Show network status dialog for detailed information
+                self.show_network_status()
+
+        except Exception as e:
+            logger.error(f"[EVENT_COORDINATOR] Error checking connectivity: {e}")
+            if self.error_handler:
+                self.error_handler.show_error(
+                    "Connectivity Check Error",
+                    f"Failed to check network connectivity: {str(e)}"
+                )
             if self.error_handler:
                 self.error_handler.show_error(
                     "Cookie Error", f"Error loading cookie: {str(e)}"

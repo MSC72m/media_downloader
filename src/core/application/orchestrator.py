@@ -1,7 +1,7 @@
 """Application Orchestrator - Clean dependency injection initialization."""
 
 import os
-from typing import Any
+from typing import Any, Type
 
 import customtkinter as ctk
 
@@ -69,9 +69,52 @@ class ApplicationOrchestrator:
         self.container = ServiceContainer()
         self._configure_dependencies()
 
+        # Get injected dependencies
+        self.network_checker = self.container.get(INetworkChecker)
+
         # Initialize link detection and background tasks
-        self.link_detector = LinkDetector()
-        self._import_link_handlers()  # Import handlers to trigger auto-registration decorators
+        # Import handlers first to trigger auto-registration decorators
+        self._import_link_handlers()
+        
+        # Create handler factory that uses container's auto-injection
+        # Handlers don't need to be registered - only their dependencies need to be registered
+        # The container's create_with_injection will automatically resolve dependencies
+        # based on type hints, enabling polymorphic behavior
+        def handler_factory(handler_class: Type) -> Any:
+            """Factory function using container's auto-injection capabilities.
+            
+            Uses the container's create_with_injection method which automatically:
+            - Resolves type hints from constructor parameters
+            - Injects registered dependencies from the container
+            - Handles Optional[T] types gracefully
+            - Falls back to None for optional dependencies not in container
+            
+            This enables polymorphic behavior - handlers with different dependency
+            requirements are all handled uniformly through the container.
+            """
+            # Use container's public method for creating instances with injection
+            try:
+                instance = self.container.create_with_injection(handler_class)
+                logger.debug(f"[ORCHESTRATOR] Auto-injected dependencies for {handler_class.__name__}")
+                return instance
+            except ValueError as e:
+                # Dependency not registered - try direct instantiation for handlers without deps
+                logger.debug(f"[ORCHESTRATOR] Handler {handler_class.__name__} has unregistered dependencies, trying direct instantiation: {e}")
+                try:
+                    return handler_class()
+                except Exception as fallback_error:
+                    logger.error(f"[ORCHESTRATOR] Direct instantiation also failed for {handler_class.__name__}: {fallback_error}")
+                    raise
+            except Exception as e:
+                logger.warning(f"[ORCHESTRATOR] Auto-injection failed for {handler_class.__name__}: {e}, trying direct instantiation")
+                try:
+                    return handler_class()
+                except Exception as fallback_error:
+                    logger.error(f"[ORCHESTRATOR] Direct instantiation also failed for {handler_class.__name__}: {fallback_error}")
+                    raise
+        
+        self.link_detector = LinkDetector(handler_factory=handler_factory)
+        logger.info("[ORCHESTRATOR] LinkDetector created with handler factory")
         self._initialize_cookies_background()
 
         # UI components (set by main.py)
@@ -86,8 +129,10 @@ class ApplicationOrchestrator:
         # Register core instances
         # Note: Some values like root are passed directly where needed
 
-        # Register interface implementations
-        self.container.register_factory(IMessageQueue, lambda: MessageQueue(None))
+        # Register IMessageQueue factory that returns None initially
+        # Will be replaced with actual instance when status_bar is available
+        self.container.register_factory(IMessageQueue, lambda: None)
+        
         self.container.register_singleton(IFileService, FileService)
         self.container.register_singleton(ICookieHandler, CookieHandler)
         self.container.register_singleton(IMetadataService, YouTubeMetadataService)
@@ -98,9 +143,10 @@ class ApplicationOrchestrator:
         self.container.register_singleton(IDownloadHandler, DownloadHandler)
 
         # ErrorHandler needs message_queue injected
+        # Use get_optional since message queue may not be registered yet
         def create_error_handler():
             from src.coordinators.error_handler import ErrorHandler
-            message_queue = self.container.get(IMessageQueue)
+            message_queue = self.container.get_optional(IMessageQueue)
             return ErrorHandler(message_queue)
 
         self.container.register_factory(IErrorHandler, create_error_handler)
@@ -136,7 +182,7 @@ class ApplicationOrchestrator:
                 network_checker=self.container.get(INetworkChecker),
                 cookie_handler=self.container.get(ICookieHandler),
                 download_service=self.container.get(IDownloadService),
-                message_queue=self.container.get(IMessageQueue),
+                message_queue=self.container.get_optional(IMessageQueue),  # Optional - may be None initially
                 downloads_folder=self.downloads_folder
             )
 
@@ -376,6 +422,7 @@ class ApplicationOrchestrator:
                 f"[ORCHESTRATOR] Failed to import link handler modules: {e}", exc_info=True
             )
 
+
     def set_ui_components(self, **components) -> None:
         """Set UI component references."""
         logger.info(f"[ORCHESTRATOR] Setting UI components: {list(components.keys())}")
@@ -385,6 +432,23 @@ class ApplicationOrchestrator:
         # UI components are stored in self.ui_components for reference
         # No need to register them in DI container as they're not dependency injected
 
+        # Register message queue if status_bar is available
+        # Replace the None factory with actual MessageQueue instance
+        if "status_bar" in components:
+            from src.services.events.queue import MessageQueue
+            message_queue = MessageQueue(components["status_bar"])
+            # Replace the factory registration with an instance
+            self.container.register_instance(IMessageQueue, message_queue)
+            logger.info("[ORCHESTRATOR] MessageQueue registered in container with status_bar")
+
+        # Set link detector on event coordinator so it uses the configured instance
+        if hasattr(self.event_coordinator, 'link_detector'):
+            self.event_coordinator.link_detector = self.link_detector
+
+        # Set orchestrator reference on platform dialog coordinator for UI component access
+        if hasattr(self.event_coordinator, 'platform_dialogs'):
+            self.event_coordinator.platform_dialogs.orchestrator = self
+
         # Refresh event coordinator handlers (so it picks up UI components)
         self.event_coordinator.refresh_handlers()
 
@@ -392,16 +456,89 @@ class ApplicationOrchestrator:
 
     # Convenience methods for UI
     def check_connectivity(self) -> None:
-        """Check network connectivity at startup - delegate to event coordinator."""
+        """Check network connectivity at startup - use injected network checker."""
         logger.info("[ORCHESTRATOR] Starting connectivity check")
 
-        # Ensure event coordinator is ready
-        if not self.event_coordinator:
-            logger.error("[ORCHESTRATOR] Event coordinator not initialized")
-            return
+        def check_in_background():
+            """Check connectivity in background thread."""
+            try:
+                is_connected, error_message = self.network_checker.check_connectivity()
 
-        # Delegate to event coordinator - it handles UI components
-        self.event_coordinator.check_connectivity()
+                # Update UI on main thread - use function to avoid closure issues
+                def update_ui():
+                    logger.info(
+                        f"[ORCHESTRATOR] Connectivity check complete: connected={is_connected}, error={error_message}"
+                    )
+                    self._handle_connectivity_result(is_connected, error_message)
+
+                if hasattr(self.root, 'run_on_main_thread'):
+                    self.root.run_on_main_thread(update_ui)
+                else:
+                    self.root.after(0, update_ui)
+            except Exception as e:
+                logger.error(f"[ORCHESTRATOR] Error checking connectivity: {e}", exc_info=True)
+
+                # Update UI on main thread - use function to avoid closure issues
+                def update_ui_error():
+                    logger.info(f"[ORCHESTRATOR] Connectivity check error: {str(e)}")
+                    self._handle_connectivity_result(False, str(e))
+
+                if hasattr(self.root, 'run_on_main_thread'):
+                    self.root.run_on_main_thread(update_ui_error)
+                else:
+                    self.root.after(0, update_ui_error)
+
+        import threading
+        thread = threading.Thread(target=check_in_background, daemon=True)
+        thread.start()
+
+    def _handle_connectivity_result(self, is_connected: bool, error_message: str) -> None:
+        """Handle connectivity check result on main thread."""
+        logger.info(f"[ORCHESTRATOR] _handle_connectivity_result called: connected={is_connected}, error={error_message}")
+        status_bar = self.ui_components.get("status_bar")
+        logger.info(f"[ORCHESTRATOR] Status bar available: {status_bar is not None}")
+
+        if is_connected:
+            logger.info("[ORCHESTRATOR] Connectivity check: Connected")
+            if status_bar:
+                status_bar.show_message("Network: Connected")
+            if self.container.has(IMessageQueue):
+                try:
+                    message_queue = self.container.get(IMessageQueue)
+                    if message_queue:
+                        from src.services.events.queue import Message
+                        from src.core.enums.message_level import MessageLevel
+                        message_queue.add_message(
+                            Message(
+                                text="Network connection is working",
+                                level=MessageLevel.SUCCESS,
+                                title="Network Status",
+                            )
+                        )
+                except Exception as e:
+                    logger.warning(f"[ORCHESTRATOR] Could not send message via queue: {e}")
+        else:
+            logger.warning(f"[ORCHESTRATOR] Connectivity check failed: {error_message}")
+            if status_bar:
+                status_bar.show_warning(f"Network issue: {error_message or 'Connection failed'}")
+            if self.container.has(IMessageQueue):
+                try:
+                    message_queue = self.container.get(IMessageQueue)
+                    if message_queue:
+                        from src.services.events.queue import Message
+                        from src.core.enums.message_level import MessageLevel
+                        message_queue.add_message(
+                            Message(
+                                text=error_message or "Network connection failed",
+                                level=MessageLevel.WARNING,
+                                title="Network Status",
+                            )
+                        )
+                except Exception as e:
+                    logger.warning(f"[ORCHESTRATOR] Could not send message via queue: {e}")
+
+            if self.event_coordinator:
+                self.event_coordinator.show_network_status()
 
     def _handle_connectivity_check(
         self, internet_connected: bool, error_msg: str, problem_services: list

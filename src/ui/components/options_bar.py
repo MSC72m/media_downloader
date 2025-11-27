@@ -43,15 +43,11 @@ class OptionsBar(ctk.CTkFrame):
     def _get_root_window(self):
         """Get the root Tk window for scheduling."""
         try:
-            widget = self
-            while widget:
-                master = getattr(widget, "master", None)
-                if master is None:
-                    return widget
-                widget = master
+            # Try to get the actual root window
+            return self.winfo_toplevel()
         except Exception as e:
             logger.error(f"[OPTIONS_BAR] Error getting root window: {e}")
-        return self
+            return self
 
     def _process_queue(self):
         """Process queued UI updates on main thread."""

@@ -51,11 +51,18 @@ class LinkDetectionRegistry:
     _instance = None
     _handlers: Dict[str, Type[LinkHandlerInterface]] = {}
     _compiled_patterns: Dict[str, List[re.Pattern]] = {}
+    _handler_factory: Optional[Callable[[Type[LinkHandlerInterface]], LinkHandlerInterface]] = None
 
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
+
+    @classmethod
+    def set_handler_factory(cls, factory: Callable[[Type[LinkHandlerInterface]], LinkHandlerInterface]) -> None:
+        """Set factory function for creating handler instances with dependencies."""
+        cls._handler_factory = factory
+        logger.info("[REGISTRY] Handler factory set")
 
     @classmethod
     def register(cls, handler_class: Type[LinkHandlerInterface]):
@@ -105,7 +112,16 @@ class LinkDetectionRegistry:
         for handler_name, handler_class in cls._handlers.items():
             try:
                 logger.debug(f"[DETECTION] Testing handler: {handler_name}")
+                
+                # Use factory if available, otherwise try direct instantiation
+                if cls._handler_factory:
+                    logger.debug(f"[DETECTION] Using factory for {handler_name}")
+                    handler = cls._handler_factory(handler_class)
+                else:
+                    logger.warning(f"[DETECTION] No factory available for {handler_name}, trying direct instantiation")
+                    # Fallback: try direct instantiation (for handlers without dependencies)
                 handler = handler_class()
+                
                 logger.debug(f"[DETECTION] Created handler instance: {handler}")
                 result = handler.can_handle(url)
                 logger.debug(
@@ -152,8 +168,10 @@ class LinkDetectionRegistry:
 class LinkDetector:
     """Main link detector that uses the registry."""
 
-    def __init__(self):
+    def __init__(self, handler_factory: Optional[Callable[[Type[LinkHandlerInterface]], LinkHandlerInterface]] = None):
         self.registry = LinkDetectionRegistry()
+        if handler_factory:
+            self.registry.set_handler_factory(handler_factory)
 
     def detect_and_handle(self, url: str, ui_context: Any = None) -> bool:
         """Detect URL type and trigger appropriate handling with early returns."""

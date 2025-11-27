@@ -66,8 +66,19 @@ class CookieGenerator:
                 page = await context.new_page()
                 logger.info("[COOKIE_GENERATOR] Navigating to YouTube")
 
-                await page.goto("https://www.youtube.com", wait_until="networkidle")
-                logger.info("[COOKIE_GENERATOR] YouTube loaded successfully")
+                try:
+                    await page.goto("https://www.youtube.com", wait_until="networkidle", timeout=30000)
+                    logger.info("[COOKIE_GENERATOR] YouTube loaded successfully")
+                except Exception as e:
+                    logger.error(f"[COOKIE_GENERATOR] Failed to navigate to YouTube: {e}")
+                    # Retry once more time
+                    try:
+                        await asyncio.sleep(2)
+                        await page.goto("https://www.youtube.com", wait_until="networkidle", timeout=30000)
+                        logger.info("[COOKIE_GENERATOR] YouTube loaded successfully on retry")
+                    except Exception as retry_e:
+                        logger.error(f"[COOKIE_GENERATOR] Retry also failed: {retry_e}")
+                        raise retry_e
 
                 # Wait a bit for any dynamic content
                 await asyncio.sleep(2)

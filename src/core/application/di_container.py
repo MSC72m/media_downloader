@@ -164,7 +164,12 @@ class ServiceContainer:
             self._building.discard(service_type)
 
     def _create_instance(self, implementation_type: Type[T]) -> T:
-        """Create instance with constructor injection."""
+        """Create instance with constructor injection.
+        
+        This method can be used to create instances of classes that aren't registered
+        in the container, as long as their dependencies are registered. It automatically
+        resolves dependencies based on type hints.
+        """
         if not hasattr(implementation_type, '__init__'):
             return implementation_type()
 
@@ -203,10 +208,27 @@ class ServiceContainer:
                     else:
                         kwargs[param_name] = None
                 else:
-                    # Required dependency
-                    kwargs[param_name] = self.get(param_type)
+                    # Required dependency - try to get from container
+                    if self.has(param_type):
+                        kwargs[param_name] = self.get(param_type)
+                    else:
+                        # Dependency not registered - this will cause an error when creating instance
+                        # but allows polymorphic behavior where some handlers don't need all deps
+                        raise ValueError(
+                            f"Required dependency {param_type.__name__} for {implementation_type.__name__}.{param_name} "
+                            f"is not registered in the container"
+                        )
 
         return implementation_type(**kwargs)
+    
+    def create_with_injection(self, class_type: Type[T]) -> T:
+        """Public method to create instances with automatic dependency injection.
+        
+        This is a convenience method for creating instances of classes that aren't
+        registered in the container but need dependency injection. Useful for
+        handlers and other transient objects.
+        """
+        return self._create_instance(class_type)
 
     def _is_custom_type(self, param_type: Optional[Type]) -> bool:
         """Check if a type is a custom class that should be injected."""
@@ -244,9 +266,24 @@ class ServiceContainer:
         logger.debug("[CONTAINER] Cleared all services")
 
     def register_instance(self, service_type: Type[T], instance: T) -> 'ServiceContainer':
-        """Register a service instance as singleton."""
-        if not isinstance(instance, service_type):
-            raise ValueError(f"Instance must be of type {service_type.__name__}")
+        """Register a service instance as singleton.
+        
+        For ABC interfaces, uses issubclass check instead of isinstance
+        to handle cases where the instance implements the interface but
+        doesn't explicitly inherit from it.
+        """
+        # Check if instance implements the service type
+        # For ABC interfaces, check if instance's class is a subclass
+        is_valid = isinstance(instance, service_type)
+        
+        # If isinstance fails, try issubclass for ABC interfaces
+        if not is_valid and hasattr(service_type, '__abstractmethods__'):
+            is_valid = issubclass(type(instance), service_type)
+        
+        if not is_valid:
+            raise ValueError(
+                f"Instance {type(instance).__name__} must be of type {service_type.__name__}"
+            )
 
         descriptor = ServiceDescriptor(
             service_type=service_type,

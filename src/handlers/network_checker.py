@@ -32,6 +32,10 @@ class NetworkChecker:
         """Check general internet connectivity."""
         return check_internet_connection()
 
+    def check_connectivity(self) -> Tuple[bool, str]:
+        """Check network connectivity - alias for check_internet_connection."""
+        return self.check_internet_connection()
+
     def check_service_connection(self, service: ServiceType) -> Tuple[bool, str]:
         """Check connection to a specific service."""
         try:

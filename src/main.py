@@ -1,4 +1,5 @@
 import sys
+import queue
 from pathlib import Path
 
 from src.utils.common import ensure_gui_available
@@ -15,7 +16,8 @@ ensure_gui_available()
 import customtkinter as ctk  # noqa: E402
 
 from src.core import get_application_orchestrator  # noqa: E402
-from src.services.events.queue import MessageQueue
+from src.core.interfaces import IMessageQueue  # noqa: E402
+from src.services.events.queue import MessageQueue  # noqa: E402
 from src.ui.components.download_list import DownloadListView  # noqa: E402
 from src.ui.components.main_action_buttons import ActionButtonBar  # noqa: E402
 from src.ui.components.options_bar import OptionsBar  # noqa: E402
@@ -158,6 +160,10 @@ class MediaDownloaderApp(ctk.CTk):
         self.title("Media Downloader")
         self.geometry("1000x700")
 
+        # Thread-safe UI update queue
+        self.thread_queue = queue.Queue()
+        self.after(100, self._process_thread_queue)
+
         ApplicationOrchestrator = get_application_orchestrator()
         self.orchestrator = ApplicationOrchestrator(self)
 
@@ -178,6 +184,26 @@ class MediaDownloaderApp(ctk.CTk):
         # Start connectivity check after UI is fully initialized
         # Use after() to ensure UI is ready to receive updates
         self.after(100, self.orchestrator.check_connectivity)
+
+    def _process_thread_queue(self):
+        """Process callbacks queued from background threads."""
+        try:
+            while not self.thread_queue.empty():
+                try:
+                    func = self.thread_queue.get_nowait()
+                    func()
+                except queue.Empty:
+                    break
+                except Exception as e:
+                    logger.error(f"[MAIN_APP] Error executing queued task: {e}", exc_info=True)
+        except Exception as e:
+            logger.error(f"[MAIN_APP] Error in event loop: {e}", exc_info=True)
+        finally:
+            self.after(50, self._process_thread_queue)
+
+    def run_on_main_thread(self, func):
+        """Schedule a function to run on the main thread."""
+        self.thread_queue.put(func)
 
     def _create_ui(self):
         """Create all UI components."""
@@ -213,9 +239,14 @@ class MediaDownloaderApp(ctk.CTk):
         )
 
         # Options Bar
+        def on_instagram_auth_status(status):
+            """Callback to update Instagram button state."""
+            if hasattr(self, 'options_bar'):
+                self.options_bar.set_instagram_status(status)
+        
         self.options_bar = OptionsBar(
             self.main_frame,
-            on_instagram_login=lambda: coord.authenticate_instagram(self),
+            on_instagram_login=lambda: coord.authenticate_instagram(self, on_instagram_auth_status),
         )
 
         # Download List
@@ -236,7 +267,7 @@ class MediaDownloaderApp(ctk.CTk):
             coord.downloads.clear_downloads()
 
         def on_clear_completed() -> None:
-            coord.downloads.clear_completed_downloads()
+            coord.downloads.clear_downloads()
 
         def on_download() -> None:
             coord.downloads.start_downloads()
@@ -256,12 +287,7 @@ class MediaDownloaderApp(ctk.CTk):
 
         # Status Bar
         self.status_bar = StatusBar(self.main_frame)
-
-        # Register message queue now that status_bar exists
-        message_queue = MessageQueue(self.status_bar)
-        # The orchestrator should handle message queue registration internally
-        # Legacy container registration removed
-        logger.info("[MAIN_APP] MessageQueue registered with status_bar")
+        logger.info("[MAIN_APP] StatusBar created")
 
         # Pass UI components to orchestrator
         logger.info("[MAIN_APP] Passing UI components to orchestrator")
