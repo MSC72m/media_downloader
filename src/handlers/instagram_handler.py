@@ -5,13 +5,19 @@ from typing import Any, Callable, Dict, Optional
 
 from src.core.config import get_config, AppConfig
 from src.core.base.base_handler import BaseHandler
+from src.core.enums.instagram_auth_status import InstagramAuthStatus
+from src.core.enums.message_level import MessageLevel
+from src.core.enums.service_type import ServiceType
+from src.core.models import Download, DownloadStatus
 from src.interfaces.service_interfaces import IErrorHandler
+from src.services.events.queue import Message
 from src.services.instagram.auth_manager import InstagramAuthManager
 from src.services.detection.link_detector import (
     DetectionResult,
     LinkHandlerInterface,
     auto_register_handler,
 )
+from src.ui.components.loading_dialog import LoadingDialog
 from src.utils.error_helpers import extract_error_context
 from src.utils.logger import get_logger
 from src.utils.type_helpers import (
@@ -122,13 +128,58 @@ class InstagramHandler(BaseHandler, LinkHandlerInterface):
 
             root = get_root(ui_context)
 
+            # Get UI context to access downloads coordinator
+            ctx = get_ui_context(ui_context)
+            if not ctx:
+                logger.error("[INSTAGRAM_HANDLER] Could not get UI context")
+                if self.error_handler:
+                    self.error_handler.handle_service_failure("Instagram Handler", "context", "Could not access UI context", url)
+                return
+
+            # Add download immediately when Instagram URL is detected
+            logger.info("[INSTAGRAM_HANDLER] Adding Instagram URL to downloads immediately")
+            download_name = f"Instagram - {url[:50]}..." if len(url) > 50 else f"Instagram - {url}"
+            download = Download(
+                name=download_name,
+                url=url,
+                status=DownloadStatus.PENDING,
+                service_type=ServiceType.INSTAGRAM
+            )
+            
+            # Track download index for potential removal if auth fails
+            download_index_ref = {"index": None}
+            
+            def add_download_to_list():
+                try:
+                    # Add download directly via downloads coordinator
+                    if hasattr(ctx, 'downloads') and hasattr(ctx.downloads, 'add_download'):
+                        ctx.downloads.add_download(download)
+                        logger.info("[INSTAGRAM_HANDLER] Download added to list directly")
+                        
+                        # Find the index of the added download
+                        if hasattr(ctx.downloads, 'get_downloads'):
+                            downloads = ctx.downloads.get_downloads()
+                            for idx, d in enumerate(downloads):
+                                if d.url == url:
+                                    download_index_ref["index"] = idx
+                                    logger.info(f"[INSTAGRAM_HANDLER] Tracked download at index: {idx}")
+                                    break
+                    else:
+                        # Fallback to callback if downloads coordinator not available
+                        logger.warning("[INSTAGRAM_HANDLER] Downloads coordinator not available, using callback")
+                        download_callback(url)
+                except Exception as e:
+                    logger.error(f"[INSTAGRAM_HANDLER] Error adding download: {e}", exc_info=True)
+                    if self.error_handler:
+                        self.error_handler.handle_exception(e, "Adding Instagram download", "Instagram Handler")
+            
+            schedule_on_main_thread(root, add_download_to_list, immediate=True)
+
             # Check if authenticated, if not trigger authentication flow
             if not self.instagram_auth_manager.is_authenticated():
                 logger.info("[INSTAGRAM_HANDLER] Instagram not authenticated, triggering auth flow")
                 
-                # Get platform dialog coordinator from UI context (polymorphic access)
-                ctx = get_ui_context(ui_context)
-                if not ctx or not hasattr(ctx, 'platform_dialogs'):
+                if not hasattr(ctx, 'platform_dialogs'):
                     logger.error("[INSTAGRAM_HANDLER] Could not get platform dialog coordinator from UI context")
                     if self.error_handler:
                         self.error_handler.handle_service_failure("Instagram Handler", "authentication", "Could not access authentication dialog", url)
@@ -136,27 +187,41 @@ class InstagramHandler(BaseHandler, LinkHandlerInterface):
                 
                 platform_coordinator = ctx.platform_dialogs
                     
-                def on_auth_complete():
-                    """Callback after authentication completes."""
-                    if self.instagram_auth_manager.is_authenticated():
-                        logger.info("[INSTAGRAM_HANDLER] Authentication successful, proceeding with download")
-                        # Proceed with download after successful authentication
-                        def process_instagram_download():
-                            try:
-                                logger.info(f"[INSTAGRAM_HANDLER] Calling download callback for: {url}")
-                                download_callback(url)
-                                logger.info("[INSTAGRAM_HANDLER] Download callback executed")
-                            except Exception as e:
-                                logger.error(f"[INSTAGRAM_HANDLER] Error processing Instagram download: {e}", exc_info=True)
-                                if self.error_handler:
-                                    error_context = extract_error_context(e, "Instagram", "download processing", url)
-                                    self.error_handler.handle_exception(e, "Processing Instagram download", "Instagram")
-                        
-                        schedule_on_main_thread(root, process_instagram_download, immediate=True)
+                def on_auth_complete(status):
+                    """Callback after authentication completes.
+                    
+                    Args:
+                        status: InstagramAuthStatus indicating authentication result
+                    """
+                    logger.info(f"[INSTAGRAM_HANDLER] Auth callback received status: {status}")
+                    
+                    if status == InstagramAuthStatus.AUTHENTICATED and self.instagram_auth_manager.is_authenticated():
+                        logger.info("[INSTAGRAM_HANDLER] Authentication successful, download already added")
+                        # Download was already added, nothing more to do
                     else:
-                        logger.warning("[INSTAGRAM_HANDLER] Authentication failed or cancelled")
+                        logger.warning(f"[INSTAGRAM_HANDLER] Authentication failed or cancelled: {status}")
+                        # Remove download if authentication failed
+                        if download_index_ref["index"] is not None and hasattr(ctx, 'downloads'):
+                            def remove_download():
+                                try:
+                                    ctx.downloads.remove_downloads([download_index_ref["index"]])
+                                    logger.info(f"[INSTAGRAM_HANDLER] Removed download at index {download_index_ref['index']} due to auth failure")
+                                except Exception as e:
+                                    logger.error(f"[INSTAGRAM_HANDLER] Error removing download: {e}", exc_info=True)
+                            schedule_on_main_thread(root, remove_download, immediate=True)
+                        
+                        # Show error in status bar
+                        if self.message_queue:
+                            error_msg = "Instagram authentication failed. Please try again."
+                            self.message_queue.add_message(
+                                Message(
+                                    text=error_msg,
+                                    level=MessageLevel.ERROR,
+                                    title="Instagram Authentication Failed"
+                                )
+                            )
 
-                # Trigger authentication
+                # Trigger authentication (loading dialog will be shown after credentials are entered)
                 platform_coordinator.authenticate_instagram(root, on_auth_complete)
                 return
 

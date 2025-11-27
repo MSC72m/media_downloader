@@ -192,7 +192,8 @@
     "metadata_fetch_timeout": 90,
     "polling_interval": 0.5,
     "format_options": ["Video + Audio", "Audio Only", "Video Only"],
-    "message_timeout_seconds": 5
+    "message_timeout_seconds": 5,
+    "error_message_timeout_seconds": 15
   }
 }
 

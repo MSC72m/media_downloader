@@ -331,6 +331,7 @@ class UIConfig(BaseModel):
         description="Format options for download dialogs"
     )
     message_timeout_seconds: int = Field(default=5, description="Timeout for status bar messages in seconds (after which shows 'Ready' or next message)")
+    error_message_timeout_seconds: int = Field(default=15, description="Timeout for error messages in seconds (longer than regular messages)")
 
 
 class AppConfig(BaseSettings):

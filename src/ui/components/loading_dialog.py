@@ -1,12 +1,12 @@
-"""Simple loading dialog with animated dots."""
+"""Loading dialog with animated dots."""
 
 import customtkinter as ctk
 
 from ...utils.window import WindowCenterMixin
 
 
-class SimpleLoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
-    """Simple loading dialog with animated dots."""
+class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
+    """Loading dialog with animated dots."""
 
     def __init__(self, parent, message: str = "Loading", timeout: int = 90, **kwargs):
         super().__init__(parent, **kwargs)
@@ -91,9 +91,22 @@ class SimpleLoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
     def close(self):
         """Close the dialog."""
         self.stop_animation()
+        # Release grab before destroying
+        try:
+            if hasattr(self, 'grab_current') and self.grab_current():
+                self.grab_release()
+        except Exception:
+            pass
         self.destroy()
 
     def destroy(self):
         """Clean up the dialog."""
         self.stop_animation()
+        # Release grab before destroying
+        try:
+            if hasattr(self, 'grab_current') and self.grab_current():
+                self.grab_release()
+        except Exception:
+            pass
         super().destroy()
+

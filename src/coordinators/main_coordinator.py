@@ -6,7 +6,7 @@ import customtkinter as ctk
 
 from src.core.config import AppConfig, get_config
 from src.core.enums.message_level import MessageLevel
-from src.core.models import Message
+from src.services.events.queue import Message
 
 from src.interfaces.service_interfaces import (
     IErrorHandler,

@@ -23,6 +23,7 @@ class StatusBar(ctk.CTkFrame):
         self._running = True
         self._current_message: str | None = None
         self._message_timeout: float | None = None
+        self._is_error_message: bool = False  # Track if current message is an error
         self._config = get_config()
 
         # Configure grid
@@ -101,21 +102,26 @@ class StatusBar(ctk.CTkFrame):
         self._add_message(message)
 
     def show_error(self, message: str):
-        """Show error message - thread-safe via queue with timeout."""
+        """Show error message - thread-safe via queue with longer timeout."""
         error_text = f"Error: {message}"
-        self._add_message(error_text)
+        self._add_message(error_text, is_error=True)
 
     def show_warning(self, message: str):
         """Show warning message - thread-safe via queue with timeout."""
         warning_text = f"Warning: {message}"
         self._add_message(warning_text)
 
-    def _add_message(self, message: str):
-        """Add message to queue and process it with timeout."""
+    def _add_message(self, message: str, is_error: bool = False):
+        """Add message to queue and process it with timeout.
+        
+        Args:
+            message: Message text to display
+            is_error: Whether this is an error message (uses longer timeout)
+        """
         def _update():
             try:
-                # Add to message queue
-                self._message_queue.put(message)
+                # Add to message queue with error flag
+                self._message_queue.put((message, is_error))
                 # Process messages (will handle timeout)
                 self._process_messages()
             except Exception as e:
@@ -137,12 +143,26 @@ class StatusBar(ctk.CTkFrame):
                     # Timeout reached - clear current message
                     self._current_message = None
                     self._message_timeout = None
+                    self._is_error_message = False
 
             # If no current message, get next from queue
             if not self._current_message and not self._message_queue.empty():
                 try:
-                    self._current_message = self._message_queue.get_nowait()
-                    timeout_seconds = self._config.ui.message_timeout_seconds
+                    message_data = self._message_queue.get_nowait()
+                    # Handle both old format (string) and new format (tuple)
+                    if isinstance(message_data, tuple):
+                        self._current_message, self._is_error_message = message_data
+                    else:
+                        # Backward compatibility with old string format
+                        self._current_message = message_data
+                        self._is_error_message = False
+                    
+                    # Use longer timeout for error messages
+                    if self._is_error_message:
+                        timeout_seconds = self._config.ui.error_message_timeout_seconds
+                    else:
+                        timeout_seconds = self._config.ui.message_timeout_seconds
+                    
                     self._message_timeout = current_time + timeout_seconds
                     # Display the message
                     self.status_label.configure(text=self._current_message)

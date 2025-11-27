@@ -209,4 +209,5 @@ ui:
   polling_interval: 0.5  # Polling interval for async operations in seconds
   format_options: ["Video + Audio", "Audio Only", "Video Only"]
   message_timeout_seconds: 5  # Timeout for status bar messages in seconds (after which shows 'Ready' or next message)
+  error_message_timeout_seconds: 15  # Timeout for error messages in seconds (longer than regular messages)
 

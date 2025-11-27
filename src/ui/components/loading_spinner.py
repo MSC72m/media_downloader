@@ -139,10 +139,12 @@ class SmallLoadingSpinner(ctk.CTkToplevel, WindowCenterMixin):
         if parent and hasattr(parent, "winfo_exists") and parent.winfo_exists():
             # Transient to parent for better window management
             self.transient(parent)
-            # WindowCenterMixin will automatically detect and center on parent
-        else:
-            # Center on screen (WindowCenterMixin handles this automatically)
-            pass
+        
+        # Update geometry before centering
+        self.update_idletasks()
+        
+        # Center the window using helper
+        self.center_window()
 
         self._safe_deiconify()  # Show the window
         self.lift()  # Bring to front

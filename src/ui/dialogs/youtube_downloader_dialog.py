@@ -15,7 +15,7 @@ from src.services.events.queue import Message
 from ...interfaces.youtube_metadata import YouTubeMetadata
 from ...utils.logger import get_logger
 from ...utils.window import WindowCenterMixin
-from ..components.simple_loading_dialog import SimpleLoadingDialog
+from ..components.loading_dialog import LoadingDialog
 from ..components.subtitle_checklist import SubtitleChecklist
 
 logger = get_logger(__name__)
@@ -47,7 +47,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.video_metadata = pre_fetched_metadata
         self.error_handler = error_handler
         self.message_queue = message_queue
-        self.loading_overlay: SimpleLoadingDialog | None = None
+        self.loading_overlay: LoadingDialog | None = None
         self.selected_cookie_path = initial_cookie_path
         self.widgets_created = False
         self._metadata_handler_called = False
@@ -154,7 +154,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         try:
             # Create overlay with root window as parent so it shows independently
             # This allows the main dialog to stay hidden during fetch
-            self.loading_overlay = SimpleLoadingDialog(
+            self.loading_overlay = LoadingDialog(
                 self.master, "Fetching YouTube metadata...", timeout=self.config.ui.metadata_fetch_timeout
             )
             logger.debug("Loading overlay created successfully")

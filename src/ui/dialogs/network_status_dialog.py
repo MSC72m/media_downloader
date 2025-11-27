@@ -7,9 +7,10 @@ import customtkinter as ctk
 
 from src.core.enums import NetworkStatus, ServiceType
 from src.services.network.checker import check_all_services, check_internet_connection
+from src.utils.window import WindowCenterMixin
 
 
-class NetworkStatusDialog(ctk.CTkToplevel):
+class NetworkStatusDialog(ctk.CTkToplevel, WindowCenterMixin):
     """Dialog to show network connectivity status."""
 
     def __init__(self, parent) -> None:
@@ -27,11 +28,9 @@ class NetworkStatusDialog(ctk.CTkToplevel):
         self.resizable(False, False)
         self.transient(parent)
 
-        # Center on parent
+        # Center the window using helper
         self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
-        self.geometry(f"+{x}+{y}")
+        self.center_window()
 
         # Update to ensure window is drawn
         self.update_idletasks()
