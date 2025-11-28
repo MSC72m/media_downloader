@@ -84,9 +84,9 @@ def test_metadata_service_safe_decode_bytes():
 
     for i, (test_bytes, expected) in enumerate(problematic_outputs):
         result = _safe_decode_bytes(test_bytes)
-        assert (
-            result == expected
-        ), f"Output test {i + 1} failed: expected {expected!r}, got {result!r}"
+        assert result == expected, (
+            f"Output test {i + 1} failed: expected {expected!r}, got {result!r}"
+        )
 
 
 def test_subprocess_encoding_parameters():
@@ -143,16 +143,16 @@ def test_metadata_service_subprocess_encoding():
         # Verify the call (only if the service actually uses subprocess)
         if mock_subprocess.called:
             call_kwargs = mock_subprocess.call_args[1]
-            assert (
-                "encoding" in call_kwargs
-            ), "subprocess.run should be called with encoding parameter"
-            assert (
-                call_kwargs["encoding"] == "utf-8"
-            ), f"Expected UTF-8 encoding, got {call_kwargs.get('encoding')}"
+            assert "encoding" in call_kwargs, (
+                "subprocess.run should be called with encoding parameter"
+            )
+            assert call_kwargs["encoding"] == "utf-8", (
+                f"Expected UTF-8 encoding, got {call_kwargs.get('encoding')}"
+            )
             assert "errors" in call_kwargs, "subprocess.run should be called with errors parameter"
-            assert (
-                call_kwargs["errors"] == "replace"
-            ), f"Expected 'replace' error handling, got {call_kwargs.get('errors')}"
+            assert call_kwargs["errors"] == "replace", (
+                f"Expected 'replace' error handling, got {call_kwargs.get('errors')}"
+            )
 
 
 def test_original_0xb0_error_scenario():

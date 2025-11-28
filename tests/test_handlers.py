@@ -181,24 +181,24 @@ class TestHandlerRegistration:
 
         for handler in handlers:
             # Check for required methods from LinkHandlerInterface
-            assert hasattr(
-                handler, "can_handle"
-            ), f"{handler.__class__.__name__} missing can_handle"
-            assert hasattr(
-                handler, "get_patterns"
-            ), f"{handler.__class__.__name__} missing get_patterns"
-            assert hasattr(
-                handler, "get_ui_callback"
-            ), f"{handler.__class__.__name__} missing get_ui_callback"
-            assert callable(
-                handler.can_handle
-            ), f"{handler.__class__.__name__}.can_handle is not callable"
-            assert callable(
-                handler.get_patterns
-            ), f"{handler.__class__.__name__}.get_patterns is not callable"
-            assert callable(
-                handler.get_ui_callback
-            ), f"{handler.__class__.__name__}.get_ui_callback is not callable"
+            assert hasattr(handler, "can_handle"), (
+                f"{handler.__class__.__name__} missing can_handle"
+            )
+            assert hasattr(handler, "get_patterns"), (
+                f"{handler.__class__.__name__} missing get_patterns"
+            )
+            assert hasattr(handler, "get_ui_callback"), (
+                f"{handler.__class__.__name__} missing get_ui_callback"
+            )
+            assert callable(handler.can_handle), (
+                f"{handler.__class__.__name__}.can_handle is not callable"
+            )
+            assert callable(handler.get_patterns), (
+                f"{handler.__class__.__name__}.get_patterns is not callable"
+            )
+            assert callable(handler.get_ui_callback), (
+                f"{handler.__class__.__name__}.get_ui_callback is not callable"
+            )
 
 
 class TestYouTubeHandler:
@@ -511,9 +511,9 @@ class TestDownloadHandler:
 
         for url, expected_type in test_cases:
             detected_type = handler._detect_service_type(url)
-            assert (
-                detected_type == expected_type
-            ), f"Expected {expected_type}, got {detected_type} for {url}"
+            assert detected_type == expected_type, (
+                f"Expected {expected_type}, got {detected_type} for {url}"
+            )
 
 
 class TestHandlerIntegration:
