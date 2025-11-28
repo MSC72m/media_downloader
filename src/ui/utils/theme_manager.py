@@ -87,21 +87,6 @@ class ThemeManager(EventBus[ThemeEvent]):
         # Must be called before any widgets are created for proper initialization
         ctk.set_appearance_mode(appearance.value)
         
-        # Map color themes to CTK built-in themes for button colors
-        # CTK only supports: "blue", "green", "dark-blue"
-        color_to_ctk_theme = {
-            ColorTheme.BLUE: "blue",
-            ColorTheme.GREEN: "green",
-            ColorTheme.PURPLE: "blue",
-            ColorTheme.ORANGE: "blue",
-            ColorTheme.TEAL: "green",
-            ColorTheme.PINK: "blue",
-            ColorTheme.INDIGO: "blue",
-            ColorTheme.AMBER: "blue",
-        }
-        ctk_theme = color_to_ctk_theme.get(color, "blue")
-        ctk.set_default_color_theme(ctk_theme)
-        
         # Get theme JSON and color scheme from config
         self._theme_json = self.config.ui.theme.get_theme_json(appearance, color)
         color_scheme = self._get_color_scheme(appearance, color)

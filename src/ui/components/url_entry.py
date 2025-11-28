@@ -23,7 +23,7 @@ class URLEntryFrame(ctk.CTkFrame):
             [str, str], None
         ],  # Callback signature: (url: str, name: str) -> None
         on_youtube_detected: Callable[[str], None] | None = None,
-        theme_manager: Optional["ThemeManager"] = None,
+        theme_manager: Optional[ThemeManager] = None,
     ):
         super().__init__(master, fg_color="transparent")
 
@@ -37,27 +37,27 @@ class URLEntryFrame(ctk.CTkFrame):
         # Configure grid
         self.grid_columnconfigure(0, weight=1)
 
-        # URL Entry with modern styling - sleek design
+        # URL Entry - clean modern design
         self.url_entry = ctk.CTkEntry(
             self, 
             placeholder_text="Enter a URL", 
-            height=46, 
-            font=("Roboto", 13),
-            corner_radius=12,
+            height=40, 
+            font=("Roboto", 12),
+            corner_radius=8,
             border_width=1,
         )
-        self.url_entry.grid(row=0, column=0, sticky="ew", padx=(0, 12))
+        self.url_entry.grid(row=0, column=0, sticky="ew", padx=(0, 10))
         self.url_entry.bind("<Return>", lambda e: self.handle_add())
 
-        # Add Button with modern styling - primary action with emphasis
+        # Add Button - clean and consistent
         self.add_button = ctk.CTkButton(
             self,
             text="Add",
             command=self.handle_add,
-            width=110,
-            height=46,
-            font=("Roboto", 14, "bold"),
-            corner_radius=12,
+            width=95,
+            height=40,
+            font=("Roboto", 12, "bold"),
+            corner_radius=8,
             border_width=0,
         )
         self.add_button.grid(row=0, column=1)
@@ -93,18 +93,18 @@ class URLEntryFrame(ctk.CTkFrame):
         
         # Check if it's a YouTube URL using regex pattern
         if self.on_youtube_detected and _YOUTUBE_DOMAIN_PATTERN.search(url):
-            self.on_youtube_detected(url)
-            self.clear()
-            return
-
-            dialog = CenteredInputDialog(
-                text="Enter a name for this link:", title="Link Name"
-            )
-            name = dialog.get_input()
-
-            if name:
-                self.on_add(url, name)  # Call with two arguments
+                self.on_youtube_detected(url)
                 self.clear()
+                return
+
+        dialog = CenteredInputDialog(
+            text="Enter a name for this link:", title="Link Name"
+        )
+        name = dialog.get_input()
+
+        if name:
+            self.on_add(url, name)  # Call with two arguments
+            self.clear()
 
     def clear(self):
         """Clear the URL entry field."""

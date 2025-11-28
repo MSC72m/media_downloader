@@ -47,21 +47,21 @@ class StatusBar(ctk.CTkFrame):
         self.center_frame.grid(row=0, column=0, sticky="ew")
         self.center_frame.grid_columnconfigure(0, weight=1)
 
-        # Status label - start empty, will be updated by connectivity check
+        # Status label - clean typography
         self.status_label = ctk.CTkLabel(
             self.center_frame, text="Initializing...", font=("Roboto", 12)
         )
-        self.status_label.grid(row=0, column=0, pady=(8, 8))
+        self.status_label.grid(row=0, column=0, pady=(5, 4))
 
-        # Progress bar with modern styling
+        # Progress bar - prominent and clean
         self.progress_bar = ctk.CTkProgressBar(
             self.center_frame,
-            height=18,
-            width=400,
-            corner_radius=9,
+            height=22,
+            width=450,
+            corner_radius=8,
             border_width=0,
         )
-        self.progress_bar.grid(row=1, column=0, sticky="ew", pady=(0, 12), padx=20)
+        self.progress_bar.grid(row=1, column=0, sticky="ew", pady=(0, 5), padx=20)
         self.progress_bar.set(0)
         
         # Apply initial theme colors now that widgets are created
@@ -301,7 +301,7 @@ class StatusBar(ctk.CTkFrame):
             progress_color = button_config.get("fg_color")
             if progress_color:
                 self.progress_bar.configure(progress_color=progress_color)
-    
+
     def destroy(self):
         """Clean up resources."""
         self._running = False

@@ -21,20 +21,21 @@ class DownloadListView(ctk.CTkFrame):
         self.on_selection_change = on_selection_change
         self._item_line_mapping: dict[str, int] = {}  # Maps item name to line number
         self._downloads: list[Download] = []  # Store actual Download objects
-        
+
         # Subscribe to theme manager - injected with default
         self._theme_manager = theme_manager or get_theme_manager(master.winfo_toplevel())
         self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
 
-        # Create text widget for displaying downloads with modern styling
+        # Create text widget - clean modern design
         self.list_view = ctk.CTkTextbox(
             self, 
             activate_scrollbars=True, 
             height=300, 
             font=("Roboto", 12),
-            corner_radius=12,
+            corner_radius=8,
+            border_width=1,
         )
-        self.list_view.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+        self.list_view.pack(fill=tk.BOTH, expand=True, padx=0, pady=0)
     
     def _on_theme_changed(self, appearance, color):
         """Handle theme change event - apply custom colors."""
@@ -230,10 +231,10 @@ class DownloadListView(ctk.CTkFrame):
             logger.debug("[DOWNLOAD_LIST] No completed downloads to remove")
             return 0
 
-        logger.info(
-            f"[DOWNLOAD_LIST] Removing {len(completed_indices)} completed downloads"
-        )
-        self.remove_downloads(completed_indices)
+            logger.info(
+                f"[DOWNLOAD_LIST] Removing {len(completed_indices)} completed downloads"
+            )
+            self.remove_downloads(completed_indices)
         return len(completed_indices)
 
     def has_completed_downloads(self) -> bool:

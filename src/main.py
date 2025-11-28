@@ -221,27 +221,32 @@ class MediaDownloaderApp(ctk.CTk):
 
     def _create_ui(self):
         """Create all UI components."""
-        # Header bar with title and theme switcher - modern design
+        # Header bar - minimal modern design with properly centered title
         self.header_frame = ctk.CTkFrame(
             self.main_frame, 
             fg_color="transparent",
             corner_radius=0
         )
-        # Configure for centered title
+        # Three-column layout for proper centering: [spacer] [title] [theme_switcher]
         self.header_frame.grid_columnconfigure(0, weight=1)
-        self.header_frame.grid_columnconfigure(1, weight=0)
+        self.header_frame.grid_columnconfigure(1, weight=0)  # Title - no expansion
+        self.header_frame.grid_columnconfigure(2, weight=1)
         
-        # Title centered with better spacing
+        # Left spacer for centering
+        left_spacer = ctk.CTkFrame(self.header_frame, fg_color="transparent", width=1)
+        left_spacer.grid(row=0, column=0, sticky="ew")
+        
+        # Title - centered, clean typography
         self.title_label = ctk.CTkLabel(
             self.header_frame, 
             text="Media Downloader", 
-            font=("Roboto", 36, "bold")
+            font=("Roboto", 28, "bold")
         )
-        self.title_label.grid(row=0, column=0, sticky="", pady=(0, 25))
+        self.title_label.grid(row=0, column=1, sticky="", pady=(0, 20))
         
-        # Theme switcher - compact and modern
+        # Theme switcher - right aligned
         self.theme_switcher = ThemeSwitcher(self.header_frame, self.theme_manager)
-        self.theme_switcher.grid(row=0, column=1, sticky="e", pady=(0, 25))
+        self.theme_switcher.grid(row=0, column=2, sticky="e", pady=(0, 20), padx=(15, 0))
 
         # Get coordinator for direct wiring
         coord = self.orchestrator.event_coordinator
@@ -334,17 +339,17 @@ class MediaDownloaderApp(ctk.CTk):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        self.main_frame.grid(row=0, column=0, sticky="nsew", padx=25, pady=25)
+        # Clean minimal spacing - balanced layout
+        self.main_frame.grid(row=0, column=0, sticky="nsew", padx=30, pady=25)
         self.main_frame.grid_columnconfigure(0, weight=1)
         self.main_frame.grid_rowconfigure(3, weight=1)  # Download list row
 
-        # Arrange widgets with modern spacing
+        # Arrange widgets with clean, balanced spacing
         self.header_frame.grid(row=0, column=0, sticky="ew", pady=(0, 20))
         self.url_entry.grid(row=1, column=0, sticky="ew", pady=(0, 15))
         # OptionsBar is empty (no content) - skip gridding to avoid empty space
-        # self.options_bar.grid(row=2, column=0, sticky="ew", pady=(0, 10))
         self.download_list.grid(row=3, column=0, sticky="nsew", pady=(0, 15))
-        self.action_buttons.grid(row=4, column=0, sticky="ew", pady=(0, 15))
+        self.action_buttons.grid(row=4, column=0, sticky="ew", pady=(0, 6))
         self.status_bar.grid(row=5, column=0, sticky="ew")
 
     def _setup_menu(self):
@@ -382,12 +387,12 @@ class MediaDownloaderApp(ctk.CTk):
             logger.info("[MAIN_APP] Graceful shutdown complete")
         except Exception as e:
             logger.error(f"[MAIN_APP] Error during graceful shutdown: {e}", exc_info=True)
-    
+
     def _on_closing(self):
         """Handle application closing."""
         logger.info("[MAIN_APP] Application closing - cleaning up")
         self._graceful_shutdown()
-        
+
         # Destroy the window
         try:
             self.destroy()

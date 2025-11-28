@@ -39,26 +39,25 @@ class ActionButtonBar(ctk.CTkFrame):
         self._theme_manager = theme_manager or get_theme_manager(root_window)
         self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
 
-        # Modern button style - sleek and contemporary
+        # Clean modern button style - consistent and polished
         self.button_style = {
-            "height": 46, 
-            "font": ("Roboto", 13, "normal"), 
-            "corner_radius": 12,
+            "height": 40, 
+            "font": ("Roboto", 12), 
+            "corner_radius": 8,
             "border_width": 0,
-            "fg_color": "transparent",  # Will be set by theme
         }
 
-        # Remove Button - modern spacing with better visual hierarchy
+        # Remove Button - minimal spacing
         self.remove_button = ctk.CTkButton(
             self, text="Remove Selected", command=on_remove, **self.button_style
         )
-        self.remove_button.grid(row=0, column=0, padx=(0, 10), pady=2, sticky="ew")
+        self.remove_button.grid(row=0, column=0, padx=(0, 8), pady=0, sticky="ew")
 
         # Clear Button
         self.clear_button = ctk.CTkButton(
             self, text="Clear All", command=on_clear, **self.button_style
         )
-        self.clear_button.grid(row=0, column=1, padx=(0, 10), pady=2, sticky="ew")
+        self.clear_button.grid(row=0, column=1, padx=(0, 8), pady=0, sticky="ew")
 
         # Clear Completed Button
         self.clear_completed_button = ctk.CTkButton(
@@ -67,7 +66,7 @@ class ActionButtonBar(ctk.CTkFrame):
             command=on_clear_completed,
             **self.button_style,
         )
-        self.clear_completed_button.grid(row=0, column=2, padx=(0, 10), pady=2, sticky="ew")
+        self.clear_completed_button.grid(row=0, column=2, padx=(0, 8), pady=0, sticky="ew")
 
         # Download Button - primary action with emphasis
         def on_download_with_logging():
@@ -84,24 +83,23 @@ class ActionButtonBar(ctk.CTkFrame):
                     exc_info=True,
                 )
 
-        download_style = {
-            **self.button_style, 
-            "font": ("Roboto", 14, "bold"),
-            "height": 48,  # Slightly taller for emphasis
-        }
+        # Download button - primary action with consistent styling
         self.download_button = ctk.CTkButton(
             self,
             text="Download All",
             command=on_download_with_logging,
-            **download_style,
+            height=40,
+            font=("Roboto", 12, "bold"),
+            corner_radius=8,
+            border_width=0,
         )
-        self.download_button.grid(row=0, column=3, padx=(0, 10), pady=2, sticky="ew")
+        self.download_button.grid(row=0, column=3, padx=(0, 8), pady=0, sticky="ew")
 
         # Manage Files Button
         self.manage_files_button = ctk.CTkButton(
             self, text="Manage Files", command=on_manage_files, **self.button_style
         )
-        self.manage_files_button.grid(row=0, column=4, padx=0, pady=2, sticky="ew")
+        self.manage_files_button.grid(row=0, column=4, padx=0, pady=0, sticky="ew")
 
         # Ensure all buttons start in enabled state
         logger.info("[ACTION_BUTTONS] Setting initial button states to enabled")

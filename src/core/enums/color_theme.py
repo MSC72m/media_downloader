@@ -13,4 +13,10 @@ class ColorTheme(StrEnum):
     PINK = "pink"
     INDIGO = "indigo"
     AMBER = "amber"
+    RED = "red"
+    CYAN = "cyan"
+    EMERALD = "emerald"
+    ROSE = "rose"
+    VIOLET = "violet"
+    SLATE = "slate"
 
