@@ -334,6 +334,7 @@ class UIConfig(BaseModel):
     error_message_timeout_seconds: int = Field(default=15, description="Timeout for error messages in seconds (longer than regular messages)")
     loading_dialog_max_dots: int = Field(default=3, description="Maximum number of dots in loading dialog before cycling")
     loading_dialog_animation_interval: int = Field(default=500, description="Milliseconds between dot animation updates in loading dialog")
+    subtitle_batch_size: int = Field(default=5, description="Number of subtitles to load per batch in UI to prevent freezing")
 
 
 class AppConfig(BaseSettings):

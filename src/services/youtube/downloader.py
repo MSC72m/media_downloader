@@ -116,36 +116,29 @@ class YouTubeDownloader(BaseDownloader):
             )
 
         # Priority order: auto_cookie_manager > old cookie_manager
+        # Use early returns and comprehensions
+        cookie_path = None
+        
         if self.auto_cookie_manager:
-            # Use new auto-generated cookies
-            try:
-                if self.auto_cookie_manager.is_ready():
+            if not self.auto_cookie_manager.is_ready():
+                if self.auto_cookie_manager.is_generating():
+                    logger.warning("[YOUTUBE_DOWNLOADER] Cookies are still generating, download may fail for age-restricted content")
+                else:
+                    logger.warning("[YOUTUBE_DOWNLOADER] Auto cookie manager not ready")
+            else:
+                try:
                     cookie_path = self.auto_cookie_manager.get_cookies()
                     if cookie_path:
                         options["cookiefile"] = cookie_path
-                        logger.info(
-                            f"[YOUTUBE_DOWNLOADER] Using auto-generated cookies: {cookie_path}"
-                        )
-                    else:
-                        logger.warning(
-                            "[YOUTUBE_DOWNLOADER] Auto cookie manager ready but no cookie file available"
-                        )
-                elif self.auto_cookie_manager.is_generating():
-                    logger.warning(
-                        "[YOUTUBE_DOWNLOADER] Cookies are still generating, download may fail for age-restricted content"
-                    )
-                else:
-                    logger.warning("[YOUTUBE_DOWNLOADER] Auto cookie manager not ready")
-            except Exception as e:
-                logger.error(
-                    f"[YOUTUBE_DOWNLOADER] Error getting auto-generated cookies: {e}"
-                )
-        elif self.cookie_manager:
-            # Fallback to old cookie file system
-            cookie_info = self.cookie_manager.get_cookie_info_for_ytdlp()
-            if cookie_info:
-                options.update(cookie_info)
-                logger.info("[YOUTUBE_DOWNLOADER] Using old cookie system")
+                        logger.info(f"[YOUTUBE_DOWNLOADER] Using auto-generated cookies: {cookie_path}")
+                except Exception as e:
+                    logger.error(f"[YOUTUBE_DOWNLOADER] Error getting auto-generated cookies: {e}")
+        
+        if not cookie_path and self.cookie_manager:
+            cookie_path = self.cookie_manager.get_cookies()
+            if cookie_path:
+                options["cookiefile"] = cookie_path
+                logger.info(f"[YOUTUBE_DOWNLOADER] Using cookie manager cookies: {cookie_path}")
 
         # Handle playlists
         if not self.download_playlist:

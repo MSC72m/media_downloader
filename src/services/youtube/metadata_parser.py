@@ -1,6 +1,7 @@
 """YouTube metadata parser and formatter."""
 
 import re
+from itertools import chain
 from typing import Any, Dict, List, Optional
 
 from src.core.config import AppConfig, get_config
@@ -78,54 +79,70 @@ class YouTubeMetadataParser:
         return self.config.youtube.supported_qualities
 
     def extract_formats(self, info: Dict[str, Any]) -> List[str]:
-        """Extract available format options."""
-        # Always return the 4 format options the user can choose from
-        return ["video_only", "video_audio", "audio_only", "separate"]
+        """Extract available format options.
+        
+        Returns user-friendly format names from config, not internal values.
+        Internal values are mapped in the dialog.
+        """
+        # Return user-friendly format names from config
+        return self.config.ui.format_options
 
     def extract_subtitles(self, info: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Extract subtitle information from info dict."""
-        subtitles = []
-
-        # Add "None" option first
-        subtitles.append(
+        """Extract subtitle information from info dict.
+        
+        Returns empty list if no subtitles are available.
+        If no subtitles are selected in UI, it's automatically treated as "None".
+        Only returns subtitles with valid, downloadable URLs containing video ID or timedtext pattern.
+        """
+        # Chain both subtitle dicts and process in a single loop
+        manual_subs = info.get("subtitles", {}) or {}
+        auto_subs = info.get("automatic_captions", {}) or {}
+        video_id = info.get("id", "")
+        
+        # Single list comprehension processing both dicts via chain
+        # CRITICAL: Only include subtitles with valid, downloadable HTTP URLs
+        # Must contain video ID or timedtext API pattern to be valid
+        # Config languages are ONLY for translation/mapping, NOT for showing all languages
+        result = [
             {
-                "language_code": "none",
-                "language_name": "None",
-                "is_auto_generated": False,
-                "url": "",
+                "language_code": lang_code,
+                "language_name": (
+                    f"{self._get_language_name(lang_code)} (Auto)"
+                    if is_auto
+                    else self._get_language_name(lang_code)
+                ),
+                "is_auto_generated": is_auto,
+                "url": sub_url,
             }
+            for lang_code, sub_list, is_auto in chain(
+                ((lang, sub_list, False) for lang, sub_list in manual_subs.items()),
+                ((lang, sub_list, True) for lang, sub_list in auto_subs.items()),
+            )
+            if (sub_list
+                and isinstance(sub_list, list)
+                and len(sub_list) > 0
+                and (sub_url := sub_list[0].get("url", ""))
+                and isinstance(sub_url, str)
+                and (url_stripped := sub_url.strip())
+                and url_stripped
+                and url_stripped.startswith("http")
+                and len(url_stripped) > 50  # YouTube subtitle URLs are longer
+                and ("timedtext" in url_stripped or (video_id and video_id in url_stripped)))
+        ]
+        
+        logger.info(
+            f"[METADATA_PARSER] Extracted {len(result)} valid subtitles "
+            f"(from {len(manual_subs)} manual, {len(auto_subs)} auto raw entries)"
         )
-
-        # Get manual subtitles
-        manual_subs = info.get("subtitles", {})
-        for lang_code, sub_list in manual_subs.items():
-            if sub_list:
-                subtitles.append(
-                    {
-                        "language_code": lang_code,
-                        "language_name": self._get_language_name(lang_code),
-                        "is_auto_generated": False,
-                        "url": sub_list[0].get("url", "") if isinstance(sub_list, list) else "",
-                    }
-                )
-
-        # Get automatic subtitles
-        auto_subs = info.get("automatic_captions", {})
-        for lang_code, sub_list in auto_subs.items():
-            if sub_list:
-                subtitles.append(
-                    {
-                        "language_code": lang_code,
-                        "language_name": f"{self._get_language_name(lang_code)} (Auto)",
-                        "is_auto_generated": True,
-                        "url": sub_list[0].get("url", "") if isinstance(sub_list, list) else "",
-                    }
-                )
-
-        return subtitles
+        return result
 
     def _get_language_name(self, lang_code: str) -> str:
-        """Convert language code to readable language name."""
+        """Convert language code to readable language name.
+        
+        Returns full language name from config if available,
+        otherwise returns the language code itself (not uppercase).
+        Config languages are only for translation/mapping, not for showing all languages.
+        """
         base_code = lang_code.split("-")[0].lower()
         return self.config.youtube.supported_languages.get(base_code, lang_code)
 

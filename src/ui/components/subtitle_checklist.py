@@ -2,11 +2,12 @@
 
 """Subtitle checklist component for YouTube downloads."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import Any, Dict, List
 
 import customtkinter as ctk
 
+from src.core.config import AppConfig, get_config
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -21,6 +22,7 @@ class SubtitleChecklist(ctk.CTkFrame):
         placeholder: str = "No subtitles available",
         on_change: Callable[[List[Dict[str, str]]], None] | None = None,
         height: int = 120,
+        config: AppConfig = get_config(),
         **kwargs,
     ):
         super().__init__(master, fg_color="transparent", **kwargs)
@@ -28,10 +30,14 @@ class SubtitleChecklist(ctk.CTkFrame):
         self.placeholder = placeholder
         self.on_change = on_change
         self.height = height
+        self.config = config
         self.selected_options: List[str] = []
         self.options: List[Dict[str, Any]] = []
         self.checkboxes: Dict[str, ctk.CTkCheckBox] = {}
         self.option_vars: Dict[str, ctk.BooleanVar] = {}
+        self._subtitle_generator: Iterator[Dict[str, Any]] | None = None
+        self._batch_size: int = self.config.ui.subtitle_batch_size
+        self._current_index: int = 0
 
         self._create_widgets()
 
@@ -90,42 +96,104 @@ class SubtitleChecklist(ctk.CTkFrame):
         self.status_label.pack(side="right")
 
     def set_subtitle_options(self, subtitles: list[dict[str, Any]]) -> None:
-        """Set subtitle options."""
+        """Set subtitle options with generator-based batch loading to prevent UI freeze.
+        
+        Uses a generator with offset/indexing for efficient batch loading.
+        Batch size is configurable via config.ui.subtitle_batch_size.
+        """
         try:
-            # Store the options
+            # Store all options
             self.options = subtitles or []
-
+            
             # Clear existing options
             self._clear_existing_options()
-
+            
             if not subtitles:
                 self.placeholder_label.pack(pady=20)
                 self.button_frame.pack_forget()
                 return
-
-            # Hide placeholder
+            
+            # Hide placeholder and show buttons
             self.placeholder_label.pack_forget()
             self.button_frame.pack(fill="x", pady=(5, 0))
-
-            # Create new options
-            for i, option in enumerate(subtitles):
-                self._create_option_item(option, i)
-
-            self._update_status()
-
+            
+            # Create generator for efficient batch loading with offset/indexing
+            self._subtitle_generator = self._subtitle_batch_generator(subtitles)
+            self._current_index = 0
+            
+            # Load first batch immediately
+            self._load_next_batch()
+            
         except Exception as e:
             logger.error(f"Error setting subtitle options: {e}", exc_info=True)
+    
+    def _subtitle_batch_generator(self, subtitles: List[Dict[str, Any]]) -> Iterator[Dict[str, Any]]:
+        """Generator that yields subtitles in batches with offset/indexing.
+        
+        Args:
+            subtitles: Full list of subtitles to process
+            
+        Yields:
+            Tuples of (subtitle_dict, index) for efficient batch processing
+        """
+        offset = 0
+        while offset < len(subtitles):
+            # Yield batch with indexing
+            for i, subtitle in enumerate(subtitles[offset:offset + self._batch_size], start=offset):
+                yield subtitle, i
+            offset += self._batch_size
+    
+    def _load_next_batch(self) -> None:
+        """Load next batch of subtitles using generator with offset/indexing."""
+        if not self._subtitle_generator:
+            self._update_status()
+            return
+        
+        try:
+            # Load batch using generator - efficient with offset/indexing
+            batch_items = []
+            for _ in range(self._batch_size):
+                try:
+                    subtitle, index = next(self._subtitle_generator)
+                    batch_items.append((subtitle, index))
+                except StopIteration:
+                    break
+            
+            if not batch_items:
+                self._update_status()
+                return
+            
+            # Create options for this batch using list comprehension
+            [
+                self._create_option_item(subtitle, index)
+                for subtitle, index in batch_items
+            ]
+            
+            self._current_index += len(batch_items)
+            
+            # Schedule next batch if generator has more (check if we got full batch)
+            if len(batch_items) == self._batch_size:
+                self.after(10, self._load_next_batch)  # Small delay to keep UI responsive
+            else:
+                self._update_status()
+            
+        except StopIteration:
+            self._update_status()
+        except Exception as e:
+            logger.error(f"Error loading subtitle batch: {e}", exc_info=True)
+            self._update_status()
 
     def _clear_existing_options(self):
         """Clear existing option widgets."""
-        # Clear checkboxes
-        for checkbox in self.checkboxes.values():
-            checkbox.destroy()
+        # Cancel any pending batch loads
+        self._subtitle_generator = None
+        self._current_index = 0
+        
+        # Clear checkboxes using list comprehension
+        [checkbox.destroy() for checkbox in self.checkboxes.values()]
         self.checkboxes.clear()
 
         # Clear variables
-        for var in self.option_vars.values():
-            del var
         self.option_vars.clear()
 
         # Clear selections
@@ -139,11 +207,8 @@ class SubtitleChecklist(ctk.CTkFrame):
 
             option_id = option.get("id", str(index))
             display_text = option.get("display", option_id)
-            is_auto = option.get("is_auto", False)
-
-            # Add (Auto) suffix for auto-generated subtitles
-            if is_auto:
-                display_text += " (Auto)"
+            # Note: display_text already contains "(Auto)" suffix if it's auto-generated
+            # (added in metadata_parser), so we don't add it again here
 
             # Create boolean variable
             var = ctk.BooleanVar(value=False)

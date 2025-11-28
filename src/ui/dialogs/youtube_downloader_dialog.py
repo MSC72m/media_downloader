@@ -373,11 +373,12 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             logger.warning(f"Could not update idletasks after metadata fetch: {e}")
 
         # Now that metadata is loaded, make the dialog modal
+        # Defer grab_set to avoid blocking - schedule it after UI is fully rendered
         try:
-            self.grab_set()
-            logger.debug("Dialog grab set - now modal")
+            self.after(100, lambda: self.grab_set() if self.winfo_exists() else None)
+            logger.debug("Dialog grab scheduled - will be modal after UI renders")
         except Exception as e:
-            logger.warning(f"Could not set grab: {e}")
+            logger.warning(f"Could not schedule grab: {e}")
 
         # Create main interface only after metadata is successfully fetched
         if not self.widgets_created:
@@ -623,10 +624,11 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         format_options = self.config.ui.format_options
 
         # Map user-friendly names to internal values
+        # Note: "Video Only" means video without audio track
         self.format_map = {
-            "Video + Audio": "video",
-            "Audio Only": "audio",
-            "Video Only": "video_only",
+            "Video + Audio": "video",  # Combined video+audio file
+            "Audio Only": "audio",  # Audio track only (MP3)
+            "Video Only": "video_only",  # Video track only, no audio (M4V)
         }
 
         self.format_menu = ctk.CTkOptionMenu(

@@ -115,11 +115,11 @@ class InstagramHandler(BaseHandler, LinkHandlerInterface):
 
             download_callback = get_platform_callback(ui_context, "instagram")
             if not download_callback:
-                    error_msg = "No download callback found"
-                    logger.error(f"[INSTAGRAM_HANDLER] {error_msg}")
-                    if self.error_handler:
-                        self.error_handler.handle_service_failure("Instagram Handler", "callback", error_msg, url)
-                    return
+                error_msg = "No download callback found"
+                logger.error(f"[INSTAGRAM_HANDLER] {error_msg}")
+                if self.error_handler:
+                    self.error_handler.handle_service_failure("Instagram Handler", "callback", error_msg, url)
+                return
 
             # Check authentication state (polymorphic - no if/else chains)
             if self.instagram_auth_manager.is_authenticating():

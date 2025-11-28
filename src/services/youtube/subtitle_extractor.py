@@ -48,26 +48,68 @@ class YouTubeSubtitleExtractor:
             try:
                 with yt_dlp.YoutubeDL(opts) as ydl:  # type: ignore
                     info = ydl.extract_info(url, download=False)
-                    if info:
-                        subtitles = info.get("subtitles", {})
-                        automatic_captions = info.get("automatic_captions", {})
+                    if not info:
+                        continue
+                    
+                    subtitles = info.get("subtitles", {}) or {}
+                    automatic_captions = info.get("automatic_captions", {}) or {}
+                    
+                    # Extract video ID for validation
+                    video_id = info.get("id", "")
+                    
+                    # Filter to only include subtitles with valid, downloadable HTTP URLs
+                    # CRITICAL: Only return subtitles that actually exist and can be downloaded
+                    # Must contain video ID or timedtext API pattern to be valid
+                    # Config languages are ONLY for translation, NOT for showing all languages
+                    valid_subtitles = {
+                        lang: sub_list
+                        for lang, sub_list in subtitles.items()
+                        if (sub_list 
+                            and isinstance(sub_list, list) 
+                            and len(sub_list) > 0
+                            and (url := sub_list[0].get("url", ""))
+                            and isinstance(url, str)
+                            and (url_stripped := url.strip())
+                            and url_stripped
+                            and url_stripped.startswith("http")
+                            and len(url_stripped) > 50  # YouTube subtitle URLs are longer
+                            and ("timedtext" in url_stripped or (video_id and video_id in url_stripped)))
+                    }
+                    
+                    valid_auto = {
+                        lang: sub_list
+                        for lang, sub_list in automatic_captions.items()
+                        if (sub_list 
+                            and isinstance(sub_list, list) 
+                            and len(sub_list) > 0
+                            and (url := sub_list[0].get("url", ""))
+                            and isinstance(url, str)
+                            and (url_stripped := url.strip())
+                            and url_stripped
+                            and url_stripped.startswith("http")
+                            and len(url_stripped) > 50  # YouTube subtitle URLs are longer
+                            and ("timedtext" in url_stripped or (video_id and video_id in url_stripped)))
+                    }
 
-                        if subtitles or automatic_captions:
-                            logger.info(
-                                f"[SUBTITLE_EXTRACTOR] Found {len(subtitles)} manual and "
-                                f"{len(automatic_captions)} auto subtitles with {client} client"
-                            )
-                            return {
-                                "subtitles": subtitles,
-                                "automatic_captions": automatic_captions,
-                            }
+                    if not (valid_subtitles or valid_auto):
+                        continue
+                    
+                    logger.info(
+                        f"[SUBTITLE_EXTRACTOR] Found {len(valid_subtitles)} manual and "
+                        f"{len(valid_auto)} auto subtitles with {client} client "
+                        f"(filtered from {len(subtitles)} manual, {len(automatic_captions)} auto)"
+                    )
+                    return {
+                        "subtitles": valid_subtitles,
+                        "automatic_captions": valid_auto,
+                    }
             except Exception as e:
                 logger.debug(f"[SUBTITLE_EXTRACTOR] {client} client subtitle extraction error: {e}")
                 continue
 
-        # Fallback: Assume English auto captions are available
-        logger.info("[SUBTITLE_EXTRACTOR] Using fallback - assuming English auto captions")
-        return {"subtitles": {}, "automatic_captions": {"en": [{"url": ""}]}}
+        # No subtitles found - return empty dicts
+        logger.info("[SUBTITLE_EXTRACTOR] No subtitles found for this video")
+        return {"subtitles": {}, "automatic_captions": {}}
 
     def _build_options(
         self,

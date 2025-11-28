@@ -195,7 +195,8 @@
     "message_timeout_seconds": 5,
     "error_message_timeout_seconds": 15,
     "loading_dialog_max_dots": 3,
-    "loading_dialog_animation_interval": 500
+    "loading_dialog_animation_interval": 500,
+    "subtitle_batch_size": 5
   }
 }
 
