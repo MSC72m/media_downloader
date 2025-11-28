@@ -153,7 +153,9 @@ class InstagramDownloader(BaseDownloader):
             content_type = path_parts[0]
             shortcode = path_parts[1]
 
-            if content_type in ["p", "reel"]:
+            # Use set for O(1) membership check instead of O(n) list check
+            post_content_types = {"p", "reel"}
+            if content_type in post_content_types:
                 return self._download_post(shortcode, save_path, progress_callback)
 
             error_msg = f"Unsupported Instagram content type: {content_type}"

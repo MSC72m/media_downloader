@@ -1,6 +1,7 @@
 """Platform Dialog Coordinator - SOLID polymorphic dialog handling."""
 
 import os
+import re
 import threading
 from abc import ABC, abstractmethod
 from functools import partial
@@ -104,6 +105,9 @@ class PinterestDialogHandler(DialogHandler):
 class SoundCloudDialogHandler(DialogHandler):
     """SoundCloud dialog handler with premium check."""
 
+    # Compiled regex pattern for premium keywords (more efficient than string 'in' check)
+    _PREMIUM_KEYWORD_PATTERN = re.compile(r"(premium|go\+|subscription|not available)", re.IGNORECASE)
+
     def show_dialog(self, url: str, on_download_callback: Callable) -> None:
         """Show SoundCloud download dialog with track info."""
         try:
@@ -135,8 +139,9 @@ class SoundCloudDialogHandler(DialogHandler):
             logger.info(f"[SOUNDCLOUD_DIALOG] Download added: {track_name}")
 
         except Exception as e:
-            error_str = str(e).lower()
-            if any(keyword in error_str for keyword in ["premium", "go+", "subscription", "not available"]):
+            error_str = str(e)
+            # Use compiled regex pattern for efficient matching
+            if self._PREMIUM_KEYWORD_PATTERN.search(error_str):
                 error_msg = "This SoundCloud track requires a Go+ subscription. Premium tracks cannot be downloaded."
                 self.error_handler.handle_service_failure("SoundCloud", "download", error_msg, url)
                 return

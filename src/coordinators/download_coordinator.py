@@ -125,7 +125,8 @@ class DownloadCoordinator:
     def _on_progress_event(
         self, download: Download, progress: float, speed: float
     ) -> None:
-        """Handle progress event - update UI."""
+        """Handle progress event - update UI immediately."""
+        # Update download list progress first (most important)
         progress_callback = self._get_ui_callback("update_download_progress")
         if progress_callback:
             try:
@@ -135,12 +136,15 @@ class DownloadCoordinator:
                 if self.error_handler:
                     self.error_handler.handle_exception(e, "Updating download progress", "Download Coordinator")
 
+        # Update status bar message (will show immediately if no current message)
         self._update_status(f"Downloading {download.name}: {progress:.1f}%")
 
     def _on_completed_event(self, download: Download) -> None:
         """Handle completion event - update UI."""
         self._refresh_ui_after_event(enable_buttons=True)
-        self._update_status(f"Download completed: {download.name}")
+        # Show success message prominently - interrupt current message to show success
+        success_msg = f"Download completed: {download.name}"
+        self._update_status(success_msg, is_error=False)
 
     def _on_failed_event(self, download: Download, error: str) -> None:
         """Handle failure event - update UI and show error dialog.
@@ -237,15 +241,10 @@ class DownloadCoordinator:
                 except Exception as e:
                     logger.error(f"[DOWNLOAD_COORDINATOR] Error disabling buttons: {e}", exc_info=True)
 
-            # Update download statuses to DOWNLOADING before starting
-            for download in downloads:
-                download.status = DownloadStatus.DOWNLOADING
-            logger.info(f"[DOWNLOAD_COORDINATOR] Set {len(downloads)} downloads to DOWNLOADING status")
-
-            # Refresh UI to show downloading state
+            # Refresh UI to show downloading state (handler will set status to DOWNLOADING)
             self._refresh_ui_after_event(enable_buttons=False)
 
-            # Now start the downloads
+            # Now start the downloads (handler will set status to DOWNLOADING)
             self.download_handler.start_downloads(
                 downloads, download_dir, progress_callback, completion_callback
             )
@@ -307,10 +306,9 @@ class DownloadCoordinator:
         """Check if there are active downloads."""
         try:
             downloads = self.get_downloads()
-            return any(
-                d.status in [DownloadStatus.PENDING, DownloadStatus.DOWNLOADING]
-                for d in downloads
-            )
+            # Use set for O(1) membership check instead of O(n) list check
+            active_statuses = {DownloadStatus.PENDING, DownloadStatus.DOWNLOADING}
+            return any(d.status in active_statuses for d in downloads)
         except Exception:
             return False
 
@@ -318,8 +316,10 @@ class DownloadCoordinator:
         """Cancel all active downloads."""
         try:
             downloads = self.get_downloads()
+            # Use set for O(1) membership check instead of O(n) list check
+            active_statuses = {DownloadStatus.PENDING, DownloadStatus.DOWNLOADING}
             for download in downloads:
-                if download.status in [DownloadStatus.PENDING, DownloadStatus.DOWNLOADING]:
+                if download.status in active_statuses:
                     self.download_handler.cancel_download(download)
             logger.info("[DOWNLOAD_COORDINATOR] Cancelled all active downloads")
         except Exception as e:

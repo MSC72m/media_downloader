@@ -100,7 +100,9 @@ class PinterestDownloader(BaseDownloader):
             if match:
                 ext = match.group(1).lower()
                 # Common image/video extensions
-                if ext in ["jpg", "jpeg", "png", "gif", "webp", "mp4", "webm"]:
+                # Use set for O(1) membership check instead of O(n) list check
+                valid_extensions = {"jpg", "jpeg", "png", "gif", "webp", "mp4", "webm"}
+                if ext in valid_extensions:
                     return f".{ext}"
             return None
         except Exception:

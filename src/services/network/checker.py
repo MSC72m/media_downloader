@@ -181,7 +181,8 @@ class HTTPNetworkChecker(BaseNetworkChecker):
                         response_time=http_time,
                         service_type=service
                     )
-                elif response.status in [401, 403]:
+                # Use set for O(1) membership check instead of O(n) list check
+                elif response.status in {401, 403}:
                     # Authentication required, but service is reachable
                     return ConnectionResult(
                         is_connected=True,
@@ -274,14 +275,16 @@ class HTTPNetworkChecker(BaseNetworkChecker):
 
                         http_time = time.time() - start_time
 
-                        # Check for successful response codes
-                        if response.status in [200, 301, 302, 307, 308]:
+                        # Check for successful response codes - use set for O(1) membership check
+                        success_statuses = {200, 301, 302, 307, 308}
+                        auth_required_statuses = {401, 403}
+                        if response.status in success_statuses:
                             return ConnectionResult(
                                 is_connected=True,
                                 response_time=http_time,
                                 service_type=service_type
                             )
-                        elif response.status in [401, 403]:
+                        elif response.status in auth_required_statuses:
                             # Auth required but service is reachable
                             return ConnectionResult(
                                 is_connected=True,

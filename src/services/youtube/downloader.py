@@ -1,6 +1,7 @@
 """YouTube downloader service implementation."""
 
 import os
+import re
 import time
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
@@ -381,15 +382,17 @@ class YouTubeDownloader(BaseDownloader):
 
     def _classify_download_error(self, error_msg: str) -> str:
         """Classify the type of download error using pattern matching."""
-        error_patterns = {
-            "rate_limit": ["HTTP Error 429"],
-            "network": ["Connection refused", "Network Error", "Unable to download", "Errno 111"],
-            "format": ["Requested format is not available", "No video formats found"],
-        }
+        # Use compiled regex patterns for efficient matching instead of string 'in' checks
+        rate_limit_pattern = re.compile(r"HTTP Error 429", re.IGNORECASE)
+        network_pattern = re.compile(r"(Connection refused|Network Error|Unable to download|Errno 111)", re.IGNORECASE)
+        format_pattern = re.compile(r"(Requested format is not available|No video formats found)", re.IGNORECASE)
 
-        for error_type, patterns in error_patterns.items():
-            if any(pattern in error_msg for pattern in patterns):
-                return error_type
+        if rate_limit_pattern.search(error_msg):
+            return "rate_limit"
+        if network_pattern.search(error_msg):
+            return "network"
+        if format_pattern.search(error_msg):
+            return "format"
 
         return "other"
 

@@ -1,5 +1,6 @@
 """Enhanced dialog for YouTube video downloads with metadata fetching."""
 
+import re
 import threading
 import time
 from collections.abc import Callable
@@ -270,12 +271,15 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                     "403": "Access forbidden. This video may require age verification or cookies.",
                 }
                 
-                if any(code in error_msg for code in error_map.keys()):
-                    for code, msg in error_map.items():
-                        if code in error_msg:
-                            error_msg = msg
-                            break
-                elif "timeout" in error_msg.lower():
+                # Use compiled regex pattern for efficient matching instead of string 'in' checks
+                error_code_pattern = re.compile(r"(429|403)")
+                timeout_pattern = re.compile(r"timeout", re.IGNORECASE)
+                
+                code_match = error_code_pattern.search(error_msg)
+                if code_match:
+                    code = code_match.group(1)
+                    error_msg = error_map.get(code, error_msg)
+                elif timeout_pattern.search(error_msg):
                     error_msg = "Connection timed out. Please check your internet connection and try again."
 
                 if not self.video_metadata:

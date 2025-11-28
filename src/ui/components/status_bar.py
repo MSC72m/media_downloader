@@ -1,4 +1,5 @@
 import queue
+import re
 import threading
 import time
 
@@ -12,6 +13,10 @@ logger = get_logger(__name__)
 
 class StatusBar(ctk.CTkFrame):
     """Status bar showing download progress and information - thread-safe via queue."""
+
+    # Compiled regex patterns for efficient matching (more efficient than string 'in' checks)
+    _SUCCESS_MESSAGE_PATTERN = re.compile(r"Download completed", re.IGNORECASE)
+    _CONNECTION_CONFIRMED_PATTERN = re.compile(r"Connection confirmed", re.IGNORECASE)
 
     def __init__(self, master):
         super().__init__(master, fg_color="transparent")
@@ -111,8 +116,8 @@ class StatusBar(ctk.CTkFrame):
         warning_text = f"Warning: {message}"
         self._add_message(warning_text)
 
-    def _add_message(self, message: str, is_error: bool = False):
-        """Add message to queue and process it with timeout.
+    def _add_message(self, message: str, is_error: bool = False) -> None:
+        """Add message to queue and show immediately if no current message.
         
         Args:
             message: Message text to display
@@ -120,10 +125,42 @@ class StatusBar(ctk.CTkFrame):
         """
         def _update():
             try:
-                # Add to message queue with error flag
+                # Check if this is a success message that should interrupt current message
+                # Use compiled regex patterns for efficient matching
+                is_success_message = bool(self._SUCCESS_MESSAGE_PATTERN.search(message))
+                is_connection_confirmed = bool(self._CONNECTION_CONFIRMED_PATTERN.search(message))
+                
+                # Track if connection confirmed was shown (to prevent immediate "Ready")
+                if is_connection_confirmed:
+                    self._connection_confirmed_shown = True
+                
+                # If no current message, show immediately
+                if not self._current_message:
+                    self._current_message = message
+                    self._is_error_message = is_error
+                    current_time = time.time()
+                    # Use longer timeout for error messages
+                    timeout_seconds = (
+                        self._config.ui.error_message_timeout_seconds
+                        if is_error
+                        else self._config.ui.message_timeout_seconds
+                    )
+                    self._message_timeout = current_time + timeout_seconds
+                    self.status_label.configure(text=message)
+                    return
+                
+                # For success messages, interrupt current message to show success
+                if is_success_message:
+                    self._current_message = message
+                    self._is_error_message = is_error
+                    current_time = time.time()
+                    timeout_seconds = self._config.ui.message_timeout_seconds
+                    self._message_timeout = current_time + timeout_seconds
+                    self.status_label.configure(text=message)
+                    return
+                
+                # Add to queue for later (will show after current message times out)
                 self._message_queue.put((message, is_error))
-                # Process messages (will handle timeout)
-                self._process_messages()
             except Exception as e:
                 logger.error(f"[STATUS_BAR] Error adding message: {e}", exc_info=True)
 
@@ -169,9 +206,13 @@ class StatusBar(ctk.CTkFrame):
                 except queue.Empty:
                     pass
 
-            # If still no message, show "Ready"
+            # If still no message, show "Ready" (default state)
+            # After "Connection confirmed" times out, show "Ready"
             if not self._current_message:
                 self.status_label.configure(text="Ready")
+                # Reset connection confirmed flag when showing Ready
+                if hasattr(self, '_connection_confirmed_shown'):
+                    self._connection_confirmed_shown = False
 
         except Exception as e:
             logger.error(f"[STATUS_BAR] Error processing messages: {e}", exc_info=True)

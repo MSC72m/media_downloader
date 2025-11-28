@@ -1,7 +1,8 @@
 """Error handling helper utilities for consistent error formatting and classification."""
 
-from typing import Optional
+import re
 from enum import Enum
+from typing import Optional
 
 from src.utils.logger import get_logger
 
@@ -78,17 +79,18 @@ def classify_error_type(error_message: str) -> ErrorType:
     """
     error_lower = error_message.lower()
 
-    network_patterns = ["connection", "network", "timeout", "dns", "socket", "refused", "unreachable"]
-    auth_patterns = ["authentication", "unauthorized", "forbidden", "401", "403", "login", "password"]
-    validation_patterns = ["invalid", "validation", "format", "malformed", "missing"]
+    # Use compiled regex patterns for efficient matching instead of string 'in' checks
+    network_pattern = re.compile(r"(connection|network|timeout|dns|socket|refused|unreachable)", re.IGNORECASE)
+    auth_pattern = re.compile(r"(authentication|unauthorized|forbidden|401|403|login|password)", re.IGNORECASE)
+    validation_pattern = re.compile(r"(invalid|validation|format|malformed|missing)", re.IGNORECASE)
 
-    if any(pattern in error_lower for pattern in network_patterns):
+    if network_pattern.search(error_lower):
         return ErrorType.NETWORK
 
-    if any(pattern in error_lower for pattern in auth_patterns):
+    if auth_pattern.search(error_lower):
         return ErrorType.AUTHENTICATION
 
-    if any(pattern in error_lower for pattern in validation_patterns):
+    if validation_pattern.search(error_lower):
         return ErrorType.VALIDATION
 
     return ErrorType.UNKNOWN

@@ -350,7 +350,8 @@ class ApplicationOrchestrator:
         if is_connected:
             logger.info("[ORCHESTRATOR] Connectivity check: Connected")
             if status_bar:
-                status_bar.show_message("Ready!")
+                # Show "Connection confirmed" immediately, then "Ready" after timeout
+                status_bar.show_message("Connection confirmed")
         else:
             logger.warning(f"[ORCHESTRATOR] Connectivity check failed: {error_message}")
             if status_bar:
