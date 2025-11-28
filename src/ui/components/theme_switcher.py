@@ -57,27 +57,32 @@ class ThemeSwitcher(ctk.CTkFrame):
         )
         self.color_label.grid(row=0, column=1, padx=(0, 5), sticky="w")
         
-        # Create theme options with emoji indicators - expanded color palette
-        theme_options = {
-            "Blue": "🔵",
-            "Green": "🟢", 
-            "Purple": "🟣",
-            "Orange": "🟠",
-            "Teal": "🔷",
-            "Pink": "🌸",
-            "Indigo": "💙",
-            "Amber": "🟡",
-            "Red": "🔴",
-            "Cyan": "🔵",
-            "Emerald": "💚",
-            "Rose": "🌹",
-            "Violet": "🟣",
-            "Slate": "⚫",
+        # Create theme options with emoji indicators - mapped to ColorTheme enum
+        theme_emoji_map = {
+            ColorTheme.BLUE: "🔵",
+            ColorTheme.GREEN: "🟢", 
+            ColorTheme.PURPLE: "🟣",
+            ColorTheme.ORANGE: "🟠",
+            ColorTheme.TEAL: "🔷",
+            ColorTheme.PINK: "🌸",
+            ColorTheme.INDIGO: "💙",
+            ColorTheme.AMBER: "🟡",
+            ColorTheme.RED: "🔴",
+            ColorTheme.CYAN: "🔵",
+            ColorTheme.EMERALD: "💚",
+            ColorTheme.ROSE: "🌹",
+            ColorTheme.VIOLET: "🟣",
+            ColorTheme.SLATE: "⚫",
         }
         
-        color_values = [f"{emoji} {name}" for name, emoji in theme_options.items()]
+        # Build dropdown values from enum
+        color_values = [
+            f"{theme_emoji_map.get(theme, '🔵')} {theme.value.capitalize()}"
+            for theme in ColorTheme
+        ]
         current_color = self._theme_manager.get_color_theme()
-        current_display = f"{theme_options.get(current_color.value.capitalize(), '🔵')} {current_color.value.capitalize()}"
+        current_emoji = theme_emoji_map.get(current_color, "🔵")
+        current_display = f"{current_emoji} {current_color.value.capitalize()}"
         
         # Use CTkComboBox - modern look, prevent text editing
         self.color_dropdown = ctk.CTkComboBox(
@@ -175,13 +180,27 @@ class ThemeSwitcher(ctk.CTkFrame):
             logger.error(f"[THEME_SWITCHER] Invalid color theme: {color_name}")
     
     def _on_theme_changed(self, appearance, color):
-        """Handle theme change event - update component colors."""
+        """Handle theme change event - update component colors and icon."""
         self._apply_theme_colors()
         
-        # Update dropdown display value
-        theme_options = {
-            "Blue": "🔵", "Green": "🟢", "Purple": "🟣", "Orange": "🟠",
-            "Teal": "🔷", "Pink": "🌸", "Indigo": "💙", "Amber": "🟡",
+        # Update dropdown display value with correct icon for current theme
+        theme_emoji_map = {
+            ColorTheme.BLUE: "🔵",
+            ColorTheme.GREEN: "🟢", 
+            ColorTheme.PURPLE: "🟣",
+            ColorTheme.ORANGE: "🟠",
+            ColorTheme.TEAL: "🔷",
+            ColorTheme.PINK: "🌸",
+            ColorTheme.INDIGO: "💙",
+            ColorTheme.AMBER: "🟡",
+            ColorTheme.RED: "🔴",
+            ColorTheme.CYAN: "🔵",
+            ColorTheme.EMERALD: "💚",
+            ColorTheme.ROSE: "🌹",
+            ColorTheme.VIOLET: "🟣",
+            ColorTheme.SLATE: "⚫",
         }
-        current_display = f"{theme_options.get(color.value.capitalize(), '🔵')} {color.value.capitalize()}"
+        # Get the correct emoji for the current color theme from enum
+        emoji = theme_emoji_map.get(color, "🔵")
+        current_display = f"{emoji} {color.value.capitalize()}"
         self.color_dropdown.set(current_display)

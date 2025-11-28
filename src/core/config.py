@@ -450,11 +450,11 @@ class ThemeConfig(BaseModel):
     def get_color_schemes() -> Dict[str, Dict[str, Any]]:
         """Get all color schemes for themes (cached for performance)."""
         return {
-            # Dark themes
+            # Dark themes - with refined visible borders
             "dark_blue": {
                 "fg_color": ["#1a1a1a", "#2b2b2b"],
                 "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#3a3a3a", "#4a4a4a"],
+                "border_color": ["#505050", "#606060"],
                 "button_color": "#1f538d",
                 "button_hover_color": "#14375e",
                 "text_color": ["#ffffff", "#ffffff"],
@@ -462,7 +462,7 @@ class ThemeConfig(BaseModel):
             "dark_green": {
                 "fg_color": ["#1a1a1a", "#2b2b2b"],
                 "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#3a3a3a", "#4a4a4a"],
+                "border_color": ["#505050", "#606060"],
                 "button_color": "#2d8659",
                 "button_hover_color": "#1f5c3f",
                 "text_color": ["#ffffff", "#ffffff"],
@@ -470,7 +470,7 @@ class ThemeConfig(BaseModel):
             "dark_purple": {
                 "fg_color": ["#1a1a1a", "#2b2b2b"],
                 "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#3a3a3a", "#4a4a4a"],
+                "border_color": ["#505050", "#606060"],
                 "button_color": "#7b2cbf",
                 "button_hover_color": "#5a1f8f",
                 "text_color": ["#ffffff", "#ffffff"],
@@ -478,7 +478,7 @@ class ThemeConfig(BaseModel):
             "dark_orange": {
                 "fg_color": ["#1a1a1a", "#2b2b2b"],
                 "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#3a3a3a", "#4a4a4a"],
+                "border_color": ["#505050", "#606060"],
                 "button_color": "#d97706",
                 "button_hover_color": "#92400e",
                 "text_color": ["#ffffff", "#ffffff"],
@@ -486,7 +486,7 @@ class ThemeConfig(BaseModel):
             "dark_teal": {
                 "fg_color": ["#1a1a1a", "#2b2b2b"],
                 "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#3a3a3a", "#4a4a4a"],
+                "border_color": ["#505050", "#606060"],
                 "button_color": "#0d9488",
                 "button_hover_color": "#0f766e",
                 "text_color": ["#ffffff", "#ffffff"],
@@ -494,7 +494,7 @@ class ThemeConfig(BaseModel):
             "dark_pink": {
                 "fg_color": ["#1a1a1a", "#2b2b2b"],
                 "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#3a3a3a", "#4a4a4a"],
+                "border_color": ["#505050", "#606060"],
                 "button_color": "#db2777",
                 "button_hover_color": "#be185d",
                 "text_color": ["#ffffff", "#ffffff"],
@@ -502,7 +502,7 @@ class ThemeConfig(BaseModel):
             "dark_indigo": {
                 "fg_color": ["#1a1a1a", "#2b2b2b"],
                 "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#3a3a3a", "#4a4a4a"],
+                "border_color": ["#505050", "#606060"],
                 "button_color": "#4f46e5",
                 "button_hover_color": "#4338ca",
                 "text_color": ["#ffffff", "#ffffff"],
@@ -510,16 +510,16 @@ class ThemeConfig(BaseModel):
             "dark_amber": {
                 "fg_color": ["#1a1a1a", "#2b2b2b"],
                 "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#3a3a3a", "#4a4a4a"],
+                "border_color": ["#505050", "#606060"],
                 "button_color": "#f59e0b",
                 "button_hover_color": "#d97706",
                 "text_color": ["#ffffff", "#ffffff"],
             },
-            # Light themes - with visible borders
+            # Light themes - with refined visible borders
             "light_blue": {
                 "fg_color": ["#f0f0f0", "#ffffff"],
                 "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#a0a0a0", "#b0b0b0"],
+                "border_color": ["#909090", "#a0a0a0"],
                 "button_color": "#3b82f6",
                 "button_hover_color": "#2563eb",
                 "text_color": ["#000000", "#000000"],
@@ -527,7 +527,7 @@ class ThemeConfig(BaseModel):
             "light_green": {
                 "fg_color": ["#f0f0f0", "#ffffff"],
                 "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#a0a0a0", "#b0b0b0"],
+                "border_color": ["#909090", "#a0a0a0"],
                 "button_color": "#10b981",
                 "button_hover_color": "#059669",
                 "text_color": ["#000000", "#000000"],
@@ -535,7 +535,7 @@ class ThemeConfig(BaseModel):
             "light_purple": {
                 "fg_color": ["#f0f0f0", "#ffffff"],
                 "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#a0a0a0", "#b0b0b0"],
+                "border_color": ["#909090", "#a0a0a0"],
                 "button_color": "#8b5cf6",
                 "button_hover_color": "#7c3aed",
                 "text_color": ["#000000", "#000000"],
@@ -543,7 +543,7 @@ class ThemeConfig(BaseModel):
             "light_orange": {
                 "fg_color": ["#f0f0f0", "#ffffff"],
                 "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#a0a0a0", "#b0b0b0"],
+                "border_color": ["#909090", "#a0a0a0"],
                 "button_color": "#f97316",
                 "button_hover_color": "#ea580c",
                 "text_color": ["#000000", "#000000"],
@@ -551,7 +551,7 @@ class ThemeConfig(BaseModel):
             "light_teal": {
                 "fg_color": ["#f0f0f0", "#ffffff"],
                 "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#a0a0a0", "#b0b0b0"],
+                "border_color": ["#909090", "#a0a0a0"],
                 "button_color": "#14b8a6",
                 "button_hover_color": "#0d9488",
                 "text_color": ["#000000", "#000000"],
@@ -559,7 +559,7 @@ class ThemeConfig(BaseModel):
             "light_pink": {
                 "fg_color": ["#f0f0f0", "#ffffff"],
                 "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#a0a0a0", "#b0b0b0"],
+                "border_color": ["#909090", "#a0a0a0"],
                 "button_color": "#ec4899",
                 "button_hover_color": "#db2777",
                 "text_color": ["#000000", "#000000"],
@@ -567,7 +567,7 @@ class ThemeConfig(BaseModel):
             "light_indigo": {
                 "fg_color": ["#f0f0f0", "#ffffff"],
                 "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#a0a0a0", "#b0b0b0"],
+                "border_color": ["#909090", "#a0a0a0"],
                 "button_color": "#6366f1",
                 "button_hover_color": "#4f46e5",
                 "text_color": ["#000000", "#000000"],
@@ -575,16 +575,16 @@ class ThemeConfig(BaseModel):
             "light_amber": {
                 "fg_color": ["#f0f0f0", "#ffffff"],
                 "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#a0a0a0", "#b0b0b0"],
+                "border_color": ["#909090", "#a0a0a0"],
                 "button_color": "#fbbf24",
                 "button_hover_color": "#f59e0b",
                 "text_color": ["#000000", "#000000"],
             },
-            # Additional dark themes
+            # Additional dark themes - with better visible borders
             "dark_red": {
                 "fg_color": ["#1a1a1a", "#2b2b2b"],
                 "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#3a3a3a", "#4a4a4a"],
+                "border_color": ["#4a4a4a", "#5a5a5a"],
                 "button_color": "#dc2626",
                 "button_hover_color": "#b91c1c",
                 "text_color": ["#ffffff", "#ffffff"],
@@ -592,7 +592,7 @@ class ThemeConfig(BaseModel):
             "dark_cyan": {
                 "fg_color": ["#1a1a1a", "#2b2b2b"],
                 "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#3a3a3a", "#4a4a4a"],
+                "border_color": ["#4a4a4a", "#5a5a5a"],
                 "button_color": "#06b6d4",
                 "button_hover_color": "#0891b2",
                 "text_color": ["#ffffff", "#ffffff"],
@@ -600,7 +600,7 @@ class ThemeConfig(BaseModel):
             "dark_emerald": {
                 "fg_color": ["#1a1a1a", "#2b2b2b"],
                 "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#3a3a3a", "#4a4a4a"],
+                "border_color": ["#4a4a4a", "#5a5a5a"],
                 "button_color": "#10b981",
                 "button_hover_color": "#059669",
                 "text_color": ["#ffffff", "#ffffff"],
@@ -608,7 +608,7 @@ class ThemeConfig(BaseModel):
             "dark_rose": {
                 "fg_color": ["#1a1a1a", "#2b2b2b"],
                 "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#3a3a3a", "#4a4a4a"],
+                "border_color": ["#4a4a4a", "#5a5a5a"],
                 "button_color": "#f43f5e",
                 "button_hover_color": "#e11d48",
                 "text_color": ["#ffffff", "#ffffff"],
@@ -616,7 +616,7 @@ class ThemeConfig(BaseModel):
             "dark_violet": {
                 "fg_color": ["#1a1a1a", "#2b2b2b"],
                 "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#3a3a3a", "#4a4a4a"],
+                "border_color": ["#4a4a4a", "#5a5a5a"],
                 "button_color": "#8b5cf6",
                 "button_hover_color": "#7c3aed",
                 "text_color": ["#ffffff", "#ffffff"],
@@ -624,7 +624,7 @@ class ThemeConfig(BaseModel):
             "dark_slate": {
                 "fg_color": ["#1a1a1a", "#2b2b2b"],
                 "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#3a3a3a", "#4a4a4a"],
+                "border_color": ["#4a4a4a", "#5a5a5a"],
                 "button_color": "#64748b",
                 "button_hover_color": "#475569",
                 "text_color": ["#ffffff", "#ffffff"],
@@ -633,7 +633,7 @@ class ThemeConfig(BaseModel):
             "light_red": {
                 "fg_color": ["#f0f0f0", "#ffffff"],
                 "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#a0a0a0", "#b0b0b0"],
+                "border_color": ["#909090", "#a0a0a0"],
                 "button_color": "#ef4444",
                 "button_hover_color": "#dc2626",
                 "text_color": ["#000000", "#000000"],
@@ -641,7 +641,7 @@ class ThemeConfig(BaseModel):
             "light_cyan": {
                 "fg_color": ["#f0f0f0", "#ffffff"],
                 "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#a0a0a0", "#b0b0b0"],
+                "border_color": ["#909090", "#a0a0a0"],
                 "button_color": "#06b6d4",
                 "button_hover_color": "#0891b2",
                 "text_color": ["#000000", "#000000"],
@@ -649,7 +649,7 @@ class ThemeConfig(BaseModel):
             "light_emerald": {
                 "fg_color": ["#f0f0f0", "#ffffff"],
                 "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#a0a0a0", "#b0b0b0"],
+                "border_color": ["#909090", "#a0a0a0"],
                 "button_color": "#10b981",
                 "button_hover_color": "#059669",
                 "text_color": ["#000000", "#000000"],
@@ -657,7 +657,7 @@ class ThemeConfig(BaseModel):
             "light_rose": {
                 "fg_color": ["#f0f0f0", "#ffffff"],
                 "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#a0a0a0", "#b0b0b0"],
+                "border_color": ["#909090", "#a0a0a0"],
                 "button_color": "#f43f5e",
                 "button_hover_color": "#e11d48",
                 "text_color": ["#000000", "#000000"],
@@ -665,7 +665,7 @@ class ThemeConfig(BaseModel):
             "light_violet": {
                 "fg_color": ["#f0f0f0", "#ffffff"],
                 "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#a0a0a0", "#b0b0b0"],
+                "border_color": ["#909090", "#a0a0a0"],
                 "button_color": "#8b5cf6",
                 "button_hover_color": "#7c3aed",
                 "text_color": ["#000000", "#000000"],
@@ -673,7 +673,7 @@ class ThemeConfig(BaseModel):
             "light_slate": {
                 "fg_color": ["#f0f0f0", "#ffffff"],
                 "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#a0a0a0", "#b0b0b0"],
+                "border_color": ["#909090", "#a0a0a0"],
                 "button_color": "#64748b",
                 "button_hover_color": "#475569",
                 "text_color": ["#000000", "#000000"],
@@ -753,6 +753,7 @@ class ThemeConfig(BaseModel):
 class UIConfig(BaseModel):
     """UI-related configuration."""
 
+    app_title: str = Field(default="Media Downloader", description="Application title displayed in the header")
     metadata_fetch_timeout: int = Field(default=90, description="Metadata fetch dialog timeout in seconds")
     metadata_poll_interval: float = Field(default=0.5, description="Polling interval for metadata fetch status in seconds")
     format_options: list[str] = Field(

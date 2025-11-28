@@ -159,7 +159,10 @@ class MediaDownloaderApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("Media Downloader")
+        # Load config for UI settings
+        self.config = get_config()
+        
+        self.title(self.config.ui.app_title)
         self.geometry("1000x700")
 
         # Thread-safe UI update queue
@@ -221,32 +224,28 @@ class MediaDownloaderApp(ctk.CTk):
 
     def _create_ui(self):
         """Create all UI components."""
-        # Header bar - minimal modern design with properly centered title
+        # Header bar - minimal modern design with left-aligned title
         self.header_frame = ctk.CTkFrame(
             self.main_frame, 
             fg_color="transparent",
             corner_radius=0
         )
-        # Three-column layout for proper centering: [spacer] [title] [theme_switcher]
-        self.header_frame.grid_columnconfigure(0, weight=1)
-        self.header_frame.grid_columnconfigure(1, weight=0)  # Title - no expansion
-        self.header_frame.grid_columnconfigure(2, weight=1)
+        # Two-column layout: [title] [theme_switcher]
+        self.header_frame.grid_columnconfigure(0, weight=1)  # Title column expands
+        self.header_frame.grid_columnconfigure(1, weight=0)  # Theme switcher - no expansion
         
-        # Left spacer for centering
-        left_spacer = ctk.CTkFrame(self.header_frame, fg_color="transparent", width=1)
-        left_spacer.grid(row=0, column=0, sticky="ew")
-        
-        # Title - centered, clean typography
+        # Title - left aligned, clean typography with very generous spacing
+        app_title = self.config.ui.app_title
         self.title_label = ctk.CTkLabel(
             self.header_frame, 
-            text="Media Downloader", 
-            font=("Roboto", 28, "bold")
+            text=app_title, 
+            font=("Roboto", 26, "bold")
         )
-        self.title_label.grid(row=0, column=1, sticky="", pady=(0, 20))
+        self.title_label.grid(row=0, column=0, sticky="w", pady=8)
         
-        # Theme switcher - right aligned
+        # Theme switcher - right aligned with proper spacing
         self.theme_switcher = ThemeSwitcher(self.header_frame, self.theme_manager)
-        self.theme_switcher.grid(row=0, column=2, sticky="e", pady=(0, 20), padx=(15, 0))
+        self.theme_switcher.grid(row=0, column=1, sticky="e", pady=8, padx=(20, 0))
 
         # Get coordinator for direct wiring
         coord = self.orchestrator.event_coordinator
@@ -339,18 +338,19 @@ class MediaDownloaderApp(ctk.CTk):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        # Clean minimal spacing - balanced layout
-        self.main_frame.grid(row=0, column=0, sticky="nsew", padx=30, pady=25)
+        # Clean balanced spacing - very generous top padding, no bottom padding
+        self.main_frame.grid(row=0, column=0, sticky="nsew", padx=30, pady=(60, 0))
         self.main_frame.grid_columnconfigure(0, weight=1)
-        self.main_frame.grid_rowconfigure(3, weight=1)  # Download list row
+        self.main_frame.grid_rowconfigure(3, weight=0)  # Download list row - no stretch
+        self.main_frame.grid_rowconfigure(5, weight=0)  # Status bar row - no stretch, stick to bottom
 
-        # Arrange widgets with clean, balanced spacing
-        self.header_frame.grid(row=0, column=0, sticky="ew", pady=(0, 20))
-        self.url_entry.grid(row=1, column=0, sticky="ew", pady=(0, 15))
+        # Arrange widgets with balanced spacing - much more top space, no bottom space
+        self.header_frame.grid(row=0, column=0, sticky="ew", pady=(0, 35))
+        self.url_entry.grid(row=1, column=0, sticky="ew", pady=(0, 25))
         # OptionsBar is empty (no content) - skip gridding to avoid empty space
-        self.download_list.grid(row=3, column=0, sticky="nsew", pady=(0, 15))
-        self.action_buttons.grid(row=4, column=0, sticky="ew", pady=(0, 6))
-        self.status_bar.grid(row=5, column=0, sticky="ew")
+        self.download_list.grid(row=3, column=0, sticky="ew", pady=(0, 15))
+        self.action_buttons.grid(row=4, column=0, sticky="ew", pady=(0, 8))
+        self.status_bar.grid(row=5, column=0, sticky="swe", pady=0)
 
     def _setup_menu(self):
         """Set up application menu."""

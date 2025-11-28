@@ -146,7 +146,7 @@ class DownloadCoordinator:
         
         # Also update status bar message for non-completion progress
         if progress < 100:
-            self._update_status(f"Downloading {download.name}: {progress:.1f}%")
+            self._update_status(f"Downloading {download.name}")
 
     def _on_completed_event(self, download: Download) -> None:
         """Handle completion event - update UI immediately."""
