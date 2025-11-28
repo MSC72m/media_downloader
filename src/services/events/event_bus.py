@@ -2,22 +2,35 @@
 
 import queue
 import threading
-from typing import Any, Callable, Dict, List, Optional
+from enum import Enum
+from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar
 
 from src.utils.logger import get_logger
 from src.core.enums.events import DownloadEvent
 
 logger = get_logger(__name__)
 
+# Type variable for event enums
+EventType = TypeVar("EventType", bound=Enum)
 
 
+class EventBus(Generic[EventType]):
+    """Generic thread-safe event bus using queue-based dispatch.
+    
+    Works with any Enum type for events. All threading logic is handled
+    internally with queue-based processing on the main thread.
+    """
 
-class DownloadEventBus:
-    """Thread-safe event bus using queue-based dispatch."""
-
-    def __init__(self, root: Optional[Any] = None):
-        self._listeners: Dict[DownloadEvent, List[Callable]] = {
-            event: [] for event in DownloadEvent
+    def __init__(self, event_enum: type[EventType], root: Optional[Any] = None):
+        """Initialize event bus with event enum type.
+        
+        Args:
+            event_enum: The Enum class that defines event types
+            root: Optional root window for main thread processing
+        """
+        self._event_enum = event_enum
+        self._listeners: Dict[EventType, List[Callable]] = {
+            event: [] for event in event_enum
         }
         self._event_queue: queue.Queue = queue.Queue()
         self._root = root
@@ -41,7 +54,7 @@ class DownloadEventBus:
         self._root = root
         self._start_processing()
 
-    def subscribe(self, event: DownloadEvent, callback: Callable) -> None:
+    def subscribe(self, event: EventType, callback: Callable) -> None:
         """Subscribe to an event."""
         with self._lock:
             if event not in self._listeners:
@@ -51,14 +64,14 @@ class DownloadEventBus:
                 f"[EVENT_BUS] Subscribed to {event.name}, total listeners: {len(self._listeners[event])}"
             )
 
-    def unsubscribe(self, event: DownloadEvent, callback: Callable) -> None:
+    def unsubscribe(self, event: EventType, callback: Callable) -> None:
         """Unsubscribe from an event."""
         with self._lock:
             if event in self._listeners and callback in self._listeners[event]:
                 self._listeners[event].remove(callback)
                 logger.debug(f"[EVENT_BUS] Unsubscribed from {event.name}")
 
-    def publish(self, event: DownloadEvent, **kwargs) -> None:
+    def publish(self, event: EventType, **kwargs) -> None:
         """Publish an event - adds to queue for processing on main thread."""
         self._event_queue.put((event, kwargs))
         logger.debug(
@@ -118,7 +131,7 @@ class DownloadEventBus:
                     "[EVENT_BUS] Processing stopped, not scheduling next cycle"
                 )
 
-    def _dispatch_event(self, event: DownloadEvent, kwargs: Dict[str, Any]) -> None:
+    def _dispatch_event(self, event: EventType, kwargs: Dict[str, Any]) -> None:
         """Dispatch event to all subscribers."""
         with self._lock:
             listeners = self._listeners.get(event, []).copy()
@@ -152,7 +165,7 @@ class DownloadEventBus:
     def clear(self) -> None:
         """Clear all subscriptions and queued events."""
         with self._lock:
-            for event in DownloadEvent:
+            for event in self._event_enum:
                 self._listeners[event].clear()
 
         # Clear queue
@@ -163,3 +176,12 @@ class DownloadEventBus:
                 break
 
         logger.info("[EVENT_BUS] Cleared all listeners and queued events")
+
+
+# Backward compatibility: DownloadEventBus as type alias
+class DownloadEventBus(EventBus[DownloadEvent]):
+    """Thread-safe event bus for download events - backward compatibility wrapper."""
+    
+    def __init__(self, root: Optional[Any] = None):
+        """Initialize download event bus."""
+        super().__init__(DownloadEvent, root)

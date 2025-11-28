@@ -4,11 +4,17 @@ from functools import cache
 import json
 import os
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
 
 import yaml
 from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from src.core.enums.appearance_mode import AppearanceMode
+from src.core.enums.color_theme import ColorTheme
+
+if TYPE_CHECKING:
+    pass
 
 
 class CookieConfig(BaseModel):
@@ -392,6 +398,51 @@ class SoundCloudConfig(BaseModel):
     )
 
 
+class ThemeConfig(BaseModel):
+    """Theme-related configuration."""
+
+    appearance_mode: "AppearanceMode" = Field(
+        default="dark",
+        description="Appearance mode (dark/light)"
+    )
+    color_theme: "ColorTheme" = Field(
+        default="blue",
+        description="Color theme selection"
+    )
+    theme_persistence: bool = Field(default=True, description="Whether to persist theme preference to config file")
+    
+    def __init__(self, **data):
+        """Initialize with enum conversion."""
+        # Convert string defaults to enums using early returns
+        if "appearance_mode" in data:
+            if isinstance(data["appearance_mode"], str):
+                data["appearance_mode"] = AppearanceMode(data["appearance_mode"])
+        if "appearance_mode" not in data:
+            data["appearance_mode"] = AppearanceMode.DARK
+
+        if "color_theme" in data:
+            if isinstance(data["color_theme"], str):
+                data["color_theme"] = ColorTheme(data["color_theme"])
+        if "color_theme" not in data:
+            data["color_theme"] = ColorTheme.BLUE
+            
+        super().__init__(**data)
+    
+    @property
+    def appearance_mode_enum(self) -> AppearanceMode:
+        """Get appearance mode as enum."""
+        if isinstance(self.appearance_mode, str):
+            return AppearanceMode(self.appearance_mode)
+        return self.appearance_mode
+    
+    @property
+    def color_theme_enum(self) -> ColorTheme:
+        """Get color theme as enum."""
+        if isinstance(self.color_theme, str):
+            return ColorTheme(self.color_theme)
+        return self.color_theme
+
+
 class UIConfig(BaseModel):
     """UI-related configuration."""
 
@@ -406,6 +457,7 @@ class UIConfig(BaseModel):
     loading_dialog_max_dots: int = Field(default=3, description="Maximum number of dots in loading dialog before cycling")
     loading_dialog_animation_interval: int = Field(default=500, description="Milliseconds between dot animation updates in loading dialog")
     subtitle_batch_size: int = Field(default=5, description="Number of subtitles to load per batch in UI to prevent freezing")
+    theme: ThemeConfig = Field(default_factory=ThemeConfig, description="Theme configuration")
 
 
 class AppConfig(BaseSettings):

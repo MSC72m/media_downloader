@@ -1,27 +1,45 @@
 import tkinter as tk
 from collections.abc import Callable
-from typing import List
+from typing import List, Optional
 
 import customtkinter as ctk
 
 from src.core import Download, DownloadStatus
+from src.core.enums.theme_event import ThemeEvent
+from src.ui.utils.theme_manager import ThemeManager
+from src.utils.logger import get_logger
 
+logger = get_logger(__name__)
 
 class DownloadListView(ctk.CTkFrame):
     """List view for showing download items and their status."""
 
-    def __init__(self, master, on_selection_change: Callable[[list[int]], None]):
+    def __init__(self, master, on_selection_change: Callable[[list[int]], None], theme_manager: Optional[ThemeManager] = None):
         super().__init__(master)
 
         self.on_selection_change = on_selection_change
         self._item_line_mapping: dict[str, int] = {}  # Maps item name to line number
         self._downloads: list[Download] = []  # Store actual Download objects
+        
+        # Subscribe to theme manager
+        root_window = master.winfo_toplevel()
+        self._theme_manager = theme_manager or ThemeManager.get_instance(root_window)
+        self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
 
-        # Create text widget for displaying downloads
+        # Create text widget for displaying downloads with modern styling
         self.list_view = ctk.CTkTextbox(
-            self, activate_scrollbars=True, height=300, font=("Roboto", 12)
+            self, 
+            activate_scrollbars=True, 
+            height=300, 
+            font=("Roboto", 12),
+            corner_radius=12,
         )
-        self.list_view.pack(fill=tk.BOTH, expand=True)
+        self.list_view.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+    
+    def _on_theme_changed(self, appearance, color):
+        """Handle theme change event."""
+        # Textbox will automatically update with CTK theme change
+        pass
 
         # Bind selection event
         self.list_view.bind("<<Selection>>", self._handle_selection)
@@ -48,9 +66,6 @@ class DownloadListView(ctk.CTkFrame):
 
     def update_item_progress(self, item: Download, progress: float):
         """Update progress for a specific item efficiently."""
-        from src.utils.logger import get_logger
-
-        logger = get_logger(__name__)
 
         logger.debug(
             f"[DOWNLOAD_LIST] update_item_progress called for {item.name} with progress {progress}"
@@ -194,8 +209,6 @@ class DownloadListView(ctk.CTkFrame):
         Returns:
             Number of downloads removed
         """
-        from src.utils.logger import get_logger
-
         logger = get_logger(__name__)
 
         # Find indices of completed downloads

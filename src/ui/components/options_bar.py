@@ -1,9 +1,12 @@
 import queue
 import threading
 import tkinter as tk
+from typing import Optional
 
 import customtkinter as ctk
 
+from src.core.enums.theme_event import ThemeEvent
+from src.ui.utils.theme_manager import ThemeManager
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -12,13 +15,17 @@ logger = get_logger(__name__)
 class OptionsBar(ctk.CTkFrame):
     """Frame for download options and controls."""
 
-    def __init__(self, master):
+    def __init__(self, master, theme_manager: Optional[ThemeManager] = None):
         super().__init__(master, fg_color="transparent")
 
         # Queue for thread-safe UI updates
         self._update_queue = queue.Queue()
         self._running = True
         self._root_window = self._get_root_window()
+        
+        # Subscribe to theme manager
+        self._theme_manager = theme_manager or ThemeManager.get_instance(self._root_window)
+        self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
 
         # Note: YouTube-specific options are handled in the YouTube download dialog
         # Instagram authentication is now handled automatically when Instagram URLs are detected
@@ -26,6 +33,10 @@ class OptionsBar(ctk.CTkFrame):
 
         # Start processing queue
         self._process_queue()
+    
+    def _on_theme_changed(self, appearance, color):
+        """Handle theme change event."""
+        pass
 
     def _get_root_window(self):
         """Get the root Tk window for scheduling."""

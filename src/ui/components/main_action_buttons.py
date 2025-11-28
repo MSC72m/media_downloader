@@ -1,7 +1,10 @@
 from collections.abc import Callable
+from typing import Optional
 
 import customtkinter as ctk
 
+from src.core.enums.theme_event import ThemeEvent
+from src.ui.utils.theme_manager import ThemeManager
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -18,6 +21,7 @@ class ActionButtonBar(ctk.CTkFrame):
         on_clear_completed: Callable[[], None],
         on_download: Callable[[], None],
         on_manage_files: Callable[[], None],
+        theme_manager: Optional[ThemeManager] = None,
     ):
         super().__init__(master, fg_color="transparent")
 
@@ -30,8 +34,13 @@ class ActionButtonBar(ctk.CTkFrame):
             f"[ACTION_BUTTONS] Initialized with _download_in_progress={self._download_in_progress}"
         )
 
-        # Common button style
-        self.button_style = {"height": 40, "font": ("Roboto", 14), "corner_radius": 10}
+        # Subscribe to theme manager
+        root_window = master.winfo_toplevel()
+        self._theme_manager = theme_manager or ThemeManager.get_instance(root_window)
+        self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
+
+        # Common button style with modern look
+        self.button_style = {"height": 42, "font": ("Roboto", 14), "corner_radius": 12}
 
         # Remove Button
         self.remove_button = ctk.CTkButton(
@@ -157,3 +166,8 @@ class ActionButtonBar(ctk.CTkFrame):
         manage_state = "normal" if has_items else "disabled"
         logger.debug(f"[ACTION_BUTTONS] Setting manage_files_button to: {manage_state}")
         self.manage_files_button.configure(state=manage_state)
+    
+    def _on_theme_changed(self, appearance, color):
+        """Handle theme change event."""
+        # Buttons will automatically update with CTK theme change
+        pass

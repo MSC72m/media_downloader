@@ -1,10 +1,13 @@
 import queue
 import re
 import time
+from typing import Optional
 
 import customtkinter as ctk
 
 from src.core.config import get_config, AppConfig
+from src.core.enums.theme_event import ThemeEvent
+from src.ui.utils.theme_manager import ThemeManager
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -17,7 +20,7 @@ class StatusBar(ctk.CTkFrame):
     _SUCCESS_MESSAGE_PATTERN = re.compile(r"Download completed", re.IGNORECASE)
     _CONNECTION_CONFIRMED_PATTERN = re.compile(r"Connection confirmed", re.IGNORECASE)
 
-    def __init__(self, master, config: AppConfig = get_config()):
+    def __init__(self, master, config: AppConfig = get_config(), theme_manager: Optional[ThemeManager] = None):
         super().__init__(master, fg_color="transparent")
 
         # Get root window for scheduling
@@ -29,6 +32,11 @@ class StatusBar(ctk.CTkFrame):
         self._message_timeout: float | None = None
         self._is_error_message: bool = False  # Track if current message is an error
         self._config = config
+        
+        # Subscribe to theme manager
+        self._theme_manager = theme_manager or ThemeManager.get_instance(self._root_window)
+        self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
+        self._apply_theme_colors()
 
         # Configure grid
         self.grid_columnconfigure(0, weight=1)
@@ -44,11 +52,12 @@ class StatusBar(ctk.CTkFrame):
         )
         self.status_label.grid(row=0, column=0, pady=(5, 5))
 
-        # Progress bar with increased width
+        # Progress bar with increased width and modern styling
         self.progress_bar = ctk.CTkProgressBar(
             self.center_frame,
-            height=15,
+            height=16,
             width=400,
+            corner_radius=8,
         )
         self.progress_bar.grid(row=1, column=0, sticky="ew", pady=(0, 10), padx=20)
         self.progress_bar.set(0)
@@ -268,7 +277,19 @@ class StatusBar(ctk.CTkFrame):
 
         self._queue_update(_update)
 
+    def _on_theme_changed(self, appearance, color):
+        """Handle theme change event."""
+        self._apply_theme_colors()
+    
+    def _apply_theme_colors(self):
+        """Apply theme colors to components."""
+        colors = self._theme_manager.get_colors()
+        # Update component colors if needed
+        # CTK components will automatically update with appearance mode change
+    
     def destroy(self):
         """Clean up resources."""
         self._running = False
+        if self._theme_manager:
+            self._theme_manager.unsubscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
         super().destroy()

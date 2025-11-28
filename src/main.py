@@ -22,11 +22,11 @@ from src.ui.components.download_list import DownloadListView  # noqa: E402
 from src.ui.components.main_action_buttons import ActionButtonBar  # noqa: E402
 from src.ui.components.options_bar import OptionsBar  # noqa: E402
 from src.ui.components.status_bar import StatusBar  # noqa: E402
+from src.ui.components.theme_switcher import ThemeSwitcher  # noqa: E402
 from src.ui.components.url_entry import URLEntryFrame  # noqa: E402
+from src.ui.utils.theme_manager import ThemeManager  # noqa: E402
 
-# Set theme after successful import
-ctk.set_appearance_mode("dark")
-ctk.set_default_color_theme("blue")
+# Theme will be set by ThemeManager
 
 
 def _check_playwright_installation():
@@ -167,6 +167,9 @@ class MediaDownloaderApp(ctk.CTk):
         ApplicationOrchestrator = get_application_orchestrator()
         self.orchestrator = ApplicationOrchestrator(self)
 
+        # Initialize theme manager
+        self.theme_manager = ThemeManager.get_instance(self)
+
         # Note: MessageQueue will be created after status_bar is available
         # See _create_ui() for message_queue registration
 
@@ -207,10 +210,19 @@ class MediaDownloaderApp(ctk.CTk):
 
     def _create_ui(self):
         """Create all UI components."""
+        # Header bar with title and theme switcher
+        self.header_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
+        self.header_frame.grid_columnconfigure(0, weight=1)
+        
         # Title
         self.title_label = ctk.CTkLabel(
-            self.main_frame, text="Media Downloader", font=("Roboto", 32, "bold")
+            self.header_frame, text="Media Downloader", font=("Roboto", 32, "bold")
         )
+        self.title_label.grid(row=0, column=0, sticky="w", pady=(0, 20))
+        
+        # Theme switcher
+        self.theme_switcher = ThemeSwitcher(self.header_frame, self.theme_manager)
+        self.theme_switcher.grid(row=0, column=1, sticky="e", pady=(0, 20))
 
         # Get coordinator for direct wiring
         coord = self.orchestrator.event_coordinator
@@ -236,10 +248,11 @@ class MediaDownloaderApp(ctk.CTk):
             self.main_frame,
             on_add=on_add_url,
             on_youtube_detected=on_youtube_detected,
+            theme_manager=self.theme_manager,
         )
 
         # Options Bar
-        self.options_bar = OptionsBar(self.main_frame)
+        self.options_bar = OptionsBar(self.main_frame, theme_manager=self.theme_manager)
 
         # Download List
         self.download_list = DownloadListView(
@@ -248,6 +261,7 @@ class MediaDownloaderApp(ctk.CTk):
                 has_selection=len(sel) > 0,
                 has_items=len(coord.downloads.get_downloads()) > 0
             ),
+            theme_manager=self.theme_manager,
         )
 
         # Action Buttons - wire directly to coordinator
@@ -277,11 +291,12 @@ class MediaDownloaderApp(ctk.CTk):
             on_clear_completed=on_clear_completed,
             on_download=on_download,
             on_manage_files=on_manage_files,
+            theme_manager=self.theme_manager,
         )
         logger.info("[MAIN_APP] ActionButtonBar created successfully")
 
         # Status Bar
-        self.status_bar = StatusBar(self.main_frame)
+        self.status_bar = StatusBar(self.main_frame, theme_manager=self.theme_manager)
         logger.info("[MAIN_APP] StatusBar created")
 
         # Pass UI components to orchestrator
@@ -302,16 +317,16 @@ class MediaDownloaderApp(ctk.CTk):
 
         self.main_frame.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
         self.main_frame.grid_columnconfigure(0, weight=1)
-        self.main_frame.grid_rowconfigure(2, weight=1)  # Download list row
+        self.main_frame.grid_rowconfigure(3, weight=1)  # Download list row
 
         # Arrange widgets
-        self.title_label.grid(row=0, column=0, pady=(0, 20))
+        self.header_frame.grid(row=0, column=0, sticky="ew", pady=(0, 10))
         self.url_entry.grid(row=1, column=0, sticky="ew", pady=(0, 10))
         # OptionsBar is empty (no content) - skip gridding to avoid empty space
         # self.options_bar.grid(row=2, column=0, sticky="ew", pady=(0, 10))
-        self.download_list.grid(row=2, column=0, sticky="nsew", pady=(0, 10))
-        self.action_buttons.grid(row=3, column=0, sticky="ew", pady=(0, 10))
-        self.status_bar.grid(row=4, column=0, sticky="ew")
+        self.download_list.grid(row=3, column=0, sticky="nsew", pady=(0, 10))
+        self.action_buttons.grid(row=4, column=0, sticky="ew", pady=(0, 10))
+        self.status_bar.grid(row=5, column=0, sticky="ew")
 
     def _setup_menu(self):
         """Set up application menu."""
