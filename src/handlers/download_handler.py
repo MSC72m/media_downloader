@@ -13,6 +13,7 @@ from src.core.models import Download
 from src.services.events.queue import Message
 from src.services.youtube.downloader import YouTubeDownloader
 from src.core.enums import ServiceType
+from src.core.enums.download_status import DownloadStatus
 from src.core.enums.message_level import MessageLevel
 from src.core.models import Download, DownloadOptions, UIState
 from src.core.base.base_handler import BaseHandler
@@ -266,6 +267,12 @@ class DownloadHandler(BaseHandler, IDownloadHandler):
             if not download.url or not download.url.strip():
                 logger.error(f"[DOWNLOAD_HANDLER] Invalid URL for: {download.name}")
                 continue
+
+            # Set download status to DOWNLOADING before starting thread
+            # (Status may have been set by coordinator, but ensure it's set here too)
+            if download.status != DownloadStatus.DOWNLOADING:
+                download.status = DownloadStatus.DOWNLOADING
+                logger.info(f"[DOWNLOAD_HANDLER] Set download status to DOWNLOADING for: {download.name}")
 
             # Start download thread
             thread = threading.Thread(

@@ -228,13 +228,28 @@ class DownloadCoordinator:
             available_callbacks = list(self.ui_callbacks.keys())
             logger.info(f"[DOWNLOAD_COORDINATOR] Available UI callbacks: {available_callbacks}")
 
+            # Disable buttons BEFORE starting downloads
+            buttons_callback = self._get_ui_callback("set_action_buttons_enabled")
+            if buttons_callback:
+                try:
+                    buttons_callback(False)
+                    logger.info("[DOWNLOAD_COORDINATOR] Disabled action buttons before starting downloads")
+                except Exception as e:
+                    logger.error(f"[DOWNLOAD_COORDINATOR] Error disabling buttons: {e}", exc_info=True)
+
+            # Update download statuses to DOWNLOADING before starting
+            for download in downloads:
+                download.status = DownloadStatus.DOWNLOADING
+            logger.info(f"[DOWNLOAD_COORDINATOR] Set {len(downloads)} downloads to DOWNLOADING status")
+
+            # Refresh UI to show downloading state
+            self._refresh_ui_after_event(enable_buttons=False)
+
+            # Now start the downloads
             self.download_handler.start_downloads(
                 downloads, download_dir, progress_callback, completion_callback
             )
             logger.info(f"[DOWNLOAD_COORDINATOR] Starting {len(downloads)} downloads")
-            
-            # Disable buttons while downloading
-            self._refresh_ui_after_event(enable_buttons=False)
             
         except Exception as e:
             logger.error(f"[DOWNLOAD_COORDINATOR] Error starting downloads: {e}", exc_info=True)

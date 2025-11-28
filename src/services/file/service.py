@@ -17,6 +17,10 @@ class FileService:
         """Sanitize a filename."""
         return self.sanitizer.sanitize_filename(filename)
 
+    def clean_filename(self, filename: str) -> str:
+        """Clean filename for filesystem (alias for sanitize_filename to match interface)."""
+        return self.sanitize_filename(filename)
+
     def download_file(
         self,
         url: str,

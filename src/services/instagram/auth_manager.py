@@ -55,7 +55,13 @@ class InstagramAuthManager:
             Authenticated InstagramDownloader instance or None if not authenticated
         """
         with self._lock:
-            if self.is_authenticated():
+            # Check directly without calling is_authenticated() to avoid deadlock
+            # (is_authenticated() also tries to acquire the same lock)
+            if is_auth := (
+                self._downloader is not None
+                and self._downloader.authenticated
+            ):
+                logger.info(f"[INSTAGRAM_AUTH_MANAGER] get_downloader called: is_authenticated={is_auth}, downloader={self._downloader is not None}, authenticated={getattr(self._downloader, 'authenticated', None) if self._downloader else None}")
                 return self._downloader
             return None
 
