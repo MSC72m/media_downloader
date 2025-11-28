@@ -22,7 +22,7 @@ def test_subprocess_mocking():
 
     # Test that mocking works
     with patch("subprocess.run", return_value=mock_result) as mock_run:
-        subprocess.run(["echo", "test"], capture_output=True, text=True)
+        subprocess.run(["echo", "test"], check=False, capture_output=True, text=True)
 
         assert mock_run.called
         print("✅ Subprocess mocking works correctly")

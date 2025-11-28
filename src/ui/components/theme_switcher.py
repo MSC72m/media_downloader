@@ -107,8 +107,9 @@ class ThemeSwitcher(ctk.CTkFrame):
             # Allow dropdown to open, but prevent text editing
             if event.keysym not in ("Return", "Escape", "Up", "Down"):
                 return "break"
+            return None
 
-        def prevent_selection(event):
+        def prevent_selection(_event):
             # Prevent text selection
             return "break"
 
@@ -118,7 +119,7 @@ class ThemeSwitcher(ctk.CTkFrame):
             # Prevent typing
             entry.bind("<Key>", prevent_edit)
             # Prevent text selection
-            entry.bind("<Button-1>", lambda e: self.color_dropdown._open_dropdown_menu())
+            entry.bind("<Button-1>", lambda _e: self.color_dropdown._open_dropdown_menu())
             entry.bind("<Control-a>", prevent_selection)
             entry.bind("<Button-3>", prevent_selection)  # Right click
         except Exception:

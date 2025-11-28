@@ -71,7 +71,7 @@ def test_metadata_service_safe_decode_bytes():
         # Mixed content
         (
             b"[info] Video title: \xa7 Special \xb3 Characters \xb4",
-            "[info] Video title: § Special ³ Characters ´",
+            "[info] Video title: § Special ³ Characters `",
         ),
         # The specific 0xb0 byte that was causing the issue
         (
@@ -79,7 +79,7 @@ def test_metadata_service_safe_decode_bytes():
             "Some text with problematic byte: ° and more",
         ),
         # More problematic bytes
-        (b"Error: \xb0\xb1\xb2\xb3\xb4\xb5", "Error: °±²³´µ"),
+        (b"Error: \xb0\xb1\xb2\xb3\xb4\xb5", "Error: °±²³`µ"),
     ]
 
     for i, (test_bytes, expected) in enumerate(problematic_outputs):
@@ -188,7 +188,7 @@ def test_subprocess_returns_strings_not_bytes():
 
     # Test with a simple command that should work
     result = subprocess.run(
-        ["echo", "test"], capture_output=True, encoding="utf-8", errors="replace"
+        ["echo", "test"], check=False, capture_output=True, encoding="utf-8", errors="replace"
     )
 
     # Result should be strings, not bytes

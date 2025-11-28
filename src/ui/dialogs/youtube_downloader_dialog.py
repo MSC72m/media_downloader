@@ -4,6 +4,7 @@ import re
 import threading
 import time
 from collections.abc import Callable
+from typing import Any
 
 import customtkinter as ctk
 
@@ -173,77 +174,77 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             # Continue without overlay
             self.loading_overlay = None
 
+    def _fetch_metadata_with_timeout(self, cookie_path: str) -> tuple[Any, Exception | None]:
+        """Fetch metadata with timeout protection.
+
+        Args:
+            cookie_path: Cookie file path
+
+        Returns:
+            Tuple of (metadata_result, error)
+        """
+        metadata_result = [None]
+        metadata_error = [None]
+        fetch_completed = [False]
+
+        def fetch_with_timeout():
+            try:
+                metadata_result[0] = self.metadata_service.fetch_metadata(
+                    self.url, cookie_path, None
+                )
+                fetch_completed[0] = True
+            except Exception as e:
+                metadata_error[0] = e
+                fetch_completed[0] = True
+
+        fetch_thread = threading.Thread(target=fetch_with_timeout, daemon=True)
+        fetch_thread.start()
+
+        timeout_seconds = 60
+        start_time = time.time()
+
+        while not fetch_completed[0] and (time.time() - start_time) < timeout_seconds:
+            time.sleep(self.config.ui.metadata_poll_interval)
+
+        if not fetch_completed[0]:
+            raise TimeoutError(f"Metadata fetch timed out after {timeout_seconds} seconds")
+
+        if metadata_error[0]:
+            raise metadata_error[0]
+
+        return metadata_result[0], None
+
+    def _normalize_error_message(self, error_msg: str) -> str:
+        """Normalize error message for user display.
+
+        Args:
+            error_msg: Raw error message
+
+        Returns:
+            Normalized error message
+        """
+        error_map = {
+            "429": "YouTube rate limit exceeded. Please try again later or use browser cookies.",
+            "403": "Access forbidden. This video may require age verification or cookies.",
+        }
+
+        error_code_pattern = re.compile(r"(429|403)")
+        timeout_pattern = re.compile(r"timeout", re.IGNORECASE)
+
+        code_match = error_code_pattern.search(error_msg)
+        if code_match:
+            code = code_match.group(1)
+            return error_map.get(code, error_msg)
+        if timeout_pattern.search(error_msg):
+            return "Connection timed out. Please check your internet connection and try again."
+        return error_msg
+
     def _fetch_metadata_async(self):
         """Fetch metadata asynchronously."""
 
         def fetch_worker():
             try:
-                if self.metadata_service:
-                    # Use selected cookie path
-                    cookie_path = self.selected_cookie_path
-
-                    # Debug output
-                    logger.debug(f"YouTube dialog fetch_metadata - url: {self.url}")
-                    logger.debug(f"YouTube dialog fetch_metadata - cookie_path: {cookie_path}")
-
-                    # Fetch metadata with cookies and timeout protection
-                    logger.info("Calling metadata_service.fetch_metadata...")
-
-                    # Set a timeout for metadata fetch
-                    metadata_result = [None]
-                    metadata_error = [None]
-                    fetch_completed = [False]
-
-                    def fetch_with_timeout():
-                        try:
-                            metadata_result[0] = self.metadata_service.fetch_metadata(
-                                self.url, cookie_path, None
-                            )
-                            fetch_completed[0] = True
-                        except Exception as e:
-                            metadata_error[0] = e
-                            fetch_completed[0] = True
-
-                    # Start fetch thread
-                    fetch_thread = threading.Thread(target=fetch_with_timeout, daemon=True)
-                    fetch_thread.start()
-
-                    # Wait for completion or timeout
-                    timeout_seconds = 60  # 1 minute timeout
-                    start_time = time.time()
-
-                    while not fetch_completed[0] and (time.time() - start_time) < timeout_seconds:
-                        time.sleep(self.config.ui.metadata_poll_interval)
-
-                    # Check result
-                    if not fetch_completed[0]:
-                        logger.error(f"Metadata fetch timed out after {timeout_seconds} seconds")
-                        raise TimeoutError(
-                            f"Metadata fetch timed out after {timeout_seconds} seconds"
-                        )
-
-                    if metadata_error[0]:
-                        raise metadata_error[0]
-
-                    self.video_metadata = metadata_result[0]
-                    logger.info(f"Metadata fetch completed. Result: {self.video_metadata}")
-                    logger.info(f"Metadata type: {type(self.video_metadata)}")
-
-                    if self.video_metadata and self.video_metadata.error:
-                        error_msg = self.video_metadata.error
-                        logger.error(f"Metadata fetch failed with error: {error_msg}")
-                        if self.error_handler:
-                            self.error_handler.handle_service_failure(
-                                "YouTube", "metadata fetch", error_msg, self.url
-                            )
-                        self._schedule_ui_update(self._handle_metadata_error)
-                        return
-
-                    # Signal that metadata is ready - the main thread polling will detect this
-                    logger.info("Setting metadata ready flag for main thread polling")
-                    self._metadata_ready = True
-                    logger.debug("Metadata ready flag set, main thread polling will detect this")
-                else:
+                if not self.metadata_service:
                     error_msg = "No metadata service available"
                     if self.error_handler:
                         self.error_handler.handle_service_failure(
@@ -252,27 +253,37 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                     self._schedule_ui_update(self._handle_metadata_error)
                     return
 
+                cookie_path = self.selected_cookie_path
+                logger.debug(f"YouTube dialog fetch_metadata - url: {self.url}")
+                logger.debug(f"YouTube dialog fetch_metadata - cookie_path: {cookie_path}")
+
+                logger.info("Calling metadata_service.fetch_metadata...")
+                metadata, error = self._fetch_metadata_with_timeout(cookie_path)
+
+                if error:
+                    raise error
+
+                self.video_metadata = metadata
+                logger.info(f"Metadata fetch completed. Result: {self.video_metadata}")
+                logger.info(f"Metadata type: {type(self.video_metadata)}")
+
+                if self.video_metadata and self.video_metadata.error:
+                    error_msg = self.video_metadata.error
+                    logger.error(f"Metadata fetch failed with error: {error_msg}")
+                    if self.error_handler:
+                        self.error_handler.handle_service_failure(
+                            "YouTube", "metadata fetch", error_msg, self.url
+                        )
+                    self._schedule_ui_update(self._handle_metadata_error)
+                    return
+
+                logger.info("Setting metadata ready flag for main thread polling")
+                self._metadata_ready = True
+                logger.debug("Metadata ready flag set, main thread polling will detect this")
+
             except Exception as e:
                 logger.error(f"Error fetching metadata: {e}", exc_info=True)
-                error_msg = str(e)
-
-                error_map = {
-                    "429": "YouTube rate limit exceeded. Please try again later or use browser cookies.",
-                    "403": "Access forbidden. This video may require age verification or cookies.",
-                }
-
-                # Use compiled regex pattern for efficient matching instead of string 'in' checks
-                error_code_pattern = re.compile(r"(429|403)")
-                timeout_pattern = re.compile(r"timeout", re.IGNORECASE)
-
-                code_match = error_code_pattern.search(error_msg)
-                if code_match:
-                    code = code_match.group(1)
-                    error_msg = error_map.get(code, error_msg)
-                elif timeout_pattern.search(error_msg):
-                    error_msg = (
-                        "Connection timed out. Please check your internet connection and try again."
-                    )
+                error_msg = self._normalize_error_message(str(e))
 
                 if not self.video_metadata:
                     self.video_metadata = YouTubeMetadata(
@@ -328,11 +339,110 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         except Exception as e:
             logger.error(f"Error destroying dialog: {e}")
 
+    def _close_loading_and_show_dialog(self) -> None:
+        """Close loading overlay and show main dialog."""
+        if self.loading_overlay:
+            logger.info("Closing loading overlay")
+            close_loading_dialog(self.loading_overlay, error_path=False)
+            self.loading_overlay = None
+
+        logger.info("Showing YouTube options dialog after metadata fetch complete")
+        try:
+            self.deiconify()
+            self.lift()
+            self.focus_force()
+            logger.info("Dialog shown and focused")
+        except Exception as e:
+            logger.warning(f"Error showing dialog: {e}")
+
+        try:
+            self.update_idletasks()
+        except Exception as e:
+            logger.warning(f"Could not update idletasks after metadata fetch: {e}")
+
+        try:
+            self.after(100, lambda: self.grab_set() if self.winfo_exists() else None)
+            logger.debug("Dialog grab scheduled - will be modal after UI renders")
+        except Exception as e:
+            logger.warning(f"Could not schedule grab: {e}")
+
+    def _create_widgets_if_needed(self) -> bool:
+        """Create widgets if not already created.
+
+        Returns:
+            True if widgets created successfully, False otherwise
+        """
+        if self.widgets_created:
+            return True
+
+        logger.info("Creating widgets")
+        try:
+            for widget in self.winfo_children():
+                widget.destroy()
+
+            self._create_widgets()
+            logger.info("Widgets created successfully")
+            self.widgets_created = True
+            return True
+        except Exception as e:
+            logger.error(f"Error creating widgets: {e}", exc_info=True)
+            if self.error_handler:
+                self.error_handler.handle_exception(
+                    e, "Creating download options", "YouTube Dialog"
+                )
+            elif self.message_queue:
+                self.message_queue.add_message(
+                    Message(
+                        text=f"Failed to create download options: {e!s}",
+                        level=MessageLevel.ERROR,
+                        title="Dialog Error",
+                    )
+                )
+            return False
+
+    def _show_main_interface(self) -> bool:
+        """Show main interface.
+
+        Returns:
+            True if successful, False otherwise
+        """
+        if not hasattr(self, "main_frame"):
+            logger.error("Main frame not found - widget creation may have failed")
+            return False
+
+        logger.debug("Packing main frame")
+        try:
+            self.main_frame.pack(fill="both", expand=True)
+            logger.debug("Main frame packed successfully")
+        except Exception as e:
+            logger.error(f"Error packing main frame: {e}", exc_info=True)
+            return False
+
+        try:
+            self.minsize(500, 400)
+            logger.debug("Dialog size updated")
+        except Exception as e:
+            logger.warning(f"Error updating dialog size: {e}")
+
+        try:
+            self.update_idletasks()
+        except Exception as e:
+            logger.warning(f"Could not update idletasks for geometry: {e}")
+
+        logger.debug("Showing main window")
+        try:
+            self._show_main_window()
+        except Exception as e:
+            logger.error(f"Error showing main window: {e}", exc_info=True)
+            return False
+
+        return True
+
     def _handle_metadata_fetched(self):
         """Handle metadata fetch completion - ONLY SHOWS DIALOG AFTER FETCH COMPLETE."""
         logger.info("=== _handle_metadata_fetched called ===")
         logger.info("Handling metadata fetch completion")
-        self._metadata_handler_called = True  # Set flag to prevent timeout fallback
+        self._metadata_handler_called = True
         logger.info(f"Video metadata: {self.video_metadata}")
         logger.info(f"Video metadata type: {type(self.video_metadata)}")
         if self.video_metadata:
@@ -353,95 +463,13 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             self._handle_metadata_error()
             return
 
-        # CRITICAL: Close loading overlay FIRST, THEN show main dialog
-        if self.loading_overlay:
-            logger.info("Closing loading overlay")
-            close_loading_dialog(self.loading_overlay, error_path=False)
-            self.loading_overlay = None
+        self._close_loading_and_show_dialog()
 
-        # IMPORTANT: Only NOW show the main options dialog after loading is complete
-        logger.info("Showing YouTube options dialog after metadata fetch complete")
-        try:
-            self.deiconify()
-            self.lift()
-            self.focus_force()
-            logger.info("Dialog shown and focused")
-        except Exception as e:
-            logger.warning(f"Error showing dialog: {e}")
-
-        try:
-            self.update_idletasks()
-        except Exception as e:
-            logger.warning(f"Could not update idletasks after metadata fetch: {e}")
-
-        # Now that metadata is loaded, make the dialog modal
-        # Defer grab_set to avoid blocking - schedule it after UI is fully rendered
-        try:
-            self.after(100, lambda: self.grab_set() if self.winfo_exists() else None)
-            logger.debug("Dialog grab scheduled - will be modal after UI renders")
-        except Exception as e:
-            logger.warning(f"Could not schedule grab: {e}")
-
-        # Create main interface only after metadata is successfully fetched
-        if not self.widgets_created:
-            logger.info("Creating widgets")
-            try:
-                # Clear any existing widgets first (like placeholder)
-                for widget in self.winfo_children():
-                    widget.destroy()
-
-                self._create_widgets()
-                logger.info("Widgets created successfully")
-                self.widgets_created = True
-            except Exception as e:
-                logger.error(f"Error creating widgets: {e}", exc_info=True)
-                # Show error via status bar only
-                if self.error_handler:
-                    self.error_handler.handle_exception(
-                        e, "Creating download options", "YouTube Dialog"
-                    )
-                elif self.message_queue:
-                    self.message_queue.add_message(
-                        Message(
-                            text=f"Failed to create download options: {str(e)}",
-                            level=MessageLevel.ERROR,
-                            title="Dialog Error",
-                        )
-                    )
-                return
-
-        # Show main interface
-        if hasattr(self, "main_frame"):
-            logger.debug("Packing main frame")
-            try:
-                self.main_frame.pack(fill="both", expand=True)
-                logger.debug("Main frame packed successfully")
-            except Exception as e:
-                logger.error(f"Error packing main frame: {e}", exc_info=True)
-                return
-        else:
-            logger.error("Main frame not found - widget creation may have failed")
+        if not self._create_widgets_if_needed():
             return
 
-        # Force geometry update to ensure proper sizing
-        try:
-            # Set a minimum size to ensure dialog is visible
-            self.minsize(500, 400)
-            logger.debug("Dialog size updated")
-        except Exception as e:
-            logger.warning(f"Error updating dialog size: {e}")
-
-        try:
-            self.update_idletasks()
-        except Exception as e:
-            logger.warning(f"Could not update idletasks for geometry: {e}")
-
-        # Show main window immediately
-        logger.debug("Showing main window")
-        try:
-            self._show_main_window()
-        except Exception as e:
-            logger.error(f"Error showing main window: {e}", exc_info=True)
+        if not self._show_main_interface():
+            return
 
     def _schedule_main_window_show(self):
         """Schedule showing main window after loading overlay is completely gone."""
@@ -643,7 +671,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             values=format_options,
             width=120,
             font=("Roboto", 10),
-            command=lambda x: self._on_format_change(),
+            command=lambda _x: self._on_format_change(),
         )
         self.format_menu.pack(side="left")
 

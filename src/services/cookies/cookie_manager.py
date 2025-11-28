@@ -128,111 +128,21 @@ class CookieManager:
             self.initialize()
 
         with self._lock:
-            # Check if cookies need regeneration (expired, invalid, missing, or too old)
-            if not self._state or not self._state.is_valid or self._state.should_regenerate():
-                # Delete old cookie files before regenerating
-                if self._state and self._state.cookie_path:
-                    old_cookie_path = Path(self._state.cookie_path)
-                    if old_cookie_path.exists():
-                        try:
-                            old_cookie_path.unlink()
-                            logger.info(
-                                f"[COOKIE_MANAGER] Deleted expired cookie file: {old_cookie_path}"
-                            )
-                        except Exception as e:
-                            logger.warning(
-                                f"[COOKIE_MANAGER] Failed to delete old cookie file: {e}"
-                            )
-
-                # Also delete JSON cookie file if it exists
-                json_cookie_file = self.storage_dir / self.config.cookies.cookie_file_name
-                if json_cookie_file.exists():
-                    try:
-                        json_cookie_file.unlink()
-                        logger.info(
-                            f"[COOKIE_MANAGER] Deleted expired JSON cookie file: {json_cookie_file}"
-                        )
-                    except Exception as e:
-                        logger.warning(f"[COOKIE_MANAGER] Failed to delete JSON cookie file: {e}")
-
-                logger.info("[COOKIE_MANAGER] No valid cookies available, triggering generation")
-                try:
-                    loop = asyncio.get_event_loop()
-                except RuntimeError:
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-
-                self._state = loop.run_until_complete(self._regenerate_cookies())
+            self._ensure_cookies_regenerated()
 
             if not self._state or not self._state.is_valid:
                 logger.warning("[COOKIE_MANAGER] Cookie generation failed")
                 return None
 
-            # Cookie path should already be set to Netscape format file from generator
-            cookie_path = self._state.cookie_path
-            if not cookie_path or not Path(cookie_path).exists():
-                logger.warning(f"[COOKIE_MANAGER] Cookie file does not exist: {cookie_path}")
-                # Try to convert if JSON exists but Netscape doesn't
-                netscape_path = self.generator.convert_to_netscape_text()
-                if netscape_path and Path(netscape_path).exists():
-                    cookie_path = netscape_path
-                else:
-                    # File doesn't exist - invalidate state and trigger regeneration
-                    logger.warning(
-                        "[COOKIE_MANAGER] Cookie file missing, invalidating state and triggering regeneration"
-                    )
-                    if self._state:
-                        self._state.is_valid = False
-                        self._state.error_message = "Cookie file does not exist"
-                    # Trigger regeneration
-                    try:
-                        loop = asyncio.get_event_loop()
-                    except RuntimeError:
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
-                    self._state = loop.run_until_complete(self._regenerate_cookies())
-                    # Retry getting cookies after regeneration
-                    if self._state and self._state.is_valid and self._state.cookie_path:
-                        cookie_path = self._state.cookie_path
-                        if Path(cookie_path).exists() and self.generator.validate_netscape_file(
-                            cookie_path
-                        ):
-                            logger.info(
-                                f"[COOKIE_MANAGER] Returning regenerated cookie file: {cookie_path}"
-                            )
-                            return cookie_path
-                    return None
-
-            # Validate the cookie file
-            if not self.generator.validate_netscape_file(cookie_path):
-                logger.warning(
-                    "[COOKIE_MANAGER] Generated cookie file is invalid, invalidating state and triggering regeneration"
-                )
-                # Invalidate state
-                if self._state:
-                    self._state.is_valid = False
-                    self._state.error_message = "Cookie file validation failed"
-                # Trigger regeneration
-                try:
-                    loop = asyncio.get_event_loop()
-                except RuntimeError:
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                self._state = loop.run_until_complete(self._regenerate_cookies())
-                # Retry getting cookies after regeneration
-                if self._state and self._state.is_valid and self._state.cookie_path:
-                    cookie_path = self._state.cookie_path
-                    if Path(cookie_path).exists() and self.generator.validate_netscape_file(
-                        cookie_path
-                    ):
-                        logger.info(
-                            f"[COOKIE_MANAGER] Returning regenerated cookie file: {cookie_path}"
-                        )
-                        return cookie_path
+            cookie_path = self._ensure_cookie_file_exists()
+            if not cookie_path:
                 return None
 
-            logger.info(f"[COOKIE_MANAGER] Returning validated cookie file: {cookie_path}")
-            return cookie_path
+            cookie_path = self._validate_and_regenerate_if_needed(cookie_path)
+            if cookie_path:
+                logger.info(f"[COOKIE_MANAGER] Returning validated cookie file: {cookie_path}")
+                return cookie_path
+            return None
 
     def get_state(self) -> CookieState:
         """Get current cookie state.
@@ -317,8 +227,7 @@ class CookieManager:
             if self._state and self._state.is_valid:
                 logger.info("[COOKIE_MANAGER] Cookies regenerated successfully after invalidation")
                 return True
-            else:
-                logger.warning("[COOKIE_MANAGER] Cookie regeneration failed after invalidation")
+            logger.warning("[COOKIE_MANAGER] Cookie regeneration failed after invalidation")
         return False
 
     def is_ready(self) -> bool:
@@ -348,6 +257,116 @@ class CookieManager:
 
         with self._lock:
             return self._state is not None and self._state.is_generating
+
+    def _get_event_loop(self) -> asyncio.AbstractEventLoop:
+        """Get or create event loop.
+
+        Returns:
+            Event loop instance
+        """
+        try:
+            return asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            return loop
+
+    def _delete_old_cookie_files(self) -> None:
+        """Delete old cookie files before regeneration."""
+        if self._state and self._state.cookie_path:
+            old_cookie_path = Path(self._state.cookie_path)
+            if old_cookie_path.exists():
+                try:
+                    old_cookie_path.unlink()
+                    logger.info(f"[COOKIE_MANAGER] Deleted expired cookie file: {old_cookie_path}")
+                except Exception as e:
+                    logger.warning(f"[COOKIE_MANAGER] Failed to delete old cookie file: {e}")
+
+        json_cookie_file = self.storage_dir / self.config.cookies.cookie_file_name
+        if json_cookie_file.exists():
+            try:
+                json_cookie_file.unlink()
+                logger.info(
+                    f"[COOKIE_MANAGER] Deleted expired JSON cookie file: {json_cookie_file}"
+                )
+            except Exception as e:
+                logger.warning(f"[COOKIE_MANAGER] Failed to delete JSON cookie file: {e}")
+
+    def _ensure_cookies_regenerated(self) -> None:
+        """Ensure cookies are regenerated if needed."""
+        if not self._state or not self._state.is_valid or self._state.should_regenerate():
+            self._delete_old_cookie_files()
+            logger.info("[COOKIE_MANAGER] No valid cookies available, triggering generation")
+            loop = self._get_event_loop()
+            self._state = loop.run_until_complete(self._regenerate_cookies())
+
+    def _try_convert_netscape(self) -> str | None:
+        """Try to convert JSON cookies to Netscape format.
+
+        Returns:
+            Netscape file path if conversion succeeds, None otherwise
+        """
+        netscape_path = self.generator.convert_to_netscape_text()
+        if netscape_path and Path(netscape_path).exists():
+            return netscape_path
+        return None
+
+    def _regenerate_and_retry(self) -> str | None:
+        """Regenerate cookies and retry getting file path.
+
+        Returns:
+            Cookie file path if regeneration succeeds, None otherwise
+        """
+        if self._state:
+            self._state.is_valid = False
+            self._state.error_message = "Cookie file does not exist"
+        loop = self._get_event_loop()
+        self._state = loop.run_until_complete(self._regenerate_cookies())
+        if self._state and self._state.is_valid and self._state.cookie_path:
+            cookie_path = self._state.cookie_path
+            if Path(cookie_path).exists() and self.generator.validate_netscape_file(cookie_path):
+                logger.info(f"[COOKIE_MANAGER] Returning regenerated cookie file: {cookie_path}")
+                return cookie_path
+        return None
+
+    def _ensure_cookie_file_exists(self) -> str | None:
+        """Ensure cookie file exists, regenerating if needed.
+
+        Returns:
+            Cookie file path if exists, None otherwise
+        """
+        cookie_path = self._state.cookie_path if self._state else None
+        if not cookie_path or not Path(cookie_path).exists():
+            logger.warning(f"[COOKIE_MANAGER] Cookie file does not exist: {cookie_path}")
+            netscape_path = self._try_convert_netscape()
+            if netscape_path:
+                return netscape_path
+
+            logger.warning(
+                "[COOKIE_MANAGER] Cookie file missing, invalidating state and triggering regeneration"
+            )
+            return self._regenerate_and_retry()
+        return cookie_path
+
+    def _validate_and_regenerate_if_needed(self, cookie_path: str) -> str | None:
+        """Validate cookie file and regenerate if invalid.
+
+        Args:
+            cookie_path: Path to cookie file
+
+        Returns:
+            Valid cookie file path, or None if validation fails
+        """
+        if self.generator.validate_netscape_file(cookie_path):
+            return cookie_path
+
+        logger.warning(
+            "[COOKIE_MANAGER] Generated cookie file is invalid, invalidating state and triggering regeneration"
+        )
+        if self._state:
+            self._state.is_valid = False
+            self._state.error_message = "Cookie file validation failed"
+        return self._regenerate_and_retry()
 
     async def _regenerate_cookies(self) -> CookieState:
         """Regenerate cookies using the generator.

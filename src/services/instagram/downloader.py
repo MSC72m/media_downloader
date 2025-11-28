@@ -186,7 +186,7 @@ class InstagramDownloader(BaseDownloader):
                 return False
 
         except Exception as e:
-            logger.error(f"Error downloading from Instagram: {str(e)}", exc_info=True)
+            logger.error(f"Error downloading from Instagram: {e!s}", exc_info=True)
             if self.error_handler:
                 self.error_handler.handle_exception(e, "Instagram download", "Instagram")
             return False
@@ -213,55 +213,50 @@ class InstagramDownloader(BaseDownloader):
 
                 result = file_service.download_file(video_url, full_path, progress_callback)
                 return result.success
-            else:
-                # Download image(s) - handle both single images and carousels
-                success = False
+            # Download image(s) - handle both single images and carousels
+            success = False
 
-                # Check if it's a sidecar (carousel) post
-                if post.typename == "GraphSidecar":
-                    for i, node in enumerate(post.get_sidecar_nodes()):
-                        try:
-                            # Get URL based on media type
-                            if node.is_video:
-                                media_url = node.video_url
-                                ext = ".mp4"
-                            else:
-                                media_url = node.display_url
-                                ext = ".jpg"
+            # Check if it's a sidecar (carousel) post
+            if post.typename == "GraphSidecar":
+                for i, node in enumerate(post.get_sidecar_nodes()):
+                    try:
+                        # Get URL based on media type
+                        if node.is_video:
+                            media_url = node.video_url
+                            ext = ".mp4"
+                        else:
+                            media_url = node.display_url
+                            ext = ".jpg"
 
-                            # Generate filename
-                            if i > 0:
-                                filename = self.file_service.sanitize_filename(
-                                    f"{os.path.basename(save_path)}_{i}{ext}"
-                                )
-                            else:
-                                filename = self.file_service.sanitize_filename(
-                                    f"{os.path.basename(save_path)}{ext}"
-                                )
-
-                            full_path = os.path.join(save_dir, filename)
-                            result = file_service.download_file(
-                                media_url, full_path, progress_callback
+                        # Generate filename
+                        if i > 0:
+                            filename = self.file_service.sanitize_filename(
+                                f"{os.path.basename(save_path)}_{i}{ext}"
                             )
-                            if result.success:
-                                success = True
-                        except Exception as e:
-                            logger.error(f"Error downloading sidecar item {i}: {str(e)}")
-                            continue
-                else:
-                    # Single image post
-                    image_url = post.url
-                    filename = self.file_service.sanitize_filename(
-                        f"{os.path.basename(save_path)}.jpg"
-                    )
-                    full_path = os.path.join(save_dir, filename)
-                    result = file_service.download_file(image_url, full_path, progress_callback)
-                    success = result.success
+                        else:
+                            filename = self.file_service.sanitize_filename(
+                                f"{os.path.basename(save_path)}{ext}"
+                            )
 
-                return success
+                        full_path = os.path.join(save_dir, filename)
+                        result = file_service.download_file(media_url, full_path, progress_callback)
+                        if result.success:
+                            success = True
+                    except Exception as e:
+                        logger.error(f"Error downloading sidecar item {i}: {e!s}")
+                        continue
+            else:
+                # Single image post
+                image_url = post.url
+                filename = self.file_service.sanitize_filename(f"{os.path.basename(save_path)}.jpg")
+                full_path = os.path.join(save_dir, filename)
+                result = file_service.download_file(image_url, full_path, progress_callback)
+                success = result.success
+
+            return success
 
         except Exception as e:
-            logger.error(f"Error downloading Instagram post: {str(e)}", exc_info=True)
+            logger.error(f"Error downloading Instagram post: {e!s}", exc_info=True)
             if self.error_handler:
                 self.error_handler.handle_exception(
                     e, f"Downloading Instagram post {shortcode}", "Instagram"

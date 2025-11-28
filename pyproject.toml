@@ -40,20 +40,57 @@ line-length = 100
 
 [tool.ruff.lint]
 select = [
-    "E",   # pycodestyle errors
-    "W",   # pycodestyle warnings
-    "F",   # pyflakes
-    "I",   # isort
-    "N",   # pep8-naming
-    "UP",  # pyupgrade
-    "B",   # flake8-bugbear
-    "C4",  # flake8-comprehensions
-    "SIM", # flake8-simplify
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+    "ARG",  # flake8-unused-arguments
+    "ASYNC", # flake8-async
+    "DTZ",  # flake8-datetimez
+    "FA",   # future-annotations
+    "ISC",  # flake8-implicit-str-concat
+    "ICN",  # flake8-import-conventions
+    "PIE",  # flake8-pie
+    "PT",   # flake8-pytest-style
+    "PYI",  # flake8-pyi
+    "Q",    # flake8-quotes
+    "RET",  # flake8-return
+    "RSE",  # flake8-raise
+    "RUF",  # ruff-specific rules
+    "S",    # flake8-bandit (security)
+    "SLF",  # flake8-self
+    "T",    # flake8-print
+    "PERF", # perflint (performance)
+    "PL",   # pylint
 ]
 ignore = [
     "E501",  # line too long (handled by formatter)
     "B008",  # do not perform function calls in argument defaults
     "C901",  # too complex
+    "T201",  # print statements (allowed in scripts)
+    "EXE001", # shebang without executable (scripts are fine)
+    "PLR0913", # too many arguments (sometimes necessary)
+    "PLR0915", # too many statements (some complex functions are necessary)
+    "PLR2004", # magic value (config values are fine)
+    "S101",  # use of assert (needed in tests)
+    "S603",  # subprocess call (needed for yt-dlp)
+    "S607",  # subprocess call with shell (needed for some operations)
+    "S110",  # try-except-pass (sometimes intentional for cleanup)
+    "PLC0415", # import at top-level (needed for lazy imports to avoid circular deps)
+    "PERF102", # use .keys() instead of .items() (sometimes need both key and value)
+    "PERF203", # try-except in loop (sometimes necessary for validation)
+    "DTZ005", # datetime.now() without tz (acceptable for local timestamps)
+    "SLF001", # private member access (sometimes needed for third-party libraries)
+    "ARG002", # unused method argument (interface compliance, may be used by subclasses)
+    "RUF001", # ambiguous characters (intentional in test cases)
+    "S311", # random for non-crypto (acceptable for user agent rotation)
+    "PLW1641", # __hash__ not implemented (test mocks don't need it)
+    "PT017", # assertion in except (pytest.raises preferred but current pattern is acceptable)
 ]
 
 [tool.ruff.format]

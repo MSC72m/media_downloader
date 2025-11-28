@@ -115,9 +115,9 @@ class PinterestHandler(BaseHandler):
         """Detect if URL is pin, board, etc."""
         if "/pin/" in url:
             return "pin"
-        elif "/board/" in url:
+        if "/board/" in url:
             return "board"
-        elif "pin.it" in url:
+        if "pin.it" in url:
             return "short_pin"
         return "unknown"
 

@@ -874,11 +874,11 @@ class AppConfig(BaseSettings):
             if config_file.exists():
                 try:
                     with open(config_file, encoding="utf-8") as f:
-                        if config_file.suffix == ".yaml" or config_file.suffix == ".yml":
+                        if config_file.suffix in {".yaml", ".yml"}:
                             return yaml.safe_load(f)
-                        else:
                             return json.load(f)
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"Error loading config file: {e}")
                     continue
 
         return None
@@ -886,7 +886,7 @@ class AppConfig(BaseSettings):
     @classmethod
     def _settings_customise_sources(
         cls,
-        settings_cls,
+        _settings_cls,
         init_settings,
         env_settings,
         dotenv_settings,
@@ -954,11 +954,11 @@ class AppConfig(BaseSettings):
             with open(config_file, "w", encoding="utf-8") as f:
                 if config_file.suffix in (".yaml", ".yml"):
                     yaml.safe_dump(config_dict, f, default_flow_style=False, sort_keys=False)
-                    return None
+                    return
                 json.dump(config_dict, f, indent=2, ensure_ascii=False)
 
             logger.info(f"[CONFIG] Saved configuration to {config_file}")
-            return None
+            return
         except Exception as e:
             logger.error(f"[CONFIG] Failed to save configuration: {e}", exc_info=True)
 
@@ -974,7 +974,7 @@ def get_config() -> AppConfig:
     Returns:
         The application configuration instance
     """
-    global _config_instance
+    global _config_instance  # noqa: PLW0603
     if _config_instance is None:
         _config_instance = AppConfig()
     return _config_instance
@@ -986,11 +986,11 @@ def set_config(config: AppConfig) -> None:
     Args:
         config: The configuration instance to set
     """
-    global _config_instance
+    global _config_instance  # noqa: PLW0603
     _config_instance = config
 
 
 def reset_config() -> None:
     """Reset the configuration instance (mainly for testing)."""
-    global _config_instance
+    global _config_instance  # noqa: PLW0603
     _config_instance = None

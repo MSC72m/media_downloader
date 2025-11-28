@@ -41,7 +41,6 @@ class DialogHandler(ABC):
             url: URL to download
             on_download_callback: Callback to execute when download is confirmed
         """
-        pass
 
 
 class TwitterDialogHandler(DialogHandler):

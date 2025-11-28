@@ -52,7 +52,7 @@ class LoginDialog(ctk.CTkToplevel, WindowCenterMixin):
         logger.info("[LOGIN_DIALOG] Window should now be visible with focus")
 
         # Bind enter key
-        self.bind("<Return>", lambda e: self.handle_login())
+        self.bind("<Return>", lambda _e: self.handle_login())
         logger.info("[LOGIN_DIALOG] Initialization complete")
 
     def create_widgets(self):

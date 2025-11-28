@@ -27,7 +27,7 @@ class MockDownloadHandler(IDownloadHandler):
         self.downloads = []
         self.started_downloads = []
 
-    def process_url(self, url: str, options: dict = None) -> bool:
+    def process_url(self, url: str, options: dict | None = None) -> bool:
         return True
 
     def handle_download_error(self, error: Exception) -> None:

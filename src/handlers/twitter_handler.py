@@ -115,7 +115,7 @@ class TwitterHandler(BaseHandler):
         """Detect if URL is tweet, space, etc."""
         if "/spaces/" in url or "/i/spaces/" in url:
             return "space"
-        elif "/status/" in url:
+        if "/status/" in url:
             return "tweet"
         return "unknown"
 

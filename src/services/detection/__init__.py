@@ -10,10 +10,10 @@ from .link_detector import (
 )
 
 __all__ = [
-    "LinkDetector",
-    "LinkDetectionRegistry",
-    "DetectionResult",
-    "LinkHandlerInterface",
     "BaseHandler",
+    "DetectionResult",
+    "LinkDetectionRegistry",
+    "LinkDetector",
+    "LinkHandlerInterface",
     "auto_register_handler",
 ]

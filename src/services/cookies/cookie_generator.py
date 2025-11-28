@@ -1,10 +1,12 @@
 """Cookie generator service using Playwright for automatic cookie generation."""
 
 import asyncio
+import contextlib
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
 from threading import Lock
+from typing import Any
 
 from playwright.async_api import async_playwright
 
@@ -55,6 +57,277 @@ class CookieGenerator:
         with self._state_lock:
             self._state = state
 
+    def _create_error_state(self, error_msg: str) -> CookieState:
+        """Create an error state with the given message.
+
+        Args:
+            error_msg: Error message
+
+        Returns:
+            CookieState with error information
+        """
+        state = CookieState(
+            is_generating=False,
+            is_valid=False,
+            error_message=error_msg,
+            _generator=self,
+        )
+        self._update_state(state)
+        return state
+
+    async def _launch_browser(self, playwright: Any) -> Any | None:
+        """Launch Chromium browser.
+
+        Args:
+            playwright: Playwright instance
+
+        Returns:
+            Browser instance or None if launch fails
+        """
+        try:
+            return await playwright.chromium.launch(
+                headless=True,
+                args=[
+                    "--incognito",
+                    "--disable-blink-features=AutomationControlled",
+                ],
+            )
+        except Exception as browser_error:
+            error_msg = f"Failed to launch browser: {browser_error!s}"
+            logger.error(f"[COOKIE_GENERATOR] {error_msg}")
+            return None
+
+    async def _create_browser_context(self, browser: Any) -> tuple[Any, Any] | None:
+        """Create browser context and page.
+
+        Args:
+            browser: Browser instance
+
+        Returns:
+            Tuple of (context, page) or None if creation fails
+        """
+        try:
+            user_agent = get_random_user_agent()
+            logger.info(f"[COOKIE_GENERATOR] Using random user agent: {user_agent[:50]}...")
+
+            context = await browser.new_context(
+                viewport={
+                    "width": self.config.cookies.viewport_width,
+                    "height": self.config.cookies.viewport_height,
+                },
+                user_agent=user_agent,
+                device_scale_factor=3.0,
+                is_mobile=True,
+                has_touch=True,
+                locale="en-US",
+                timezone_id="America/New_York",
+                extra_http_headers={
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.9",
+                    "Accept-Encoding": "gzip, deflate, br",
+                    "DNT": "1",
+                    "Connection": "keep-alive",
+                    "Upgrade-Insecure-Requests": "1",
+                    "Sec-Fetch-Dest": "document",
+                    "Sec-Fetch-Mode": "navigate",
+                    "Sec-Fetch-Site": "none",
+                    "Sec-Fetch-User": "?1",
+                },
+            )
+            page = await context.new_page()
+            logger.info(
+                f"[COOKIE_GENERATOR] Created Android mobile context "
+                f"(viewport: {self.config.cookies.viewport_width}x{self.config.cookies.viewport_height})"
+            )
+            return context, page
+        except Exception as context_error:
+            error_msg = f"Failed to create browser context: {context_error!s}"
+            logger.error(f"[COOKIE_GENERATOR] {error_msg}")
+            return None
+
+    async def _navigate_and_interact(self, page: Any) -> bool:
+        """Navigate to YouTube and perform interactions.
+
+        Args:
+            page: Page instance
+
+        Returns:
+            True if navigation succeeded, False otherwise
+        """
+        cookie_config = self.config.cookies
+
+        try:
+            await page.goto(
+                "https://www.youtube.com",
+                wait_until="domcontentloaded",
+                timeout=cookie_config.generation_timeout * 1000,
+            )
+            logger.info("[COOKIE_GENERATOR] YouTube homepage loaded")
+
+            await asyncio.sleep(cookie_config.wait_after_load)
+
+            try:
+                await page.wait_for_load_state(
+                    "networkidle",
+                    timeout=int(cookie_config.wait_for_network_idle * 1000),
+                )
+            except Exception:
+                logger.debug("[COOKIE_GENERATOR] Network idle timeout, continuing")
+
+            await asyncio.sleep(cookie_config.wait_after_load)
+
+            try:
+                await page.evaluate("() => window.scrollTo(0, 300)")
+                await asyncio.sleep(cookie_config.scroll_delay)
+                await page.evaluate("() => window.scrollTo(0, 0)")
+                await asyncio.sleep(cookie_config.scroll_delay)
+            except Exception:
+                logger.debug("[COOKIE_GENERATOR] Scroll interaction failed, continuing")
+
+            test_video_url = "https://www.youtube.com/watch?v=jNQXAC9IVRw"
+            logger.info(f"[COOKIE_GENERATOR] Navigating to video page: {test_video_url}")
+
+            try:
+                await page.goto(
+                    test_video_url,
+                    wait_until="domcontentloaded",
+                    timeout=cookie_config.generation_timeout * 1000,
+                )
+                logger.info("[COOKIE_GENERATOR] Video page loaded successfully")
+
+                await asyncio.sleep(cookie_config.wait_after_load * 2)
+
+                try:
+                    await page.wait_for_load_state(
+                        "networkidle",
+                        timeout=int(cookie_config.wait_for_network_idle * 1000),
+                    )
+                except Exception:
+                    logger.debug("[COOKIE_GENERATOR] Video page network idle timeout, continuing")
+
+                await page.evaluate("() => window.scrollTo(0, 200)")
+                await asyncio.sleep(cookie_config.scroll_delay)
+                await page.evaluate("() => window.scrollTo(0, 0)")
+                await asyncio.sleep(cookie_config.scroll_delay)
+
+                logger.info("[COOKIE_GENERATOR] Video page interactions completed")
+            except Exception as video_error:
+                logger.warning(
+                    f"[COOKIE_GENERATOR] Failed to navigate to video page: {video_error}, "
+                    "continuing with homepage cookies"
+                )
+
+            await asyncio.sleep(cookie_config.wait_after_load)
+            return True
+
+        except Exception as e:
+            logger.error(f"[COOKIE_GENERATOR] Failed to navigate to YouTube: {e}")
+            try:
+                await asyncio.sleep(cookie_config.wait_after_load)
+                await page.goto(
+                    "https://www.youtube.com",
+                    wait_until="domcontentloaded",
+                    timeout=cookie_config.generation_timeout * 1000,
+                )
+                await asyncio.sleep(cookie_config.wait_after_load)
+                logger.info("[COOKIE_GENERATOR] YouTube loaded successfully on retry")
+                return True
+            except Exception as retry_e:
+                logger.error(f"[COOKIE_GENERATOR] Retry also failed: {retry_e}")
+                return False
+
+    def _validate_cookies(
+        self, cookies: list, youtube_cookies: list, google_cookies: list
+    ) -> str | None:
+        """Validate retrieved cookies.
+
+        Args:
+            cookies: All cookies
+            youtube_cookies: YouTube domain cookies
+            google_cookies: Google domain cookies
+
+        Returns:
+            Error message if validation fails, None otherwise
+        """
+        if not cookies or (not youtube_cookies and not google_cookies):
+            logger.warning("[COOKIE_GENERATOR] No valid cookies retrieved")
+            return "No valid cookies retrieved from browser"
+
+        important_cookies = [
+            "VISITOR_INFO1_LIVE",
+            "YSC",
+            "PREF",
+            "__Secure-YSC",
+            "__Secure-3PSID",
+            "__Secure-3PAPISID",
+        ]
+        found_important = [
+            c.get("name") for c in youtube_cookies if c.get("name") in important_cookies
+        ]
+        logger.info(f"[COOKIE_GENERATOR] Important cookies found: {found_important}")
+
+        has_visitor_info = any(c.get("name") == "VISITOR_INFO1_LIVE" for c in youtube_cookies)
+        has_ysc = any(c.get("name") == "YSC" for c in youtube_cookies)
+
+        if not has_visitor_info and not has_ysc:
+            logger.warning(
+                "[COOKIE_GENERATOR] Missing critical cookies (VISITOR_INFO1_LIVE or YSC)"
+            )
+
+        return None
+
+    async def _process_cookies(self, context: Any, browser: Any, state: CookieState) -> CookieState:
+        """Process and save cookies from browser context.
+
+        Args:
+            context: Browser context
+            browser: Browser instance
+            state: Current state
+
+        Returns:
+            Updated state (success or error)
+        """
+        cookies = await context.cookies()
+        youtube_cookies = [c for c in cookies if "youtube.com" in c.get("domain", "")]
+        google_cookies = [c for c in cookies if "google.com" in c.get("domain", "")]
+        logger.info(
+            f"[COOKIE_GENERATOR] Retrieved {len(cookies)} total cookies ({len(youtube_cookies)} YouTube, {len(google_cookies)} Google)"
+        )
+
+        error_msg = self._validate_cookies(cookies, youtube_cookies, google_cookies)
+        if error_msg:
+            await browser.close()
+            return self._create_error_state(error_msg)
+
+        try:
+            self._save_cookies(cookies)
+        except Exception as save_error:
+            logger.error(f"[COOKIE_GENERATOR] Failed to save cookies: {save_error}")
+            await browser.close()
+            return self._create_error_state(f"Failed to save cookies: {save_error!s}")
+
+        netscape_path = self.convert_to_netscape_text()
+        if not netscape_path:
+            logger.warning("[COOKIE_GENERATOR] Failed to convert cookies to Netscape format")
+            return self._create_error_state("Failed to convert cookies to Netscape format")
+
+        await browser.close()
+
+        state.generated_at = datetime.now()
+        state.expires_at = datetime.now() + timedelta(hours=self.config.cookies.cookie_expiry_hours)
+        state.is_valid = True
+        state.is_generating = False
+        state.cookie_path = netscape_path
+        state.error_message = None
+        self._update_state(state)
+
+        logger.info(
+            f"[COOKIE_GENERATOR] Cookie generation successful: {state.cookie_path} "
+            f"(JSON: {self.cookie_file})"
+        )
+
+        return state
+
     async def generate_cookies(self) -> CookieState:
         """Generate cookies by visiting YouTube in headless browser.
 
@@ -74,263 +347,25 @@ class CookieGenerator:
             async with async_playwright() as p:
                 logger.info("[COOKIE_GENERATOR] Launching Chromium browser")
 
-                # Launch browser in headless mode
-                try:
-                    browser = await p.chromium.launch(
-                        headless=True,
-                        args=[
-                            "--incognito",
-                            "--disable-blink-features=AutomationControlled",
-                        ],
-                    )
-                except Exception as browser_error:
-                    error_msg = f"Failed to launch browser: {str(browser_error)}"
-                    logger.error(f"[COOKIE_GENERATOR] {error_msg}")
-                    state.is_generating = False
-                    state.is_valid = False
-                    state.error_message = error_msg
-                    self._update_state(state)
-                    return state
+                browser = await self._launch_browser(p)
+                if browser is None:
+                    return self._create_error_state("Failed to launch browser")
 
-                # Create incognito context with Android mobile settings
-                try:
-                    # Get random user agent for each cookie generation
-                    user_agent = get_random_user_agent()
-                    logger.info(f"[COOKIE_GENERATOR] Using random user agent: {user_agent[:50]}...")
-
-                    # Use mobile device emulation for Android with proper headers
-                    context = await browser.new_context(
-                        viewport={
-                            "width": self.config.cookies.viewport_width,
-                            "height": self.config.cookies.viewport_height,
-                        },
-                        user_agent=user_agent,
-                        device_scale_factor=3.0,  # Android high DPI
-                        is_mobile=True,  # Identify as mobile device
-                        has_touch=True,  # Touch screen support
-                        locale="en-US",
-                        timezone_id="America/New_York",
-                        # Set proper mobile headers
-                        extra_http_headers={
-                            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                            "Accept-Language": "en-US,en;q=0.9",
-                            "Accept-Encoding": "gzip, deflate, br",
-                            "DNT": "1",
-                            "Connection": "keep-alive",
-                            "Upgrade-Insecure-Requests": "1",
-                            "Sec-Fetch-Dest": "document",
-                            "Sec-Fetch-Mode": "navigate",
-                            "Sec-Fetch-Site": "none",
-                            "Sec-Fetch-User": "?1",
-                        },
-                    )
-                    page = await context.new_page()
-                    logger.info(
-                        f"[COOKIE_GENERATOR] Created Android mobile context (viewport: {self.config.cookies.viewport_width}x{self.config.cookies.viewport_height})"
-                    )
-                except Exception as context_error:
-                    error_msg = f"Failed to create browser context: {str(context_error)}"
-                    logger.error(f"[COOKIE_GENERATOR] {error_msg}")
-                    state.is_generating = False
-                    state.is_valid = False
-                    state.error_message = error_msg
-                    self._update_state(state)
-                    import contextlib
-
+                context_result = await self._create_browser_context(browser)
+                if context_result is None:
                     with contextlib.suppress(Exception):
                         await browser.close()
-                    return state
+                    return self._create_error_state("Failed to create browser context")
+
+                context, page = context_result
                 logger.info("[COOKIE_GENERATOR] Navigating to YouTube")
 
-                cookie_config = self.config.cookies
+                if not await self._navigate_and_interact(page):
+                    with contextlib.suppress(Exception):
+                        await browser.close()
+                    return self._create_error_state("Failed to navigate to YouTube")
 
-                try:
-                    # Navigate to YouTube homepage first
-                    await page.goto(
-                        "https://www.youtube.com",
-                        wait_until="domcontentloaded",
-                        timeout=cookie_config.generation_timeout * 1000,
-                    )
-                    logger.info("[COOKIE_GENERATOR] YouTube homepage loaded")
-
-                    # Wait for page to fully load
-                    await asyncio.sleep(cookie_config.wait_after_load)
-
-                    try:
-                        await page.wait_for_load_state(
-                            "networkidle",
-                            timeout=int(cookie_config.wait_for_network_idle * 1000),
-                        )
-                    except Exception:
-                        logger.debug("[COOKIE_GENERATOR] Network idle timeout, continuing")
-
-                    await asyncio.sleep(cookie_config.wait_after_load)
-
-                    # Simulate mobile user interactions on homepage
-                    try:
-                        # Scroll down to trigger lazy loading and get more cookies
-                        await page.evaluate("() => window.scrollTo(0, 300)")
-                        await asyncio.sleep(cookie_config.scroll_delay)
-
-                        # Scroll back up
-                        await page.evaluate("() => window.scrollTo(0, 0)")
-                        await asyncio.sleep(cookie_config.scroll_delay)
-                    except Exception:
-                        logger.debug("[COOKIE_GENERATOR] Scroll interaction failed, continuing")
-
-                    # Navigate to a popular video to get proper authentication cookies
-                    # Using a popular video that's likely to be available
-                    test_video_url = (
-                        "https://www.youtube.com/watch?v=jNQXAC9IVRw"  # Popular test video
-                    )
-                    logger.info(f"[COOKIE_GENERATOR] Navigating to video page: {test_video_url}")
-
-                    try:
-                        await page.goto(
-                            test_video_url,
-                            wait_until="domcontentloaded",
-                            timeout=cookie_config.generation_timeout * 1000,
-                        )
-                        logger.info("[COOKIE_GENERATOR] Video page loaded successfully")
-
-                        # Wait for video page to fully load
-                        await asyncio.sleep(
-                            cookie_config.wait_after_load * 2
-                        )  # Longer wait for video page
-
-                        try:
-                            await page.wait_for_load_state(
-                                "networkidle",
-                                timeout=int(cookie_config.wait_for_network_idle * 1000),
-                            )
-                        except Exception:
-                            logger.debug(
-                                "[COOKIE_GENERATOR] Video page network idle timeout, continuing"
-                            )
-
-                        # Scroll on video page to trigger more cookie generation
-                        await page.evaluate("() => window.scrollTo(0, 200)")
-                        await asyncio.sleep(cookie_config.scroll_delay)
-
-                        # Scroll back
-                        await page.evaluate("() => window.scrollTo(0, 0)")
-                        await asyncio.sleep(cookie_config.scroll_delay)
-
-                        logger.info("[COOKIE_GENERATOR] Video page interactions completed")
-                    except Exception as video_error:
-                        logger.warning(
-                            f"[COOKIE_GENERATOR] Failed to navigate to video page: {video_error}, continuing with homepage cookies"
-                        )
-
-                    # Final wait for all cookies to be set
-                    await asyncio.sleep(cookie_config.wait_after_load)
-
-                except Exception as e:
-                    logger.error(f"[COOKIE_GENERATOR] Failed to navigate to YouTube: {e}")
-                    try:
-                        await asyncio.sleep(cookie_config.wait_after_load)
-                        await page.goto(
-                            "https://www.youtube.com",
-                            wait_until="domcontentloaded",
-                            timeout=cookie_config.generation_timeout * 1000,
-                        )
-                        await asyncio.sleep(cookie_config.wait_after_load)
-                        logger.info("[COOKIE_GENERATOR] YouTube loaded successfully on retry")
-                    except Exception as retry_e:
-                        logger.error(f"[COOKIE_GENERATOR] Retry also failed: {retry_e}")
-                        # Update state for navigation failure
-                        state.is_generating = False
-                        state.is_valid = False
-                        state.error_message = f"Failed to navigate to YouTube: {str(retry_e)}"
-                        self._update_state(state)
-                        raise retry_e
-
-                cookies = await context.cookies()
-                youtube_cookies = [c for c in cookies if "youtube.com" in c.get("domain", "")]
-                google_cookies = [c for c in cookies if "google.com" in c.get("domain", "")]
-                logger.info(
-                    f"[COOKIE_GENERATOR] Retrieved {len(cookies)} total cookies ({len(youtube_cookies)} YouTube, {len(google_cookies)} Google)"
-                )
-
-                # Log important cookie names for debugging
-                important_cookies = [
-                    "VISITOR_INFO1_LIVE",
-                    "YSC",
-                    "PREF",
-                    "__Secure-YSC",
-                    "__Secure-3PSID",
-                    "__Secure-3PAPISID",
-                ]
-                found_important = [
-                    c.get("name") for c in youtube_cookies if c.get("name") in important_cookies
-                ]
-                logger.info(f"[COOKIE_GENERATOR] Important cookies found: {found_important}")
-
-                # Check if we have valid cookies
-                if not cookies or (not youtube_cookies and not google_cookies):
-                    logger.warning("[COOKIE_GENERATOR] No valid cookies retrieved")
-                    state.is_generating = False
-                    state.is_valid = False
-                    state.error_message = "No valid cookies retrieved from browser"
-                    self._update_state(state)
-                    await browser.close()
-                    return state
-
-                # Check for minimum required cookies
-                has_visitor_info = any(
-                    c.get("name") == "VISITOR_INFO1_LIVE" for c in youtube_cookies
-                )
-                has_ysc = any(c.get("name") == "YSC" for c in youtube_cookies)
-
-                if not has_visitor_info and not has_ysc:
-                    logger.warning(
-                        "[COOKIE_GENERATOR] Missing critical cookies (VISITOR_INFO1_LIVE or YSC)"
-                    )
-                    # Continue anyway - some cookies are better than none
-
-                # Save cookies to JSON file
-                try:
-                    self._save_cookies(cookies)
-                except Exception as save_error:
-                    logger.error(f"[COOKIE_GENERATOR] Failed to save cookies: {save_error}")
-                    state.is_generating = False
-                    state.is_valid = False
-                    state.error_message = f"Failed to save cookies: {str(save_error)}"
-                    self._update_state(state)
-                    await browser.close()
-                    return state
-
-                # Convert to Netscape format (cookies.txt) for yt-dlp compatibility
-                netscape_path = self.convert_to_netscape_text()
-                if not netscape_path:
-                    logger.warning(
-                        "[COOKIE_GENERATOR] Failed to convert cookies to Netscape format"
-                    )
-                    state.is_generating = False
-                    state.is_valid = False
-                    state.error_message = "Failed to convert cookies to Netscape format"
-                    self._update_state(state)
-                    return state
-
-                # Close browser
-                await browser.close()
-
-                # Update state - use Netscape file path as it's what yt-dlp uses
-                state.generated_at = datetime.now()
-                state.expires_at = datetime.now() + timedelta(
-                    hours=self.config.cookies.cookie_expiry_hours
-                )
-                state.is_valid = True
-                state.is_generating = False
-                state.cookie_path = netscape_path  # Use Netscape format file path
-                state.error_message = None
-                self._update_state(state)  # Update internal state for real-time access
-
-                logger.info(
-                    f"[COOKIE_GENERATOR] Cookie generation successful: {state.cookie_path} (JSON: {self.cookie_file})"
-                )
-
-                return state
+                return await self._process_cookies(context, browser, state)
 
         except ImportError as e:
             error_msg = (
@@ -338,20 +373,12 @@ class CookieGenerator:
                 "pip install playwright && playwright install chromium"
             )
             logger.error(f"[COOKIE_GENERATOR] {error_msg}: {e}")
-            state.is_generating = False
-            state.is_valid = False
-            state.error_message = error_msg
-            self._update_state(state)
-            return state
+            return self._create_error_state(error_msg)
 
         except Exception as e:
-            error_msg = f"Failed to generate cookies: {str(e)}"
+            error_msg = f"Failed to generate cookies: {e!s}"
             logger.error(f"[COOKIE_GENERATOR] {error_msg}", exc_info=True)
-            state.is_generating = False
-            state.is_valid = False
-            state.error_message = error_msg
-            self._update_state(state)
-            return state
+            return self._create_error_state(error_msg)
 
     def _save_cookies(self, cookies: list) -> None:
         """Save cookies to JSON file in Netscape format.
@@ -377,8 +404,7 @@ class CookieGenerator:
                 expires = 0
             elif expires > 0:
                 expires = int(expires)
-                if expires < 0:
-                    expires = 0
+                expires = max(expires, 0)
             else:
                 expires = 0
 
@@ -505,11 +531,11 @@ class CookieGenerator:
             valid_lines = 0
             with open(file_path, encoding="utf-8") as f:
                 for line in f:
-                    line = line.strip()
-                    if not line or line.startswith("#"):
+                    stripped_line = line.strip()
+                    if not stripped_line or stripped_line.startswith("#"):
                         continue
 
-                    parts = line.split("\t")
+                    parts = stripped_line.split("\t")
                     if len(parts) < 7:
                         continue
 

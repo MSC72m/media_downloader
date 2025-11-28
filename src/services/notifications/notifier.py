@@ -82,5 +82,5 @@ class NotifierService(INotifier):
     def notify_error(self, error: Exception, context: str = "") -> None:
         self.notify_user(
             "download_error",
-            text=f"Error in {context}: {str(error)}",
+            text=f"Error in {context}: {error!s}",
         )

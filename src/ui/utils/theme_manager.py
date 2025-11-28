@@ -140,7 +140,7 @@ def get_theme_manager(root: Any | None = None) -> ThemeManager:
     Returns:
         ThemeManager instance (cached per root)
     """
-    global _theme_manager_instance
+    global _theme_manager_instance  # noqa: PLW0603
 
     if _theme_manager_instance is None:
         _theme_manager_instance = ThemeManager(root)

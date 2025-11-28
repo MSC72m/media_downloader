@@ -36,19 +36,19 @@ def __getattr__(name):
         from .youtube_handler import YouTubeHandler
 
         return YouTubeHandler
-    elif name == "InstagramHandler":
+    if name == "InstagramHandler":
         from .instagram_handler import InstagramHandler
 
         return InstagramHandler
-    elif name == "TwitterHandler":
+    if name == "TwitterHandler":
         from .twitter_handler import TwitterHandler
 
         return TwitterHandler
-    elif name == "PinterestHandler":
+    if name == "PinterestHandler":
         from .pinterest_handler import PinterestHandler
 
         return PinterestHandler
-    elif name == "SoundCloudHandler":
+    if name == "SoundCloudHandler":
         from .soundcloud_handler import SoundCloudHandler
 
         return SoundCloudHandler
@@ -56,17 +56,17 @@ def __getattr__(name):
 
 
 __all__ = [
+    "CookieHandler",
     # Application handlers
     "DownloadHandler",
-    "ServiceDetector",
+    "InstagramHandler",
     "NetworkChecker",
-    "CookieHandler",
+    "PinterestHandler",
+    "ServiceDetector",
+    "SoundCloudHandler",
+    "TwitterHandler",
     # Link handlers (lazy loaded)
     "YouTubeHandler",
-    "InstagramHandler",
-    "TwitterHandler",
-    "PinterestHandler",
-    "SoundCloudHandler",
     # Registration function
     "_register_link_handlers",
 ]

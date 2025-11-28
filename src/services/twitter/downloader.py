@@ -91,7 +91,7 @@ class TwitterDownloader(BaseDownloader):
             return success
 
         except Exception as e:
-            logger.error(f"Error downloading from Twitter: {str(e)}", exc_info=True)
+            logger.error(f"Error downloading from Twitter: {e!s}", exc_info=True)
             if self.error_handler:
                 self.error_handler.handle_exception(e, "Twitter download", "Twitter")
             return False
@@ -115,7 +115,7 @@ class TwitterDownloader(BaseDownloader):
             response.raise_for_status()
             return response.json().get("media_extended", [])
         except Exception as e:
-            logger.error(f"Error scraping media: {str(e)}", exc_info=True)
+            logger.error(f"Error scraping media: {e!s}", exc_info=True)
             if self.error_handler:
                 self.error_handler.handle_exception(e, f"Scraping tweet {tweet_id}", "Twitter")
             return []
@@ -150,7 +150,7 @@ class TwitterDownloader(BaseDownloader):
                 if result.success:
                     success = True
             except Exception as e:
-                logger.error(f"Error downloading media item {i}: {str(e)}", exc_info=True)
+                logger.error(f"Error downloading media item {i}: {e!s}", exc_info=True)
                 if self.error_handler:
                     self.error_handler.handle_exception(e, f"Downloading media item {i}", "Twitter")
                 continue

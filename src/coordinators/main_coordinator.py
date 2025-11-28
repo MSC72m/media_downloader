@@ -160,10 +160,10 @@ class EventCoordinator:
 
         if platform == "generic":
             dialog_method(url, name, callback)
-            return None
+            return
 
         dialog_method(url, callback)
-        return None
+        return
 
     # Authentication
     def authenticate_instagram(self, parent_window, callback=None) -> None:
@@ -198,7 +198,7 @@ class EventCoordinator:
         except Exception as e:
             logger.error(f"[EVENT_COORDINATOR] Error showing file manager: {e}")
             self.error_handler.show_error(
-                "File Manager Error", f"Failed to open file manager: {str(e)}"
+                "File Manager Error", f"Failed to open file manager: {e!s}"
             )
 
     def show_network_status(self) -> None:
@@ -209,7 +209,7 @@ class EventCoordinator:
             logger.error(f"[EVENT_COORDINATOR] Error showing network status: {e}")
             self.error_handler.show_error(
                 "Network Status Error",
-                f"Failed to open network status dialog: {str(e)}",
+                f"Failed to open network status dialog: {e!s}",
             )
 
     # Cookie Detection
@@ -257,10 +257,10 @@ class EventCoordinator:
             if self.error_handler:
                 self.error_handler.show_error(
                     "Connectivity Check Error",
-                    f"Failed to check network connectivity: {str(e)}",
+                    f"Failed to check network connectivity: {e!s}",
                 )
             if self.error_handler:
-                self.error_handler.show_error("Cookie Error", f"Error loading cookie: {str(e)}")
+                self.error_handler.show_error("Cookie Error", f"Error loading cookie: {e!s}")
 
     # UIContextProtocol implementation via __getattr__ for dynamic dispatch
     def __getattr__(self, name: str):

@@ -37,7 +37,6 @@ class OptionsBar(ctk.CTkFrame):
 
     def _on_theme_changed(self, appearance, color):
         """Handle theme change event."""
-        pass
 
     def _get_root_window(self):
         """Get the root Tk window for scheduling."""

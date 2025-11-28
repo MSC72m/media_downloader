@@ -12,7 +12,7 @@ def get_logger(name: str) -> logging.Logger:
 
     Configures root logger once to prevent duplicate log messages.
     """
-    global _root_logger_configured
+    global _root_logger_configured  # noqa: PLW0603
 
     # Configure root logger only once
     if not _root_logger_configured:

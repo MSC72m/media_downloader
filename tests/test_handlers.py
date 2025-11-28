@@ -572,7 +572,7 @@ class TestHandlerIntegration:
                 if handler_class.__name__ in ["YouTubeHandler"]:
                     # Skip YouTubeHandler as it requires complex dependencies
                     continue
-                elif handler_class.__name__ == "SoundCloudHandler":
+                if handler_class.__name__ == "SoundCloudHandler":
                     handler = handler_class(message_queue=MockMessageQueue())
                 else:
                     handler = handler_class()

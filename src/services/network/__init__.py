@@ -12,12 +12,12 @@ from .checker import (
 )
 
 __all__ = [
+    "ConnectionResult",
     "HTTPNetworkChecker",
     "NetworkService",
-    "ConnectionResult",
+    "check_all_services",
     "check_internet_connection",
     "check_site_connection",
-    "check_all_services",
     "get_problem_services",
     "is_service_connected",
 ]

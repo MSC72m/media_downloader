@@ -30,7 +30,7 @@ def test_command_line_ytdlp():
             "title",
             url,
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        result = subprocess.run(cmd, check=False, capture_output=True, text=True, timeout=30)
 
         if result.returncode == 0:
             print(f"   ✅ Success: {result.stdout.strip()}")
@@ -53,7 +53,7 @@ def test_command_line_ytdlp():
             "title",
             url,
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        result = subprocess.run(cmd, check=False, capture_output=True, text=True, timeout=30)
 
         if result.returncode == 0:
             print(f"   ✅ Success: {result.stdout.strip()}")
@@ -108,7 +108,7 @@ def test_metadata_service_direct():
             print(f"DEBUG: Running command: {' '.join(cmd)}")
 
             # Run the command
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            result = subprocess.run(cmd, check=False, capture_output=True, text=True, timeout=30)
 
             if result.returncode == 0:
                 # Parse multi-line output
@@ -128,9 +128,8 @@ def test_metadata_service_direct():
                         }
                         print("DEBUG: Successfully fetched video info via command line")
                         return info
-                    else:
-                        print(f"DEBUG: Unexpected output format: {len(lines)} lines")
-                        print(f"DEBUG: Raw output: {result.stdout[:500]}...")
+                    print(f"DEBUG: Unexpected output format: {len(lines)} lines")
+                    print(f"DEBUG: Raw output: {result.stdout[:500]}...")
                 except Exception as e:
                     print(f"DEBUG: Failed to parse output: {e}")
                     print(f"DEBUG: Raw output: {result.stdout[:500]}...")

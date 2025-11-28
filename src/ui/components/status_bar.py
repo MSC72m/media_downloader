@@ -183,6 +183,56 @@ class StatusBar(ctk.CTkFrame):
 
         self._queue_update(_update)
 
+    def _check_message_timeout(self, current_time: float) -> None:
+        """Check if current message has timed out.
+
+        Args:
+            current_time: Current timestamp
+        """
+        if (
+            self._current_message
+            and self._message_timeout
+            and current_time >= self._message_timeout
+        ):
+            self._current_message = None
+            self._message_timeout = None
+            self._is_error_message = False
+
+    def _get_next_message(self, current_time: float) -> None:
+        """Get next message from queue.
+
+        Args:
+            current_time: Current timestamp
+        """
+        if self._current_message or self._message_queue.empty():
+            return
+
+        try:
+            message_data = self._message_queue.get_nowait()
+            if isinstance(message_data, tuple):
+                self._current_message, self._is_error_message = message_data
+            else:
+                self._current_message = message_data
+                self._is_error_message = False
+
+            timeout_seconds = (
+                self._config.ui.error_message_timeout_seconds
+                if self._is_error_message
+                else self._config.ui.message_timeout_seconds
+            )
+
+            self._message_timeout = current_time + timeout_seconds
+            self.status_label.configure(text=self._current_message)
+        except queue.Empty:
+            pass
+
+    def _show_ready_if_no_message(self) -> None:
+        """Show 'Ready' status if no current message."""
+        if not self._current_message:
+            self.status_label.configure(text="Ready")
+            if hasattr(self, "_connection_confirmed_shown"):
+                self._connection_confirmed_shown = False
+
     def _process_messages(self):
         """Process message queue with timeout handling."""
         if not self._running:
@@ -190,54 +240,13 @@ class StatusBar(ctk.CTkFrame):
 
         try:
             current_time = time.time()
-
-            # Check if current message has timed out
-            if (
-                self._current_message
-                and self._message_timeout
-                and current_time >= self._message_timeout
-            ):
-                # Timeout reached - clear current message
-                self._current_message = None
-                self._message_timeout = None
-                self._is_error_message = False
-
-            # If no current message, get next from queue
-            if not self._current_message and not self._message_queue.empty():
-                try:
-                    message_data = self._message_queue.get_nowait()
-                    # Handle both old format (string) and new format (tuple)
-                    if isinstance(message_data, tuple):
-                        self._current_message, self._is_error_message = message_data
-                    else:
-                        # Backward compatibility with old string format
-                        self._current_message = message_data
-                        self._is_error_message = False
-
-                    # Use longer timeout for error messages
-                    if self._is_error_message:
-                        timeout_seconds = self._config.ui.error_message_timeout_seconds
-                    else:
-                        timeout_seconds = self._config.ui.message_timeout_seconds
-
-                    self._message_timeout = current_time + timeout_seconds
-                    # Display the message
-                    self.status_label.configure(text=self._current_message)
-                except queue.Empty:
-                    pass
-
-            # If still no message, show "Ready" (default state)
-            # After "Connection confirmed" times out, show "Ready"
-            if not self._current_message:
-                self.status_label.configure(text="Ready")
-                # Reset connection confirmed flag when showing Ready
-                if hasattr(self, "_connection_confirmed_shown"):
-                    self._connection_confirmed_shown = False
+            self._check_message_timeout(current_time)
+            self._get_next_message(current_time)
+            self._show_ready_if_no_message()
 
         except Exception as e:
             logger.error(f"[STATUS_BAR] Error processing messages: {e}", exc_info=True)
 
-        # Schedule next check (check every 100ms for timeout)
         if self._running and self._root_window:
             try:
                 self._root_window.after(100, self._process_messages)

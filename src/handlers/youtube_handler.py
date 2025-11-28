@@ -188,7 +188,7 @@ class YouTubeHandler(BaseHandler):
                         elif self.message_queue:
                             self.message_queue.add_message(
                                 Message(
-                                    text=f"Failed to add YouTube Music download: {str(e)}",
+                                    text=f"Failed to add YouTube Music download: {e!s}",
                                     level=MessageLevel.ERROR,
                                     title="YouTube Music Error",
                                 )

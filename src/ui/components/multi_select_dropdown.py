@@ -17,7 +17,7 @@ class MultiSelectDropdown(ctk.CTkFrame):
         self,
         master,
         placeholder: str = "Select items...",
-        options: list[dict[str, Any]] = None,
+        options: list[dict[str, Any]] | None = None,
         on_change: Callable[[list[str]], None] | None = None,
         width: int = 200,
         height: int = 30,
@@ -119,7 +119,7 @@ class MultiSelectDropdown(ctk.CTkFrame):
             # Bind click outside to close - only bind to dropdown window
             self.dropdown_window.bind("<Button-1>", self._handle_outside_click)
             self.dropdown_window.bind("<FocusOut>", self._handle_focus_out)
-            self.dropdown_window.bind("<Escape>", lambda e: self._close_dropdown())
+            self.dropdown_window.bind("<Escape>", lambda _e: self._close_dropdown())
 
             # Focus the dropdown window
             self.dropdown_window.focus_set()

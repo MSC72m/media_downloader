@@ -121,7 +121,7 @@ class YouTubeMetadataService(IYouTubeMetadataService):
             metadata = self.fetch_metadata(url)
             return metadata.available_qualities if metadata else []
         except Exception as e:
-            logger.error(f"[METADATA_SERVICE] Error fetching qualities: {str(e)}")
+            logger.error(f"[METADATA_SERVICE] Error fetching qualities: {e!s}")
             return []
 
     def get_available_formats(self, url: str) -> list[str]:
@@ -130,7 +130,7 @@ class YouTubeMetadataService(IYouTubeMetadataService):
             metadata = self.fetch_metadata(url)
             return metadata.available_formats if metadata else []
         except Exception as e:
-            logger.error(f"[METADATA_SERVICE] Error fetching formats: {str(e)}")
+            logger.error(f"[METADATA_SERVICE] Error fetching formats: {e!s}")
             return []
 
     def get_available_subtitles(self, url: str) -> list[SubtitleInfo]:
@@ -150,7 +150,7 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                 for sub in metadata.available_subtitles
             ]
         except Exception as e:
-            logger.error(f"[METADATA_SERVICE] Error fetching subtitles: {str(e)}")
+            logger.error(f"[METADATA_SERVICE] Error fetching subtitles: {e!s}")
             return []
 
     def validate_url(self, url: str) -> bool:
@@ -166,7 +166,7 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                 if parsed_url.path == "/watch":
                     query = parse_qs(parsed_url.query)
                     return query.get("v", [None])[0]
-                elif parsed_url.path.startswith("/embed/") or parsed_url.path.startswith("/v/"):
+                if parsed_url.path.startswith("/embed/") or parsed_url.path.startswith("/v/"):
                     return parsed_url.path.split("/")[2]
             elif parsed_url.hostname == "youtu.be":
                 return parsed_url.path[1:]  # Remove leading slash

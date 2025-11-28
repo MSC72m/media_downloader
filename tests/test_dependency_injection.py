@@ -192,11 +192,10 @@ class TestServiceContainer:
         container.register_transient(ServiceB)
 
         # This should fail due to circular dependency
-        try:
+        import pytest
+
+        with pytest.raises(ValueError, match="Circular dependency"):
             container.get(ServiceA)
-            raise AssertionError("Should have raised circular dependency error")
-        except ValueError as e:
-            assert "Circular dependency" in str(e)
 
 
 class TestRealInterfaces:

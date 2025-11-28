@@ -191,7 +191,7 @@ class DownloadHandler(IDownloadHandler):
 
             self._handle_download_success(download, completion_callback)
         except Exception as e:
-            error_msg = f"Download error: {str(e)}"
+            error_msg = f"Download error: {e!s}"
             logger.error(
                 f"[DOWNLOAD_HANDLER] Download error for {download.name}: {e}",
                 exc_info=True,
@@ -375,7 +375,7 @@ class DownloadHandler(IDownloadHandler):
             try:
                 self.message_queue.add_message(
                     Message(
-                        text=f"Download failed: {str(error)}",
+                        text=f"Download failed: {error!s}",
                         level=MessageLevel.ERROR,
                         title="Download Error",
                     )

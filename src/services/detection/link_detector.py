@@ -1,7 +1,7 @@
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, ClassVar
 
 from src.utils.logger import get_logger
 
@@ -26,10 +26,10 @@ LinkHandlerInterface = BaseHandler
 class LinkDetectionRegistry:
     """Registry for link handlers with automatic registration."""
 
-    _instance = None
-    _handlers: dict[str, type[BaseHandler]] = {}
-    _compiled_patterns: dict[str, list[re.Pattern]] = {}
-    _handler_factory: Callable[[type[BaseHandler]], BaseHandler] | None = None
+    _instance: ClassVar[Any] = None
+    _handlers: ClassVar[dict[str, type[BaseHandler]]] = {}
+    _compiled_patterns: ClassVar[dict[str, list[re.Pattern]]] = {}
+    _handler_factory: ClassVar[Callable[[type[BaseHandler]], BaseHandler] | None] = None
 
     def __new__(cls):
         if cls._instance is None:

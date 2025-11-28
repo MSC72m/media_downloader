@@ -13,7 +13,7 @@ def ensure_gui_available() -> bool:
     process.
     """
     try:
-        import tkinter as _tk  # noqa: F401
+        import tkinter as tk  # noqa: F401
 
         import customtkinter as _ctk  # noqa: F401
 

@@ -26,12 +26,12 @@ class ThreadSafeDialogMixin:
         """Thread-safe version of after() method."""
         if self.is_main_thread():
             return self.after(delay_ms, lambda: self._safe_execute(func, *args, **kwargs))
-        else:
-            # Schedule on main thread
-            self.after(
-                0,
-                lambda: self.after(delay_ms, lambda: self._safe_execute(func, *args, **kwargs)),
-            )
+        # Schedule on main thread
+        self.after(
+            0,
+            lambda: self.after(delay_ms, lambda: self._safe_execute(func, *args, **kwargs)),
+        )
+        return None
 
     def _safe_execute(self, func: Callable, *args, **kwargs):
         """Safely execute function with error handling."""
@@ -101,9 +101,8 @@ def thread_safe_dialog(method):
         if hasattr(self, "safe_after"):
             # Use safe_after for thread-safe execution
             return self.safe_after(0, lambda: method(self, *args, **kwargs))
-        else:
-            # Fallback to direct execution
-            return method(self, *args, **kwargs)
+        # Fallback to direct execution
+        return method(self, *args, **kwargs)
 
     return wrapper
 

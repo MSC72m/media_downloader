@@ -99,7 +99,7 @@ class PinterestDownloader(BaseDownloader):
             return result.success
 
         except Exception as e:
-            logger.error(f"Error downloading from Pinterest: {str(e)}", exc_info=True)
+            logger.error(f"Error downloading from Pinterest: {e!s}", exc_info=True)
             if self.error_handler:
                 self.error_handler.handle_exception(e, "Pinterest download", "Pinterest")
             return False
@@ -121,13 +121,19 @@ class PinterestDownloader(BaseDownloader):
         except Exception:
             return None
 
-    def _get_media_url(self, url: str) -> str | None:
-        """Get media URL from Pinterest pin URL."""
-        try:
-            # Method 1: Try oembed endpoint
-            oembed_url = f"https://www.pinterest.com/oembed/?url={url}"
-            headers = {"User-Agent": self.config.network.user_agent}
+    def _try_oembed(self, url: str) -> str | None:
+        """Try to get media URL from oembed endpoint.
 
+        Args:
+            url: Pinterest pin URL
+
+        Returns:
+            Media URL if found, None otherwise
+        """
+        oembed_url = f"https://www.pinterest.com/oembed/?url={url}"
+        headers = {"User-Agent": self.config.network.user_agent}
+
+        try:
             response = requests.get(
                 oembed_url,
                 headers=headers,
@@ -135,57 +141,87 @@ class PinterestDownloader(BaseDownloader):
             )
             if response.status_code == 200:
                 data = response.json()
-                # Try to get the image URL from oembed response
                 if "url" in data:
                     return data["url"]
                 if "thumbnail_url" in data:
                     return data["thumbnail_url"]
+        except Exception:
+            pass
+        return None
 
-            # Method 2: Scrape the page directly
+    def _extract_from_meta_tags(self, soup: BeautifulSoup) -> str | None:
+        """Extract image URL from meta tags.
+
+        Args:
+            soup: BeautifulSoup parsed HTML
+
+        Returns:
+            Image URL if found, None otherwise
+        """
+        og_image = soup.find("meta", property="og:image")
+        if isinstance(og_image, Tag):
+            content = og_image.get("content")
+            if content and isinstance(content, str):
+                return content
+
+        pin_image = soup.find("meta", attrs={"name": "pinterest:image"})
+        if isinstance(pin_image, Tag):
+            content = pin_image.get("content")
+            if content and isinstance(content, str):
+                return content
+        return None
+
+    def _extract_from_structured_data(self, soup: BeautifulSoup) -> str | None:
+        """Extract image URL from structured data.
+
+        Args:
+            soup: BeautifulSoup parsed HTML
+
+        Returns:
+            Image URL if found, None otherwise
+        """
+        script_tags = soup.find_all("script", type="application/ld+json")
+        for script in script_tags:
+            try:
+                if not isinstance(script, Tag) or not script.string:
+                    continue
+
+                data = json.loads(script.string)
+                if not isinstance(data, dict) or "image" not in data:
+                    continue
+
+                img = data["image"]
+                if isinstance(img, str):
+                    return img
+
+                if isinstance(img, dict) and "url" in img and isinstance(img["url"], str):
+                    return img["url"]
+            except Exception as e:
+                logger.debug(f"Error processing image: {e}")
+                continue
+        return None
+
+    def _get_media_url(self, url: str) -> str | None:
+        """Get media URL from Pinterest pin URL."""
+        try:
+            oembed_result = self._try_oembed(url)
+            if oembed_result:
+                return oembed_result
+
+            headers = {"User-Agent": self.config.network.user_agent}
             response = requests.get(
                 url, headers=headers, timeout=self.config.pinterest.default_timeout
             )
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.content, "html.parser")
+            if response.status_code != 200:
+                return None
 
-                # Try to find og:image meta tag (highest quality)
-                og_image = soup.find("meta", property="og:image")
-                if isinstance(og_image, Tag):
-                    content = og_image.get("content")
-                    if content and isinstance(content, str):
-                        return content
+            soup = BeautifulSoup(response.content, "html.parser")
 
-                # Try to find pinterest:image meta tag
-                pin_image = soup.find("meta", attrs={"name": "pinterest:image"})
-                if isinstance(pin_image, Tag):
-                    content = pin_image.get("content")
-                    if content and isinstance(content, str):
-                        return content
+            meta_result = self._extract_from_meta_tags(soup)
+            if meta_result:
+                return meta_result
 
-                # Try to find image in structured data
-                script_tags = soup.find_all("script", type="application/ld+json")
-                for script in script_tags:
-                    try:
-                        if isinstance(script, Tag) and script.string:
-                            data = json.loads(script.string)
-                            if not isinstance(data, dict) and "image" in data:
-                                logger.warning(f"Invalid structured data: {data}")
-                                continue
-
-                            img = data["image"]
-                            if isinstance(img, str):
-                                return img
-
-                            if (
-                                isinstance(img, dict)
-                                and "url" in img
-                                and isinstance(img["url"], str)
-                            ):
-                                return img["url"]
-
-                    except Exception:
-                        continue
-            return None
+            return self._extract_from_structured_data(soup)
 
         except Exception as e:
             logger.error(f"Error getting Pinterest media URL: {e}", exc_info=True)

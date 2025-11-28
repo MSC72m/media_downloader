@@ -197,18 +197,17 @@ class ServiceContainer:
                         kwargs[param_name] = self.get(non_none_type)
                     else:
                         kwargs[param_name] = None
+                # Required dependency - try to get from container
+                elif self.has(param_type):
+                    kwargs[param_name] = self.get(param_type)
                 else:
-                    # Required dependency - try to get from container
-                    if self.has(param_type):
-                        kwargs[param_name] = self.get(param_type)
-                    else:
-                        # Dependency not registered - this will cause an error when creating instance
-                        # but allows polymorphic behavior where some handlers don't need all deps
-                        type_name = self._get_type_name(param_type)
-                        raise ValueError(
-                            f"Required dependency {type_name} for {implementation_type.__name__}.{param_name} "
-                            f"is not registered in the container"
-                        )
+                    # Dependency not registered - this will cause an error when creating instance
+                    # but allows polymorphic behavior where some handlers don't need all deps
+                    type_name = self._get_type_name(param_type)
+                    raise ValueError(
+                        f"Required dependency {type_name} for {implementation_type.__name__}.{param_name} "
+                        f"is not registered in the container"
+                    )
 
         return implementation_type(**kwargs)
 
@@ -325,7 +324,8 @@ class ServiceContainer:
     ) -> "ServiceContainer":
         """Register a factory for creating services."""
         if not callable(factory):
-            raise ValueError("Factory must be callable")
+            error_msg = "Factory must be callable"
+            raise TypeError(error_msg)
 
         descriptor = ServiceDescriptor(
             service_type=service_type, factory=factory, lifetime=LifetimeScope.TRANSIENT
@@ -335,7 +335,7 @@ class ServiceContainer:
 
     def validate_dependencies(self) -> None:
         """Validate that all registered dependencies can be resolved."""
-        for service_type, _descriptor in self._services.items():
+        for service_type in self._services:
             try:
                 self.get(service_type)
             except Exception as e:

@@ -58,7 +58,7 @@ class FileDownloader:
         except Exception as e:
             return DownloadResult(
                 success=False,
-                error_message=f"Failed to create directory: {str(e)}",
+                error_message=f"Failed to create directory: {e!s}",
                 download_time=time.time() - start_time,
             )
 
@@ -143,14 +143,14 @@ class FileDownloader:
 
         except requests.exceptions.RequestException as e:
             download_time = time.time() - start_time
-            logger.error(f"Download error for {url}: {str(e)}")
+            logger.error(f"Download error for {url}: {e!s}")
             # Clean up failed download
             if os.path.exists(temp_file):
                 os.remove(temp_file)
             return DownloadResult(success=False, error_message=str(e), download_time=download_time)
         except Exception as e:
             download_time = time.time() - start_time
-            logger.error(f"Unexpected error downloading {url}: {str(e)}")
+            logger.error(f"Unexpected error downloading {url}: {e!s}")
             # Clean up failed download
             if os.path.exists(temp_file):
                 os.remove(temp_file)

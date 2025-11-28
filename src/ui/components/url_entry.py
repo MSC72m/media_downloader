@@ -48,7 +48,7 @@ class URLEntryFrame(ctk.CTkFrame):
             border_width=1,
         )
         self.url_entry.grid(row=0, column=0, sticky="ew", padx=(0, 10))
-        self.url_entry.bind("<Return>", lambda e: self.handle_add())
+        self.url_entry.bind("<Return>", lambda _e: self.handle_add())
 
         # Add Button - clean and consistent, same height as input
         self.add_button = ctk.CTkButton(

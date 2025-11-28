@@ -13,8 +13,6 @@ from src.services.detection.link_detector import LinkDetector
 class MockRoot:
     """Mock root window for testing."""
 
-    pass
-
 
 class TestSystemIntegration:
     """Test the entire system working together."""

@@ -256,7 +256,7 @@ class DownloadCoordinator:
             # Create internal completion callback that uses UI callbacks via event system
             if not completion_callback:
 
-                def on_complete(success: bool, message: str | None = None) -> None:
+                def on_complete(success: bool, _message: str | None = None) -> None:
                     """Internal completion callback that triggers UI updates via events."""
                     logger.debug(f"[DOWNLOAD_COORDINATOR] Completion callback: success={success}")
                     # Refresh UI when a download completes/fails

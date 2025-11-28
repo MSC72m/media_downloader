@@ -4,7 +4,7 @@ import http.client
 import socket
 import time
 from abc import ABC, abstractmethod
-from typing import Protocol
+from typing import ClassVar, Protocol
 
 from pydantic import BaseModel, Field
 
@@ -39,12 +39,10 @@ class BaseNetworkChecker(ABC):
     @abstractmethod
     def check_connectivity(self) -> ConnectionResult:
         """Check basic internet connectivity."""
-        pass
 
     @abstractmethod
     def check_service(self, service: ServiceType) -> ConnectionResult:
         """Check connectivity to a specific service."""
-        pass
 
 
 class HTTPNetworkChecker(BaseNetworkChecker):
@@ -100,7 +98,7 @@ class HTTPNetworkChecker(BaseNetworkChecker):
             },
         }
 
-    SERVICE_URLS = {
+    SERVICE_URLS: ClassVar[dict[ServiceType, str]] = {
         ServiceType.GOOGLE: "www.google.com",
         ServiceType.YOUTUBE: "www.youtube.com",
         ServiceType.INSTAGRAM: "www.instagram.com",
@@ -123,36 +121,26 @@ class HTTPNetworkChecker(BaseNetworkChecker):
             response_time = time.time() - start_time
             return ConnectionResult(
                 is_connected=False,
-                error_message=f"Cannot connect to network: {str(e)}",
+                error_message=f"Cannot connect to network: {e!s}",
                 response_time=response_time,
             )
 
-    def check_service(self, service: ServiceType) -> ConnectionResult:
-        """Check connectivity to a specific service using progressive reliability checks."""
-        start_time = time.time()
+    def _check_dns(
+        self, url: str, service: ServiceType, start_time: float
+    ) -> ConnectionResult | None:
+        """Check DNS resolution.
 
-        if service not in self.SERVICE_URLS:
-            return ConnectionResult(
-                is_connected=False,
-                error_message=f"Unknown service: {service}",
-                response_time=time.time() - start_time,
-                service_type=service,
-            )
+        Args:
+            url: Service URL
+            service: Service type
+            start_time: Start time for response time calculation
 
-        # Use service-specific checking for Twitter/X, YouTube, and Instagram
-        if service == ServiceType.TWITTER:
-            return self._check_twitter_connectivity(start_time)
-        elif service == ServiceType.YOUTUBE:
-            return self._check_youtube_connectivity(start_time)
-        elif service == ServiceType.INSTAGRAM:
-            return self._check_instagram_connectivity(start_time)
-
-        url = self.SERVICE_URLS[service]
-
-        # Step 1: Check DNS resolution (most basic connectivity)
+        Returns:
+            ConnectionResult if DNS fails, None if DNS succeeds
+        """
         try:
             socket.gethostbyname(url)
-            # dns_time = time.time() - start_time
+            return None
         except socket.gaierror:
             response_time = time.time() - start_time
             return ConnectionResult(
@@ -170,7 +158,19 @@ class HTTPNetworkChecker(BaseNetworkChecker):
                 service_type=service,
             )
 
-        # Step 2: Try basic socket connection (port 443 for HTTPS)
+    def _check_socket(
+        self, url: str, service: ServiceType, start_time: float
+    ) -> ConnectionResult | None:
+        """Check socket connection.
+
+        Args:
+            url: Service URL
+            service: Service type
+            start_time: Start time for response time calculation
+
+        Returns:
+            ConnectionResult if socket succeeds, None if socket fails
+        """
         try:
             sock = socket.create_connection((url, 443), timeout=self.timeout)
             sock.close()
@@ -179,54 +179,103 @@ class HTTPNetworkChecker(BaseNetworkChecker):
                 is_connected=True, response_time=socket_time, service_type=service
             )
         except Exception:
-            socket_time = time.time() - start_time
+            return None
 
-            # Step 3: If socket fails, try HTTP as fallback (some services block direct socket)
-            try:
-                conn = http.client.HTTPSConnection(url, timeout=self.timeout)
-                conn.request(
-                    "HEAD",
-                    "/",
-                    headers={"User-Agent": self.config.network.minimal_user_agent},
-                )
-                response = conn.getresponse()
-                conn.close()
+    def _check_http(self, url: str, service: ServiceType, start_time: float) -> ConnectionResult:
+        """Check HTTP connection.
 
-                http_time = time.time() - start_time
+        Args:
+            url: Service URL
+            service: Service type
+            start_time: Start time for response time calculation
 
-                if 200 <= response.status < 400:
-                    return ConnectionResult(
-                        is_connected=True, response_time=http_time, service_type=service
-                    )
-                # Use set for O(1) membership check instead of O(n) list check
-                elif response.status in {401, 403}:
-                    # Authentication required, but service is reachable
-                    return ConnectionResult(
-                        is_connected=True, response_time=http_time, service_type=service
-                    )
-                elif response.status == 429:
-                    return ConnectionResult(
-                        is_connected=False,
-                        error_message=f"{service} is rate limiting requests",
-                        response_time=http_time,
-                        service_type=service,
-                    )
-                else:
-                    return ConnectionResult(
-                        is_connected=False,
-                        error_message=f"{service} returned HTTP {response.status}",
-                        response_time=http_time,
-                        service_type=service,
-                    )
+        Returns:
+            ConnectionResult with HTTP check result
+        """
+        try:
+            conn = http.client.HTTPSConnection(url, timeout=self.timeout)
+            conn.request(
+                "HEAD",
+                "/",
+                headers={"User-Agent": self.config.network.minimal_user_agent},
+            )
+            response = conn.getresponse()
+            conn.close()
 
-            except Exception:
-                response_time = time.time() - start_time
+            http_time = time.time() - start_time
+            status = response.status
+
+            if 200 <= status < 400 or status in {401, 403}:
                 return ConnectionResult(
-                    is_connected=False,
-                    error_message=f"{service} is reachable but service unavailable",
-                    response_time=response_time,
-                    service_type=service,
+                    is_connected=True, response_time=http_time, service_type=service
                 )
+            if status == 429:
+                error_message = f"{service} is rate limiting requests"
+            else:
+                error_message = f"{service} returned HTTP {status}"
+
+            return ConnectionResult(
+                is_connected=False,
+                error_message=error_message,
+                response_time=http_time,
+                service_type=service,
+            )
+        except Exception:
+            response_time = time.time() - start_time
+            return ConnectionResult(
+                is_connected=False,
+                error_message=f"{service} is reachable but service unavailable",
+                response_time=response_time,
+                service_type=service,
+            )
+
+    def _check_specialized_service(
+        self, service: ServiceType, start_time: float
+    ) -> ConnectionResult | None:
+        """Check specialized services (Twitter, YouTube, Instagram).
+
+        Args:
+            service: Service type
+            start_time: Start time for response time calculation
+
+        Returns:
+            ConnectionResult if service is specialized, None otherwise
+        """
+        if service == ServiceType.TWITTER:
+            return self._check_twitter_connectivity(start_time)
+        if service == ServiceType.YOUTUBE:
+            return self._check_youtube_connectivity(start_time)
+        if service == ServiceType.INSTAGRAM:
+            return self._check_instagram_connectivity(start_time)
+        return None
+
+    def check_service(self, service: ServiceType) -> ConnectionResult:
+        """Check connectivity to a specific service using progressive reliability checks."""
+        start_time = time.time()
+
+        if service not in self.SERVICE_URLS:
+            return ConnectionResult(
+                is_connected=False,
+                error_message=f"Unknown service: {service}",
+                response_time=time.time() - start_time,
+                service_type=service,
+            )
+
+        specialized_result = self._check_specialized_service(service, start_time)
+        if specialized_result:
+            return specialized_result
+
+        url = self.SERVICE_URLS[service]
+
+        dns_result = self._check_dns(url, service, start_time)
+        if dns_result:
+            return dns_result
+
+        socket_result = self._check_socket(url, service, start_time)
+        if socket_result:
+            return socket_result
+
+        return self._check_http(url, service, start_time)
 
     def _check_twitter_connectivity(self, start_time: float) -> ConnectionResult:
         """Specialized connectivity checking for Twitter/X."""
@@ -309,14 +358,14 @@ class HTTPNetworkChecker(BaseNetworkChecker):
                                 response_time=http_time,
                                 service_type=service_type,
                             )
-                        elif response.status in auth_required_statuses:
+                        if response.status in auth_required_statuses:
                             # Auth required but service is reachable
                             return ConnectionResult(
                                 is_connected=True,
                                 response_time=http_time,
                                 service_type=service_type,
                             )
-                        elif response.status == 429:
+                        if response.status == 429:
                             return ConnectionResult(
                                 is_connected=False,
                                 error_message=f"{service_name} is rate limiting requests",
@@ -324,14 +373,16 @@ class HTTPNetworkChecker(BaseNetworkChecker):
                                 service_type=service_type,
                             )
 
-                    except Exception:
+                    except Exception as e:
+                        logger.debug(f"Error checking URL {url}: {e}")
                         continue
 
             except socket.gaierror:
                 # DNS failed for this URL, try next one
                 continue
-            except Exception:
+            except Exception as e:
                 # Other error, try next URL
+                logger.debug(f"Error checking service {service_type.value}: {e}")
                 continue
 
         # All URLs failed
@@ -370,7 +421,7 @@ class HTTPNetworkChecker(BaseNetworkChecker):
             response_time = time.time() - start_time
             return ConnectionResult(
                 is_connected=False,
-                error_message=f"{service_name} DNS resolution failed: {str(e)}",
+                error_message=f"{service_name} DNS resolution failed: {e!s}",
                 response_time=response_time,
                 service_type=service_type,
             )
@@ -448,7 +499,7 @@ class HTTPNetworkChecker(BaseNetworkChecker):
                 result = self.check_service(service)
                 results[service] = result
             except Exception as e:
-                logger.error(f"Error checking service {service}: {str(e)}")
+                logger.error(f"Error checking service {service}: {e!s}")
                 results[service] = ConnectionResult(
                     is_connected=False, error_message=str(e), service_type=service
                 )

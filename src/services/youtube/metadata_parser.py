@@ -97,7 +97,7 @@ class YouTubeMetadataParser(IParser):
 
         if view_count >= 1_000_000:
             return f"{view_count / 1_000_000:.1f}M views"
-        elif view_count >= 1_000:
+        if view_count >= 1_000:
             return f"{view_count / 1_000:.1f}K views"
         return f"{view_count} views"
 

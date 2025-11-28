@@ -10,14 +10,14 @@ from .platform_type import PlatformType
 from .service_type import ServiceType
 
 __all__ = [
-    "DownloadStatus",
-    "DownloadErrorType",
-    "ServiceType",
-    "MessageLevel",
-    "InstagramAuthStatus",
-    "NetworkStatus",
-    "BrowserType",
-    "PlatformType",
     "AppearanceMode",
+    "BrowserType",
     "ColorTheme",
+    "DownloadErrorType",
+    "DownloadStatus",
+    "InstagramAuthStatus",
+    "MessageLevel",
+    "NetworkStatus",
+    "PlatformType",
+    "ServiceType",
 ]

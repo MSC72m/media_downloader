@@ -98,7 +98,7 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
             new_path = os.path.dirname(self.current_path)
         else:
             # Remove icon prefix if present
-            if item.startswith("📁 ") or item.startswith("📄 "):
+            if item.startswith(("📁 ", "📄 ")):
                 item = item[2:]
             new_path = os.path.join(self.current_path, item)
 
@@ -143,7 +143,7 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
                 self.update_file_list()
             except OSError as oe:
                 logger.error(f"Error creating folder: {oe}")
-                error_msg = f"Unable to create folder: {str(oe)}"
+                error_msg = f"Unable to create folder: {oe!s}"
                 if self.error_handler:
                     self.error_handler.show_error("File Manager Error", error_msg)
                 elif self.message_queue:

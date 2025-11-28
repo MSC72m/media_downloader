@@ -108,7 +108,7 @@ class NetworkStatusDialog(ctk.CTkToplevel, WindowCenterMixin):
         # Run checks in a background thread
         def check_worker():
             # First check internet connectivity
-            internet_connected, error_msg = check_internet_connection()
+            _internet_connected, _error_msg = check_internet_connection()
 
             # Check individual services
             service_results = check_all_services()

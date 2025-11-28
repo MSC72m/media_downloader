@@ -33,6 +33,9 @@ if TYPE_CHECKING:
 from src.application.di_container import ServiceContainer
 from src.application.service_factories import ServiceFactoryRegistry
 from src.core.models import UIState
+from src.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class ApplicationOrchestrator:
@@ -169,8 +172,8 @@ class ApplicationOrchestrator:
                             error_message,
                         ),
                     )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Error in cookie initialization: {e}")
 
         thread = threading.Thread(target=init_cookies, daemon=True, name="CookieInit")
         thread.start()
@@ -198,8 +201,8 @@ class ApplicationOrchestrator:
                 try:
                     error_handler = self.container.get(IErrorNotifier)
                     error_handler.set_message_queue(message_queue)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Error setting message queue: {e}")
 
             if self.event_coordinator:
                 self.event_coordinator.set_message_queue(message_queue)

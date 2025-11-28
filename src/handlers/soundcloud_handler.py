@@ -105,7 +105,7 @@ class SoundCloudHandler(BaseHandler):
                         self.notifier.notify_user(
                             "error",
                             title="SoundCloud Download Error",
-                            message=f"Failed to process SoundCloud download: {str(e)}",
+                            message=f"Failed to process SoundCloud download: {e!s}",
                         )
 
             # Schedule on main thread
@@ -119,9 +119,9 @@ class SoundCloudHandler(BaseHandler):
         """Detect if URL is track, playlist/set, or user profile."""
         if "/sets/" in url:
             return "playlist"
-        elif re.search(r"soundcloud\.com/[\w-]+/[\w-]+", url):
+        if re.search(r"soundcloud\.com/[\w-]+/[\w-]+", url):
             return "track"
-        elif re.search(r"soundcloud\.com/[\w-]+/?$", url):
+        if re.search(r"soundcloud\.com/[\w-]+/?$", url):
             return "user"
         return "unknown"
 
