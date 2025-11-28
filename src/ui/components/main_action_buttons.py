@@ -171,11 +171,16 @@ class ActionButtonBar(ctk.CTkFrame):
             hover_color = button_config.get("hover_color")
             text_color = button_config.get("text_color")
             
-            # Extract plain color if it's a tuple - same logic as Add button
+            # Extract plain color string - ensure it's a string, not tuple (same as Add button)
             if isinstance(button_color, tuple):
-                button_color = button_color[0] if isinstance(button_color[0], str) else button_color
+                button_color = button_color[0] if isinstance(button_color[0], str) else str(button_color[0])
+            elif not isinstance(button_color, str):
+                button_color = str(button_color)
+            
             if isinstance(hover_color, tuple):
-                hover_color = hover_color[0] if isinstance(hover_color[0], str) else hover_color
+                hover_color = hover_color[0] if isinstance(hover_color[0], str) else str(hover_color[0])
+            elif not isinstance(hover_color, str):
+                hover_color = str(hover_color)
             
             if button_color:
                 for button in [

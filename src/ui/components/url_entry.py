@@ -37,11 +37,14 @@ class URLEntryFrame(ctk.CTkFrame):
         # Configure grid
         self.grid_columnconfigure(0, weight=1)
 
+        # Common height for input and button to ensure they match
+        input_height = 45
+
         # URL Entry - clean modern design
         self.url_entry = ctk.CTkEntry(
             self, 
             placeholder_text="Enter a URL", 
-            height=45, 
+            height=input_height, 
             font=("Roboto", 13),
             corner_radius=8,
             border_width=1,
@@ -49,22 +52,24 @@ class URLEntryFrame(ctk.CTkFrame):
         self.url_entry.grid(row=0, column=0, sticky="ew", padx=(0, 10))
         self.url_entry.bind("<Return>", lambda e: self.handle_add())
 
-        # Add Button - clean and consistent
+        # Add Button - clean and consistent, same height as input
         self.add_button = ctk.CTkButton(
             self,
             text="Add",
             command=self.handle_add,
             width=95,
-            height=45,
+            height=input_height,
             font=("Roboto", 13),
             corner_radius=8,
             border_width=0,
         )
-        self.add_button.grid(row=0, column=1)
+        self.add_button.grid(row=0, column=1, sticky="ns")
+        
+        # Apply initial theme colors
+        self._apply_theme_colors()
     
-    def _on_theme_changed(self, appearance, color):
-        """Handle theme change event - apply custom colors."""
-        colors = self._theme_manager.get_colors()
+    def _apply_theme_colors(self):
+        """Apply theme colors to entry and button."""
         theme_json = self._theme_manager.get_theme_json()
         
         # Apply custom colors to entry
@@ -76,24 +81,33 @@ class URLEntryFrame(ctk.CTkFrame):
                 text_color=entry_config.get("text_color"),
             )
         
-        # Apply custom colors to add button
+        # Apply custom colors to add button - same as action buttons
         button_config = theme_json.get("CTkButton", {})
         if button_config:
             button_color = button_config.get("fg_color")
             hover_color = button_config.get("hover_color")
             text_color = button_config.get("text_color")
             
-            # Extract plain color if it's a tuple
+            # Extract plain color string - ensure it's a string, not tuple
             if isinstance(button_color, tuple):
-                button_color = button_color[0] if isinstance(button_color[0], str) else button_color
+                button_color = button_color[0] if isinstance(button_color[0], str) else str(button_color[0])
+            elif not isinstance(button_color, str):
+                button_color = str(button_color)
+            
             if isinstance(hover_color, tuple):
-                hover_color = hover_color[0] if isinstance(hover_color[0], str) else hover_color
+                hover_color = hover_color[0] if isinstance(hover_color[0], str) else str(hover_color[0])
+            elif not isinstance(hover_color, str):
+                hover_color = str(hover_color)
             
             self.add_button.configure(
                 fg_color=button_color,
                 hover_color=hover_color,
                 text_color=text_color,
             )
+    
+    def _on_theme_changed(self, appearance, color):
+        """Handle theme change event - apply custom colors."""
+        self._apply_theme_colors()
 
     def handle_add(self):
         """Handle add button click."""
