@@ -32,30 +32,13 @@ class TwitterHandler(BaseHandler):
         """Get URL patterns for this handler."""
         return get_config().twitter.url_patterns
 
-    def can_handle(self, url: str) -> DetectionResult:
-        """Check if this is a Twitter/X URL."""
-        logger.debug(f"[TWITTER_HANDLER] Testing if can handle URL: {url}")
-
-        for pattern in self.config.twitter.url_patterns:
-            if re.match(pattern, url):
-                logger.info(f"[TWITTER_HANDLER] URL matches pattern: {pattern}")
-                result = DetectionResult(
-                    service_type="twitter",
-                    confidence=1.0,
-                    metadata={
-                        "type": self._detect_twitter_type(url),
-                        "tweet_id": self._extract_tweet_id(url),
-                        "username": self._extract_username(url),
-                    },
-                )
-                logger.info(
-                    f"[TWITTER_HANDLER] Can handle URL with confidence: {result.confidence}"
-                )
-                logger.debug(f"[TWITTER_HANDLER] Detection metadata: {result.metadata}")
-                return result
-
-        logger.debug("[TWITTER_HANDLER] URL does not match any pattern")
-        return DetectionResult(service_type="unknown", confidence=0.0)
+    def _extract_metadata(self, url: str) -> Dict[str, Any]:
+        """Extract Twitter-specific metadata from URL."""
+        return {
+            "type": self._detect_twitter_type(url),
+            "tweet_id": self._extract_tweet_id(url),
+            "username": self._extract_username(url),
+        }
 
     def get_metadata(self, url: str) -> Dict[str, Any]:
         """Get Twitter metadata for the URL."""

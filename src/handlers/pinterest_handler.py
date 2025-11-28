@@ -32,32 +32,13 @@ class PinterestHandler(BaseHandler):
         """Get URL patterns for this handler."""
         return get_config().pinterest.url_patterns
 
-    def can_handle(self, url: str) -> DetectionResult:
-        """Check if this is a Pinterest URL."""
-        logger.debug(f"[PINTEREST_HANDLER] Testing if can handle URL: {url}")
-
-        for pattern in self.config.pinterest.url_patterns:
-            if re.match(pattern, url):
-                logger.info(f"[PINTEREST_HANDLER] URL matches pattern: {pattern}")
-                result = DetectionResult(
-                    service_type="pinterest",
-                    confidence=1.0,
-                    metadata={
-                        "type": self._detect_pinterest_type(url),
-                        "pin_id": self._extract_pin_id(url),
-                        "is_short_url": self._is_short_url(url),
-                    },
-                )
-                logger.info(
-                    f"[PINTEREST_HANDLER] Can handle URL with confidence: {result.confidence}"
-                )
-                logger.debug(
-                    f"[PINTEREST_HANDLER] Detection metadata: {result.metadata}"
-                )
-                return result
-
-        logger.debug("[PINTEREST_HANDLER] URL does not match any pattern")
-        return DetectionResult(service_type="unknown", confidence=0.0)
+    def _extract_metadata(self, url: str) -> Dict[str, Any]:
+        """Extract Pinterest-specific metadata from URL."""
+        return {
+            "type": self._detect_pinterest_type(url),
+            "pin_id": self._extract_pin_id(url),
+            "is_short_url": self._is_short_url(url),
+        }
 
     def get_metadata(self, url: str) -> Dict[str, Any]:
         """Get Pinterest metadata for the URL."""

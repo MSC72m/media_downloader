@@ -39,6 +39,35 @@ def extract_error_context(exception: Exception, service: str = "", operation: st
     }
 
 
+def _truncate_url(url: str, max_length: int = 100) -> str:
+    """Truncate long URLs for display.
+    
+    Args:
+        url: URL to truncate
+        max_length: Maximum length before truncation
+        
+    Returns:
+        Truncated URL with ellipsis if needed
+    """
+    if len(url) <= max_length:
+        return url
+    return url[:max_length - 3] + "..."
+
+
+def _format_checkpoint_error(error_msg: str) -> str:
+    """Format Instagram checkpoint errors with user-friendly message.
+    
+    Args:
+        error_msg: Original error message
+        
+    Returns:
+        Formatted user-friendly message
+    """
+    if "checkpoint required" in error_msg.lower() or "challenge" in error_msg.lower():
+        return "Instagram requires security verification. Please complete the challenge in your browser, then try again."
+    return error_msg
+
+
 def format_user_friendly_error(error_context: dict) -> str:
     """Format error context into user-friendly message.
 
@@ -52,6 +81,18 @@ def format_user_friendly_error(error_context: dict) -> str:
     service = error_context.get("service", "")
     operation = error_context.get("operation", "")
     url = error_context.get("url", "")
+
+    # Handle checkpoint/challenge errors specially
+    if "instagram" in service.lower() and ("checkpoint" in error_msg.lower() or "challenge" in error_msg.lower()):
+        return _format_checkpoint_error(error_msg)
+
+    # Truncate long URLs in error messages
+    if url:
+        url = _truncate_url(url, max_length=80)
+
+    # Truncate very long error messages (e.g., challenge URLs)
+    if len(error_msg) > 200:
+        error_msg = _truncate_url(error_msg, max_length=200)
 
     if service and operation:
         base_msg = f"{service} {operation} failed"

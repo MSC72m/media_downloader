@@ -32,32 +32,13 @@ class SoundCloudHandler(BaseHandler):
         """Get URL patterns for this handler."""
         return get_config().soundcloud.url_patterns
 
-    def can_handle(self, url: str) -> DetectionResult:
-        """Check if this is a SoundCloud URL."""
-        logger.debug(f"[SOUNDCLOUD_HANDLER] Testing if can handle URL: {url}")
-
-        for pattern in self.config.soundcloud.url_patterns:
-            if re.match(pattern, url):
-                logger.info(f"[SOUNDCLOUD_HANDLER] URL matches pattern: {pattern}")
-                result = DetectionResult(
-                    service_type="soundcloud",
-                    confidence=1.0,
-                    metadata={
-                        "type": self._detect_soundcloud_type(url),
-                        "username": self._extract_username(url),
-                        "track_slug": self._extract_track_slug(url),
-                    },
-                )
-                logger.info(
-                    f"[SOUNDCLOUD_HANDLER] Can handle URL with confidence: {result.confidence}"
-                )
-                logger.debug(
-                    f"[SOUNDCLOUD_HANDLER] Detection metadata: {result.metadata}"
-                )
-                return result
-
-        logger.debug("[SOUNDCLOUD_HANDLER] URL does not match any pattern")
-        return DetectionResult(service_type="unknown", confidence=0.0)
+    def _extract_metadata(self, url: str) -> Dict[str, Any]:
+        """Extract SoundCloud-specific metadata from URL."""
+        return {
+            "type": self._detect_soundcloud_type(url),
+            "username": self._extract_username(url),
+            "track_slug": self._extract_track_slug(url),
+        }
 
     def get_metadata(self, url: str) -> Dict[str, Any]:
         """Get SoundCloud metadata for the URL."""

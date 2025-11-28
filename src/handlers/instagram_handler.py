@@ -47,19 +47,12 @@ class InstagramHandler(BaseHandler):
         """Get URL patterns for this handler."""
         return get_config().instagram.url_patterns
 
-    def can_handle(self, url: str) -> DetectionResult:
-        """Check if this is an Instagram URL."""
-        for pattern in self.config.instagram.url_patterns:
-            if re.match(pattern, url):
-                return DetectionResult(
-                    service_type="instagram",
-                    confidence=1.0,
-                    metadata={
-                        "type": self._detect_instagram_type(url),
-                        "shortcode": self._extract_shortcode(url),
-                    },
-                )
-        return DetectionResult(service_type="unknown", confidence=0.0)
+    def _extract_metadata(self, url: str) -> Dict[str, Any]:
+        """Extract Instagram-specific metadata from URL."""
+        return {
+            "type": self._detect_instagram_type(url),
+            "shortcode": self._extract_shortcode(url),
+        }
 
     def get_metadata(self, url: str) -> Dict[str, str | None | bool]:
         """Get Instagram metadata for the URL."""
@@ -76,23 +69,6 @@ class InstagramHandler(BaseHandler):
         # Actual Instagram download logic would go here
         return True
 
-    def _get_notification_templates(self) -> Dict[str, Dict[str, Any]]:
-        """Get Instagram-specific notification templates."""
-        base_templates = super()._get_notification_templates()
-        instagram_templates = {
-            "authenticating": {
-                "text": "Instagram authentication is in progress. Please wait a moment and try again.",
-                "title": "Instagram Authentication",
-                "level": "INFO",
-            },
-            "authentication_required": {
-                "text": "Instagram authentication is required to download content.",
-                "title": "Instagram Authentication Required",
-                "level": "INFO",
-            },
-        }
-        base_templates.update(instagram_templates)
-        return base_templates
 
     def get_ui_callback(self) -> Callable:
         """Get the UI callback for Instagram URLs."""

@@ -230,6 +230,12 @@ class ApplicationOrchestrator:
             
             callbacks["update_status"] = partial(safe_ui_update, update_status_wrapper)
             
+            # Add direct progress update callback for faster updates
+            def update_progress_wrapper(progress: float) -> None:
+                sb.update_progress(progress)
+            
+            callbacks["update_status_progress"] = partial(safe_ui_update, update_progress_wrapper)
+            
         return callbacks
 
     def check_connectivity(self) -> None:

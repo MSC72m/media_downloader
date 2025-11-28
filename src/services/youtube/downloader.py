@@ -43,7 +43,10 @@ class YouTubeDownloader(BaseDownloader):
         file_service: Optional[IFileService] = None,
         config=None,
     ):
-        super().__init__(config)
+        from src.core.config import get_config as _get_config
+        if config is None:
+            config = _get_config()
+        super().__init__(error_handler, file_service, config)
         self.quality = quality or self.config.youtube.default_quality
         self.download_playlist = download_playlist
         self.audio_only = audio_only
@@ -57,8 +60,8 @@ class YouTubeDownloader(BaseDownloader):
         self.embed_metadata = embed_metadata
         self.speed_limit = speed_limit
         self.retries = retries
-        self.error_handler = error_handler
-        self.file_service = file_service or FileService()
+        if not self.file_service:
+            self.file_service = FileService()
         self.metadata_service = YouTubeMetadataService(error_handler=error_handler, config=self.config)
         self.audio_extractor = AudioExtractor(config=self.config, error_handler=error_handler)
         self.youtube_error_handler = YouTubeErrorHandler(error_handler=error_handler)

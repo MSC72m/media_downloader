@@ -162,8 +162,30 @@ class IUIState(Protocol):
 
 
 class BaseDownloader(ABC):
-    def __init__(self, config: AppConfig = get_config()):
+    """Base class for downloaders with shared dependencies.
+    
+    Provides:
+    - config: AppConfig instance
+    - error_handler: IErrorNotifier for error handling
+    - file_service: IFileService for file operations
+    """
+    
+    def __init__(
+        self,
+        error_handler: Optional["IErrorNotifier"] = None,
+        file_service: Optional["IFileService"] = None,
+        config: AppConfig = get_config(),
+    ):
+        """Initialize base downloader with shared dependencies.
+        
+        Args:
+            error_handler: Optional error handler for user notifications
+            file_service: Optional file service for file operations
+            config: Application configuration
+        """
         self.config = config
+        self.error_handler = error_handler
+        self.file_service = file_service
 
     @abstractmethod
     def download(

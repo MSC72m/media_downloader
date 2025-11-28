@@ -136,11 +136,28 @@ class DownloadCoordinator:
                 if self.error_handler:
                     self.error_handler.handle_exception(e, "Updating download progress", "Download Coordinator")
 
-        # Update status bar message (will show immediately if no current message)
-        self._update_status(f"Downloading {download.name}: {progress:.1f}%")
+        # Update status bar progress directly (faster than message queue)
+        status_callback = self._get_ui_callback("update_status_progress")
+        if status_callback:
+            try:
+                status_callback(progress)
+            except Exception as e:
+                logger.error(f"[DOWNLOAD_COORDINATOR] Error updating status progress: {e}", exc_info=True)
+        
+        # Also update status bar message for non-completion progress
+        if progress < 100:
+            self._update_status(f"Downloading {download.name}: {progress:.1f}%")
 
     def _on_completed_event(self, download: Download) -> None:
-        """Handle completion event - update UI."""
+        """Handle completion event - update UI immediately."""
+        # Update status bar progress to 100% immediately (bypasses queue delay)
+        status_callback = self._get_ui_callback("update_status_progress")
+        if status_callback:
+            try:
+                status_callback(100.0)
+            except Exception as e:
+                logger.error(f"[DOWNLOAD_COORDINATOR] Error updating completion progress: {e}", exc_info=True)
+        
         self._refresh_ui_after_event(enable_buttons=True)
         # Show success message prominently - interrupt current message to show success
         success_msg = f"Download completed: {download.name}"

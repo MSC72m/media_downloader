@@ -26,9 +26,12 @@ class TwitterDownloader(BaseDownloader):
             file_service: Optional file service for file operations
             config: AppConfig instance (defaults to get_config() if None)
         """
-        super().__init__(config)
-        self.error_handler = error_handler
-        self.file_service = file_service or FileService()
+        from src.core.config import get_config as _get_config
+        if config is None:
+            config = _get_config()
+        super().__init__(error_handler, file_service, config)
+        if not self.file_service:
+            self.file_service = FileService()
 
     def download(
         self,

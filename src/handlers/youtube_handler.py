@@ -57,31 +57,14 @@ class YouTubeHandler(BaseHandler):
         """Get URL patterns for this handler."""
         return get_config().youtube.url_patterns
 
-    def can_handle(self, url: str) -> DetectionResult:
-        """Check if this is a YouTube URL."""
-        logger.debug(f"[YOUTUBE_HANDLER] Testing if can handle URL: {url}")
-
-        for pattern in self.config.youtube.url_patterns:
-            if re.match(pattern, url):
-                logger.info(f"[YOUTUBE_HANDLER] URL matches pattern: {pattern}")
-                result = DetectionResult(
-                    service_type="youtube",
-                    confidence=1.0,
-                    metadata={
-                        "type": self._detect_youtube_type(url),
-                        "video_id": self._extract_video_id(url),
-                        "playlist_id": self._extract_playlist_id(url),
-                        "is_music": self._is_youtube_music(url),
-                    },
-                )
-                logger.info(
-                    f"[YOUTUBE_HANDLER] Can handle URL with confidence: {result.confidence}"
-                )
-                logger.debug(f"[YOUTUBE_HANDLER] Detection metadata: {result.metadata}")
-                return result
-
-        logger.debug("[YOUTUBE_HANDLER] URL does not match any pattern")
-        return DetectionResult(service_type="unknown", confidence=0.0)
+    def _extract_metadata(self, url: str) -> Dict[str, Any]:
+        """Extract YouTube-specific metadata from URL."""
+        return {
+            "type": self._detect_youtube_type(url),
+            "video_id": self._extract_video_id(url),
+            "playlist_id": self._extract_playlist_id(url),
+            "is_music": self._is_youtube_music(url),
+        }
 
     def get_metadata(self, url: str) -> Dict[str, Any]:
         """Get YouTube metadata for the URL."""

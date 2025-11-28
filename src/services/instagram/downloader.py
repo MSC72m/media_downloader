@@ -28,14 +28,14 @@ class InstagramDownloader(BaseDownloader):
             file_service: Optional file service for file operations
             config: AppConfig instance (defaults to get_config() if None)
         """
-        super().__init__(config)
+        super().__init__(error_handler, file_service, config)
         self.loader = None
         self.authenticated = False
         self.login_attempts = 0
         self.max_login_attempts = self.config.instagram.max_login_attempts
         self.last_login_attempt = 0
-        self.error_handler = error_handler
-        self.file_service = file_service or FileService()
+        if not self.file_service:
+            self.file_service = FileService()
 
     def authenticate(self, username: str, password: str) -> bool:
         """
@@ -92,8 +92,16 @@ class InstagramDownloader(BaseDownloader):
             return True
 
         except Exception as e:
-            logger.error(f"[INSTAGRAM_DOWNLOADER] ❌ Instagram authentication failed: {str(e)}")
-            logger.error(f"[INSTAGRAM_DOWNLOADER] Exception type: {type(e).__name__}")
+            error_msg = str(e)
+            error_type = type(e).__name__
+            
+            # Truncate very long error messages (e.g., challenge URLs)
+            if len(error_msg) > 200:
+                error_msg = error_msg[:200] + "..."
+            
+            logger.error(f"[INSTAGRAM_DOWNLOADER] ❌ Instagram authentication failed: {error_msg}")
+            logger.error(f"[INSTAGRAM_DOWNLOADER] Exception type: {error_type}")
+            
             self.authenticated = False
             if self.error_handler:
                 self.error_handler.handle_exception(e, "Instagram authentication", "Instagram")

@@ -1,7 +1,8 @@
 """Base handler class for link handlers with shared dependencies."""
 
+import re
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, TYPE_CHECKING
+from typing import Any, Callable, Dict, List, TYPE_CHECKING
 
 from src.core.config import AppConfig, get_config
 from src.core.interfaces import IMessageQueue, INotifier
@@ -9,6 +10,9 @@ from src.services.notifications.notifier import NotifierService
 
 if TYPE_CHECKING:
     from .link_detector import DetectionResult
+else:
+    # Import at runtime to avoid circular dependency
+    DetectionResult = None
 
 
 class BaseHandler(ABC):
@@ -18,6 +22,7 @@ class BaseHandler(ABC):
     - config: AppConfig instance
     - message_queue: IMessageQueue for notifications
     - notifier: INotifier instance with service-specific templates
+    - Polymorphic can_handle() using get_patterns()
     """
     
     def __init__(
@@ -35,6 +40,7 @@ class BaseHandler(ABC):
         """
         self.config = config
         self.message_queue = message_queue
+        self.service_name = service_name
         
         # Load service-specific templates from config
         templates = self._get_service_templates(service_name)
@@ -55,10 +61,52 @@ class BaseHandler(ABC):
         templates_attr = getattr(self.config.notifications, service_name, None)
         return templates_attr if templates_attr else {}
     
+    @classmethod
     @abstractmethod
-    def can_handle(self, url: str) -> "DetectionResult":
-        """Check if this handler can process the given URL."""
+    def get_patterns(cls) -> List[str]:
+        """Get URL patterns for this handler.
+        
+        Returns:
+            List of regex patterns to match URLs
+        """
         ...
+    
+    def can_handle(self, url: str) -> "DetectionResult":
+        """Polymorphic URL detection using patterns from get_patterns().
+        
+        Subclasses can override _extract_metadata() to provide custom metadata.
+        
+        Args:
+            url: URL to check
+            
+        Returns:
+            DetectionResult with service_type, confidence, and metadata
+        """
+        from .link_detector import DetectionResult
+        
+        patterns = self.get_patterns()
+        
+        for pattern in patterns:
+            if re.match(pattern, url):
+                metadata = self._extract_metadata(url)
+                return DetectionResult(
+                    service_type=self.service_name,
+                    confidence=1.0,
+                    metadata=metadata,
+                )
+        
+        return DetectionResult(service_type="unknown", confidence=0.0)
+    
+    def _extract_metadata(self, url: str) -> Dict[str, Any]:
+        """Extract metadata from URL. Override in subclasses for custom extraction.
+        
+        Args:
+            url: URL to extract metadata from
+            
+        Returns:
+            Dictionary of metadata
+        """
+        return {}
     
     @abstractmethod
     def get_metadata(self, url: str) -> Dict[str, Any]:

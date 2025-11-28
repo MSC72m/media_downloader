@@ -1,16 +1,9 @@
-import logging
 import re
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Type
 
-from src.core.config import get_config, AppConfig
-from src.core.interfaces import IMessageQueue
 from src.utils.logger import get_logger
 
-logging.basicConfig(
-    level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
 logger = get_logger(__name__)
 
 

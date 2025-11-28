@@ -88,10 +88,10 @@ class StatusBar(ctk.CTkFrame):
         except Exception as e:
             logger.error(f"[STATUS_BAR] Error in _process_queue: {e}", exc_info=True)
 
-        # Schedule next queue check
+        # Schedule next queue check - reduced interval for faster updates
         if self._running and self._root_window:
             try:
-                self._root_window.after(50, self._process_queue)
+                self._root_window.after(10, self._process_queue)
             except Exception as e:
                 logger.error(f"[STATUS_BAR] Error scheduling next queue check: {e}")
 
@@ -225,13 +225,18 @@ class StatusBar(ctk.CTkFrame):
                 logger.error(f"[STATUS_BAR] Error scheduling message check: {e}")
 
     def update_progress(self, progress: float):
-        """Update progress display - thread-safe via queue."""
-
+        """Update progress display - thread-safe via queue.
+        
+        For completion (100%), processes immediately to avoid delays.
+        """
         def _update():
             try:
                 self.progress_bar.set(progress / 100)
                 if progress >= 100:
                     self.status_label.configure(text="Download Complete")
+                    # Clear any pending messages to show completion immediately
+                    self._current_message = None
+                    self._message_timeout = None
                 else:
                     self.status_label.configure(text=f"Downloading... {progress:.1f}%")
             except Exception as e:
@@ -239,7 +244,18 @@ class StatusBar(ctk.CTkFrame):
                     f"[STATUS_BAR] Error updating progress: {e}", exc_info=True
                 )
 
-        self._queue_update(_update)
+        # For completion, process immediately; otherwise queue normally
+        if progress >= 100:
+            # Force immediate processing for completion
+            try:
+                _update()
+                # Also trigger queue processing to clear any pending updates
+                if self._running and self._root_window:
+                    self._root_window.after_idle(self._process_queue)
+            except Exception as e:
+                logger.error(f"[STATUS_BAR] Error in immediate progress update: {e}")
+        else:
+            self._queue_update(_update)
 
     def reset(self):
         """Reset status bar to initial state - thread-safe via queue."""
