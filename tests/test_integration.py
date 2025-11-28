@@ -100,9 +100,9 @@ class TestSystemIntegration:
                 print(f"⚠ {expected} URL not detected: {url}")
 
         # Should detect most services (some may not be detected without full setup)
-        assert (
-            len(detected_services) >= 3
-        ), f"Expected at least 3 services, got {len(detected_services)}"
+        assert len(detected_services) >= 3, (
+            f"Expected at least 3 services, got {len(detected_services)}"
+        )
 
     @patch("customtkinter.CTk")
     def test_download_flow_integration(self, mock_ctk):
@@ -218,9 +218,9 @@ class TestSystemIntegration:
         ]
 
         for interface, implementation in interface_implementations:
-            assert isinstance(
-                implementation, interface
-            ), f"{implementation.__class__.__name__} should implement {interface.__name__}"
+            assert isinstance(implementation, interface), (
+                f"{implementation.__class__.__name__} should implement {interface.__name__}"
+            )
 
         print("✓ All services comply with their interfaces")
 
@@ -369,9 +369,9 @@ class TestSystemEndToEnd:
                     break
 
         # Should detect at least some platforms
-        assert (
-            len(detected_platforms) >= 3
-        ), f"Expected at least 3 platforms, got {len(detected_platforms)}"
+        assert len(detected_platforms) >= 3, (
+            f"Expected at least 3 platforms, got {len(detected_platforms)}"
+        )
         print(f"✓ Multi-platform support working: {detected_platforms}")
 
     @patch("customtkinter.CTk")
