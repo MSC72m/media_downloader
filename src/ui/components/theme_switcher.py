@@ -7,7 +7,7 @@ import customtkinter as ctk
 from src.core.enums.appearance_mode import AppearanceMode
 from src.core.enums.color_theme import ColorTheme
 from src.core.enums.theme_event import ThemeEvent
-from src.ui.utils.theme_manager import get_theme_manager, ThemeManager
+from src.ui.utils.theme_manager import ThemeManager, get_theme_manager
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -26,9 +26,7 @@ class ThemeSwitcher(ctk.CTkFrame):
         super().__init__(master, fg_color="transparent")
 
         # Theme manager injected with default
-        self._theme_manager = theme_manager or get_theme_manager(
-            master.winfo_toplevel()
-        )
+        self._theme_manager = theme_manager or get_theme_manager(master.winfo_toplevel())
         self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
 
         # Configure grid - single row, compact design
@@ -77,8 +75,7 @@ class ThemeSwitcher(ctk.CTkFrame):
 
         # Build dropdown values from enum
         color_values = [
-            f"{theme_emoji_map.get(theme, '🔵')} {theme.value.capitalize()}"
-            for theme in ColorTheme
+            f"{theme_emoji_map.get(theme, '🔵')} {theme.value.capitalize()}" for theme in ColorTheme
         ]
         current_color = self._theme_manager.get_color_theme()
         current_emoji = theme_emoji_map.get(current_color, "🔵")
@@ -121,9 +118,7 @@ class ThemeSwitcher(ctk.CTkFrame):
             # Prevent typing
             entry.bind("<Key>", prevent_edit)
             # Prevent text selection
-            entry.bind(
-                "<Button-1>", lambda e: self.color_dropdown._open_dropdown_menu()
-            )
+            entry.bind("<Button-1>", lambda e: self.color_dropdown._open_dropdown_menu())
             entry.bind("<Control-a>", prevent_selection)
             entry.bind("<Button-3>", prevent_selection)  # Right click
         except Exception:
@@ -141,15 +136,9 @@ class ThemeSwitcher(ctk.CTkFrame):
 
             # Use plain color like Add button, not gradient
             if isinstance(button_color, tuple):
-                button_color = (
-                    button_color[0]
-                    if isinstance(button_color[0], str)
-                    else button_color
-                )
+                button_color = button_color[0] if isinstance(button_color[0], str) else button_color
             if isinstance(hover_color, tuple):
-                hover_color = (
-                    hover_color[0] if isinstance(hover_color[0], str) else hover_color
-                )
+                hover_color = hover_color[0] if isinstance(hover_color[0], str) else hover_color
 
             self.appearance_switch.configure(
                 progress_color=button_color,
@@ -165,15 +154,9 @@ class ThemeSwitcher(ctk.CTkFrame):
 
             # Use plain color like Add button, not gradient
             if isinstance(button_color, tuple):
-                button_color = (
-                    button_color[0]
-                    if isinstance(button_color[0], str)
-                    else button_color
-                )
+                button_color = button_color[0] if isinstance(button_color[0], str) else button_color
             if isinstance(hover_color, tuple):
-                hover_color = (
-                    hover_color[0] if isinstance(hover_color[0], str) else hover_color
-                )
+                hover_color = hover_color[0] if isinstance(hover_color[0], str) else hover_color
 
             self.color_dropdown.configure(
                 fg_color=entry_config.get("fg_color"),

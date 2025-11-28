@@ -1,7 +1,6 @@
 """Network status dialog for checking connectivity to various services."""
 
 import threading
-from typing import Dict, Tuple
 
 import customtkinter as ctk
 
@@ -18,9 +17,7 @@ class NetworkStatusDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         # Initialize state
         self.parent = parent
-        self.service_statuses = {
-            service: NetworkStatus.UNKNOWN for service in ServiceType
-        }
+        self.service_statuses = dict.fromkeys(ServiceType, NetworkStatus.UNKNOWN)
 
         # Set window properties
         self.title("Network Status")
@@ -84,9 +81,7 @@ class NetworkStatusDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.retry_button.pack(side=ctk.LEFT, padx=10)
 
         # Close button
-        self.close_button = ctk.CTkButton(
-            self.button_frame, text="Close", command=self.destroy
-        )
+        self.close_button = ctk.CTkButton(self.button_frame, text="Close", command=self.destroy)
         self.close_button.pack(side=ctk.RIGHT, padx=10)
 
         # Troubleshooting advice frame (initially hidden)
@@ -120,7 +115,7 @@ class NetworkStatusDialog(ctk.CTkToplevel, WindowCenterMixin):
 
             # Update service statuses
             any_error = False
-            for service, (connected, error) in service_results.items():
+            for service, (connected, _error) in service_results.items():
                 if connected:
                     self.service_statuses[service] = NetworkStatus.CONNECTED
                 else:
@@ -128,14 +123,12 @@ class NetworkStatusDialog(ctk.CTkToplevel, WindowCenterMixin):
                     any_error = True
 
             # Update UI from main thread
-            self.after(
-                0, lambda: self.update_status_display(service_results, any_error)
-            )
+            self.after(0, lambda: self.update_status_display(service_results, any_error))
 
         threading.Thread(target=check_worker, daemon=True).start()
 
     def update_status_display(
-        self, service_results: Dict[ServiceType, Tuple[bool, str]], any_error: bool
+        self, service_results: dict[ServiceType, tuple[bool, str]], any_error: bool
     ):
         """Update the status display with check results."""
         for service, (connected, error) in service_results.items():
@@ -143,13 +136,9 @@ class NetworkStatusDialog(ctk.CTkToplevel, WindowCenterMixin):
                 continue
 
             if connected:
-                self.status_labels[service].configure(
-                    text="Connected", text_color="green"
-                )
+                self.status_labels[service].configure(text="Connected", text_color="green")
             else:
-                self.status_labels[service].configure(
-                    text=f"Error: {error}", text_color="red"
-                )
+                self.status_labels[service].configure(text=f"Error: {error}", text_color="red")
 
         # Re-enable retry button
         self.retry_button.configure(state="normal")

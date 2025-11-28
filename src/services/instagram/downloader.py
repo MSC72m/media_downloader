@@ -2,13 +2,14 @@
 
 import os
 import time
-from typing import Callable, Optional
+from collections.abc import Callable
 from urllib.parse import urlparse
 
 import instaloader
 
-from src.core.config import get_config, AppConfig
+from src.core.config import AppConfig, get_config
 from src.core.interfaces import BaseDownloader, IErrorNotifier, IFileService
+
 from ...core.enums import ServiceType
 from ...utils.logger import get_logger
 from ..file.service import FileService
@@ -22,8 +23,8 @@ class InstagramDownloader(BaseDownloader):
 
     def __init__(
         self,
-        error_handler: Optional[IErrorNotifier] = None,
-        file_service: Optional[IFileService] = None,
+        error_handler: IErrorNotifier | None = None,
+        file_service: IFileService | None = None,
         config: AppConfig = get_config(),
     ):
         """Initialize Instagram downloader.
@@ -53,9 +54,7 @@ class InstagramDownloader(BaseDownloader):
         Returns:
             True if authentication was successful, False otherwise
         """
-        logger.info(
-            f"[INSTAGRAM_DOWNLOADER] Starting authentication for user: {username[:3]}***"
-        )
+        logger.info(f"[INSTAGRAM_DOWNLOADER] Starting authentication for user: {username[:3]}***")
 
         # Check if we've tried too many times recently
         current_time = time.time()
@@ -109,23 +108,19 @@ class InstagramDownloader(BaseDownloader):
             if len(error_msg) > 200:
                 error_msg = error_msg[:200] + "..."
 
-            logger.error(
-                f"[INSTAGRAM_DOWNLOADER] ❌ Instagram authentication failed: {error_msg}"
-            )
+            logger.error(f"[INSTAGRAM_DOWNLOADER] ❌ Instagram authentication failed: {error_msg}")
             logger.error(f"[INSTAGRAM_DOWNLOADER] Exception type: {error_type}")
 
             self.authenticated = False
             if self.error_handler:
-                self.error_handler.handle_exception(
-                    e, "Instagram authentication", "Instagram"
-                )
+                self.error_handler.handle_exception(e, "Instagram authentication", "Instagram")
             return False
 
     def download(
         self,
         url: str,
         save_path: str,
-        progress_callback: Optional[Callable[[float, float], None]] = None,
+        progress_callback: Callable[[float, float], None] | None = None,
     ) -> bool:
         """
         Download media from Instagram URLs.
@@ -187,24 +182,20 @@ class InstagramDownloader(BaseDownloader):
             error_msg = f"Unsupported Instagram content type: {content_type}"
             logger.error(error_msg)
             if self.error_handler:
-                self.error_handler.handle_service_failure(
-                    "Instagram", "download", error_msg, url
-                )
+                self.error_handler.handle_service_failure("Instagram", "download", error_msg, url)
                 return False
 
         except Exception as e:
             logger.error(f"Error downloading from Instagram: {str(e)}", exc_info=True)
             if self.error_handler:
-                self.error_handler.handle_exception(
-                    e, "Instagram download", "Instagram"
-                )
+                self.error_handler.handle_exception(e, "Instagram download", "Instagram")
             return False
 
     def _download_post(
         self,
         shortcode: str,
         save_path: str,
-        progress_callback: Optional[Callable[[float, float], None]] = None,
+        progress_callback: Callable[[float, float], None] | None = None,
     ) -> bool:
         """Download a single Instagram post or reel."""
         try:
@@ -217,14 +208,10 @@ class InstagramDownloader(BaseDownloader):
             if post.is_video:
                 # Download video
                 video_url = post.video_url
-                filename = self.file_service.sanitize_filename(
-                    os.path.basename(save_path) + ".mp4"
-                )
+                filename = self.file_service.sanitize_filename(os.path.basename(save_path) + ".mp4")
                 full_path = os.path.join(save_dir, filename)
 
-                result = file_service.download_file(
-                    video_url, full_path, progress_callback
-                )
+                result = file_service.download_file(video_url, full_path, progress_callback)
                 return result.success
             else:
                 # Download image(s) - handle both single images and carousels
@@ -259,9 +246,7 @@ class InstagramDownloader(BaseDownloader):
                             if result.success:
                                 success = True
                         except Exception as e:
-                            logger.error(
-                                f"Error downloading sidecar item {i}: {str(e)}"
-                            )
+                            logger.error(f"Error downloading sidecar item {i}: {str(e)}")
                             continue
                 else:
                     # Single image post
@@ -270,9 +255,7 @@ class InstagramDownloader(BaseDownloader):
                         f"{os.path.basename(save_path)}.jpg"
                     )
                     full_path = os.path.join(save_dir, filename)
-                    result = file_service.download_file(
-                        image_url, full_path, progress_callback
-                    )
+                    result = file_service.download_file(image_url, full_path, progress_callback)
                     success = result.success
 
                 return success

@@ -1,6 +1,6 @@
 """Basic tests for the media downloader application."""
 
-from core.models import Download, DownloadStatus, ServiceType
+from src.core.models import Download, DownloadStatus, ServiceType
 
 
 def test_download_model_creation():

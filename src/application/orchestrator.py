@@ -3,7 +3,7 @@
 import os
 import threading
 from functools import partial
-from typing import Any, Type, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from src.coordinators.main_coordinator import EventCoordinator
 from src.core.config import AppConfig, get_config
@@ -30,9 +30,9 @@ from src.services.instagram.auth_manager import InstagramAuthManager
 if TYPE_CHECKING:
     import customtkinter as ctk
 
-from src.core.models import UIState
 from src.application.di_container import ServiceContainer
 from src.application.service_factories import ServiceFactoryRegistry
+from src.core.models import UIState
 
 
 class ApplicationOrchestrator:
@@ -52,9 +52,7 @@ class ApplicationOrchestrator:
         self.network_checker = self.container.get(INetworkChecker)
 
         self._import_link_handlers()
-        self.link_detector = LinkDetector(
-            handler_factory=self._create_handler_factory()
-        )
+        self.link_detector = LinkDetector(handler_factory=self._create_handler_factory())
         self._initialize_cookies_background()
 
         self.ui_components: dict[str, Any] = {}
@@ -112,16 +110,14 @@ class ApplicationOrchestrator:
     def _register_coordinators(self) -> None:
         self.container.register_singleton(
             EventCoordinator,
-            lambda: self.factory_registry.create_event_coordinator(
-                self.downloads_folder
-            ),
+            lambda: self.factory_registry.create_event_coordinator(self.downloads_folder),
         )
 
     def _register_detectors(self) -> None:
         self.container.register_singleton(LinkDetector, LinkDetector)
 
     def _create_handler_factory(self) -> callable:
-        def handler_factory(handler_class: Type) -> Any:
+        def handler_factory(handler_class: type) -> Any:
             try:
                 return self.container.create_with_injection(handler_class)
             except ValueError:
@@ -138,7 +134,9 @@ class ApplicationOrchestrator:
         return handler_factory
 
     def _import_link_handlers(self) -> None:
-        try:
+        import contextlib
+
+        with contextlib.suppress(Exception):
             from src.handlers import (
                 instagram_handler,  # noqa: F401
                 pinterest_handler,  # noqa: F401
@@ -146,8 +144,6 @@ class ApplicationOrchestrator:
                 twitter_handler,  # noqa: F401
                 youtube_handler,  # noqa: F401
             )
-        except Exception:
-            pass
 
     def _initialize_cookies_background(self) -> None:
         def init_cookies():
@@ -156,24 +152,23 @@ class ApplicationOrchestrator:
 
                 if state.is_valid:
                     pass
-                elif state.error_message:
-                    if "Playwright is not installed" in state.error_message:
-                        error_message = (
-                            "CRITICAL: Playwright is not installed!\n\n"
-                            "The auto-cookie generation system requires Playwright to function.\n"
-                            "Without it, age-restricted YouTube videos will fail to download.\n\n"
-                            "To fix this, run the following commands:\n\n"
-                            "  pip install playwright\n"
-                            "  playwright install chromium\n\n"
-                            "Then restart the application."
-                        )
-                        self.root.after(
-                            2000,
-                            lambda: self.error_handler.show_error(
-                                "Playwright Not Installed - Action Required",
-                                error_message,
-                            ),
-                        )
+                elif state.error_message and "Playwright is not installed" in state.error_message:
+                    error_message = (
+                        "CRITICAL: Playwright is not installed!\n\n"
+                        "The auto-cookie generation system requires Playwright to function.\n"
+                        "Without it, age-restricted YouTube videos will fail to download.\n\n"
+                        "To fix this, run the following commands:\n\n"
+                        "  pip install playwright\n"
+                        "  playwright install chromium\n\n"
+                        "Then restart the application."
+                    )
+                    self.root.after(
+                        2000,
+                        lambda: self.error_handler.show_error(
+                            "Playwright Not Installed - Action Required",
+                            error_message,
+                        ),
+                    )
             except Exception:
                 pass
 
@@ -229,18 +224,14 @@ class ApplicationOrchestrator:
 
         if "download_list" in components:
             dl_list = components["download_list"]
-            callbacks["refresh_download_list"] = partial(
-                safe_ui_update, dl_list.refresh_items
-            )
+            callbacks["refresh_download_list"] = partial(safe_ui_update, dl_list.refresh_items)
             callbacks["update_download_progress"] = partial(
                 safe_ui_update, dl_list.update_item_progress
             )
 
         if "action_buttons" in components:
             buttons = components["action_buttons"]
-            callbacks["set_action_buttons_enabled"] = partial(
-                safe_ui_update, buttons.set_enabled
-            )
+            callbacks["set_action_buttons_enabled"] = partial(safe_ui_update, buttons.set_enabled)
 
         if "status_bar" in components:
             sb = components["status_bar"]
@@ -257,9 +248,7 @@ class ApplicationOrchestrator:
             def update_progress_wrapper(progress: float) -> None:
                 sb.update_progress(progress)
 
-            callbacks["update_status_progress"] = partial(
-                safe_ui_update, update_progress_wrapper
-            )
+            callbacks["update_status_progress"] = partial(safe_ui_update, update_progress_wrapper)
 
         return callbacks
 
@@ -287,9 +276,7 @@ class ApplicationOrchestrator:
         thread = threading.Thread(target=check_in_background, daemon=True)
         thread.start()
 
-    def _handle_connectivity_result(
-        self, is_connected: bool, error_message: str
-    ) -> None:
+    def _handle_connectivity_result(self, is_connected: bool, error_message: str) -> None:
         status_bar = self.ui_components.get("status_bar")
 
         if is_connected:
@@ -297,9 +284,7 @@ class ApplicationOrchestrator:
                 status_bar.show_message("Connection confirmed")
         else:
             if status_bar:
-                status_bar.show_warning(
-                    f"Network issue: {error_message or 'Connection failed'}"
-                )
+                status_bar.show_warning(f"Network issue: {error_message or 'Connection failed'}")
             if self.container.has(IMessageQueue):
                 try:
                     message_queue = self.container.get(IMessageQueue)

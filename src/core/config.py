@@ -1,12 +1,12 @@
 """Application configuration using Pydantic Settings with YAML/JSON file support."""
 
-from functools import cache
 import json
+from functools import cache
 from pathlib import Path
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import yaml
-from pydantic import BaseModel, Field, field_validator, field_serializer
+from pydantic import BaseModel, Field, field_serializer, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from src.core.enums.appearance_mode import AppearanceMode
@@ -26,33 +26,21 @@ class CookieConfig(BaseModel):
         default_factory=lambda: Path.home() / ".media_downloader",
         description="Directory to store cookies and state files",
     )
-    cookie_file_name: str = Field(
-        default="cookies.json", description="Cookie JSON file name"
-    )
+    cookie_file_name: str = Field(default="cookies.json", description="Cookie JSON file name")
     netscape_file_name: str = Field(
         default="cookies.txt", description="Netscape format cookie file name"
     )
-    state_file_name: str = Field(
-        default="cookie_state.json", description="Cookie state file name"
-    )
-    cookie_expiry_hours: int = Field(
-        default=8, description="Cookie expiry time in hours"
-    )
-    generation_timeout: int = Field(
-        default=20, description="Cookie generation timeout in seconds"
-    )
-    wait_after_load: float = Field(
-        default=1.0, description="Wait time after page load in seconds"
-    )
+    state_file_name: str = Field(default="cookie_state.json", description="Cookie state file name")
+    cookie_expiry_hours: int = Field(default=8, description="Cookie expiry time in hours")
+    generation_timeout: int = Field(default=20, description="Cookie generation timeout in seconds")
+    wait_after_load: float = Field(default=1.0, description="Wait time after page load in seconds")
     wait_for_network_idle: float = Field(
         default=5.0, description="Wait time for network idle in seconds"
     )
     scroll_delay: float = Field(
         default=0.5, description="Delay after scroll interaction in seconds"
     )
-    viewport_width: int = Field(
-        default=412, description="Browser viewport width (Android mobile)"
-    )
+    viewport_width: int = Field(default=412, description="Browser viewport width (Android mobile)")
     viewport_height: int = Field(
         default=915, description="Browser viewport height (Android mobile)"
     )
@@ -82,37 +70,23 @@ class PathConfig(BaseModel):
 class DownloadConfig(BaseModel):
     """Download-related configuration."""
 
-    max_concurrent_downloads: int = Field(
-        default=3, description="Maximum concurrent downloads"
-    )
-    retry_count: int = Field(
-        default=3, description="Number of retries for failed downloads"
-    )
-    retry_delay: float = Field(
-        default=3.0, description="Delay between retries in seconds"
-    )
+    max_concurrent_downloads: int = Field(default=3, description="Maximum concurrent downloads")
+    retry_count: int = Field(default=3, description="Number of retries for failed downloads")
+    retry_delay: float = Field(default=3.0, description="Delay between retries in seconds")
     socket_timeout: int = Field(default=15, description="Socket timeout in seconds")
     chunk_size: int = Field(default=8192, description="Download chunk size in bytes")
     thread_sleep_interval: float = Field(
         default=0.1, description="Thread sleep interval in seconds"
     )
-    default_timeout: int = Field(
-        default=10, description="Default download timeout in seconds"
-    )
-    kb_to_bytes: int = Field(
-        default=1024, description="KB to bytes conversion constant"
-    )
+    default_timeout: int = Field(default=10, description="Default download timeout in seconds")
+    kb_to_bytes: int = Field(default=1024, description="KB to bytes conversion constant")
 
 
 class NetworkConfig(BaseModel):
     """Network-related configuration."""
 
-    default_timeout: int = Field(
-        default=10, description="Default network timeout in seconds"
-    )
-    twitter_api_timeout: int = Field(
-        default=10, description="Twitter API timeout in seconds"
-    )
+    default_timeout: int = Field(default=10, description="Default network timeout in seconds")
+    twitter_api_timeout: int = Field(default=10, description="Twitter API timeout in seconds")
     user_agent: str = Field(
         default="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
         description="Default user agent string",
@@ -213,18 +187,10 @@ class NotificationTemplatesConfig(BaseModel):
 class YouTubeConfig(BaseModel):
     """YouTube-specific configuration."""
 
-    player_client: str = Field(
-        default="web", description="Default YouTube player client"
-    )
-    metadata_timeout: int = Field(
-        default=30, description="Metadata fetch timeout in seconds"
-    )
-    fallback_timeout: int = Field(
-        default=20, description="Fallback command timeout in seconds"
-    )
-    subtitle_timeout: int = Field(
-        default=5, description="Subtitle fetch timeout in seconds"
-    )
+    player_client: str = Field(default="web", description="Default YouTube player client")
+    metadata_timeout: int = Field(default=30, description="Metadata fetch timeout in seconds")
+    fallback_timeout: int = Field(default=20, description="Fallback command timeout in seconds")
+    subtitle_timeout: int = Field(default=5, description="Subtitle fetch timeout in seconds")
     client_fallback_timeout: int = Field(
         default=15, description="Client fallback timeout in seconds"
     )
@@ -267,12 +233,8 @@ class YouTubeConfig(BaseModel):
         description="File extensions by format type",
     )
     audio_codec: str = Field(default="mp3", description="Default audio codec")
-    playlist_item_limit: str = Field(
-        default="1", description="Playlist item limit (single item)"
-    )
-    default_retry_wait: int = Field(
-        default=3, description="Default retry wait time in seconds"
-    )
+    playlist_item_limit: str = Field(default="1", description="Playlist item limit (single item)")
+    default_retry_wait: int = Field(default=3, description="Default retry wait time in seconds")
     ytdlp_default_options: dict[str, Any] = Field(
         default_factory=lambda: {
             "quiet": True,
@@ -388,9 +350,7 @@ class YouTubeConfig(BaseModel):
 class TwitterConfig(BaseModel):
     """Twitter/X-specific configuration."""
 
-    default_timeout: int = Field(
-        default=10, description="Default request timeout in seconds"
-    )
+    default_timeout: int = Field(default=10, description="Default request timeout in seconds")
     url_patterns: list[str] = Field(
         default_factory=lambda: [
             r"^https?://(?:www\.)?twitter\.com/[\w]+/status/[\d]+",
@@ -411,9 +371,7 @@ class InstagramConfig(BaseModel):
     login_cooldown_seconds: int = Field(
         default=600, description="Cooldown period after max login attempts in seconds"
     )
-    default_timeout: int = Field(
-        default=10, description="Default request timeout in seconds"
-    )
+    default_timeout: int = Field(default=10, description="Default request timeout in seconds")
     url_patterns: list[str] = Field(
         default_factory=lambda: [
             r"^https?://(?:www\.)?instagram\.com/p/[\w-]+",
@@ -430,9 +388,7 @@ class InstagramConfig(BaseModel):
 class PinterestConfig(BaseModel):
     """Pinterest-specific configuration."""
 
-    default_timeout: int = Field(
-        default=10, description="Default request timeout in seconds"
-    )
+    default_timeout: int = Field(default=10, description="Default request timeout in seconds")
     oembed_timeout: int = Field(default=10, description="OEmbed API timeout in seconds")
     url_patterns: list[str] = Field(
         default_factory=lambda: [
@@ -455,9 +411,7 @@ class SoundCloudConfig(BaseModel):
     default_retries: int = Field(default=3, description="Default number of retries")
     socket_timeout: int = Field(default=15, description="Socket timeout in seconds")
     default_audio_format: str = Field(default="mp3", description="Default audio format")
-    default_audio_quality: str = Field(
-        default="best", description="Default audio quality"
-    )
+    default_audio_quality: str = Field(default="best", description="Default audio quality")
     url_patterns: list[str] = Field(
         default_factory=lambda: [
             r"^https?://(?:www\.)?soundcloud\.com/[\w-]+/[\w-]+",
@@ -476,9 +430,7 @@ class ThemeConfig(BaseModel):
     appearance_mode: AppearanceMode = Field(
         default=AppearanceMode.DARK, description="Appearance mode (dark/light)"
     )
-    color_theme: ColorTheme = Field(
-        default=ColorTheme.BLUE, description="Color theme selection"
-    )
+    color_theme: ColorTheme = Field(default=ColorTheme.BLUE, description="Color theme selection")
     theme_persistence: bool = Field(
         default=True, description="Whether to persist theme preference to config file"
     )
@@ -491,15 +443,13 @@ class ThemeConfig(BaseModel):
     def __init__(self, **data):
         """Initialize with enum conversion."""
         # Convert string values to enums if provided as strings
-        if "appearance_mode" in data:
-            if isinstance(data["appearance_mode"], str):
-                data["appearance_mode"] = AppearanceMode(data["appearance_mode"])
+        if "appearance_mode" in data and isinstance(data["appearance_mode"], str):
+            data["appearance_mode"] = AppearanceMode(data["appearance_mode"])
         if "appearance_mode" not in data:
             data["appearance_mode"] = AppearanceMode.DARK
 
-        if "color_theme" in data:
-            if isinstance(data["color_theme"], str):
-                data["color_theme"] = ColorTheme(data["color_theme"])
+        if "color_theme" in data and isinstance(data["color_theme"], str):
+            data["color_theme"] = ColorTheme(data["color_theme"])
         if "color_theme" not in data:
             data["color_theme"] = ColorTheme.BLUE
 
@@ -521,7 +471,7 @@ class ThemeConfig(BaseModel):
 
     @staticmethod
     @cache
-    def get_color_schemes() -> Dict[str, Dict[str, Any]]:
+    def get_color_schemes() -> dict[str, dict[str, Any]]:
         """Get all color schemes for themes (cached for performance)."""
         return {
             # Dark themes - with refined visible borders
@@ -756,7 +706,7 @@ class ThemeConfig(BaseModel):
 
     @staticmethod
     @cache
-    def get_theme_json(appearance: AppearanceMode, color: ColorTheme) -> Dict[str, Any]:
+    def get_theme_json(appearance: AppearanceMode, color: ColorTheme) -> dict[str, Any]:
         """Get CTK theme JSON structure for appearance and color combination (cached)."""
         schemes = ThemeConfig.get_color_schemes()
         key = f"{appearance.value}_{color.value}"
@@ -780,10 +730,7 @@ class ThemeConfig(BaseModel):
             text_color_disabled = text_colors
 
         border_colors = scheme.get("border_color", fg_colors)
-        if isinstance(border_colors, list):
-            border_color = border_colors[0]
-        else:
-            border_color = border_colors
+        border_color = border_colors[0] if isinstance(border_colors, list) else border_colors
 
         # CTK theme JSON structure
         return {
@@ -860,9 +807,7 @@ class UIConfig(BaseModel):
         default=5,
         description="Number of subtitles to load per batch in UI to prevent freezing",
     )
-    theme: ThemeConfig = Field(
-        default_factory=ThemeConfig, description="Theme configuration"
-    )
+    theme: ThemeConfig = Field(default_factory=ThemeConfig, description="Theme configuration")
 
 
 class AppConfig(BaseSettings):
@@ -893,9 +838,7 @@ class AppConfig(BaseSettings):
     paths: PathConfig = Field(default_factory=PathConfig)
     downloads: DownloadConfig = Field(default_factory=DownloadConfig)
     network: NetworkConfig = Field(default_factory=NetworkConfig)
-    notifications: NotificationTemplatesConfig = Field(
-        default_factory=NotificationTemplatesConfig
-    )
+    notifications: NotificationTemplatesConfig = Field(default_factory=NotificationTemplatesConfig)
     youtube: YouTubeConfig = Field(default_factory=YouTubeConfig)
     twitter: TwitterConfig = Field(default_factory=TwitterConfig)
     instagram: InstagramConfig = Field(default_factory=InstagramConfig)
@@ -904,7 +847,7 @@ class AppConfig(BaseSettings):
     ui: UIConfig = Field(default_factory=UIConfig)
 
     @classmethod
-    def _load_config_file(cls) -> Optional[dict]:
+    def _load_config_file(cls) -> dict | None:
         """Load configuration from a single YAML or JSON file.
 
         Priority order:
@@ -930,11 +873,8 @@ class AppConfig(BaseSettings):
         for config_file in config_files:
             if config_file.exists():
                 try:
-                    with open(config_file, "r", encoding="utf-8") as f:
-                        if (
-                            config_file.suffix == ".yaml"
-                            or config_file.suffix == ".yml"
-                        ):
+                    with open(config_file, encoding="utf-8") as f:
+                        if config_file.suffix == ".yaml" or config_file.suffix == ".yml":
                             return yaml.safe_load(f)
                         else:
                             return json.load(f)
@@ -1013,9 +953,7 @@ class AppConfig(BaseSettings):
         try:
             with open(config_file, "w", encoding="utf-8") as f:
                 if config_file.suffix in (".yaml", ".yml"):
-                    yaml.safe_dump(
-                        config_dict, f, default_flow_style=False, sort_keys=False
-                    )
+                    yaml.safe_dump(config_dict, f, default_flow_style=False, sort_keys=False)
                     return None
                 json.dump(config_dict, f, indent=2, ensure_ascii=False)
 
@@ -1026,7 +964,7 @@ class AppConfig(BaseSettings):
 
 
 # Singleton instance
-_config_instance: Optional[AppConfig] = None
+_config_instance: AppConfig | None = None
 
 
 @cache

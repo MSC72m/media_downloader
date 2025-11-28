@@ -1,40 +1,40 @@
-from .service_interfaces import (
-    IDownloadService,
-    IDownloadHandler,
-    ICookieHandler,
-    IMetadataService,
-    INetworkChecker,
-    IFileService,
-    IMessageQueue,
-    IErrorNotifier,
-    IServiceFactory,
-    IAutoCookieManager,
-    IUIState,
-    BaseDownloader,
-    NetworkError,
-    AuthenticationError,
-    ServiceError,
-)
 from .cookie_interfaces import (
     ICookieManager,
 )
-from .parser import IParser
-from .youtube_metadata import (
-    IYouTubeMetadataService,
-    YouTubeMetadata,
-    SubtitleInfo,
-)
 from .event_bus import IEventBus
 from .notifier import INotifier
+from .parser import IParser
 from .protocols import (
-    UIContextProtocol,
-    HasEventCoordinatorProtocol,
+    DownloadAttributesProtocol,
+    HandlerWithPatternsProtocol,
     HasCleanupProtocol,
     HasClearProtocol,
     HasCompletedDownloadsProtocol,
+    HasEventCoordinatorProtocol,
     TkRootProtocol,
-    HandlerWithPatternsProtocol,
-    DownloadAttributesProtocol,
+    UIContextProtocol,
+)
+from .service_interfaces import (
+    AuthenticationError,
+    BaseDownloader,
+    IAutoCookieManager,
+    ICookieHandler,
+    IDownloadHandler,
+    IDownloadService,
+    IErrorNotifier,
+    IFileService,
+    IMessageQueue,
+    IMetadataService,
+    INetworkChecker,
+    IServiceFactory,
+    IUIState,
+    NetworkError,
+    ServiceError,
+)
+from .youtube_metadata import (
+    IYouTubeMetadataService,
+    SubtitleInfo,
+    YouTubeMetadata,
 )
 
 __all__ = [

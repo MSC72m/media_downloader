@@ -1,7 +1,7 @@
 """Test UTF-8 handling in subprocess calls."""
 
-import sys
 import os
+import sys
 from unittest.mock import Mock, patch
 
 # Add src to path
@@ -10,8 +10,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 def test_service_controller_safe_decode_bytes():
     """Test the ServiceController _safe_decode_bytes method."""
-    from core.service_controller import ServiceController
     from unittest.mock import Mock
+
+    from core.service_controller import ServiceController
 
     controller = ServiceController(Mock(), Mock())
 
@@ -21,7 +22,7 @@ def test_service_controller_safe_decode_bytes():
         (b"Normal text", "Normal text"),
         # UTF-8 with special characters
         (
-            "Text with special chars: \xa7 \xb0 \xb3".encode("utf-8"),
+            "Text with special chars: \xa7 \xb0 \xb3".encode(),
             "Text with special chars: § ° ³",
         ),
         # Invalid UTF-8 that should fallback to latin-1
@@ -39,9 +40,7 @@ def test_service_controller_safe_decode_bytes():
 
     for i, (test_bytes, expected) in enumerate(test_cases):
         result = controller._safe_decode_bytes(test_bytes)
-        assert result == expected, (
-            f"Test {i + 1} failed: expected {expected!r}, got {result!r}"
-        )
+        assert result == expected, f"Test {i + 1} failed: expected {expected!r}, got {result!r}"
 
 
 def test_metadata_service_safe_decode_bytes():
@@ -85,9 +84,9 @@ def test_metadata_service_safe_decode_bytes():
 
     for i, (test_bytes, expected) in enumerate(problematic_outputs):
         result = _safe_decode_bytes(test_bytes)
-        assert result == expected, (
-            f"Output test {i + 1} failed: expected {expected!r}, got {result!r}"
-        )
+        assert (
+            result == expected
+        ), f"Output test {i + 1} failed: expected {expected!r}, got {result!r}"
 
 
 def test_subprocess_encoding_parameters():
@@ -144,18 +143,16 @@ def test_metadata_service_subprocess_encoding():
         # Verify the call (only if the service actually uses subprocess)
         if mock_subprocess.called:
             call_kwargs = mock_subprocess.call_args[1]
-            assert "encoding" in call_kwargs, (
-                "subprocess.run should be called with encoding parameter"
-            )
-            assert call_kwargs["encoding"] == "utf-8", (
-                f"Expected UTF-8 encoding, got {call_kwargs.get('encoding')}"
-            )
-            assert "errors" in call_kwargs, (
-                "subprocess.run should be called with errors parameter"
-            )
-            assert call_kwargs["errors"] == "replace", (
-                f"Expected 'replace' error handling, got {call_kwargs.get('errors')}"
-            )
+            assert (
+                "encoding" in call_kwargs
+            ), "subprocess.run should be called with encoding parameter"
+            assert (
+                call_kwargs["encoding"] == "utf-8"
+            ), f"Expected UTF-8 encoding, got {call_kwargs.get('encoding')}"
+            assert "errors" in call_kwargs, "subprocess.run should be called with errors parameter"
+            assert (
+                call_kwargs["errors"] == "replace"
+            ), f"Expected 'replace' error handling, got {call_kwargs.get('errors')}"
 
 
 def test_original_0xb0_error_scenario():

@@ -1,11 +1,8 @@
 """Handler for cookie detection and integration with the application."""
 
-from typing import Optional
-
 from src.core.config import AppConfig
+from src.core.interfaces import ICookieHandler, ICookieManager
 from src.handlers.service_detector import ServiceDetector
-from src.core.interfaces import ICookieManager
-from src.core.interfaces import ICookieHandler
 from src.services.youtube.cookie_detector import CookieManager
 from src.utils.logger import get_logger
 
@@ -13,9 +10,7 @@ logger = get_logger(__name__)
 
 
 class CookieHandler(ICookieHandler):
-    def __init__(
-        self, config: AppConfig, cookie_manager: Optional[ICookieManager] = None
-    ):
+    def __init__(self, config: AppConfig, cookie_manager: ICookieManager | None = None):
         self.config = config
         self._cookie_manager = cookie_manager or CookieManager()
         self._service_detector = ServiceDetector()
@@ -49,7 +44,7 @@ class CookieHandler(ICookieHandler):
         """Check if valid cookies are currently set."""
         return self._cookie_manager.has_valid_cookies()
 
-    def get_current_cookie_path(self) -> Optional[str]:
+    def get_current_cookie_path(self) -> str | None:
         """Get the current cookie path."""
         return self._cookie_manager.get_current_cookie_path()
 
@@ -58,6 +53,6 @@ class CookieHandler(ICookieHandler):
         service_type = self._service_detector.detect_service(url)
         return service_type and service_type.value == "youtube"
 
-    def get_cookie_info_for_ytdlp(self) -> Optional[dict]:
+    def get_cookie_info_for_ytdlp(self) -> dict | None:
         """Get cookie information for yt-dlp integration."""
         return self._cookie_manager.get_cookie_info_for_ytdlp()

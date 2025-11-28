@@ -1,6 +1,5 @@
 name: Python Quality & Test Pipeline
 
-# run on pushes (main & development) and PRs targeting main
 on:
   push:
     branches:
@@ -19,19 +18,16 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.10', '3.11']
+        python-version: ['3.10', '3.11', '3.12', '3.13']
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Cache pip
-        uses: actions/cache@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
+          version: "latest"
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
@@ -40,35 +36,36 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          # install your runtime deps and dev deps (if present)
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
-          # ensure CI tools are available (no-op if already in requirements-dev)
-          python -m pip install ruff mypy pytest pytest-cov
+          uv sync --dev
 
-      - name: Run ruff (style / lint)
-        # fails the job if ruff reports issues
+      - name: Run ruff (linting)
         run: |
-          # You can change the path (.) to your source dir if needed
-          python -m ruff check .
+          uv run ruff check .
 
-      - name: Run mypy (static types)
-        # fails the job if mypy finds type errors
+      - name: Run ruff (formatting check)
         run: |
-          # mypy will look for mypy.ini / pyproject.toml config if present
-          python -m mypy .
+          uv run ruff format --check .
 
-      - name: Run tests with coverage and enforce 70% threshold
+      - name: Run mypy (type checking)
         run: |
-          # Replace --cov=src with your package or src dir (e.g. --cov=your_package)
-          python -m pytest tests/ --cov=src --cov-report=xml --cov-report=term --cov-fail-under=70 -v
+          uv run mypy src
 
-      - name: Upload test logs (artifact)
+      - name: Run tests with coverage
+        run: |
+          uv run pytest --cov-fail-under=70
+
+      - name: Upload coverage reports
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
+
+      - name: Upload test logs
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: pytest-logs
+          name: test-logs-${{ matrix.python-version }}
           path: |
             ./coverage.xml
-            ./pytest.log
+            ./htmlcov/

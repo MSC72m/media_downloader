@@ -1,9 +1,10 @@
 """Pytest configuration and mocking for testing without GUI dependencies."""
 
-import sys
 import os
+import sys
+from unittest.mock import MagicMock, Mock
+
 import pytest
-from unittest.mock import Mock, MagicMock
 
 # Add src to path for all tests
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
@@ -126,10 +127,8 @@ class MockBaseModel:
     def __init__(self, **kwargs):
         # Get default values from class attributes that are MockField objects
         for key, value in self.__class__.__dict__.items():
-            if not key.startswith("_") and hasattr(value, "value"):
-                # This is a MockField with a default value
-                if key not in kwargs:
-                    setattr(self, key, value.value)
+            if not key.startswith("_") and hasattr(value, "value") and key not in kwargs:
+                setattr(self, key, value.value)
 
         # Set provided kwargs
         for key, value in kwargs.items():
@@ -142,9 +141,7 @@ class MockField:
     def __init__(self, default=None, default_factory=None, description=None, **kwargs):
         # Store the actual value that should be returned when the field is accessed
         if default_factory is not None:
-            self.value = (
-                default_factory() if callable(default_factory) else default_factory
-            )
+            self.value = default_factory() if callable(default_factory) else default_factory
         else:
             self.value = default
         self.default = default
@@ -274,9 +271,7 @@ mock_ctk.CTkInputDialog = MockTkWidget2
 mock_ctk.CTkToplevel = MockTkWidget2
 mock_ctk.CTkScrollframe = MockTkWidget2
 
-mock_pydantic = type(
-    "MockModule", (), {"BaseModel": MockBaseModel, "Field": MockField}
-)()
+mock_pydantic = type("MockModule", (), {"BaseModel": MockBaseModel, "Field": MockField})()
 
 mock_yt_dlp = type(
     "MockModule",

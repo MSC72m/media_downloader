@@ -1,9 +1,10 @@
 """High-level file service interface."""
 
 import os
-from typing import Optional, Callable
-from .models import DownloadResult
+from collections.abc import Callable
+
 from .downloader import FileDownloader
+from .models import DownloadResult
 from .sanitizer import FilenameSanitizer
 
 
@@ -12,8 +13,8 @@ class FileService:
 
     def __init__(
         self,
-        downloader: Optional[FileDownloader] = None,
-        sanitizer: Optional[FilenameSanitizer] = None,
+        downloader: FileDownloader | None = None,
+        sanitizer: FilenameSanitizer | None = None,
     ):
         self.downloader = downloader or FileDownloader()
         self.sanitizer = sanitizer or FilenameSanitizer()
@@ -34,9 +35,7 @@ class FileService:
         except Exception:
             return False
 
-    def get_unique_filename(
-        self, directory: str, base_name: str, extension: str
-    ) -> str:
+    def get_unique_filename(self, directory: str, base_name: str, extension: str) -> str:
         """Get a unique filename in the directory, appending a number if file exists."""
         base_name = self.sanitize_filename(base_name)
         filename = f"{base_name}{extension}"
@@ -57,7 +56,7 @@ class FileService:
         self,
         url: str,
         save_path: str,
-        progress_callback: Optional[Callable[[float, float], None]] = None,
+        progress_callback: Callable[[float, float], None] | None = None,
     ) -> DownloadResult:
         """Download a file with progress monitoring."""
         return self.downloader.download_file(url, save_path, progress_callback)

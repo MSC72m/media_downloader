@@ -213,4 +213,3 @@ ui:
   loading_dialog_max_dots: 3  # Maximum number of dots in loading dialog before cycling
   loading_dialog_animation_interval: 500  # Milliseconds between dot animation updates in loading dialog
   subtitle_batch_size: 5  # Number of subtitles to load per batch in UI to prevent freezing
-

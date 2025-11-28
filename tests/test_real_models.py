@@ -1,14 +1,8 @@
 """Tests for real models without heavy mocking."""
 
-import sys
-import os
-
-# Add src to path for direct imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-
-from core.models import Download, DownloadOptions, UIState, AuthState, ButtonState
-from core.enums.download_status import DownloadStatus
-from core.enums.service_type import ServiceType
+from src.core.enums.download_status import DownloadStatus
+from src.core.enums.service_type import ServiceType
+from src.core.models import AuthState, ButtonState, Download, DownloadOptions, UIState
 
 
 class TestRealDownload:

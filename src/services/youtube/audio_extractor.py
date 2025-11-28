@@ -2,7 +2,6 @@
 
 import os
 import subprocess
-from typing import Optional
 
 from src.core.config import AppConfig, get_config
 from src.core.interfaces import IErrorNotifier
@@ -17,7 +16,7 @@ class AudioExtractor:
     def __init__(
         self,
         config: AppConfig = get_config(),
-        error_handler: Optional[IErrorNotifier] = None,
+        error_handler: IErrorNotifier | None = None,
     ):
         """Initialize audio extractor.
 
@@ -28,7 +27,7 @@ class AudioExtractor:
         self.config = config
         self.error_handler = error_handler
 
-    def extract_audio(self, video_path: str, output_path: Optional[str] = None) -> bool:
+    def extract_audio(self, video_path: str, output_path: str | None = None) -> bool:
         """Extract audio from video file to a separate audio file.
 
         This keeps the original video file intact and creates a separate audio file.
@@ -51,9 +50,7 @@ class AudioExtractor:
                 base_path = os.path.splitext(video_path)[0]
                 output_path = base_path + self.config.youtube.file_extensions["audio"]
 
-            logger.info(
-                f"[AUDIO_EXTRACTOR] Extracting audio from {video_path} to {output_path}"
-            )
+            logger.info(f"[AUDIO_EXTRACTOR] Extracting audio from {video_path} to {output_path}")
 
             # Use FFmpeg to extract audio - try copy codec first (faster, no quality loss)
             cmd = [
@@ -92,20 +89,14 @@ class AudioExtractor:
                     output_path,
                 ]
 
-                result = subprocess.run(
-                    cmd, capture_output=True, text=True, timeout=300
-                )
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
 
             if result.returncode == 0:
                 if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
-                    logger.info(
-                        f"[AUDIO_EXTRACTOR] Successfully extracted audio to {output_path}"
-                    )
+                    logger.info(f"[AUDIO_EXTRACTOR] Successfully extracted audio to {output_path}")
                     return True
                 else:
-                    logger.error(
-                        "[AUDIO_EXTRACTOR] Audio file created but is empty or missing"
-                    )
+                    logger.error("[AUDIO_EXTRACTOR] Audio file created but is empty or missing")
                     return False
             else:
                 logger.error(f"[AUDIO_EXTRACTOR] FFmpeg failed: {result.stderr}")
@@ -135,11 +126,7 @@ class AudioExtractor:
                 )
             return False
         except Exception as e:
-            logger.error(
-                f"[AUDIO_EXTRACTOR] Error extracting audio: {e}", exc_info=True
-            )
+            logger.error(f"[AUDIO_EXTRACTOR] Error extracting audio: {e}", exc_info=True)
             if self.error_handler:
-                self.error_handler.handle_exception(
-                    e, "Audio extraction", "Audio Extractor"
-                )
+                self.error_handler.handle_exception(e, "Audio extraction", "Audio Extractor")
             return False

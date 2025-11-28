@@ -16,9 +16,7 @@ class PathEntryBar(ctk.CTkFrame):
         self.path_var = ctk.StringVar(value=initial_path)
 
         # Path entry
-        self.entry = ctk.CTkEntry(
-            self, textvariable=self.path_var, height=40, font=("Roboto", 14)
-        )
+        self.entry = ctk.CTkEntry(self, textvariable=self.path_var, height=40, font=("Roboto", 14))
         self.entry.grid(row=0, column=0, sticky="ew", padx=(20, 10), pady=20)
 
         # Go button

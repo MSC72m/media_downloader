@@ -26,9 +26,7 @@ class FilenameSanitizer:
         # Normalize unicode characters
         try:
             filename = (
-                unicodedata.normalize("NFKD", filename)
-                .encode("ASCII", "ignore")
-                .decode("ASCII")
+                unicodedata.normalize("NFKD", filename).encode("ASCII", "ignore").decode("ASCII")
             )
         except UnicodeError:
             # Fallback: replace problematic characters

@@ -2,13 +2,15 @@
 
 import os
 import time
-from src.utils.logger import get_logger
-from typing import Optional, Callable
+from collections.abc import Callable
+
 import requests
 
-from src.core.config import get_config, AppConfig
-from .models import DownloadResult
+from src.core.config import AppConfig, get_config
+from src.utils.logger import get_logger
+
 from ...core.models import ServiceType
+from .models import DownloadResult
 
 logger = get_logger(__name__)
 
@@ -18,8 +20,8 @@ class FileDownloader:
 
     def __init__(
         self,
-        timeout: Optional[int] = None,
-        chunk_size: Optional[int] = None,
+        timeout: int | None = None,
+        chunk_size: int | None = None,
         config: AppConfig = get_config(),
     ):
         self.config = config
@@ -35,7 +37,7 @@ class FileDownloader:
         self,
         url: str,
         save_path: str,
-        progress_callback: Optional[Callable[[float, float], None]] = None,
+        progress_callback: Callable[[float, float], None] | None = None,
     ) -> DownloadResult:
         """
         Download a file with progress monitoring.
@@ -69,15 +71,16 @@ class FileDownloader:
 
                 # Try to match domain to service type
                 service_type = self._domain_to_service_type(domain)
-                if service_type and hasattr(
-                    self.network_service, "is_service_connected"
+                if (
+                    service_type
+                    and hasattr(self.network_service, "is_service_connected")
+                    and not self.network_service.is_service_connected(service_type)
                 ):
-                    if not self.network_service.is_service_connected(service_type):
-                        return DownloadResult(
-                            success=False,
-                            error_message=f"Cannot connect to {service_type}",
-                            download_time=time.time() - start_time,
-                        )
+                    return DownloadResult(
+                        success=False,
+                        error_message=f"Cannot connect to {service_type}",
+                        download_time=time.time() - start_time,
+                    )
             except Exception:
                 # If connectivity check fails, continue with download attempt
                 pass
@@ -90,9 +93,7 @@ class FileDownloader:
             # Make a streaming request with simple custom headers
             headers = {"User-Agent": self.config.network.user_agent}
 
-            response = session.get(
-                url, stream=True, headers=headers, timeout=self.timeout
-            )
+            response = session.get(url, stream=True, headers=headers, timeout=self.timeout)
             response.raise_for_status()
 
             # Get file size if available
@@ -109,9 +110,7 @@ class FileDownloader:
                         downloaded += len(chunk)
 
                         # Calculate progress and speed
-                        progress = (
-                            (downloaded / file_size * 100) if file_size > 0 else -1
-                        )
+                        progress = (downloaded / file_size * 100) if file_size > 0 else -1
                         elapsed = time.time() - download_start
                         speed = downloaded / elapsed if elapsed > 0 else 0
 
@@ -119,9 +118,7 @@ class FileDownloader:
                             # If file size unknown, report indeterminate progress
                             mb_to_bytes = self.config.downloads.kb_to_bytes * 1024
                             progress_to_report = (
-                                progress
-                                if progress >= 0
-                                else min(99, downloaded / mb_to_bytes)
+                                progress if progress >= 0 else min(99, downloaded / mb_to_bytes)
                             )
                             progress_callback(progress_to_report, speed)
 
@@ -150,20 +147,16 @@ class FileDownloader:
             # Clean up failed download
             if os.path.exists(temp_file):
                 os.remove(temp_file)
-            return DownloadResult(
-                success=False, error_message=str(e), download_time=download_time
-            )
+            return DownloadResult(success=False, error_message=str(e), download_time=download_time)
         except Exception as e:
             download_time = time.time() - start_time
             logger.error(f"Unexpected error downloading {url}: {str(e)}")
             # Clean up failed download
             if os.path.exists(temp_file):
                 os.remove(temp_file)
-            return DownloadResult(
-                success=False, error_message=str(e), download_time=download_time
-            )
+            return DownloadResult(success=False, error_message=str(e), download_time=download_time)
 
-    def _domain_to_service_type(self, domain: str) -> Optional[ServiceType]:
+    def _domain_to_service_type(self, domain: str) -> ServiceType | None:
         """Convert domain to ServiceType."""
         domain = domain.lower()
 

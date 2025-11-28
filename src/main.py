@@ -1,5 +1,5 @@
-import sys
 import queue
+import sys
 from pathlib import Path
 
 from src.utils.common import ensure_gui_available
@@ -12,8 +12,9 @@ logger = get_logger(__name__)
 
 # Only import GUI modules after confirming tkinter is available
 ensure_gui_available()
-import customtkinter as ctk  # noqa: E402
 from tkinter import Menu  # noqa: E402
+
+import customtkinter as ctk  # noqa: E402
 
 from src.core import get_application_orchestrator  # noqa: E402
 from src.core.config import get_config  # noqa: E402
@@ -79,9 +80,7 @@ def _check_playwright_installation():
             "or 'Exit' to close and install Playwright first."
         )
 
-        message_label = ctk.CTkLabel(
-            error_frame, text=message, font=("Arial", 12), justify="left"
-        )
+        message_label = ctk.CTkLabel(error_frame, text=message, font=("Arial", 12), justify="left")
         message_label.pack(pady=10)
 
         # Buttons
@@ -145,7 +144,7 @@ def _check_playwright_installation():
         # Check which button was clicked
         if exit_clicked["value"]:
             logger.info("[MAIN_APP] Exiting program as user requested")
-            raise SystemExit(1)
+            raise SystemExit(1) from None
 
         # If we reach here, user clicked Continue Anyway
         logger.warning("[MAIN_APP] Continuing without Playwright as user requested")
@@ -168,8 +167,8 @@ class MediaDownloaderApp(ctk.CTk):
         self.thread_queue = queue.Queue()
         self.after(100, self._process_thread_queue)
 
-        ApplicationOrchestrator = get_application_orchestrator()
-        self.orchestrator = ApplicationOrchestrator(self)
+        application_orchestrator = get_application_orchestrator()
+        self.orchestrator = application_orchestrator(self)
 
         # Initialize theme manager - must be after root window is created
         # This ensures CTK is properly initialized before theme is applied
@@ -212,9 +211,7 @@ class MediaDownloaderApp(ctk.CTk):
                 except queue.Empty:
                     break
                 except Exception as e:
-                    logger.error(
-                        f"[MAIN_APP] Error executing queued task: {e}", exc_info=True
-                    )
+                    logger.error(f"[MAIN_APP] Error executing queued task: {e}", exc_info=True)
         except Exception as e:
             logger.error(f"[MAIN_APP] Error in event loop: {e}", exc_info=True)
         finally:
@@ -227,14 +224,10 @@ class MediaDownloaderApp(ctk.CTk):
     def _create_ui(self):
         """Create all UI components."""
         # Header bar - minimal modern design with left-aligned title
-        self.header_frame = ctk.CTkFrame(
-            self.main_frame, fg_color="transparent", corner_radius=0
-        )
+        self.header_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent", corner_radius=0)
         # Two-column layout: [title] [theme_switcher]
         self.header_frame.grid_columnconfigure(0, weight=1)  # Title column expands
-        self.header_frame.grid_columnconfigure(
-            1, weight=0
-        )  # Theme switcher - no expansion
+        self.header_frame.grid_columnconfigure(1, weight=0)  # Theme switcher - no expansion
 
         # Title - left aligned, clean typography with very generous spacing
         app_title = self.config.ui.app_title
@@ -253,15 +246,11 @@ class MediaDownloaderApp(ctk.CTk):
         # URL Entry - wire directly to link detector
         def on_add_url(url: str, name: str) -> None:
             # Try to detect platform-specific handler first
-            handler_found = self.orchestrator.link_detector.detect_and_handle(
-                url, coord
-            )
+            handler_found = self.orchestrator.link_detector.detect_and_handle(url, coord)
 
             # If no handler found, treat as generic download
             if not handler_found:
-                logger.info(
-                    f"[MAIN_APP] No handler found for {url}, treating as generic download"
-                )
+                logger.info(f"[MAIN_APP] No handler found for {url}, treating as generic download")
                 coord.platform_download("generic", url, name)
 
         def on_youtube_detected(url: str) -> None:
@@ -370,9 +359,7 @@ class MediaDownloaderApp(ctk.CTk):
                 try:
                     self.theme_manager._persist_theme()
                 except Exception as e:
-                    logger.error(
-                        f"[MAIN_APP] Failed to persist theme: {e}", exc_info=True
-                    )
+                    logger.error(f"[MAIN_APP] Failed to persist theme: {e}", exc_info=True)
 
             # Cleanup orchestrator
             if hasattr(self, "orchestrator"):
@@ -386,9 +373,7 @@ class MediaDownloaderApp(ctk.CTk):
 
             logger.info("[MAIN_APP] Graceful shutdown complete")
         except Exception as e:
-            logger.error(
-                f"[MAIN_APP] Error during graceful shutdown: {e}", exc_info=True
-            )
+            logger.error(f"[MAIN_APP] Error during graceful shutdown: {e}", exc_info=True)
 
     def _on_closing(self):
         """Handle application closing."""

@@ -5,11 +5,10 @@ import json
 from datetime import datetime, timedelta
 from pathlib import Path
 from threading import Lock
-from typing import Optional
 
 from playwright.async_api import async_playwright
 
-from src.core.config import get_config, AppConfig
+from src.core.config import AppConfig, get_config
 from src.core.models import CookieState
 from src.utils.logger import get_logger
 from src.utils.user_agent_rotator import get_random_user_agent
@@ -20,9 +19,7 @@ logger = get_logger(__name__)
 class CookieGenerator:
     """Generates YouTube cookies using Playwright headless browser."""
 
-    def __init__(
-        self, storage_dir: Optional[Path] = None, config: AppConfig = get_config()
-    ):
+    def __init__(self, storage_dir: Path | None = None, config: AppConfig = get_config()):
         """Initialize cookie generator.
 
         Args:
@@ -37,10 +34,10 @@ class CookieGenerator:
         self._browser = None
 
         # Thread-safe state management for real-time access
-        self._state: Optional[CookieState] = None
+        self._state: CookieState | None = None
         self._state_lock = Lock()
 
-    def get_state(self) -> Optional[CookieState]:
+    def get_state(self) -> CookieState | None:
         """Get current cookie generation state (thread-safe).
 
         Returns:
@@ -99,9 +96,7 @@ class CookieGenerator:
                 try:
                     # Get random user agent for each cookie generation
                     user_agent = get_random_user_agent()
-                    logger.info(
-                        f"[COOKIE_GENERATOR] Using random user agent: {user_agent[:50]}..."
-                    )
+                    logger.info(f"[COOKIE_GENERATOR] Using random user agent: {user_agent[:50]}...")
 
                     # Use mobile device emulation for Android with proper headers
                     context = await browser.new_context(
@@ -134,18 +129,16 @@ class CookieGenerator:
                         f"[COOKIE_GENERATOR] Created Android mobile context (viewport: {self.config.cookies.viewport_width}x{self.config.cookies.viewport_height})"
                     )
                 except Exception as context_error:
-                    error_msg = (
-                        f"Failed to create browser context: {str(context_error)}"
-                    )
+                    error_msg = f"Failed to create browser context: {str(context_error)}"
                     logger.error(f"[COOKIE_GENERATOR] {error_msg}")
                     state.is_generating = False
                     state.is_valid = False
                     state.error_message = error_msg
                     self._update_state(state)
-                    try:
+                    import contextlib
+
+                    with contextlib.suppress(Exception):
                         await browser.close()
-                    except Exception:
-                        pass
                     return state
                 logger.info("[COOKIE_GENERATOR] Navigating to YouTube")
 
@@ -169,9 +162,7 @@ class CookieGenerator:
                             timeout=int(cookie_config.wait_for_network_idle * 1000),
                         )
                     except Exception:
-                        logger.debug(
-                            "[COOKIE_GENERATOR] Network idle timeout, continuing"
-                        )
+                        logger.debug("[COOKIE_GENERATOR] Network idle timeout, continuing")
 
                     await asyncio.sleep(cookie_config.wait_after_load)
 
@@ -185,16 +176,14 @@ class CookieGenerator:
                         await page.evaluate("() => window.scrollTo(0, 0)")
                         await asyncio.sleep(cookie_config.scroll_delay)
                     except Exception:
-                        logger.debug(
-                            "[COOKIE_GENERATOR] Scroll interaction failed, continuing"
-                        )
+                        logger.debug("[COOKIE_GENERATOR] Scroll interaction failed, continuing")
 
                     # Navigate to a popular video to get proper authentication cookies
                     # Using a popular video that's likely to be available
-                    test_video_url = "https://www.youtube.com/watch?v=jNQXAC9IVRw"  # Popular test video
-                    logger.info(
-                        f"[COOKIE_GENERATOR] Navigating to video page: {test_video_url}"
+                    test_video_url = (
+                        "https://www.youtube.com/watch?v=jNQXAC9IVRw"  # Popular test video
                     )
+                    logger.info(f"[COOKIE_GENERATOR] Navigating to video page: {test_video_url}")
 
                     try:
                         await page.goto(
@@ -227,9 +216,7 @@ class CookieGenerator:
                         await page.evaluate("() => window.scrollTo(0, 0)")
                         await asyncio.sleep(cookie_config.scroll_delay)
 
-                        logger.info(
-                            "[COOKIE_GENERATOR] Video page interactions completed"
-                        )
+                        logger.info("[COOKIE_GENERATOR] Video page interactions completed")
                     except Exception as video_error:
                         logger.warning(
                             f"[COOKIE_GENERATOR] Failed to navigate to video page: {video_error}, continuing with homepage cookies"
@@ -239,9 +226,7 @@ class CookieGenerator:
                     await asyncio.sleep(cookie_config.wait_after_load)
 
                 except Exception as e:
-                    logger.error(
-                        f"[COOKIE_GENERATOR] Failed to navigate to YouTube: {e}"
-                    )
+                    logger.error(f"[COOKIE_GENERATOR] Failed to navigate to YouTube: {e}")
                     try:
                         await asyncio.sleep(cookie_config.wait_after_load)
                         await page.goto(
@@ -250,27 +235,19 @@ class CookieGenerator:
                             timeout=cookie_config.generation_timeout * 1000,
                         )
                         await asyncio.sleep(cookie_config.wait_after_load)
-                        logger.info(
-                            "[COOKIE_GENERATOR] YouTube loaded successfully on retry"
-                        )
+                        logger.info("[COOKIE_GENERATOR] YouTube loaded successfully on retry")
                     except Exception as retry_e:
                         logger.error(f"[COOKIE_GENERATOR] Retry also failed: {retry_e}")
                         # Update state for navigation failure
                         state.is_generating = False
                         state.is_valid = False
-                        state.error_message = (
-                            f"Failed to navigate to YouTube: {str(retry_e)}"
-                        )
+                        state.error_message = f"Failed to navigate to YouTube: {str(retry_e)}"
                         self._update_state(state)
                         raise retry_e
 
                 cookies = await context.cookies()
-                youtube_cookies = [
-                    c for c in cookies if "youtube.com" in c.get("domain", "")
-                ]
-                google_cookies = [
-                    c for c in cookies if "google.com" in c.get("domain", "")
-                ]
+                youtube_cookies = [c for c in cookies if "youtube.com" in c.get("domain", "")]
+                google_cookies = [c for c in cookies if "google.com" in c.get("domain", "")]
                 logger.info(
                     f"[COOKIE_GENERATOR] Retrieved {len(cookies)} total cookies ({len(youtube_cookies)} YouTube, {len(google_cookies)} Google)"
                 )
@@ -285,13 +262,9 @@ class CookieGenerator:
                     "__Secure-3PAPISID",
                 ]
                 found_important = [
-                    c.get("name")
-                    for c in youtube_cookies
-                    if c.get("name") in important_cookies
+                    c.get("name") for c in youtube_cookies if c.get("name") in important_cookies
                 ]
-                logger.info(
-                    f"[COOKIE_GENERATOR] Important cookies found: {found_important}"
-                )
+                logger.info(f"[COOKIE_GENERATOR] Important cookies found: {found_important}")
 
                 # Check if we have valid cookies
                 if not cookies or (not youtube_cookies and not google_cookies):
@@ -319,9 +292,7 @@ class CookieGenerator:
                 try:
                     self._save_cookies(cookies)
                 except Exception as save_error:
-                    logger.error(
-                        f"[COOKIE_GENERATOR] Failed to save cookies: {save_error}"
-                    )
+                    logger.error(f"[COOKIE_GENERATOR] Failed to save cookies: {save_error}")
                     state.is_generating = False
                     state.is_valid = False
                     state.error_message = f"Failed to save cookies: {str(save_error)}"
@@ -424,26 +395,24 @@ class CookieGenerator:
             valid_count += 1
 
         if skipped_count > 0:
-            logger.warning(
-                f"[COOKIE_GENERATOR] Skipped {skipped_count} invalid cookies"
-            )
+            logger.warning(f"[COOKIE_GENERATOR] Skipped {skipped_count} invalid cookies")
 
         with open(self.cookie_file, "w", encoding="utf-8") as f:
             json.dump(netscape_cookies, f, indent=2)
 
         # Verify file was written
         if not self.cookie_file.exists():
-            raise IOError(f"Cookie file was not created: {self.cookie_file}")
+            raise OSError(f"Cookie file was not created: {self.cookie_file}")
 
         file_size = self.cookie_file.stat().st_size
         if file_size == 0:
-            raise IOError(f"Cookie file is empty: {self.cookie_file}")
+            raise OSError(f"Cookie file is empty: {self.cookie_file}")
 
         logger.info(
             f"[COOKIE_GENERATOR] Saved {valid_count} valid cookies to {self.cookie_file} (size: {file_size} bytes)"
         )
 
-    def convert_to_netscape_text(self) -> Optional[str]:
+    def convert_to_netscape_text(self) -> str | None:
         """Convert JSON cookies to Netscape text format for yt-dlp.
 
         Returns:
@@ -454,7 +423,7 @@ class CookieGenerator:
             return None
 
         try:
-            with open(self.cookie_file, "r", encoding="utf-8") as f:
+            with open(self.cookie_file, encoding="utf-8") as f:
                 cookies = json.load(f)
 
             netscape_file = self.storage_dir / self.config.cookies.netscape_file_name
@@ -480,9 +449,7 @@ class CookieGenerator:
                     secure = cookie.get("secure", "FALSE")
                     expiration = cookie.get("expiration", -1)
 
-                    if expiration == -1 or expiration is None:
-                        expiration = 0
-                    elif expiration < 0:
+                    if expiration == -1 or expiration is None or expiration < 0:
                         expiration = 0
                     else:
                         expiration = int(expiration)
@@ -499,24 +466,18 @@ class CookieGenerator:
                 )
 
             if valid_cookies == 0:
-                logger.error(
-                    "[COOKIE_GENERATOR] No valid cookies to write to Netscape format"
-                )
+                logger.error("[COOKIE_GENERATOR] No valid cookies to write to Netscape format")
                 return None
 
             # Verify file was written successfully
             if not netscape_file.exists():
-                logger.error(
-                    f"[COOKIE_GENERATOR] Netscape file was not created: {netscape_file}"
-                )
+                logger.error(f"[COOKIE_GENERATOR] Netscape file was not created: {netscape_file}")
                 return None
 
             # Verify file has content
             file_size = netscape_file.stat().st_size
             if file_size == 0:
-                logger.error(
-                    f"[COOKIE_GENERATOR] Netscape file is empty: {netscape_file}"
-                )
+                logger.error(f"[COOKIE_GENERATOR] Netscape file is empty: {netscape_file}")
                 return None
 
             logger.info(
@@ -525,9 +486,7 @@ class CookieGenerator:
             return str(netscape_file)
 
         except Exception as e:
-            logger.error(
-                f"[COOKIE_GENERATOR] Failed to convert cookies: {e}", exc_info=True
-            )
+            logger.error(f"[COOKIE_GENERATOR] Failed to convert cookies: {e}", exc_info=True)
             return None
 
     def validate_netscape_file(self, file_path: str) -> bool:
@@ -544,7 +503,7 @@ class CookieGenerator:
                 return False
 
             valid_lines = 0
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
                     if not line or line.startswith("#"):
@@ -565,9 +524,7 @@ class CookieGenerator:
             return valid_lines > 0
 
         except Exception as e:
-            logger.error(
-                f"[COOKIE_GENERATOR] Error validating cookie file: {e}", exc_info=True
-            )
+            logger.error(f"[COOKIE_GENERATOR] Error validating cookie file: {e}", exc_info=True)
             return False
 
     async def ensure_chromium_installed(self) -> bool:
@@ -586,9 +543,7 @@ class CookieGenerator:
             return False
 
         except Exception as e:
-            logger.error(
-                f"[COOKIE_GENERATOR] Failed to check Chromium: {e}", exc_info=True
-            )
+            logger.error(f"[COOKIE_GENERATOR] Failed to check Chromium: {e}", exc_info=True)
             return False
 
     def cleanup(self) -> None:

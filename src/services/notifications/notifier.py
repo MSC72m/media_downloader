@@ -1,6 +1,6 @@
 """Notifier service implementation."""
 
-from typing import Dict, Any, Optional
+from typing import Any
 
 from src.core.enums.message_level import MessageLevel
 from src.core.interfaces import IMessageQueue, INotifier
@@ -13,15 +13,15 @@ logger = get_logger(__name__)
 class NotifierService(INotifier):
     def __init__(
         self,
-        message_queue: Optional[IMessageQueue] = None,
-        custom_templates: Optional[Dict[str, Dict[str, Any]]] = None,
+        message_queue: IMessageQueue | None = None,
+        custom_templates: dict[str, dict[str, Any]] | None = None,
     ):
         self.message_queue = message_queue
         self._templates = self._get_templates()
         if custom_templates:
             self._templates.update(custom_templates)
 
-    def _get_templates(self) -> Dict[str, Dict[str, Any]]:
+    def _get_templates(self) -> dict[str, dict[str, Any]]:
         return {
             "cookies_generating": {
                 "text": "Cookies are being generated. Please wait a moment and try again.",

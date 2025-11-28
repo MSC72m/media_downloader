@@ -1,6 +1,5 @@
 """Concrete implementation of service detector."""
 
-from typing import Optional
 from urllib.parse import urlparse
 
 from src.core.enums import ServiceType
@@ -34,7 +33,7 @@ class ServiceDetector:
         """Clean up resources."""
         self._initialized = False
 
-    def detect_service(self, url: str) -> Optional[ServiceType]:
+    def detect_service(self, url: str) -> ServiceType | None:
         """Detect service type from URL."""
         try:
             domain = urlparse(url).netloc.lower()
@@ -63,7 +62,5 @@ class ServiceDetector:
                 logger.warning(f"Service {service.value} not accessible: {error_msg}")
             return connected
         except Exception as e:
-            logger.error(
-                f"Error checking service accessibility for {service.value}: {e}"
-            )
+            logger.error(f"Error checking service accessibility for {service.value}: {e}")
             return False

@@ -2,7 +2,7 @@
 
 import os
 import time
-from typing import Callable, Optional
+from collections.abc import Callable
 
 import requests
 
@@ -15,8 +15,8 @@ logger = get_logger(__name__)
 def download_file(
     url: str,
     save_path: str,
-    progress_callback: Optional[Callable[[float, float], None]] = None,
-    chunk_size: Optional[int] = None,
+    progress_callback: Callable[[float, float], None] | None = None,
+    chunk_size: int | None = None,
     config=None,
 ) -> bool:
     """Download a file from URL.

@@ -1,6 +1,7 @@
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Type
+from typing import Any
 
 from src.utils.logger import get_logger
 
@@ -15,7 +16,8 @@ class DetectionResult:
 
     service_type: str
     confidence: float  # 0.0 to 1.0
-    metadata: Dict[str, Any] | None = None
+    metadata: dict[str, Any] | None = None
+
 
 # Alias for backward compatibility - handlers can use either name
 LinkHandlerInterface = BaseHandler
@@ -25,9 +27,9 @@ class LinkDetectionRegistry:
     """Registry for link handlers with automatic registration."""
 
     _instance = None
-    _handlers: Dict[str, Type[BaseHandler]] = {}
-    _compiled_patterns: Dict[str, List[re.Pattern]] = {}
-    _handler_factory: Optional[Callable[[Type[BaseHandler]], BaseHandler]] = None
+    _handlers: dict[str, type[BaseHandler]] = {}
+    _compiled_patterns: dict[str, list[re.Pattern]] = {}
+    _handler_factory: Callable[[type[BaseHandler]], BaseHandler] | None = None
 
     def __new__(cls):
         if cls._instance is None:
@@ -35,23 +37,19 @@ class LinkDetectionRegistry:
         return cls._instance
 
     @classmethod
-    def set_handler_factory(
-        cls, factory: Callable[[Type[BaseHandler]], BaseHandler]
-    ) -> None:
+    def set_handler_factory(cls, factory: Callable[[type[BaseHandler]], BaseHandler]) -> None:
         """Set factory function for creating handler instances with dependencies."""
         cls._handler_factory = factory
         logger.info("[REGISTRY] Handler factory set")
 
     @classmethod
-    def register(cls, handler_class: Type[BaseHandler]):
+    def register(cls, handler_class: type[BaseHandler]):
         """Register a link handler class."""
         handler_name = handler_class.__name__
         logger.info(f"[REGISTRATION] Attempting to register handler: {handler_name}")
 
         if handler_name in cls._handlers:
-            logger.warning(
-                f"[REGISTRATION] Handler {handler_name} already registered, replacing"
-            )
+            logger.warning(f"[REGISTRATION] Handler {handler_name} already registered, replacing")
 
         cls._handlers[handler_name] = handler_class
         logger.info(f"[REGISTRATION] Successfully registered handler: {handler_name}")
@@ -66,20 +64,14 @@ class LinkDetectionRegistry:
                 try:
                     compiled.append(re.compile(pattern))
                 except re.error as e:
-                    logger.error(
-                        f"[REGISTRATION] Invalid regex pattern '{pattern}': {e}"
-                    )
+                    logger.error(f"[REGISTRATION] Invalid regex pattern '{pattern}': {e}")
             cls._compiled_patterns[handler_name] = compiled
-            logger.info(
-                f"[REGISTRATION] Compiled {len(compiled)} patterns for {handler_name}"
-            )
+            logger.info(f"[REGISTRATION] Compiled {len(compiled)} patterns for {handler_name}")
         else:
-            logger.warning(
-                f"[REGISTRATION] Handler {handler_name} has no get_patterns method"
-            )
+            logger.warning(f"[REGISTRATION] Handler {handler_name} has no get_patterns method")
 
     @classmethod
-    def detect_handler(cls, url: str) -> Optional[BaseHandler]:
+    def detect_handler(cls, url: str) -> BaseHandler | None:
         """Detect the appropriate handler for a URL."""
         logger.info(f"[DETECTION] Starting URL detection for: {url}")
         logger.info(f"[DETECTION] Available handlers: {list(cls._handlers.keys())}")
@@ -122,7 +114,7 @@ class LinkDetectionRegistry:
         return best_handler if best_confidence > 0.5 else None
 
     @classmethod
-    def quick_detect(cls, url: str) -> Optional[str]:
+    def quick_detect(cls, url: str) -> str | None:
         """Quick detection using pre-compiled patterns."""
         for handler_name, patterns in cls._compiled_patterns.items():
             if any(pattern.match(url) for pattern in patterns):
@@ -130,7 +122,7 @@ class LinkDetectionRegistry:
         return None
 
     @classmethod
-    def get_registered_handlers(cls) -> List[str]:
+    def get_registered_handlers(cls) -> list[str]:
         """Get list of registered handler names."""
         return list(cls._handlers.keys())
 
@@ -146,7 +138,7 @@ class LinkDetector:
 
     def __init__(
         self,
-        handler_factory: Optional[Callable[[Type[BaseHandler]], BaseHandler]] = None,
+        handler_factory: Callable[[type[BaseHandler]], BaseHandler] | None = None,
     ):
         self.registry = LinkDetectionRegistry()
         if handler_factory:
@@ -186,27 +178,23 @@ class LinkDetector:
             )
             return False
 
-    def get_url_info(self, url: str) -> Optional[DetectionResult]:
+    def get_url_info(self, url: str) -> DetectionResult | None:
         """Get information about a URL without processing it."""
         handler = self.registry.detect_handler(url)
         if handler:
             try:
                 return handler.can_handle(url)
             except Exception as e:
-                logger.error(
-                    f"[LINK_DETECTOR] Error getting URL info: {e}", exc_info=True
-                )
+                logger.error(f"[LINK_DETECTOR] Error getting URL info: {e}", exc_info=True)
         return None
 
 
-def auto_register_handler(handler_class: Type[BaseHandler]):
+def auto_register_handler(handler_class: type[BaseHandler]):
     """Decorator for automatic handler registration."""
     logger.info(f"[DECORATOR] Auto-registering handler: {handler_class.__name__}")
     try:
         LinkDetectionRegistry.register(handler_class)
-        logger.info(
-            f"[DECORATOR] Successfully auto-registered handler: {handler_class.__name__}"
-        )
+        logger.info(f"[DECORATOR] Successfully auto-registered handler: {handler_class.__name__}")
     except Exception as e:
         logger.error(
             f"[DECORATOR] Failed to auto-register handler {handler_class.__name__}: {e}",

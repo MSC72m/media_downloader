@@ -37,9 +37,7 @@ class FileManagerActionButtonBar(ctk.CTkFrame):
         self.create_folder_button.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
 
         # Cancel button
-        self.cancel_button = ctk.CTkButton(
-            self, text="Cancel", command=on_cancel, **button_style
-        )
+        self.cancel_button = ctk.CTkButton(self, text="Cancel", command=on_cancel, **button_style)
         self.cancel_button.grid(row=0, column=2, padx=5, pady=5, sticky="ew")
 
     def set_enabled(self, enabled: bool):

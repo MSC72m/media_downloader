@@ -25,16 +25,12 @@ class ThreadSafeDialogMixin:
     def safe_after(self, delay_ms: int, func: Callable, *args, **kwargs):
         """Thread-safe version of after() method."""
         if self.is_main_thread():
-            return self.after(
-                delay_ms, lambda: self._safe_execute(func, *args, **kwargs)
-            )
+            return self.after(delay_ms, lambda: self._safe_execute(func, *args, **kwargs))
         else:
             # Schedule on main thread
             self.after(
                 0,
-                lambda: self.after(
-                    delay_ms, lambda: self._safe_execute(func, *args, **kwargs)
-                ),
+                lambda: self.after(delay_ms, lambda: self._safe_execute(func, *args, **kwargs)),
             )
 
     def _safe_execute(self, func: Callable, *args, **kwargs):
@@ -122,9 +118,7 @@ class ThreadSafeOperations:
             try:
                 return widget.after(0, lambda: func(*args, **kwargs))
             except Exception as e:
-                logger.error(
-                    f"Error scheduling main thread execution: {e}", exc_info=True
-                )
+                logger.error(f"Error scheduling main thread execution: {e}", exc_info=True)
         return None
 
     @staticmethod

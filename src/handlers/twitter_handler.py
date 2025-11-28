@@ -1,14 +1,15 @@
 """Twitter link handler implementation."""
 
 import re
-from typing import Any, Callable, Dict, Optional
+from collections.abc import Callable
+from typing import Any
 
-from src.core.config import get_config, AppConfig
+from src.core.config import AppConfig, get_config
 from src.core.interfaces import IErrorNotifier, IMessageQueue
+from src.services.detection.base_handler import BaseHandler
 from src.services.detection.link_detector import (
     auto_register_handler,
 )
-from src.services.detection.base_handler import BaseHandler
 from src.utils.error_helpers import extract_error_context
 from src.utils.logger import get_logger
 from src.utils.type_helpers import (
@@ -24,8 +25,8 @@ logger = get_logger(__name__)
 class TwitterHandler(BaseHandler):
     def __init__(
         self,
-        error_handler: Optional[IErrorNotifier] = None,
-        message_queue: Optional[IMessageQueue] = None,
+        error_handler: IErrorNotifier | None = None,
+        message_queue: IMessageQueue | None = None,
         config: AppConfig = get_config(),
     ):
         super().__init__(message_queue, config, service_name="twitter")
@@ -36,7 +37,7 @@ class TwitterHandler(BaseHandler):
         """Get URL patterns for this handler."""
         return get_config().twitter.url_patterns
 
-    def _extract_metadata(self, url: str) -> Dict[str, Any]:
+    def _extract_metadata(self, url: str) -> dict[str, Any]:
         """Extract Twitter-specific metadata from URL."""
         return {
             "type": self._detect_twitter_type(url),
@@ -44,7 +45,7 @@ class TwitterHandler(BaseHandler):
             "username": self._extract_username(url),
         }
 
-    def get_metadata(self, url: str) -> Dict[str, Any]:
+    def get_metadata(self, url: str) -> dict[str, Any]:
         """Get Twitter metadata for the URL."""
         return {
             "type": self._detect_twitter_type(url),
@@ -53,7 +54,7 @@ class TwitterHandler(BaseHandler):
             "requires_auth": False,  # Twitter downloads usually work without auth
         }
 
-    def process_download(self, url: str, options: Dict[str, Any]) -> bool:
+    def process_download(self, url: str, options: dict[str, Any]) -> bool:
         """Process Twitter download."""
         logger.info(f"[TWITTER_HANDLER] Processing Twitter download: {url}")
         # Actual Twitter download logic would go here
@@ -88,9 +89,7 @@ class TwitterHandler(BaseHandler):
             # Call the platform download method which will show the dialog (or fallback)
             def process_twitter_download():
                 try:
-                    logger.info(
-                        f"[TWITTER_HANDLER] Calling download callback for: {url}"
-                    )
+                    logger.info(f"[TWITTER_HANDLER] Calling download callback for: {url}")
                     # Platform download methods expect URL string
                     download_callback(url)
                     logger.info("[TWITTER_HANDLER] Download callback executed")
@@ -100,9 +99,7 @@ class TwitterHandler(BaseHandler):
                         exc_info=True,
                     )
                     if self.error_handler:
-                        extract_error_context(
-                            e, "Twitter", "download processing", url
-                        )
+                        extract_error_context(e, "Twitter", "download processing", url)
                         self.error_handler.handle_exception(
                             e, "Processing Twitter download", "Twitter"
                         )
@@ -122,12 +119,12 @@ class TwitterHandler(BaseHandler):
             return "tweet"
         return "unknown"
 
-    def _extract_tweet_id(self, url: str) -> Optional[str]:
+    def _extract_tweet_id(self, url: str) -> str | None:
         """Extract tweet ID from Twitter URL."""
         match = re.search(r"/status/(\d+)", url)
         return match.group(1) if match else None
 
-    def _extract_username(self, url: str) -> Optional[str]:
+    def _extract_username(self, url: str) -> str | None:
         """Extract username from Twitter URL."""
         match = re.search(r"(?:twitter\.com|x\.com)/(\w+)/", url)
         return match.group(1) if match else None

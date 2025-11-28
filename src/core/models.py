@@ -2,14 +2,14 @@
 
 from datetime import datetime, timedelta
 from enum import StrEnum
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING, Optional
 
 from pydantic import BaseModel, Field
 
 from .config import get_config
 from .enums.download_status import DownloadStatus
-from .enums.service_type import ServiceType
 from .enums.events import DownloadEvent
+from .enums.service_type import ServiceType
 
 if TYPE_CHECKING:
     from .interfaces.event_bus import IEventBus
@@ -17,13 +17,11 @@ if TYPE_CHECKING:
 
 class CookieState(BaseModel):
     generated_at: datetime = Field(default_factory=datetime.now)
-    expires_at: datetime = Field(
-        default_factory=lambda: datetime.now() + timedelta(hours=8)
-    )
+    expires_at: datetime = Field(default_factory=lambda: datetime.now() + timedelta(hours=8))
     is_valid: bool = Field(default=False)
     is_generating: bool = Field(default=False)
-    cookie_path: Optional[str] = None
-    error_message: Optional[str] = None
+    cookie_path: str | None = None
+    error_message: str | None = None
 
     def is_expired(self) -> bool:
         return datetime.now() >= self.expires_at
@@ -51,23 +49,21 @@ class Download(BaseModel):
     progress: float = Field(default=0.0)
     speed: float = Field(default=0.0)
     created_at: datetime = Field(default_factory=datetime.now)
-    completed_at: Optional[datetime] = None
-    error_message: Optional[str] = None
-    service_type: Optional[ServiceType] = None
+    completed_at: datetime | None = None
+    error_message: str | None = None
+    service_type: ServiceType | None = None
 
-    quality: Optional[str] = Field(
-        default_factory=lambda: get_config().youtube.default_quality
-    )
-    format: Optional[str] = Field(default="video")
+    quality: str | None = Field(default_factory=lambda: get_config().youtube.default_quality)
+    format: str | None = Field(default="video")
     audio_only: bool = Field(default=False)
     video_only: bool = Field(default=False)
     download_playlist: bool = Field(default=False)
     download_subtitles: bool = Field(default=False)
-    selected_subtitles: Optional[List[Dict[str, str]]] = None
+    selected_subtitles: list[dict[str, str]] | None = None
     download_thumbnail: bool = Field(default=True)
     embed_metadata: bool = Field(default=True)
-    cookie_path: Optional[str] = None
-    speed_limit: Optional[int] = None
+    cookie_path: str | None = None
+    speed_limit: int | None = None
     retries: int = Field(default=3)
     concurrent_downloads: int = Field(default=1)
 
@@ -109,21 +105,15 @@ class Download(BaseModel):
         self.completed_at = datetime.now()
 
         if self._event_bus:
-            self._event_bus.publish(
-                DownloadEvent.FAILED, download=self, error=error_message
-            )
+            self._event_bus.publish(DownloadEvent.FAILED, download=self, error=error_message)
 
 
 class DownloadOptions(BaseModel):
-    save_directory: str = Field(
-        default_factory=lambda: str(get_config().paths.downloads_dir)
-    )
+    save_directory: str = Field(default_factory=lambda: str(get_config().paths.downloads_dir))
 
 
 class UIState(BaseModel):
-    download_directory: str = Field(
-        default_factory=lambda: str(get_config().paths.downloads_dir)
-    )
+    download_directory: str = Field(default_factory=lambda: str(get_config().paths.downloads_dir))
     show_options_panel: bool = Field(default=False)
     selected_indices: list = Field(default_factory=list)
 
@@ -133,8 +123,8 @@ class UIState(BaseModel):
 
 class AuthState(BaseModel):
     is_authenticated: bool = Field(default=False)
-    service: Optional[ServiceType] = None
-    username: Optional[str] = None
+    service: ServiceType | None = None
+    username: str | None = None
 
 
 class ButtonState(StrEnum):
@@ -149,12 +139,12 @@ class ConnectionResult(BaseModel):
     is_connected: bool
     error_message: str = ""
     response_time: float = 0.0
-    service_type: Optional[ServiceType] = None
+    service_type: ServiceType | None = None
 
 
 class DownloadResult(BaseModel):
     success: bool
-    file_path: Optional[str] = None
+    file_path: str | None = None
     bytes_downloaded: int = 0
     error_message: str = ""
     download_time: float = 0.0

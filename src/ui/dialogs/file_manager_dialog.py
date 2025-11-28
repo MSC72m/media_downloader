@@ -1,6 +1,5 @@
 import os
 from collections.abc import Callable
-from typing import Optional
 
 import customtkinter as ctk
 
@@ -25,8 +24,8 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
         initial_path: str,
         on_directory_change: Callable[[str], None],
         show_status: Callable[[str], None],
-        error_handler: Optional[IErrorNotifier] = None,
-        message_queue: Optional[IMessageQueue] = None,
+        error_handler: IErrorNotifier | None = None,
+        message_queue: IMessageQueue | None = None,
     ):
         super().__init__(parent)
 
@@ -70,17 +69,13 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         # File list
         self.file_list = FileListBox(self, self.on_item_double_click)
-        self.file_list.grid(
-            row=1, column=0, columnspan=2, padx=20, pady=(0, 20), sticky="nsew"
-        )
+        self.file_list.grid(row=1, column=0, columnspan=2, padx=20, pady=(0, 20), sticky="nsew")
 
         # Action buttons
         self.action_buttons = FileManagerButtonBar(
             self, self.change_directory, self.create_folder, self.destroy
         )
-        self.action_buttons.grid(
-            row=2, column=0, columnspan=2, padx=20, pady=(0, 20), sticky="ew"
-        )
+        self.action_buttons.grid(row=2, column=0, columnspan=2, padx=20, pady=(0, 20), sticky="ew")
 
     def update_file_list(self):
         """Update the file list with current directory contents."""

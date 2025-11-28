@@ -1,6 +1,6 @@
 """Message queue for displaying UI messages via status bar."""
 
-from typing import Optional, Callable
+from collections.abc import Callable
 
 from pydantic import BaseModel, Field
 
@@ -16,10 +16,8 @@ class Message(BaseModel):
 
     text: str
     level: MessageLevel = Field(default=MessageLevel.INFO)
-    title: Optional[str] = Field(default=None)
-    duration: int = Field(
-        default=5000, description="How long to display the message (ms)"
-    )
+    title: str | None = Field(default=None)
+    duration: int = Field(default=5000, description="How long to display the message (ms)")
 
     class Config:
         """Pydantic model configuration."""

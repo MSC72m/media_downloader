@@ -4,11 +4,11 @@ import http.client
 import socket
 import time
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Protocol, Tuple
+from typing import Protocol
 
 from pydantic import BaseModel, Field
 
-from src.core.config import get_config, AppConfig
+from src.core.config import AppConfig, get_config
 from src.core.enums import ServiceType
 from src.core.interfaces import IErrorNotifier
 from src.utils.logger import get_logger
@@ -20,13 +20,9 @@ class ConnectionResult(BaseModel):
     """Result of a connection check."""
 
     is_connected: bool = Field(description="Whether the connection was successful")
-    error_message: str = Field(
-        default="", description="Error message if connection failed"
-    )
+    error_message: str = Field(default="", description="Error message if connection failed")
     response_time: float = Field(default=0.0, description="Response time in seconds")
-    service_type: Optional[ServiceType] = Field(
-        default=None, description="Type of service checked"
-    )
+    service_type: ServiceType | None = Field(default=None, description="Type of service checked")
 
 
 class NetworkChecker(Protocol):
@@ -34,7 +30,7 @@ class NetworkChecker(Protocol):
 
     def check_connectivity(self) -> ConnectionResult: ...
     def check_service(self, service: ServiceType) -> ConnectionResult: ...
-    def check_all_services(self) -> Dict[ServiceType, ConnectionResult]: ...
+    def check_all_services(self) -> dict[ServiceType, ConnectionResult]: ...
 
 
 class BaseNetworkChecker(ABC):
@@ -56,8 +52,8 @@ class HTTPNetworkChecker(BaseNetworkChecker):
 
     def __init__(
         self,
-        timeout: Optional[int] = None,
-        error_handler: Optional[IErrorNotifier] = None,
+        timeout: int | None = None,
+        error_handler: IErrorNotifier | None = None,
         config: AppConfig = get_config(),
     ):
         """Initialize network checker.
@@ -254,16 +250,14 @@ class HTTPNetworkChecker(BaseNetworkChecker):
 
     def _try_service_urls(
         self,
-        urls: List[str],
+        urls: list[str],
         start_time: float,
         config: dict,
         service_type: ServiceType,
     ) -> ConnectionResult:
         """Generic method to try multiple URLs for any service connectivity."""
         user_agent = config.get("user_agent", self.config.network.minimal_user_agent)
-        service_name = (
-            service_type.value if hasattr(service_type, "value") else str(service_type)
-        )
+        service_name = service_type.value if hasattr(service_type, "value") else str(service_type)
 
         for url in urls:
             try:
@@ -350,7 +344,7 @@ class HTTPNetworkChecker(BaseNetworkChecker):
         )
 
     def _try_twitter_urls(
-        self, urls: List[str], start_time: float, config: dict
+        self, urls: list[str], start_time: float, config: dict
     ) -> ConnectionResult:
         """Try multiple URLs for Twitter connectivity."""
         return self._try_service_urls(urls, start_time, config, ServiceType.TWITTER)
@@ -359,9 +353,7 @@ class HTTPNetworkChecker(BaseNetworkChecker):
         self, start_time: float, service_type: ServiceType, primary_domain: str
     ) -> ConnectionResult:
         """Generic lenient check for service connectivity using DNS resolution."""
-        service_name = (
-            service_type.value if hasattr(service_type, "value") else str(service_type)
-        )
+        service_name = service_type.value if hasattr(service_type, "value") else str(service_type)
         try:
             # Try to resolve DNS for the primary domain as a basic check
             socket.gethostbyname(primary_domain)
@@ -428,30 +420,26 @@ class HTTPNetworkChecker(BaseNetworkChecker):
         return self._lenient_instagram_check(start_time)
 
     def _try_youtube_urls(
-        self, urls: List[str], start_time: float, config: dict
+        self, urls: list[str], start_time: float, config: dict
     ) -> ConnectionResult:
         """Try multiple URLs for YouTube connectivity."""
         return self._try_service_urls(urls, start_time, config, ServiceType.YOUTUBE)
 
     def _try_instagram_urls(
-        self, urls: List[str], start_time: float, config: dict
+        self, urls: list[str], start_time: float, config: dict
     ) -> ConnectionResult:
         """Try multiple URLs for Instagram connectivity."""
         return self._try_service_urls(urls, start_time, config, ServiceType.INSTAGRAM)
 
     def _lenient_youtube_check(self, start_time: float) -> ConnectionResult:
         """More lenient check for YouTube connectivity."""
-        return self._lenient_service_check(
-            start_time, ServiceType.YOUTUBE, "youtube.com"
-        )
+        return self._lenient_service_check(start_time, ServiceType.YOUTUBE, "youtube.com")
 
     def _lenient_instagram_check(self, start_time: float) -> ConnectionResult:
         """More lenient check for Instagram connectivity."""
-        return self._lenient_service_check(
-            start_time, ServiceType.INSTAGRAM, "instagram.com"
-        )
+        return self._lenient_service_check(start_time, ServiceType.INSTAGRAM, "instagram.com")
 
-    def check_all_services(self) -> Dict[ServiceType, ConnectionResult]:
+    def check_all_services(self) -> dict[ServiceType, ConnectionResult]:
         """Check connectivity to all supported services."""
         results = {}
 
@@ -473,22 +461,22 @@ class NetworkService:
 
     def __init__(
         self,
-        checker: Optional[NetworkChecker] = None,
-        error_handler: Optional[IErrorNotifier] = None,
+        checker: NetworkChecker | None = None,
+        error_handler: IErrorNotifier | None = None,
     ):
         self.checker = checker or HTTPNetworkChecker(error_handler=error_handler)
 
-    def check_internet_connection(self) -> Tuple[bool, str]:
+    def check_internet_connection(self) -> tuple[bool, str]:
         """Check if the device has working internet connection."""
         result = self.checker.check_connectivity()
         return result.is_connected, result.error_message
 
-    def check_site_connection(self, service: ServiceType) -> Tuple[bool, str]:
+    def check_site_connection(self, service: ServiceType) -> tuple[bool, str]:
         """Check connectivity to a specific service."""
         result = self.checker.check_service(service)
         return result.is_connected, result.error_message
 
-    def check_all_services(self) -> Dict[ServiceType, Tuple[bool, str]]:
+    def check_all_services(self) -> dict[ServiceType, tuple[bool, str]]:
         """Check connectivity to all services."""
         results = self.checker.check_all_services()
         return {
@@ -496,12 +484,10 @@ class NetworkService:
             for service, result in results.items()
         }
 
-    def get_problem_services(self) -> List[ServiceType]:
+    def get_problem_services(self) -> list[ServiceType]:
         """Get a list of services with connectivity issues."""
         results = self.checker.check_all_services()
-        return [
-            service for service, result in results.items() if not result.is_connected
-        ]
+        return [service for service, result in results.items() if not result.is_connected]
 
     def is_service_connected(self, service: ServiceType) -> bool:
         """Check if a specific service is connected."""
@@ -510,25 +496,25 @@ class NetworkService:
 
 
 # For backward compatibility
-def check_internet_connection() -> Tuple[bool, str]:
+def check_internet_connection() -> tuple[bool, str]:
     """Legacy function for backward compatibility."""
     service = NetworkService()
     return service.check_internet_connection()
 
 
-def check_site_connection(service: ServiceType) -> Tuple[bool, str]:
+def check_site_connection(service: ServiceType) -> tuple[bool, str]:
     """Legacy function for backward compatibility."""
     network_service = NetworkService()
     return network_service.check_site_connection(service)
 
 
-def check_all_services() -> Dict[ServiceType, Tuple[bool, str]]:
+def check_all_services() -> dict[ServiceType, tuple[bool, str]]:
     """Legacy function for backward compatibility."""
     service = NetworkService()
     return service.check_all_services()
 
 
-def get_problem_services() -> List[ServiceType]:
+def get_problem_services() -> list[ServiceType]:
     """Legacy function for backward compatibility."""
     service = NetworkService()
     return service.get_problem_services()

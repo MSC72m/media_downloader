@@ -2,7 +2,8 @@
 
 import re
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, List, TYPE_CHECKING
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from src.core.config import AppConfig, get_config
 from src.core.interfaces import IMessageQueue, INotifier
@@ -44,11 +45,9 @@ class BaseHandler(ABC):
 
         # Load service-specific templates from config
         templates = self._get_service_templates(service_name)
-        self.notifier: INotifier = NotifierService(
-            message_queue, custom_templates=templates
-        )
+        self.notifier: INotifier = NotifierService(message_queue, custom_templates=templates)
 
-    def _get_service_templates(self, service_name: str) -> Dict[str, Dict[str, Any]]:
+    def _get_service_templates(self, service_name: str) -> dict[str, dict[str, Any]]:
         """Get notification templates for the service from config.
 
         Args:
@@ -65,7 +64,7 @@ class BaseHandler(ABC):
 
     @classmethod
     @abstractmethod
-    def get_patterns(cls) -> List[str]:
+    def get_patterns(cls) -> list[str]:
         """Get URL patterns for this handler.
 
         Returns:
@@ -99,7 +98,7 @@ class BaseHandler(ABC):
 
         return DetectionResult(service_type="unknown", confidence=0.0)
 
-    def _extract_metadata(self, url: str) -> Dict[str, Any]:
+    def _extract_metadata(self, url: str) -> dict[str, Any]:
         """Extract metadata from URL. Override in subclasses for custom extraction.
 
         Args:
@@ -111,12 +110,12 @@ class BaseHandler(ABC):
         return {}
 
     @abstractmethod
-    def get_metadata(self, url: str) -> Dict[str, Any]:
+    def get_metadata(self, url: str) -> dict[str, Any]:
         """Get metadata for the URL."""
         ...
 
     @abstractmethod
-    def process_download(self, url: str, options: Dict[str, Any]) -> bool:
+    def process_download(self, url: str, options: dict[str, Any]) -> bool:
         """Process the download with given options."""
         ...
 

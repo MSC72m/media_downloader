@@ -1,7 +1,5 @@
 """Concrete implementation of network checker."""
 
-from typing import List, Optional, Tuple
-
 from src.core.enums import ServiceType
 from src.core.interfaces import IErrorNotifier
 from src.services.network.checker import (
@@ -17,7 +15,7 @@ logger = get_logger(__name__)
 class NetworkChecker:
     """Network checker for verifying connectivity to services."""
 
-    def __init__(self, error_handler: Optional[IErrorNotifier] = None):
+    def __init__(self, error_handler: IErrorNotifier | None = None):
         """Initialize network checker.
 
         Args:
@@ -35,15 +33,15 @@ class NetworkChecker:
         """Clean up resources."""
         self._initialized = False
 
-    def check_internet_connection(self) -> Tuple[bool, str]:
+    def check_internet_connection(self) -> tuple[bool, str]:
         """Check general internet connectivity."""
         return check_internet_connection()
 
-    def check_connectivity(self) -> Tuple[bool, str]:
+    def check_connectivity(self) -> tuple[bool, str]:
         """Check network connectivity - alias for check_internet_connection."""
         return self.check_internet_connection()
 
-    def check_service_connection(self, service: ServiceType) -> Tuple[bool, str]:
+    def check_service_connection(self, service: ServiceType) -> tuple[bool, str]:
         """Check connection to a specific service."""
         try:
             return check_site_connection(service)
@@ -56,6 +54,6 @@ class NetworkChecker:
                 )
             return False, str(e)
 
-    def get_problem_services(self) -> List[str]:
+    def get_problem_services(self) -> list[str]:
         """Get list of services with connection issues."""
         return get_problem_services()

@@ -1,19 +1,20 @@
 """Tests for the application orchestration system."""
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from src.application.orchestrator import ApplicationOrchestrator
 from src.core.interfaces import (
-    IDownloadService,
-    IDownloadHandler,
-    ICookieHandler,
-    IMetadataService,
-    INetworkChecker,
-    IErrorNotifier,
     IAutoCookieManager,
+    ICookieHandler,
+    IDownloadHandler,
+    IDownloadService,
+    IErrorNotifier,
     IFileService,
     IMessageQueue,
+    IMetadataService,
+    INetworkChecker,
     IServiceFactory,
     IUIState,
 )
@@ -100,9 +101,7 @@ class MockFileService(IFileService):
     def clean_filename(self, filename: str) -> str:
         return filename
 
-    def get_unique_filename(
-        self, directory: str, base_name: str, extension: str
-    ) -> str:
+    def get_unique_filename(self, directory: str, base_name: str, extension: str) -> str:
         return f"{base_name}.{extension}"
 
     def ensure_directory(self, directory: str) -> bool:
@@ -386,11 +385,11 @@ class TestOrchestratorIntegration:
     @patch("customtkinter.CTk")
     def test_orchestrator_with_real_services(self, mock_ctk):
         """Test orchestrator with real service implementations."""
+        from src.coordinators.error_handler import ErrorHandler
+        from src.handlers.download_handler import DownloadHandler
+        from src.handlers.network_checker import NetworkChecker
         from src.services.downloads import DownloadService
         from src.services.file import FileService
-        from src.handlers.network_checker import NetworkChecker
-        from src.handlers.download_handler import DownloadHandler
-        from src.coordinators.error_handler import ErrorHandler
 
         mock_root = MagicMock()
 

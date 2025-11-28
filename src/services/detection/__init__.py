@@ -1,13 +1,13 @@
 """Link detection and URL handling."""
 
+from .base_handler import BaseHandler
 from .link_detector import (
-    LinkDetector,
-    LinkDetectionRegistry,
     DetectionResult,
+    LinkDetectionRegistry,
+    LinkDetector,
     LinkHandlerInterface,
     auto_register_handler,
 )
-from .base_handler import BaseHandler
 
 __all__ = [
     "LinkDetector",

@@ -1,7 +1,5 @@
 """Centralized error notifier for consistent error display across all coordinators."""
 
-from typing import Optional
-
 from src.core.enums.message_level import MessageLevel
 from src.core.interfaces import IErrorNotifier, IMessageQueue
 from src.services.events.queue import Message
@@ -21,7 +19,7 @@ class ErrorNotifier(IErrorNotifier):
     This eliminates duplicate error handling code across coordinators.
     """
 
-    def __init__(self, message_queue: Optional[IMessageQueue] = None):
+    def __init__(self, message_queue: IMessageQueue | None = None):
         """Initialize with proper dependency injection.
 
         Args:
@@ -77,18 +75,14 @@ class ErrorNotifier(IErrorNotifier):
             message: Info message text
         """
         if not self.message_queue:
-            logger.info(
-                f"[ERROR_NOTIFIER] Message queue not available. Info: {title} - {message}"
-            )
+            logger.info(f"[ERROR_NOTIFIER] Message queue not available. Info: {title} - {message}")
             return
 
         info_message = Message(text=message, level=MessageLevel.INFO, title=title)
         self.message_queue.add_message(info_message)
         logger.debug(f"[ERROR_NOTIFIER] Info queued: {title}")
 
-    def handle_exception(
-        self, exception: Exception, context: str = "", service: str = ""
-    ) -> None:
+    def handle_exception(self, exception: Exception, context: str = "", service: str = "") -> None:
         """Handle exception with automatic context extraction using utility functions.
 
         Args:
@@ -97,9 +91,7 @@ class ErrorNotifier(IErrorNotifier):
             service: Service name where error occurred (e.g., 'YouTube', 'Twitter')
         """
         # Extract error context using utility function
-        error_context = extract_error_context(
-            exception, service=service, operation=context
-        )
+        error_context = extract_error_context(exception, service=service, operation=context)
 
         # Format user-friendly message
         message = format_user_friendly_error(error_context)
@@ -136,9 +128,7 @@ class ErrorNotifier(IErrorNotifier):
         message = format_user_friendly_error(error_context)
 
         title = (
-            f"{service} {operation.title()} Failed"
-            if service and operation
-            else "Service Error"
+            f"{service} {operation.title()} Failed" if service and operation else "Service Error"
         )
 
         logger.error(

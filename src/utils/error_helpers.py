@@ -131,9 +131,7 @@ def classify_error_type(error_message: str) -> ErrorType:
     auth_pattern = re.compile(
         r"(authentication|unauthorized|forbidden|401|403|login|password)", re.IGNORECASE
     )
-    validation_pattern = re.compile(
-        r"(invalid|validation|format|malformed|missing)", re.IGNORECASE
-    )
+    validation_pattern = re.compile(r"(invalid|validation|format|malformed|missing)", re.IGNORECASE)
 
     if network_pattern.search(error_lower):
         return ErrorType.NETWORK

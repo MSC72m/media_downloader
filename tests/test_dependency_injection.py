@@ -1,10 +1,10 @@
 """Comprehensive tests for the new dependency injection system."""
 
-import pytest
-from typing import Optional
-from unittest.mock import Mock, MagicMock
+from unittest.mock import MagicMock, Mock
 
-from src.application.di_container import ServiceContainer, LifetimeScope
+import pytest
+
+from src.application.di_container import LifetimeScope, ServiceContainer
 from src.core.interfaces import (
     IFileService,
 )
@@ -109,7 +109,7 @@ class TestServiceContainer:
         """Test service resolution with optional dependency."""
 
         class ServiceWithOptional:
-            def __init__(self, dependency: Optional[MockService] = None):
+            def __init__(self, dependency: MockService | None = None):
                 self.dependency = dependency
 
         container = ServiceContainer()
@@ -194,7 +194,7 @@ class TestServiceContainer:
         # This should fail due to circular dependency
         try:
             container.get(ServiceA)
-            assert False, "Should have raised circular dependency error"
+            raise AssertionError("Should have raised circular dependency error")
         except ValueError as e:
             assert "Circular dependency" in str(e)
 
@@ -275,9 +275,7 @@ class TestRealInterfaces:
         # where proper GUI mocking is already set up
         import pytest
 
-        pytest.skip(
-            "ErrorHandler test moved to coordinator tests to avoid GUI import complexity"
-        )
+        pytest.skip("ErrorHandler test moved to coordinator tests to avoid GUI import complexity")
 
 
 class TestIntegrationScenarios:
@@ -351,9 +349,7 @@ class TestIntegrationScenarios:
                 self.settings = {}
 
         class OptionalService:
-            def __init__(
-                self, required: str = "test", optional: Optional[Config] = None
-            ):
+            def __init__(self, required: str = "test", optional: Config | None = None):
                 self.required = required
                 self.optional = optional
 

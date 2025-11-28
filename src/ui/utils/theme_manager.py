@@ -1,11 +1,11 @@
 """Thread-safe theme manager using generic EventBus pattern."""
 
 from functools import cache
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import customtkinter as ctk
 
-from src.core.config import get_config, AppConfig
+from src.core.config import AppConfig, get_config
 from src.core.enums.appearance_mode import AppearanceMode
 from src.core.enums.color_theme import ColorTheme
 from src.core.enums.theme_event import ThemeEvent
@@ -25,7 +25,7 @@ class ThemeManager(EventBus[ThemeEvent]):
     All theme changes are published via EventBus for real-time updates.
     """
 
-    def __init__(self, root: Optional[Any] = None, config: AppConfig = get_config()):
+    def __init__(self, root: Any | None = None, config: AppConfig = get_config()):
         """Initialize theme manager.
 
         Args:
@@ -36,8 +36,8 @@ class ThemeManager(EventBus[ThemeEvent]):
         self.config = config
         self._current_appearance: AppearanceMode = config.ui.theme.appearance_mode_enum
         self._current_color: ColorTheme = config.ui.theme.color_theme_enum
-        self._current_colors: Dict[str, Any] = {}
-        self._theme_json: Dict[str, Any] = {}
+        self._current_colors: dict[str, Any] = {}
+        self._theme_json: dict[str, Any] = {}
 
         # Initialize CTK with current theme - must be done before creating widgets
         self._apply_theme(self._current_appearance, self._current_color)
@@ -77,9 +77,7 @@ class ThemeManager(EventBus[ThemeEvent]):
 
         # Publish theme change event via EventBus (thread-safe)
         self.publish(ThemeEvent.THEME_CHANGED, appearance=appearance, color=color)
-        logger.info(
-            f"[THEME_MANAGER] Theme changed to {appearance.value}/{color.value}"
-        )
+        logger.info(f"[THEME_MANAGER] Theme changed to {appearance.value}/{color.value}")
 
     def _apply_theme(self, appearance: AppearanceMode, color: ColorTheme) -> None:
         """Apply theme to CustomTkinter with custom color schemes."""
@@ -94,19 +92,17 @@ class ThemeManager(EventBus[ThemeEvent]):
 
         logger.debug("[THEME_MANAGER] Applied theme and color scheme")
 
-    def _get_color_scheme(
-        self, appearance: AppearanceMode, color: ColorTheme
-    ) -> Dict[str, Any]:
+    def _get_color_scheme(self, appearance: AppearanceMode, color: ColorTheme) -> dict[str, Any]:
         """Get color scheme dictionary for appearance and color combination."""
         schemes = self.config.ui.theme.get_color_schemes()
         key = f"{appearance.value}_{color.value}"
         return schemes.get(key, schemes[f"{appearance.value}_blue"])
 
-    def get_colors(self) -> Dict[str, Any]:
+    def get_colors(self) -> dict[str, Any]:
         """Get current color scheme."""
         return self._get_color_scheme(self._current_appearance, self._current_color)
 
-    def get_theme_json(self) -> Dict[str, Any]:
+    def get_theme_json(self) -> dict[str, Any]:
         """Get current theme JSON structure."""
         return self._theme_json
 
@@ -133,7 +129,7 @@ class ThemeManager(EventBus[ThemeEvent]):
 
 
 @cache
-def get_theme_manager(root: Optional[Any] = None) -> ThemeManager:
+def get_theme_manager(root: Any | None = None) -> ThemeManager:
     """Get cached theme manager instance.
 
     Uses module-level caching to ensure single instance per root window.

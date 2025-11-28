@@ -4,7 +4,7 @@ from typing import Optional
 import customtkinter as ctk
 
 from src.core.enums.theme_event import ThemeEvent
-from src.ui.utils.theme_manager import get_theme_manager, ThemeManager
+from src.ui.utils.theme_manager import ThemeManager, get_theme_manager
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -52,9 +52,7 @@ class ActionButtonBar(ctk.CTkFrame):
             logger.info(f"[ACTION_BUTTONS] on_download callback: {on_download}")
             try:
                 on_download()
-                logger.info(
-                    "[ACTION_BUTTONS] on_download callback executed successfully"
-                )
+                logger.info("[ACTION_BUTTONS] on_download callback executed successfully")
             except Exception as e:
                 logger.error(
                     f"[ACTION_BUTTONS] Error in on_download callback: {e}",
@@ -132,15 +130,11 @@ class ActionButtonBar(ctk.CTkFrame):
         logger.debug(
             f"[ACTION_BUTTONS] update_button_states called: has_selection={has_selection}, has_items={has_items}"
         )
-        logger.debug(
-            f"[ACTION_BUTTONS] Download in progress: {self._download_in_progress}"
-        )
+        logger.debug(f"[ACTION_BUTTONS] Download in progress: {self._download_in_progress}")
 
         # If download is in progress, don't change button states
         if self._download_in_progress:
-            logger.debug(
-                "[ACTION_BUTTONS] Download in progress, keeping current button states"
-            )
+            logger.debug("[ACTION_BUTTONS] Download in progress, keeping current button states")
             return
 
         remove_state = "normal" if has_selection else "disabled"
@@ -174,18 +168,14 @@ class ActionButtonBar(ctk.CTkFrame):
             # Extract plain color string - ensure it's a string, not tuple (same as Add button)
             if isinstance(button_color, tuple):
                 button_color = (
-                    button_color[0]
-                    if isinstance(button_color[0], str)
-                    else str(button_color[0])
+                    button_color[0] if isinstance(button_color[0], str) else str(button_color[0])
                 )
             elif not isinstance(button_color, str):
                 button_color = str(button_color)
 
             if isinstance(hover_color, tuple):
                 hover_color = (
-                    hover_color[0]
-                    if isinstance(hover_color[0], str)
-                    else str(hover_color[0])
+                    hover_color[0] if isinstance(hover_color[0], str) else str(hover_color[0])
                 )
             elif not isinstance(hover_color, str):
                 hover_color = str(hover_color)

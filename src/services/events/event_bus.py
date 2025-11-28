@@ -2,11 +2,12 @@
 
 import queue
 import threading
+from collections.abc import Callable
 from enum import Enum
-from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar
+from typing import Any, Generic, TypeVar
 
-from src.utils.logger import get_logger
 from src.core.enums.events import DownloadEvent
+from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -21,7 +22,7 @@ class EventBus(Generic[EventType]):
     internally with queue-based processing on the main thread.
     """
 
-    def __init__(self, event_enum: type[EventType], root: Optional[Any] = None):
+    def __init__(self, event_enum: type[EventType], root: Any | None = None):
         """Initialize event bus with event enum type.
 
         Args:
@@ -29,9 +30,7 @@ class EventBus(Generic[EventType]):
             root: Optional root window for main thread processing
         """
         self._event_enum = event_enum
-        self._listeners: Dict[EventType, List[Callable]] = {
-            event: [] for event in event_enum
-        }
+        self._listeners: dict[EventType, list[Callable]] = {event: [] for event in event_enum}
         self._event_queue: queue.Queue = queue.Queue()
         self._root = root
         self._processing = False
@@ -44,9 +43,7 @@ class EventBus(Generic[EventType]):
             logger.info("[EVENT_BUS] Root provided, starting event processing")
             self._start_processing()
         else:
-            logger.warning(
-                "[EVENT_BUS] No root provided - event processing NOT started"
-            )
+            logger.warning("[EVENT_BUS] No root provided - event processing NOT started")
 
     def set_root(self, root: Any) -> None:
         """Set the root window and start processing."""
@@ -116,9 +113,7 @@ class EventBus(Generic[EventType]):
                     f"[EVENT_BUS] Processed {events_processed} events (queue was {queue_size})"
                 )
             elif queue_size > 0:
-                logger.warning(
-                    f"[EVENT_BUS] Queue had {queue_size} items but processed 0"
-                )
+                logger.warning(f"[EVENT_BUS] Queue had {queue_size} items but processed 0")
 
         except Exception as e:
             logger.error(f"[EVENT_BUS] Error processing events: {e}", exc_info=True)
@@ -127,11 +122,9 @@ class EventBus(Generic[EventType]):
             if self._processing:
                 self._root.after(50, self._process_events)
             else:
-                logger.warning(
-                    "[EVENT_BUS] Processing stopped, not scheduling next cycle"
-                )
+                logger.warning("[EVENT_BUS] Processing stopped, not scheduling next cycle")
 
-    def _dispatch_event(self, event: EventType, kwargs: Dict[str, Any]) -> None:
+    def _dispatch_event(self, event: EventType, kwargs: dict[str, Any]) -> None:
         """Dispatch event to all subscribers."""
         with self._lock:
             listeners = self._listeners.get(event, []).copy()
@@ -140,9 +133,7 @@ class EventBus(Generic[EventType]):
             logger.warning(f"[EVENT_BUS] No listeners registered for {event.name}!")
             return
 
-        logger.info(
-            f"[EVENT_BUS] Dispatching {event.name} to {len(listeners)} listeners"
-        )
+        logger.info(f"[EVENT_BUS] Dispatching {event.name} to {len(listeners)} listeners")
 
         for i, callback in enumerate(listeners):
             try:
@@ -182,6 +173,6 @@ class EventBus(Generic[EventType]):
 class DownloadEventBus(EventBus[DownloadEvent]):
     """Thread-safe event bus for download events - backward compatibility wrapper."""
 
-    def __init__(self, root: Optional[Any] = None):
+    def __init__(self, root: Any | None = None):
         """Initialize download event bus."""
         super().__init__(DownloadEvent, root)

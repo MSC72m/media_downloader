@@ -1,7 +1,7 @@
 """YouTube info extractor using yt-dlp library directly."""
 
-from typing import Any, Dict, Optional
 from pathlib import Path
+from typing import Any
 
 import yt_dlp
 
@@ -17,7 +17,7 @@ class YouTubeInfoExtractor:
 
     def __init__(
         self,
-        error_handler: Optional[IErrorNotifier] = None,
+        error_handler: IErrorNotifier | None = None,
         config: AppConfig = get_config(),
     ):
         self.error_handler = error_handler
@@ -26,9 +26,9 @@ class YouTubeInfoExtractor:
     def extract_info(
         self,
         url: str,
-        cookie_path: Optional[str] = None,
-        browser: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
+        cookie_path: str | None = None,
+        browser: str | None = None,
+    ) -> dict[str, Any] | None:
         """Extract video information using yt-dlp library.
 
         Args:
@@ -51,9 +51,7 @@ class YouTubeInfoExtractor:
 
         # Fallback: Try with browser cookies
         if cookie_path or browser:
-            logger.info(
-                "[INFO_EXTRACTOR] Cookie file failed, trying browser cookies..."
-            )
+            logger.info("[INFO_EXTRACTOR] Cookie file failed, trying browser cookies...")
             info = self._extract_with_browser_cookies(url, browser)
             if info:
                 return info
@@ -65,10 +63,10 @@ class YouTubeInfoExtractor:
     def _extract_with_cookies(
         self,
         url: str,
-        cookie_path: Optional[str] = None,
-        browser: Optional[str] = None,
-        client: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
+        cookie_path: str | None = None,
+        browser: str | None = None,
+        client: str | None = None,
+    ) -> dict[str, Any] | None:
         """Extract info with cookie file or browser cookies.
 
         Args:
@@ -82,9 +80,7 @@ class YouTubeInfoExtractor:
         if cookie_path:
             cookie_file = Path(cookie_path)
             if not cookie_file.exists():
-                logger.warning(
-                    f"[INFO_EXTRACTOR] Cookie file does not exist: {cookie_path}"
-                )
+                logger.warning(f"[INFO_EXTRACTOR] Cookie file does not exist: {cookie_path}")
                 return None
             if cookie_file.stat().st_size == 0:
                 logger.warning(f"[INFO_EXTRACTOR] Cookie file is empty: {cookie_path}")
@@ -122,8 +118,8 @@ class YouTubeInfoExtractor:
         return None
 
     def _extract_with_browser_cookies(
-        self, url: str, browser: Optional[str] = None
-    ) -> Optional[Dict[str, Any]]:
+        self, url: str, browser: str | None = None
+    ) -> dict[str, Any] | None:
         """Extract info using browser cookies."""
         browser_name = browser or "chrome"
         opts = self._build_options(None, browser_name)
@@ -141,7 +137,7 @@ class YouTubeInfoExtractor:
 
         return None
 
-    def _extract_with_client_fallback(self, url: str) -> Optional[Dict[str, Any]]:
+    def _extract_with_client_fallback(self, url: str) -> dict[str, Any] | None:
         """Try extraction with different YouTube client types."""
         clients = ["android", "ios", "tv_embedded", "web"]
 
@@ -162,10 +158,10 @@ class YouTubeInfoExtractor:
 
     def _build_options(
         self,
-        cookie_path: Optional[str] = None,
-        browser: Optional[str] = None,
-        client: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        cookie_path: str | None = None,
+        browser: str | None = None,
+        client: str | None = None,
+    ) -> dict[str, Any]:
         """Build yt-dlp options for metadata extraction."""
         from pathlib import Path
 
@@ -186,9 +182,7 @@ class YouTubeInfoExtractor:
                     f"[INFO_EXTRACTOR] Using cookie file: {cookie_path} (size: {file_size} bytes)"
                 )
             else:
-                logger.warning(
-                    f"[INFO_EXTRACTOR] Cookie file does not exist: {cookie_path}"
-                )
+                logger.warning(f"[INFO_EXTRACTOR] Cookie file does not exist: {cookie_path}")
         elif browser:
             opts["cookiesfrombrowser"] = (browser,)
             logger.info(f"[INFO_EXTRACTOR] Using browser cookies: {browser}")

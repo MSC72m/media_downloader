@@ -5,9 +5,9 @@ from typing import Optional
 
 import customtkinter as ctk
 
-from src.core.config import get_config, AppConfig
+from src.core.config import AppConfig, get_config
 from src.core.enums.theme_event import ThemeEvent
-from src.ui.utils.theme_manager import get_theme_manager, ThemeManager
+from src.ui.utils.theme_manager import ThemeManager, get_theme_manager
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -100,9 +100,7 @@ class StatusBar(ctk.CTkFrame):
                 except queue.Empty:
                     break
                 except Exception as e:
-                    logger.error(
-                        f"[STATUS_BAR] Error processing update: {e}", exc_info=True
-                    )
+                    logger.error(f"[STATUS_BAR] Error processing update: {e}", exc_info=True)
         except Exception as e:
             logger.error(f"[STATUS_BAR] Error in _process_queue: {e}", exc_info=True)
 
@@ -147,9 +145,7 @@ class StatusBar(ctk.CTkFrame):
                 # Check if this is a success message that should interrupt current message
                 # Use compiled regex patterns for efficient matching
                 is_success_message = bool(self._SUCCESS_MESSAGE_PATTERN.search(message))
-                is_connection_confirmed = bool(
-                    self._CONNECTION_CONFIRMED_PATTERN.search(message)
-                )
+                is_connection_confirmed = bool(self._CONNECTION_CONFIRMED_PATTERN.search(message))
 
                 # Track if connection confirmed was shown (to prevent immediate "Ready")
                 if is_connection_confirmed:
@@ -196,12 +192,15 @@ class StatusBar(ctk.CTkFrame):
             current_time = time.time()
 
             # Check if current message has timed out
-            if self._current_message and self._message_timeout:
-                if current_time >= self._message_timeout:
-                    # Timeout reached - clear current message
-                    self._current_message = None
-                    self._message_timeout = None
-                    self._is_error_message = False
+            if (
+                self._current_message
+                and self._message_timeout
+                and current_time >= self._message_timeout
+            ):
+                # Timeout reached - clear current message
+                self._current_message = None
+                self._message_timeout = None
+                self._is_error_message = False
 
             # If no current message, get next from queue
             if not self._current_message and not self._message_queue.empty():
@@ -262,9 +261,7 @@ class StatusBar(ctk.CTkFrame):
                 else:
                     self.status_label.configure(text=f"Downloading... {progress:.1f}%")
             except Exception as e:
-                logger.error(
-                    f"[STATUS_BAR] Error updating progress: {e}", exc_info=True
-                )
+                logger.error(f"[STATUS_BAR] Error updating progress: {e}", exc_info=True)
 
         # For completion, process immediately; otherwise queue normally
         if progress >= 100:
@@ -315,7 +312,5 @@ class StatusBar(ctk.CTkFrame):
         """Clean up resources."""
         self._running = False
         if self._theme_manager:
-            self._theme_manager.unsubscribe(
-                ThemeEvent.THEME_CHANGED, self._on_theme_changed
-            )
+            self._theme_manager.unsubscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
         super().destroy()

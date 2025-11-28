@@ -1,5 +1,6 @@
 """Core application modules - shared primitives and application infrastructure."""
 
+from .config import AppConfig, get_config, reset_config, set_config
 from .models import (
     AuthState,
     ButtonState,
@@ -11,8 +12,6 @@ from .models import (
     ServiceType,
     UIState,
 )
-
-from .config import AppConfig, get_config, reset_config, set_config
 
 
 def get_service_container():

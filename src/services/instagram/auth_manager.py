@@ -1,9 +1,8 @@
 """Instagram authentication manager service."""
 
 from threading import Lock
-from typing import Optional
 
-from src.core.config import get_config, AppConfig
+from src.core.config import AppConfig, get_config
 from src.core.interfaces import IErrorNotifier
 from src.services.instagram.downloader import InstagramDownloader
 from src.utils.logger import get_logger
@@ -16,7 +15,7 @@ class InstagramAuthManager:
 
     def __init__(
         self,
-        error_handler: Optional[IErrorNotifier] = None,
+        error_handler: IErrorNotifier | None = None,
         config: AppConfig = get_config(),
     ):
         """Initialize Instagram authentication manager.
@@ -27,7 +26,7 @@ class InstagramAuthManager:
         """
         self.config = config
         self.error_handler = error_handler
-        self._downloader: Optional[InstagramDownloader] = None
+        self._downloader: InstagramDownloader | None = None
         self._authenticating: bool = False
         self._lock = Lock()
 
@@ -49,7 +48,7 @@ class InstagramAuthManager:
         with self._lock:
             return self._authenticating
 
-    def get_downloader(self) -> Optional[InstagramDownloader]:
+    def get_downloader(self) -> InstagramDownloader | None:
         """Get the shared authenticated Instagram downloader instance.
 
         Returns:
@@ -58,9 +57,7 @@ class InstagramAuthManager:
         with self._lock:
             # Check directly without calling is_authenticated() to avoid deadlock
             # (is_authenticated() also tries to acquire the same lock)
-            if is_auth := (
-                self._downloader is not None and self._downloader.authenticated
-            ):
+            if is_auth := (self._downloader is not None and self._downloader.authenticated):
                 logger.info(
                     f"[INSTAGRAM_AUTH_MANAGER] get_downloader called: is_authenticated={is_auth}, downloader={self._downloader is not None}, authenticated={getattr(self._downloader, 'authenticated', None) if self._downloader else None}"
                 )
@@ -75,9 +72,7 @@ class InstagramAuthManager:
         """
         with self._lock:
             self._authenticating = value
-            logger.debug(
-                f"[INSTAGRAM_AUTH_MANAGER] Authenticating flag set to: {value}"
-            )
+            logger.debug(f"[INSTAGRAM_AUTH_MANAGER] Authenticating flag set to: {value}")
 
     def set_authenticated_downloader(self, downloader: InstagramDownloader) -> None:
         """Store authenticated downloader instance.

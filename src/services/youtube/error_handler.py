@@ -2,7 +2,6 @@
 
 import re
 import time
-from typing import Dict, Optional
 
 import yt_dlp
 
@@ -26,7 +25,7 @@ class YouTubeErrorHandler:
         r"(Requested format is not available|No video formats found)", re.IGNORECASE
     )
 
-    def __init__(self, error_handler: Optional[IErrorNotifier] = None):
+    def __init__(self, error_handler: IErrorNotifier | None = None):
         """Initialize YouTube error handler.
 
         Args:
@@ -63,9 +62,7 @@ class YouTubeErrorHandler:
             True to continue retrying
         """
         wait_time = retry_wait * (2**attempt)
-        logger.warning(
-            f"YouTube rate limit hit, waiting {wait_time} seconds before retry"
-        )
+        logger.warning(f"YouTube rate limit hit, waiting {wait_time} seconds before retry")
         time.sleep(wait_time)
         return True
 
@@ -84,20 +81,16 @@ class YouTubeErrorHandler:
             True to continue retrying, False if max retries reached
         """
         if attempt >= max_retries - 1:
-            logger.error(
-                f"Failed to download after {max_retries} attempts: {error_msg}"
-            )
+            logger.error(f"Failed to download after {max_retries} attempts: {error_msg}")
             return False
 
         wait_time = retry_wait * (attempt + 1)
-        logger.warning(
-            f"Network error, retry {attempt + 1}/{max_retries} in {wait_time}s"
-        )
+        logger.warning(f"Network error, retry {attempt + 1}/{max_retries} in {wait_time}s")
         time.sleep(wait_time)
         return True
 
     def handle_format_error(
-        self, attempt: int, opts: dict, url: str, quality_format_map: Dict[str, str]
+        self, attempt: int, opts: dict, url: str, quality_format_map: dict[str, str]
     ) -> bool:
         """Handle format error using fallback strategy.
 

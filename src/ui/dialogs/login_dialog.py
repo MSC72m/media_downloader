@@ -1,5 +1,3 @@
-from typing import Optional
-
 import customtkinter as ctk
 
 from src.core.enums.message_level import MessageLevel
@@ -15,8 +13,8 @@ class LoginDialog(ctk.CTkToplevel, WindowCenterMixin):
     def __init__(
         self,
         parent,
-        error_handler: Optional[IErrorNotifier] = None,
-        message_queue: Optional[IMessageQueue] = None,
+        error_handler: IErrorNotifier | None = None,
+        message_queue: IMessageQueue | None = None,
     ):
         logger.info(f"[LOGIN_DIALOG] Initializing with parent: {parent}")
         super().__init__(parent)
@@ -69,9 +67,7 @@ class LoginDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.password_label = ctk.CTkLabel(self, text="Password:", font=("Roboto", 14))
         self.password_label.pack(pady=(10, 5))
 
-        self.password_entry = ctk.CTkEntry(
-            self, width=280, show="*", font=("Roboto", 14)
-        )
+        self.password_entry = ctk.CTkEntry(self, width=280, show="*", font=("Roboto", 14))
         self.password_entry.pack(pady=5)
 
         # Login button
@@ -106,7 +102,5 @@ class LoginDialog(ctk.CTkToplevel, WindowCenterMixin):
                 self.error_handler.show_error("Login Error", error_msg)
             elif self.message_queue:
                 self.message_queue.add_message(
-                    Message(
-                        text=error_msg, level=MessageLevel.ERROR, title="Login Error"
-                    )
+                    Message(text=error_msg, level=MessageLevel.ERROR, title="Login Error")
                 )

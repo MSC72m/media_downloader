@@ -1,10 +1,9 @@
 """Core DI system tests without heavy dependencies."""
 
 import pytest
-from typing import Optional
 
 # Import just the core DI system
-from src.application.di_container import ServiceContainer, LifetimeScope
+from src.application.di_container import LifetimeScope, ServiceContainer
 
 
 class MockService:
@@ -106,7 +105,7 @@ class TestServiceContainerCore:
         """Test service resolution with optional dependency."""
 
         class ServiceWithOptional:
-            def __init__(self, dependency: Optional[MockService] = None):
+            def __init__(self, dependency: MockService | None = None):
                 self.dependency = dependency
 
         container = ServiceContainer()
@@ -197,23 +196,23 @@ class TestLazyImports:
 
     def test_core_lazy_imports(self):
         """Test core lazy imports work."""
-        from src.core import get_service_container, get_application_orchestrator
+        from src.core import get_application_orchestrator, get_service_container
 
-        ServiceContainer = get_service_container()
-        assert ServiceContainer is not None
-        assert callable(ServiceContainer)
+        service_container = get_service_container()
+        assert service_container is not None
+        assert callable(service_container)
 
-        Orchestrator = get_application_orchestrator()
-        assert Orchestrator is not None
-        assert callable(Orchestrator)
+        orchestrator = get_application_orchestrator()
+        assert orchestrator is not None
+        assert callable(orchestrator)
 
     def test_application_lazy_imports(self):
         """Test application lazy imports work."""
         from src.application import get_orchestrator
 
-        Orchestrator = get_orchestrator()
-        assert Orchestrator is not None
-        assert callable(Orchestrator)
+        orchestrator = get_orchestrator()
+        assert orchestrator is not None
+        assert callable(orchestrator)
 
 
 if __name__ == "__main__":

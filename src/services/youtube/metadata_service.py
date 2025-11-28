@@ -1,16 +1,16 @@
 """YouTube metadata service implementation."""
 
 import re
-from typing import List, Optional
 from urllib.parse import parse_qs, urlparse
 
-from src.core.config import get_config, AppConfig
+from src.core.config import AppConfig, get_config
 from src.core.interfaces import (
     IErrorNotifier,
     IYouTubeMetadataService,
     SubtitleInfo,
     YouTubeMetadata,
 )
+
 from ...utils.error_helpers import extract_error_context
 from ...utils.logger import get_logger
 from .info_extractor import YouTubeInfoExtractor
@@ -25,14 +25,12 @@ class YouTubeMetadataService(IYouTubeMetadataService):
 
     def __init__(
         self,
-        error_handler: Optional[IErrorNotifier] = None,
+        error_handler: IErrorNotifier | None = None,
         config: AppConfig = get_config(),
     ):
         self.config = config
         self.error_handler = error_handler
-        self.info_extractor = YouTubeInfoExtractor(
-            error_handler=error_handler, config=config
-        )
+        self.info_extractor = YouTubeInfoExtractor(error_handler=error_handler, config=config)
         self.metadata_parser = YouTubeMetadataParser(config=config)
         self.subtitle_extractor = YouTubeSubtitleExtractor(
             error_handler=error_handler, config=config
@@ -41,9 +39,9 @@ class YouTubeMetadataService(IYouTubeMetadataService):
     def fetch_metadata(
         self,
         url: str,
-        cookie_path: Optional[str] = None,
-        browser: Optional[str] = None,
-    ) -> Optional[YouTubeMetadata]:
+        cookie_path: str | None = None,
+        browser: str | None = None,
+    ) -> YouTubeMetadata | None:
         """Fetch basic metadata for a YouTube URL.
 
         Args:
@@ -79,14 +77,10 @@ class YouTubeMetadataService(IYouTubeMetadataService):
             parsed_info = self.metadata_parser.parse_info(info)
 
             # Extract subtitle information (may enhance parsed_info)
-            subtitle_data = self.subtitle_extractor.extract_subtitles(
-                url, cookie_path, browser
-            )
+            subtitle_data = self.subtitle_extractor.extract_subtitles(url, cookie_path, browser)
             if subtitle_data:
                 parsed_info["subtitles"] = subtitle_data.get("subtitles", {})
-                parsed_info["automatic_captions"] = subtitle_data.get(
-                    "automatic_captions", {}
-                )
+                parsed_info["automatic_captions"] = subtitle_data.get("automatic_captions", {})
 
             # Extract formatted data
             available_qualities = self.metadata_parser.extract_qualities(parsed_info)
@@ -95,12 +89,8 @@ class YouTubeMetadataService(IYouTubeMetadataService):
 
             return YouTubeMetadata(
                 title=parsed_info.get("title", ""),
-                duration=self.metadata_parser.format_duration(
-                    parsed_info.get("duration", 0)
-                ),
-                view_count=self.metadata_parser.format_view_count(
-                    parsed_info.get("view_count", 0)
-                ),
+                duration=self.metadata_parser.format_duration(parsed_info.get("duration", 0)),
+                view_count=self.metadata_parser.format_view_count(parsed_info.get("view_count", 0)),
                 upload_date=self.metadata_parser.format_upload_date(
                     parsed_info.get("upload_date", "")
                 ),
@@ -121,15 +111,11 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                 exc_info=True,
             )
             if self.error_handler:
-                extract_error_context(
-                    e, "YouTube", "metadata fetch", url
-                )
-                self.error_handler.handle_exception(
-                    e, "YouTube metadata fetch", "YouTube"
-                )
+                extract_error_context(e, "YouTube", "metadata fetch", url)
+                self.error_handler.handle_exception(e, "YouTube metadata fetch", "YouTube")
             return YouTubeMetadata(error=f"Failed to fetch metadata: {error_msg}")
 
-    def get_available_qualities(self, url: str) -> List[str]:
+    def get_available_qualities(self, url: str) -> list[str]:
         """Get available video qualities for a YouTube URL."""
         try:
             metadata = self.fetch_metadata(url)
@@ -138,7 +124,7 @@ class YouTubeMetadataService(IYouTubeMetadataService):
             logger.error(f"[METADATA_SERVICE] Error fetching qualities: {str(e)}")
             return []
 
-    def get_available_formats(self, url: str) -> List[str]:
+    def get_available_formats(self, url: str) -> list[str]:
         """Get available formats for a YouTube URL."""
         try:
             metadata = self.fetch_metadata(url)
@@ -147,7 +133,7 @@ class YouTubeMetadataService(IYouTubeMetadataService):
             logger.error(f"[METADATA_SERVICE] Error fetching formats: {str(e)}")
             return []
 
-    def get_available_subtitles(self, url: str) -> List[SubtitleInfo]:
+    def get_available_subtitles(self, url: str) -> list[SubtitleInfo]:
         """Get available subtitles for a YouTube URL."""
         try:
             metadata = self.fetch_metadata(url)
@@ -169,11 +155,9 @@ class YouTubeMetadataService(IYouTubeMetadataService):
 
     def validate_url(self, url: str) -> bool:
         """Validate if URL is a valid YouTube URL."""
-        return any(
-            re.match(pattern, url) for pattern in self.config.youtube.url_patterns
-        )
+        return any(re.match(pattern, url) for pattern in self.config.youtube.url_patterns)
 
-    def extract_video_id(self, url: str) -> Optional[str]:
+    def extract_video_id(self, url: str) -> str | None:
         """Extract video ID from YouTube URL."""
         try:
             parsed_url = urlparse(url)
@@ -182,9 +166,7 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                 if parsed_url.path == "/watch":
                     query = parse_qs(parsed_url.query)
                     return query.get("v", [None])[0]
-                elif parsed_url.path.startswith("/embed/"):
-                    return parsed_url.path.split("/")[2]
-                elif parsed_url.path.startswith("/v/"):
+                elif parsed_url.path.startswith("/embed/") or parsed_url.path.startswith("/v/"):
                     return parsed_url.path.split("/")[2]
             elif parsed_url.hostname == "youtu.be":
                 return parsed_url.path[1:]  # Remove leading slash

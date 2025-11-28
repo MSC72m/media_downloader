@@ -1,14 +1,15 @@
 """Pinterest link handler implementation."""
 
 import re
-from typing import Any, Callable, Dict, Optional
+from collections.abc import Callable
+from typing import Any
 
-from src.core.config import get_config, AppConfig
+from src.core.config import AppConfig, get_config
 from src.core.interfaces import IErrorNotifier, IMessageQueue
+from src.services.detection.base_handler import BaseHandler
 from src.services.detection.link_detector import (
     auto_register_handler,
 )
-from src.services.detection.base_handler import BaseHandler
 from src.utils.error_helpers import extract_error_context
 from src.utils.logger import get_logger
 from src.utils.type_helpers import (
@@ -24,8 +25,8 @@ logger = get_logger(__name__)
 class PinterestHandler(BaseHandler):
     def __init__(
         self,
-        error_handler: Optional[IErrorNotifier] = None,
-        message_queue: Optional[IMessageQueue] = None,
+        error_handler: IErrorNotifier | None = None,
+        message_queue: IMessageQueue | None = None,
         config: AppConfig = get_config(),
     ):
         super().__init__(message_queue, config, service_name="pinterest")
@@ -36,7 +37,7 @@ class PinterestHandler(BaseHandler):
         """Get URL patterns for this handler."""
         return get_config().pinterest.url_patterns
 
-    def _extract_metadata(self, url: str) -> Dict[str, Any]:
+    def _extract_metadata(self, url: str) -> dict[str, Any]:
         """Extract Pinterest-specific metadata from URL."""
         return {
             "type": self._detect_pinterest_type(url),
@@ -44,7 +45,7 @@ class PinterestHandler(BaseHandler):
             "is_short_url": self._is_short_url(url),
         }
 
-    def get_metadata(self, url: str) -> Dict[str, Any]:
+    def get_metadata(self, url: str) -> dict[str, Any]:
         """Get Pinterest metadata for the URL."""
         return {
             "type": self._detect_pinterest_type(url),
@@ -53,7 +54,7 @@ class PinterestHandler(BaseHandler):
             "requires_auth": False,  # Pinterest downloads usually work without auth
         }
 
-    def process_download(self, url: str, options: Dict[str, Any]) -> bool:
+    def process_download(self, url: str, options: dict[str, Any]) -> bool:
         """Process Pinterest download."""
         logger.info(f"[PINTEREST_HANDLER] Processing Pinterest download: {url}")
         # Actual Pinterest download logic would go here
@@ -65,9 +66,7 @@ class PinterestHandler(BaseHandler):
 
         def pinterest_callback(url: str, ui_context: Any):
             """Callback for handling Pinterest URLs."""
-            logger.info(
-                f"[PINTEREST_HANDLER] Pinterest callback called with URL: {url}"
-            )
+            logger.info(f"[PINTEREST_HANDLER] Pinterest callback called with URL: {url}")
             logger.info(f"[PINTEREST_HANDLER] UI context: {ui_context}")
 
             # Get root using type-safe helper
@@ -90,9 +89,7 @@ class PinterestHandler(BaseHandler):
             # Call the platform download method which will show the dialog (or fallback)
             def process_pinterest_download():
                 try:
-                    logger.info(
-                        f"[PINTEREST_HANDLER] Calling download callback for: {url}"
-                    )
+                    logger.info(f"[PINTEREST_HANDLER] Calling download callback for: {url}")
                     # Platform download methods expect URL string
                     download_callback(url)
                     logger.info("[PINTEREST_HANDLER] Download callback executed")
@@ -102,9 +99,7 @@ class PinterestHandler(BaseHandler):
                         exc_info=True,
                     )
                     if self.error_handler:
-                        extract_error_context(
-                            e, "Pinterest", "download processing", url
-                        )
+                        extract_error_context(e, "Pinterest", "download processing", url)
                         self.error_handler.handle_exception(
                             e, "Processing Pinterest download", "Pinterest"
                         )
@@ -126,7 +121,7 @@ class PinterestHandler(BaseHandler):
             return "short_pin"
         return "unknown"
 
-    def _extract_pin_id(self, url: str) -> Optional[str]:
+    def _extract_pin_id(self, url: str) -> str | None:
         """Extract pin ID from Pinterest URL."""
         # Match pin ID in various URL formats
         patterns = [

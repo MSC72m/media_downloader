@@ -1,24 +1,23 @@
 """Event Coordinator - Clean coordination layer with constructor injection."""
 
-from typing import Callable, Optional
+from collections.abc import Callable
 
 import customtkinter as ctk
 
 from src.core.config import AppConfig, get_config
 from src.core.enums.message_level import MessageLevel
-from src.services.events.queue import Message
-
 from src.core.interfaces import (
-    IErrorNotifier,
-    IDownloadHandler,
-    IFileService,
-    INetworkChecker,
     ICookieHandler,
+    IDownloadHandler,
     IDownloadService,
+    IErrorNotifier,
+    IFileService,
     IMessageQueue,
+    INetworkChecker,
 )
-from src.services.instagram import InstagramAuthManager
 from src.services.events.event_bus import DownloadEventBus
+from src.services.events.queue import Message
+from src.services.instagram import InstagramAuthManager
 from src.ui.dialogs.file_manager_dialog import FileManagerDialog
 from src.ui.dialogs.network_status_dialog import NetworkStatusDialog
 from src.utils.logger import get_logger
@@ -53,10 +52,10 @@ class EventCoordinator:
         network_checker: INetworkChecker,
         cookie_handler: ICookieHandler,
         download_service: IDownloadService,
-        message_queue: Optional[IMessageQueue] = None,
-        downloads_folder: Optional[str] = None,
-        config: Optional[AppConfig] = None,
-        instagram_auth_manager: Optional[InstagramAuthManager] = None,
+        message_queue: IMessageQueue | None = None,
+        downloads_folder: str | None = None,
+        config: AppConfig | None = None,
+        instagram_auth_manager: InstagramAuthManager | None = None,
     ):
         """Initialize with proper dependency injection."""
         if config is None:
@@ -120,18 +119,14 @@ class EventCoordinator:
         """Set UI callbacks for download coordinator."""
         if self.downloads:
             self.downloads.set_ui_callbacks(callbacks)
-        logger.info(
-            "[EVENT_COORDINATOR] UI callbacks propagated to download coordinator"
-        )
+        logger.info("[EVENT_COORDINATOR] UI callbacks propagated to download coordinator")
 
     def show_error(self, title: str, message: str) -> None:
         """Show error message via centralized error handler."""
         self.error_handler.show_error(title, message)
 
     # Platform-Specific Dialogs - Single dispatch method
-    def platform_download(
-        self, platform: str, url: str, name: Optional[str] = None
-    ) -> None:
+    def platform_download(self, platform: str, url: str, name: str | None = None) -> None:
         """Dispatch platform-specific download dialog.
 
         Args:
@@ -222,9 +217,7 @@ class EventCoordinator:
         """Handle cookie detection."""
         try:
             if not self.cookie_handler.set_cookie_file(cookie_path):
-                self.error_handler.show_error(
-                    "Cookie Error", "Failed to load cookie file"
-                )
+                self.error_handler.show_error("Cookie Error", "Failed to load cookie file")
                 return
 
             logger.info(f"[EVENT_COORDINATOR] Cookie loaded from {browser_type}")
@@ -247,9 +240,7 @@ class EventCoordinator:
                     )
                     self.message_queue.add_message(message)
             else:
-                logger.warning(
-                    f"[EVENT_COORDINATOR] Connectivity check failed: {error_message}"
-                )
+                logger.warning(f"[EVENT_COORDINATOR] Connectivity check failed: {error_message}")
                 if self.message_queue:
                     message = Message(
                         text=f"Network issue: {error_message}",
@@ -269,9 +260,7 @@ class EventCoordinator:
                     f"Failed to check network connectivity: {str(e)}",
                 )
             if self.error_handler:
-                self.error_handler.show_error(
-                    "Cookie Error", f"Error loading cookie: {str(e)}"
-                )
+                self.error_handler.show_error("Cookie Error", f"Error loading cookie: {str(e)}")
 
     # UIContextProtocol implementation via __getattr__ for dynamic dispatch
     def __getattr__(self, name: str):
@@ -293,13 +282,9 @@ class EventCoordinator:
             # YouTube handler creates dialogs itself, just needs add_download callback
             if platform == "youtube":
                 return lambda download: self.downloads.add_download(download)
-            return lambda url, **kwargs: self.platform_download(
-                platform, url, kwargs.get("name")
-            )
+            return lambda url, **kwargs: self.platform_download(platform, url, kwargs.get("name"))
 
         if name == "generic_download":
             return lambda url, name=None: self.platform_download("generic", url, name)
 
-        raise AttributeError(
-            f"'{type(self).__name__}' object has no attribute '{name}'"
-        )
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")

@@ -62,9 +62,7 @@ class OptionsBar(ctk.CTkFrame):
                 except queue.Empty:
                     break
                 except Exception as e:
-                    logger.error(
-                        f"[OPTIONS_BAR] Error processing update: {e}", exc_info=True
-                    )
+                    logger.error(f"[OPTIONS_BAR] Error processing update: {e}", exc_info=True)
         except Exception as e:
             logger.error(f"[OPTIONS_BAR] Error in _process_queue: {e}", exc_info=True)
 

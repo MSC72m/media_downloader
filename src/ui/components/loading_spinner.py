@@ -33,9 +33,7 @@ class SmallLoadingSpinner(ctk.CTkToplevel, WindowCenterMixin):
     def _create_spinner(self):
         """Create the small spinner with message."""
         # Container frame
-        container = ctk.CTkFrame(
-            self, fg_color=("#2b2b2b", "#f0f0f0"), corner_radius=10
-        )
+        container = ctk.CTkFrame(self, fg_color=("#2b2b2b", "#f0f0f0"), corner_radius=10)
         container.pack(expand=True)
 
         # Small canvas for spinner

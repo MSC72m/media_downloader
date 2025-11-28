@@ -1,8 +1,8 @@
 """Simple test of the metadata service without complex imports."""
 
-import sys
 import os
 import subprocess
+import sys
 
 # Add src to path properly
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))

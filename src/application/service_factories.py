@@ -2,11 +2,10 @@
 
 from typing import Any
 
+from src.application.di_container import ServiceContainer
 from src.coordinators.error_notifier import ErrorNotifier
 from src.coordinators.main_coordinator import EventCoordinator
-from src.handlers.cookie_handler import CookieHandler
-from src.handlers.download_handler import DownloadHandler
-from src.handlers.network_checker import NetworkChecker
+from src.core.config import AppConfig
 from src.core.interfaces import (
     IAutoCookieManager,
     ICookieHandler,
@@ -19,11 +18,12 @@ from src.core.interfaces import (
     IServiceFactory,
     IUIState,
 )
+from src.handlers.cookie_handler import CookieHandler
+from src.handlers.download_handler import DownloadHandler
+from src.handlers.network_checker import NetworkChecker
 from src.services.downloads import DownloadService, ServiceFactory
 from src.services.instagram import InstagramAuthManager
 from src.services.youtube.metadata_service import YouTubeMetadataService
-from src.core.config import AppConfig
-from src.application.di_container import ServiceContainer
 
 
 class ServiceFactoryRegistry:

@@ -1,7 +1,7 @@
 """Direct test for YouTube cookie functionality without complex imports."""
 
-import sys
 import os
+import sys
 import tempfile
 
 # Add src to path
@@ -40,7 +40,7 @@ def test_cookie_parameter_formatting():
             if os.path.exists(cookie_path):
                 try:
                     # Try to determine if it's a Netscape format file
-                    with open(cookie_path, "r", encoding="utf-8") as f:
+                    with open(cookie_path, encoding="utf-8") as f:
                         content = f.read(100)
                     if content.strip() and not content.strip().startswith("SQLite"):
                         basic_options["cookiefile"] = cookie_path

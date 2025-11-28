@@ -6,12 +6,11 @@ import shutil
 import sqlite3
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-
-from src.utils.logger import get_logger
+from typing import Any
 
 from src.core.enums import BrowserType, PlatformType
 from src.core.interfaces import ICookieManager
+from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -35,26 +34,21 @@ class CookieDetector:
         else:
             raise ValueError(f"Unsupported platform: {system}")
 
-    def _get_browser_paths(self) -> Dict[BrowserType, Dict[str, Any]]:
+    def _get_browser_paths(self) -> dict[BrowserType, dict[str, Any]]:
         """Get browser cookie paths for current platform."""
         paths = {}
 
         # Chrome paths
         if self._platform == PlatformType.WINDOWS:
             chrome_base = (
-                Path(os.environ.get("LOCALAPPDATA", ""))
-                / "Google"
-                / "Chrome"
-                / "User Data"
+                Path(os.environ.get("LOCALAPPDATA", "")) / "Google" / "Chrome" / "User Data"
             )
             chrome_paths = {
                 "default": chrome_base / "Default" / "Cookies",
                 "profile": chrome_base / "Profile *" / "Cookies",
             }
         elif self._platform == PlatformType.MACOS:
-            chrome_base = (
-                Path.home() / "Library" / "Application Support" / "Google" / "Chrome"
-            )
+            chrome_base = Path.home() / "Library" / "Application Support" / "Google" / "Chrome"
             chrome_paths = {
                 "default": chrome_base / "Default" / "Cookies",
                 "profile": chrome_base / "Profile *" / "Cookies",
@@ -69,13 +63,9 @@ class CookieDetector:
 
         # Firefox paths
         if self._platform == PlatformType.WINDOWS:
-            firefox_base = (
-                Path(os.environ.get("APPDATA", "")) / "Mozilla" / "Firefox" / "Profiles"
-            )
+            firefox_base = Path(os.environ.get("APPDATA", "")) / "Mozilla" / "Firefox" / "Profiles"
         elif self._platform == PlatformType.MACOS:
-            firefox_base = (
-                Path.home() / "Library" / "Application Support" / "Firefox" / "Profiles"
-            )
+            firefox_base = Path.home() / "Library" / "Application Support" / "Firefox" / "Profiles"
         else:  # Linux
             firefox_base = Path.home() / ".mozilla" / "firefox"
         paths[BrowserType.FIREFOX] = {"profiles": firefox_base / "*.default*"}
@@ -87,12 +77,10 @@ class CookieDetector:
 
         return paths
 
-    def detect_cookies(self, browser: BrowserType) -> Optional[str]:
+    def detect_cookies(self, browser: BrowserType) -> str | None:
         """Detect cookies for the specified browser."""
         if browser not in self._browser_paths:
-            logger.warning(
-                f"Browser {browser.value} not supported on {self._platform.value}"
-            )
+            logger.warning(f"Browser {browser.value} not supported on {self._platform.value}")
             return None
 
         try:
@@ -108,15 +96,15 @@ class CookieDetector:
 
         return None
 
-    def detect_cookies_for_browser(self, browser: BrowserType) -> Optional[str]:
+    def detect_cookies_for_browser(self, browser: BrowserType) -> str | None:
         """Detect cookies for a specific browser."""
         return self.detect_cookies(browser)
 
-    def get_current_cookie_path(self) -> Optional[str]:
+    def get_current_cookie_path(self) -> str | None:
         """Get the current cookie path."""
         return None
 
-    def _detect_chrome_cookies(self) -> Optional[str]:
+    def _detect_chrome_cookies(self) -> str | None:
         """Detect Chrome cookies and convert to Netscape format."""
         paths = self._browser_paths[BrowserType.CHROME]
 
@@ -145,13 +133,11 @@ class CookieDetector:
         # Convert Chrome cookies to Netscape format
         return self._convert_chrome_cookies(cookie_db)
 
-    def _convert_chrome_cookies(self, chrome_db_path: str) -> Optional[str]:
+    def _convert_chrome_cookies(self, chrome_db_path: str) -> str | None:
         """Convert Chrome SQLite cookies to Netscape format."""
         try:
             # Create temporary file for Netscape format cookies
-            temp_file = tempfile.NamedTemporaryFile(
-                mode="w", delete=False, suffix=".txt"
-            )
+            temp_file = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt")
             temp_path = temp_file.name
 
             # Create a temporary copy of the database to avoid locking issues
@@ -203,7 +189,7 @@ class CookieDetector:
                     path,
                     expires_utc,
                     is_secure,
-                    is_httponly,
+                    _is_httponly,
                 ) in cursor.fetchall():
                     # Skip cookies without names or values
                     if not name:
@@ -213,9 +199,7 @@ class CookieDetector:
                     # with a placeholder value to indicate the cookie exists but is encrypted
                     if not value:
                         value = "encrypted"
-                        logger.info(
-                            f"Cookie '{name}' appears to be encrypted, using placeholder"
-                        )
+                        logger.info(f"Cookie '{name}' appears to be encrypted, using placeholder")
 
                     # Convert Chrome expires_utc to Unix timestamp
                     # Chrome uses Windows epoch (1601-01-01) in microseconds
@@ -238,9 +222,7 @@ class CookieDetector:
                 temp_file.close()
 
                 if cookie_count > 0:
-                    logger.info(
-                        f"Extracted {cookie_count} YouTube/Google cookies from Chrome"
-                    )
+                    logger.info(f"Extracted {cookie_count} YouTube/Google cookies from Chrome")
                     return temp_path
                 else:
                     logger.info("No YouTube/Google cookies found in Chrome")
@@ -254,16 +236,16 @@ class CookieDetector:
                 return None
             finally:
                 # Clean up temporary database
-                try:
+                import contextlib
+
+                with contextlib.suppress(Exception):
                     os.unlink(temp_db.name)
-                except Exception:
-                    pass
 
         except Exception as e:
             logger.error(f"Error converting Chrome cookies: {e}")
             return None
 
-    def _detect_firefox_cookies(self) -> Optional[str]:
+    def _detect_firefox_cookies(self) -> str | None:
         """Detect Firefox cookies and create compatible file."""
         paths = self._browser_paths[BrowserType.FIREFOX]
         profile_pattern = paths["profiles"]
@@ -283,7 +265,7 @@ class CookieDetector:
         # Firefox uses SQLite format, need to convert to Netscape format for yt-dlp
         return self._convert_firefox_cookies(str(cookies_db))
 
-    def _detect_safari_cookies(self) -> Optional[str]:
+    def _detect_safari_cookies(self) -> str | None:
         """Detect Safari cookies and create compatible file."""
         paths = self._browser_paths[BrowserType.SAFARI]
         cookie_path = paths["cookies"]
@@ -294,16 +276,14 @@ class CookieDetector:
         # Safari uses binary format, need to convert to Netscape format
         return self._convert_safari_cookies(str(cookie_path))
 
-    def _convert_firefox_cookies(self, firefox_db_path: str) -> Optional[str]:
+    def _convert_firefox_cookies(self, firefox_db_path: str) -> str | None:
         """Convert Firefox SQLite cookies to Netscape format."""
         temp_file = None
         temp_path = None
         success = False
 
         try:
-            temp_file = tempfile.NamedTemporaryFile(
-                mode="w", delete=False, suffix=".txt"
-            )
+            temp_file = tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt")
             temp_path = temp_file.name
 
             # Connect to Firefox cookies database
@@ -328,7 +308,7 @@ class CookieDetector:
                 path,
                 expiry,
                 is_secure,
-                is_http_only,
+                _is_http_only,
             ) in cursor.fetchall():
                 # Netscape format: domain, include_subdomains, path, is_secure, expires, name, value
                 domain_flag = "TRUE" if host.startswith(".") else "FALSE"
@@ -353,25 +333,23 @@ class CookieDetector:
         finally:
             # Clean up temp file only on error
             if not success:
-                if temp_file and not temp_file.closed:
-                    try:
-                        temp_file.close()
-                    except Exception:
-                        pass
-                if temp_path and os.path.exists(temp_path):
-                    try:
-                        os.unlink(temp_path)
-                    except Exception:
-                        pass
+                import contextlib
 
-    def _convert_safari_cookies(self, safari_db_path: str) -> Optional[str]:
+                if temp_file and not temp_file.closed:
+                    with contextlib.suppress(Exception):
+                        temp_file.close()
+                if temp_path and os.path.exists(temp_path):
+                    with contextlib.suppress(Exception):
+                        os.unlink(temp_path)
+
+    def _convert_safari_cookies(self, safari_db_path: str) -> str | None:
         """Convert Safari binary cookies to Netscape format."""
         # Safari cookie conversion is complex and requires external tools
         # For now, we'll return None and let the user handle it manually
         logger.warning("Safari cookie conversion requires manual intervention")
         return None
 
-    def get_supported_browsers(self) -> List[BrowserType]:
+    def get_supported_browsers(self) -> list[BrowserType]:
         """Get list of browsers supported on current platform."""
         supported = [BrowserType.CHROME, BrowserType.FIREFOX]
 
@@ -397,13 +375,10 @@ class CookieDetector:
 
             if cookie_path.endswith(".txt"):
                 # Check if Netscape format file has content
-                with open(cookie_path, "r") as f:
+                with open(cookie_path) as f:
                     content = f.read().strip()
                     return bool(
-                        content
-                        and (
-                            not content.startswith("#") or len(content.split("\n")) > 2
-                        )
+                        content and (not content.startswith("#") or len(content.split("\n")) > 2)
                     )
 
             return os.path.getsize(cookie_path) > 0
@@ -417,7 +392,7 @@ class CookieManager(ICookieManager):
 
     def __init__(self):
         self._detector = CookieDetector()
-        self._current_cookie_path: Optional[str] = None
+        self._current_cookie_path: str | None = None
         self._initialized = False
 
     def initialize(self) -> None:
@@ -444,7 +419,7 @@ class CookieManager(ICookieManager):
         """Detect the current platform."""
         return self._detector._platform
 
-    def get_available_browsers(self) -> List[BrowserType]:
+    def get_available_browsers(self) -> list[BrowserType]:
         """Get list of browsers available on current platform."""
         supported = self._detector.get_supported_browsers()
         available = []
@@ -452,10 +427,10 @@ class CookieManager(ICookieManager):
         for browser in supported:
             try:
                 # Check if browser cookie database exists without full detection
-                if self._detector._browser_paths.get(browser):
-                    # Quick check for browser installation
-                    if self._quick_browser_check(browser):
-                        available.append(browser)
+                if self._detector._browser_paths.get(browser) and self._quick_browser_check(
+                    browser
+                ):
+                    available.append(browser)
             except Exception as e:
                 logger.debug(f"Error checking browser {browser.value}: {e}")
                 continue
@@ -493,7 +468,7 @@ class CookieManager(ICookieManager):
             logger.debug(f"Error in quick browser check for {browser.value}: {e}")
             return False
 
-    def detect_cookies_for_browser(self, browser: BrowserType) -> Optional[str]:
+    def detect_cookies_for_browser(self, browser: BrowserType) -> str | None:
         """Detect cookies for a specific browser."""
         cookie_path = self._detector.detect_cookies(browser)
         if cookie_path:
@@ -520,7 +495,7 @@ class CookieManager(ICookieManager):
             logger.info(f"Successfully set YouTube cookies from: {cookie_path}")
         except Exception as e:
             logger.error(f"Error validating cookie file: {str(e)}")
-            raise ValueError(f"Error processing cookie file: {str(e)}")
+            raise ValueError(f"Error processing cookie file: {str(e)}") from e
 
     def has_valid_cookies(self) -> bool:
         """Check if valid cookies are currently set."""
@@ -541,11 +516,11 @@ class CookieManager(ICookieManager):
             logger.error(f"Error validating cookie file: {str(e)}")
             return False
 
-    def get_current_cookie_path(self) -> Optional[str]:
+    def get_current_cookie_path(self) -> str | None:
         """Get the current cookie path."""
         return self._current_cookie_path
 
-    def get_cookie_info_for_ytdlp(self) -> Optional[Dict[str, Any]]:
+    def get_cookie_info_for_ytdlp(self) -> dict[str, Any] | None:
         """Get cookie information for yt-dlp integration."""
         if not self.has_valid_cookies():
             return None
@@ -560,6 +535,6 @@ class CookieManager(ICookieManager):
         else:
             return {"cookies": cookie_path}
 
-    def get_youtube_cookie_info(self) -> Optional[Dict[str, Any]]:
+    def get_youtube_cookie_info(self) -> dict[str, Any] | None:
         """Get YouTube cookie information for yt-dlp integration."""
         return self.get_cookie_info_for_ytdlp()

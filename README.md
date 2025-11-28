@@ -112,7 +112,7 @@ Ensure you have Python 3.6 or higher installed.
       sudo apt-get install git
       ```
    For Fedora:
-   ```bash 
+   ```bash
      sudo dnf install git
    ```
 3. **Clone the repository**
@@ -226,8 +226,8 @@ This project is licensed under the MIT License. See LICENSE for details.
 
 ## Disclaimer
 ```text
-    The Media Downloader Toolkit is intended for personal use only. 
-    Users are responsible for adhering to the terms of service of the respective platforms and all applicable copyright laws. 
+    The Media Downloader Toolkit is intended for personal use only.
+    Users are responsible for adhering to the terms of service of the respective platforms and all applicable copyright laws.
     The developers assume no liability for misuse of this software.
     Your Instagram account may be banned if you use this tool for unauthorized purposes or too much usage it is always recommended to use it with caution and create a new account for testing purposes.'
 ```

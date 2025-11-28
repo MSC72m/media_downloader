@@ -1,8 +1,8 @@
 """Direct test of YouTube metadata service functionality without complex imports."""
 
-import sys
 import os
 import subprocess
+import sys
 from unittest.mock import Mock, patch
 
 # Add src to path for imports
@@ -320,10 +320,7 @@ def test_complete_workflow_simulation():
         "https://www.youtube.com/watch?v=dQw4w9WgXcQ", browser="chrome"
     )
     assert result is not None
-    assert (
-        result["title"]
-        == "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)"
-    )
+    assert result["title"] == "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)"
     assert result["duration"] == 213
     assert result["channel"] == "Rick Astley"
     print("✅ Complete workflow simulation works")

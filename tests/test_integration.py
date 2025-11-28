@@ -1,7 +1,8 @@
 """End-to-end integration tests for the entire refactored system."""
 
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 from src.application.orchestrator import ApplicationOrchestrator
 from src.core.models import Download, DownloadStatus
@@ -100,9 +101,9 @@ class TestSystemIntegration:
                 print(f"⚠ {expected} URL not detected: {url}")
 
         # Should detect most services (some may not be detected without full setup)
-        assert len(detected_services) >= 3, (
-            f"Expected at least 3 services, got {len(detected_services)}"
-        )
+        assert (
+            len(detected_services) >= 3
+        ), f"Expected at least 3 services, got {len(detected_services)}"
 
     @patch("customtkinter.CTk")
     def test_download_flow_integration(self, mock_ctk):
@@ -193,14 +194,14 @@ class TestSystemIntegration:
         container = orchestrator.container
 
         from src.core.interfaces import (
-            IErrorNotifier,
+            IAutoCookieManager,
+            ICookieHandler,
             IDownloadHandler,
             IDownloadService,
+            IErrorNotifier,
             IFileService,
-            ICookieHandler,
             IMetadataService,
             INetworkChecker,
-            IAutoCookieManager,
             IServiceFactory,
             IUIState,
         )
@@ -220,9 +221,9 @@ class TestSystemIntegration:
         ]
 
         for interface, implementation in interface_implementations:
-            assert isinstance(implementation, interface), (
-                f"{implementation.__class__.__name__} should implement {interface.__name__}"
-            )
+            assert isinstance(
+                implementation, interface
+            ), f"{implementation.__class__.__name__} should implement {interface.__name__}"
 
         print("✓ All services comply with their interfaces")
 
@@ -266,9 +267,7 @@ class TestSystemIntegration:
         end_time = time.time()
 
         resolution_time = end_time - start_time
-        assert resolution_time < 1.0, (
-            f"Dependency resolution too slow: {resolution_time:.3f}s"
-        )
+        assert resolution_time < 1.0, f"Dependency resolution too slow: {resolution_time:.3f}s"
 
         print(f"✓ Performance test passed (100 resolutions in {resolution_time:.3f}s)")
 
@@ -365,7 +364,7 @@ class TestSystemEndToEnd:
         ]
 
         detected_platforms = set()
-        for url, expected_platform in platform_urls:
+        for url, _expected_platform in platform_urls:
             for handler in handlers:
                 result = handler.can_handle(url)
                 if result.service_type != "unknown":
@@ -373,9 +372,9 @@ class TestSystemEndToEnd:
                     break
 
         # Should detect at least some platforms
-        assert len(detected_platforms) >= 3, (
-            f"Expected at least 3 platforms, got {len(detected_platforms)}"
-        )
+        assert (
+            len(detected_platforms) >= 3
+        ), f"Expected at least 3 platforms, got {len(detected_platforms)}"
         print(f"✓ Multi-platform support working: {detected_platforms}")
 
     @patch("customtkinter.CTk")

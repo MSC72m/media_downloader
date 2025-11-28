@@ -1,14 +1,15 @@
 """SoundCloud link handler implementation."""
 
 import re
-from typing import Any, Callable, Dict, Optional
+from collections.abc import Callable
+from typing import Any
 
-from src.core.config import get_config, AppConfig
+from src.core.config import AppConfig, get_config
 from src.core.interfaces import IErrorNotifier, IMessageQueue
+from src.services.detection.base_handler import BaseHandler
 from src.services.detection.link_detector import (
     auto_register_handler,
 )
-from src.services.detection.base_handler import BaseHandler
 from src.utils.error_helpers import extract_error_context
 from src.utils.logger import get_logger
 from src.utils.type_helpers import (
@@ -25,7 +26,7 @@ class SoundCloudHandler(BaseHandler):
     def __init__(
         self,
         message_queue: IMessageQueue,
-        error_handler: Optional[IErrorNotifier] = None,
+        error_handler: IErrorNotifier | None = None,
         config: AppConfig = get_config(),
     ):
         super().__init__(message_queue, config, service_name="soundcloud")
@@ -36,7 +37,7 @@ class SoundCloudHandler(BaseHandler):
         """Get URL patterns for this handler."""
         return get_config().soundcloud.url_patterns
 
-    def _extract_metadata(self, url: str) -> Dict[str, Any]:
+    def _extract_metadata(self, url: str) -> dict[str, Any]:
         """Extract SoundCloud-specific metadata from URL."""
         return {
             "type": self._detect_soundcloud_type(url),
@@ -44,7 +45,7 @@ class SoundCloudHandler(BaseHandler):
             "track_slug": self._extract_track_slug(url),
         }
 
-    def get_metadata(self, url: str) -> Dict[str, Any]:
+    def get_metadata(self, url: str) -> dict[str, Any]:
         """Get SoundCloud metadata for the URL."""
         return {
             "type": self._detect_soundcloud_type(url),
@@ -53,7 +54,7 @@ class SoundCloudHandler(BaseHandler):
             "requires_auth": False,  # SoundCloud downloads usually work without auth
         }
 
-    def process_download(self, url: str, options: Dict[str, Any]) -> bool:
+    def process_download(self, url: str, options: dict[str, Any]) -> bool:
         """Process SoundCloud download."""
         logger.info(f"[SOUNDCLOUD_HANDLER] Processing SoundCloud download: {url}")
         return True
@@ -64,9 +65,7 @@ class SoundCloudHandler(BaseHandler):
 
         def soundcloud_callback(url: str, ui_context: Any):
             """Callback for handling SoundCloud URLs."""
-            logger.info(
-                f"[SOUNDCLOUD_HANDLER] SoundCloud callback called with URL: {url}"
-            )
+            logger.info(f"[SOUNDCLOUD_HANDLER] SoundCloud callback called with URL: {url}")
             logger.info(f"[SOUNDCLOUD_HANDLER] UI context: {ui_context}")
 
             # Get root using type-safe helper
@@ -89,9 +88,7 @@ class SoundCloudHandler(BaseHandler):
             # Call the platform download method
             def process_soundcloud_download():
                 try:
-                    logger.info(
-                        f"[SOUNDCLOUD_HANDLER] Calling download callback for: {url}"
-                    )
+                    logger.info(f"[SOUNDCLOUD_HANDLER] Calling download callback for: {url}")
                     download_callback(url)
                     logger.info("[SOUNDCLOUD_HANDLER] Download callback executed")
                 except Exception as e:
@@ -100,9 +97,7 @@ class SoundCloudHandler(BaseHandler):
                         exc_info=True,
                     )
                     if self.error_handler:
-                        extract_error_context(
-                            e, "SoundCloud", "download processing", url
-                        )
+                        extract_error_context(e, "SoundCloud", "download processing", url)
                         self.error_handler.handle_exception(
                             e, "Processing SoundCloud download", "SoundCloud"
                         )
@@ -130,12 +125,12 @@ class SoundCloudHandler(BaseHandler):
             return "user"
         return "unknown"
 
-    def _extract_username(self, url: str) -> Optional[str]:
+    def _extract_username(self, url: str) -> str | None:
         """Extract username from SoundCloud URL."""
         match = re.search(r"soundcloud\.com/([\w-]+)", url)
         return match.group(1) if match else None
 
-    def _extract_track_slug(self, url: str) -> Optional[str]:
+    def _extract_track_slug(self, url: str) -> str | None:
         """Extract track slug from SoundCloud URL."""
         match = re.search(r"soundcloud\.com/[\w-]+/([\w-]+)", url)
         return match.group(1) if match else None

@@ -2,9 +2,9 @@
 
 from datetime import datetime
 
-from core.enums.download_status import DownloadStatus
-from core.enums.service_type import ServiceType
-from core.models import AuthState, ButtonState, Download, DownloadOptions, UIState
+from src.core.enums.download_status import DownloadStatus
+from src.core.enums.service_type import ServiceType
+from src.core.models import AuthState, ButtonState, Download, DownloadOptions, UIState
 
 
 class TestDownloadComprehensive:
@@ -200,9 +200,7 @@ class TestAuthStateComprehensive:
 
     def test_auth_state_with_fields(self):
         """Test AuthState with various fields."""
-        auth_state = AuthState(
-            is_authenticated=True, service="youtube", username="testuser"
-        )
+        auth_state = AuthState(is_authenticated=True, service="youtube", username="testuser")
 
         assert auth_state.is_authenticated is True
         assert auth_state.service == "youtube"

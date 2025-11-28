@@ -1,6 +1,6 @@
 """YouTube subtitle extractor using yt-dlp library."""
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 import yt_dlp
 
@@ -17,7 +17,7 @@ class YouTubeSubtitleExtractor:
 
     def __init__(
         self,
-        error_handler: Optional[IErrorNotifier] = None,
+        error_handler: IErrorNotifier | None = None,
         config: AppConfig = get_config(),
     ):
         self.error_handler = error_handler
@@ -27,9 +27,9 @@ class YouTubeSubtitleExtractor:
     def extract_subtitles(
         self,
         url: str,
-        cookie_path: Optional[str] = None,
-        browser: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        cookie_path: str | None = None,
+        browser: str | None = None,
+    ) -> dict[str, Any]:
         """Extract subtitle information from YouTube video.
 
         Args:
@@ -45,9 +45,7 @@ class YouTubeSubtitleExtractor:
 
         for client in clients_to_try:
             opts = self._build_options(cookie_path, browser, client)
-            logger.debug(
-                f"[SUBTITLE_EXTRACTOR] Trying subtitle extraction with {client} client"
-            )
+            logger.debug(f"[SUBTITLE_EXTRACTOR] Trying subtitle extraction with {client} client")
 
             try:
                 with yt_dlp.YoutubeDL(opts) as ydl:  # type: ignore
@@ -111,9 +109,7 @@ class YouTubeSubtitleExtractor:
                         "automatic_captions": valid_auto_deduped,
                     }
             except Exception as e:
-                logger.debug(
-                    f"[SUBTITLE_EXTRACTOR] {client} client subtitle extraction error: {e}"
-                )
+                logger.debug(f"[SUBTITLE_EXTRACTOR] {client} client subtitle extraction error: {e}")
                 continue
 
         # No subtitles found - return empty dicts
@@ -122,10 +118,10 @@ class YouTubeSubtitleExtractor:
 
     def _build_options(
         self,
-        cookie_path: Optional[str] = None,
-        browser: Optional[str] = None,
+        cookie_path: str | None = None,
+        browser: str | None = None,
         client: str = "android",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Build yt-dlp options for subtitle extraction."""
         opts = {
             "quiet": True,

@@ -1,17 +1,16 @@
 """Service interfaces for dependency injection."""
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from typing import (
-    List,
-    Optional,
-    Callable,
+    TYPE_CHECKING,
     Any,
+    Optional,
     Protocol,
     runtime_checkable,
-    TYPE_CHECKING,
 )
 
-from src.core.config import get_config, AppConfig
+from src.core.config import AppConfig, get_config
 from src.core.models import Download, DownloadOptions
 
 if TYPE_CHECKING:
@@ -22,11 +21,11 @@ if TYPE_CHECKING:
 class IDownloadService(Protocol):
     def add_download(self, download: Download) -> None: ...
 
-    def remove_downloads(self, indices: List[int]) -> None: ...
+    def remove_downloads(self, indices: list[int]) -> None: ...
 
     def clear_downloads(self) -> None: ...
 
-    def get_downloads(self) -> List[Download]: ...
+    def get_downloads(self) -> list[Download]: ...
 
     def start_download(self, download: Download, options: DownloadOptions) -> None: ...
 
@@ -37,7 +36,7 @@ class IDownloadService(Protocol):
 
 @runtime_checkable
 class IDownloadHandler(Protocol):
-    def process_url(self, url: str, options: Optional[dict] = None) -> bool: ...
+    def process_url(self, url: str, options: dict | None = None) -> bool: ...
 
     def handle_download_error(self, error: Exception) -> None: ...
 
@@ -50,7 +49,7 @@ class ICookieHandler(Protocol):
 
     def has_valid_cookies(self) -> bool: ...
 
-    def get_cookie_info_for_ytdlp(self) -> Optional[dict]: ...
+    def get_cookie_info_for_ytdlp(self) -> dict | None: ...
 
 
 @runtime_checkable
@@ -75,9 +74,7 @@ class INetworkChecker(Protocol):
 class IFileService(Protocol):
     def ensure_directory(self, path: str) -> bool: ...
 
-    def get_unique_filename(
-        self, directory: str, base_name: str, extension: str
-    ) -> str: ...
+    def get_unique_filename(self, directory: str, base_name: str, extension: str) -> str: ...
 
     def clean_filename(self, filename: str) -> str: ...
 
@@ -127,7 +124,7 @@ class IAutoCookieManager(Protocol):
 
     def is_generating(self) -> bool: ...
 
-    def get_cookies(self) -> Optional[str]: ...
+    def get_cookies(self) -> str | None: ...
 
 
 @runtime_checkable
@@ -168,7 +165,7 @@ class BaseDownloader(ABC):
         self,
         url: str,
         save_path: str,
-        progress_callback: Optional[Callable[[float, float], None]] = None,
+        progress_callback: Callable[[float, float], None] | None = None,
     ) -> bool: ...
 
 

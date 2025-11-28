@@ -1,16 +1,17 @@
 """Comprehensive tests for all platform handlers with proper dependency injection."""
 
-import pytest
 import re
 from unittest.mock import Mock, patch
 
+import pytest
+
 from src.core.interfaces import (
     ICookieHandler,
-    IMetadataService,
     IErrorNotifier,
     IFileService,
-    IUIState,
     IMessageQueue,
+    IMetadataService,
+    IUIState,
 )
 from src.handlers import _register_link_handlers
 
@@ -83,9 +84,7 @@ class MockFileService(IFileService):
     def clean_filename(self, filename: str) -> str:
         return filename.replace("/", "_").replace("\\", "_")
 
-    def get_unique_filename(
-        self, directory: str, base_name: str, extension: str
-    ) -> str:
+    def get_unique_filename(self, directory: str, base_name: str, extension: str) -> str:
         return f"{base_name}.{extension}"
 
     def ensure_directory(self, directory: str) -> bool:
@@ -162,9 +161,7 @@ class TestHandlerRegistration:
         assert len(handlers) == 5
 
         handler_names = [
-            handler.__name__
-            if hasattr(handler, "__name__")
-            else handler.__class__.__name__
+            handler.__name__ if hasattr(handler, "__name__") else handler.__class__.__name__
             for handler in handlers
         ]
         expected_handlers = [
@@ -184,24 +181,24 @@ class TestHandlerRegistration:
 
         for handler in handlers:
             # Check for required methods from LinkHandlerInterface
-            assert hasattr(handler, "can_handle"), (
-                f"{handler.__class__.__name__} missing can_handle"
-            )
-            assert hasattr(handler, "get_patterns"), (
-                f"{handler.__class__.__name__} missing get_patterns"
-            )
-            assert hasattr(handler, "get_ui_callback"), (
-                f"{handler.__class__.__name__} missing get_ui_callback"
-            )
-            assert callable(handler.can_handle), (
-                f"{handler.__class__.__name__}.can_handle is not callable"
-            )
-            assert callable(handler.get_patterns), (
-                f"{handler.__class__.__name__}.get_patterns is not callable"
-            )
-            assert callable(handler.get_ui_callback), (
-                f"{handler.__class__.__name__}.get_ui_callback is not callable"
-            )
+            assert hasattr(
+                handler, "can_handle"
+            ), f"{handler.__class__.__name__} missing can_handle"
+            assert hasattr(
+                handler, "get_patterns"
+            ), f"{handler.__class__.__name__} missing get_patterns"
+            assert hasattr(
+                handler, "get_ui_callback"
+            ), f"{handler.__class__.__name__} missing get_ui_callback"
+            assert callable(
+                handler.can_handle
+            ), f"{handler.__class__.__name__}.can_handle is not callable"
+            assert callable(
+                handler.get_patterns
+            ), f"{handler.__class__.__name__}.get_patterns is not callable"
+            assert callable(
+                handler.get_ui_callback
+            ), f"{handler.__class__.__name__}.get_ui_callback is not callable"
 
 
 class TestYouTubeHandler:
@@ -514,9 +511,9 @@ class TestDownloadHandler:
 
         for url, expected_type in test_cases:
             detected_type = handler._detect_service_type(url)
-            assert detected_type == expected_type, (
-                f"Expected {expected_type}, got {detected_type} for {url}"
-            )
+            assert (
+                detected_type == expected_type
+            ), f"Expected {expected_type}, got {detected_type} for {url}"
 
 
 class TestHandlerIntegration:
@@ -539,9 +536,7 @@ class TestHandlerIntegration:
         handler_types = set()
         for handler in handlers:
             handler_name = (
-                handler.__name__
-                if hasattr(handler, "__name__")
-                else handler.__class__.__name__
+                handler.__name__ if hasattr(handler, "__name__") else handler.__class__.__name__
             ).lower()
             if "youtube" in handler_name:
                 handler_types.add("youtube")
@@ -583,9 +578,7 @@ class TestHandlerIntegration:
                     handler = handler_class()
 
                 callback = handler.get_ui_callback()
-                assert callable(callback), (
-                    f"{handler_class.__name__} callback is not callable"
-                )
+                assert callable(callback), f"{handler_class.__name__} callback is not callable"
             except Exception as e:
                 # Skip handlers that can't be instantiated easily
                 print(f"Skipping {handler_class.__name__}: {e}")

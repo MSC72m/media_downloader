@@ -1,7 +1,7 @@
 """Subtitle checklist component for YouTube downloads."""
 
 from collections.abc import Callable, Iterator
-from typing import Any, Dict, List
+from typing import Any
 
 import customtkinter as ctk
 
@@ -18,7 +18,7 @@ class SubtitleChecklist(ctk.CTkFrame):
         self,
         master,
         placeholder: str = "No subtitles available",
-        on_change: Callable[[List[Dict[str, str]]], None] | None = None,
+        on_change: Callable[[list[dict[str, str]]], None] | None = None,
         height: int = 120,
         config: AppConfig = get_config(),
         **kwargs,
@@ -29,11 +29,11 @@ class SubtitleChecklist(ctk.CTkFrame):
         self.on_change = on_change
         self.height = height
         self.config = config
-        self.selected_options: List[str] = []
-        self.options: List[Dict[str, Any]] = []
-        self.checkboxes: Dict[str, ctk.CTkCheckBox] = {}
-        self.option_vars: Dict[str, ctk.BooleanVar] = {}
-        self._subtitle_generator: Iterator[Dict[str, Any]] | None = None
+        self.selected_options: list[str] = []
+        self.options: list[dict[str, Any]] = []
+        self.checkboxes: dict[str, ctk.CTkCheckBox] = {}
+        self.option_vars: dict[str, ctk.BooleanVar] = {}
+        self._subtitle_generator: Iterator[dict[str, Any]] | None = None
         self._batch_size: int = self.config.ui.subtitle_batch_size
         self._current_index: int = 0
 
@@ -126,8 +126,8 @@ class SubtitleChecklist(ctk.CTkFrame):
             logger.error(f"Error setting subtitle options: {e}", exc_info=True)
 
     def _subtitle_batch_generator(
-        self, subtitles: List[Dict[str, Any]]
-    ) -> Iterator[Dict[str, Any]]:
+        self, subtitles: list[dict[str, Any]]
+    ) -> Iterator[dict[str, Any]]:
         """Generator that yields subtitles in batches with offset/indexing.
 
         Args:
@@ -166,18 +166,13 @@ class SubtitleChecklist(ctk.CTkFrame):
                 return
 
             # Create options for this batch using list comprehension
-            [
-                self._create_option_item(subtitle, index)
-                for subtitle, index in batch_items
-            ]
+            [self._create_option_item(subtitle, index) for subtitle, index in batch_items]
 
             self._current_index += len(batch_items)
 
             # Schedule next batch if generator has more (check if we got full batch)
             if len(batch_items) == self._batch_size:
-                self.after(
-                    10, self._load_next_batch
-                )  # Small delay to keep UI responsive
+                self.after(10, self._load_next_batch)  # Small delay to keep UI responsive
             else:
                 self._update_status()
 
@@ -203,7 +198,7 @@ class SubtitleChecklist(ctk.CTkFrame):
         # Clear selections
         self.selected_options.clear()
 
-    def _create_option_item(self, option: Dict[str, Any], index: int):
+    def _create_option_item(self, option: dict[str, Any], index: int):
         """Create a single option item."""
         try:
             option_frame = ctk.CTkFrame(self.scrollable_frame, fg_color="transparent")
@@ -224,9 +219,7 @@ class SubtitleChecklist(ctk.CTkFrame):
                 text=display_text,
                 variable=var,
                 font=("Roboto", 10),
-                command=lambda oid=option_id, v=var: self._handle_option_change(
-                    oid, v.get()
-                ),
+                command=lambda oid=option_id, v=var: self._handle_option_change(oid, v.get()),
             )
             checkbox.pack(anchor="w")
 
@@ -316,7 +309,7 @@ class SubtitleChecklist(ctk.CTkFrame):
                     break
         return selected_dicts
 
-    def set_selected_subtitles(self, selected_ids: List[str]):
+    def set_selected_subtitles(self, selected_ids: list[str]):
         """Set currently selected subtitle IDs."""
         try:
             self.selected_options = list(selected_ids)

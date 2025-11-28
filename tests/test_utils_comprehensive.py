@@ -1,19 +1,25 @@
 """Comprehensive tests for utils to achieve 100% coverage."""
 
+import contextlib
 import os
 import tempfile
 from unittest.mock import Mock, patch
-from utils.common import (
-    sanitize_filename,
-    check_site_connection,
-    check_internet_connection,
+
+from src.services.file.sanitizer import FilenameSanitizer
+from src.services.network.checker import (
     check_all_services,
+    check_internet_connection,
+    check_site_connection,
     get_problem_services,
     is_service_connected,
-    download_file,
 )
-from utils.logger import get_logger
-from utils.window import WindowCenterMixin
+from src.services.network.downloader import download_file
+from src.utils.logger import get_logger
+from src.utils.window import WindowCenterMixin
+
+# Create sanitizer instance for testing
+sanitizer = FilenameSanitizer()
+sanitize_filename = sanitizer.sanitize_filename
 
 
 class TestCommonUtilsComprehensive:
@@ -26,10 +32,7 @@ class TestCommonUtilsComprehensive:
             sanitize_filename("Another_Video-Title with spaces")
             == "Another_Video-Title with spaces"
         )
-        assert (
-            sanitize_filename("  leading and trailing spaces  ")
-            == "leading and trailing spaces"
-        )
+        assert sanitize_filename("  leading and trailing spaces  ") == "leading and trailing spaces"
         assert sanitize_filename("file.name.with.dots") == "file.name.with.dots"
 
     def test_sanitize_filename_edge_cases(self):
@@ -39,10 +42,7 @@ class TestCommonUtilsComprehensive:
         assert sanitize_filename("!@#$%^&*()") == "__________"
         assert sanitize_filename("file with\nnewlines") == "file with\nnewlines"
         assert sanitize_filename("file with\ttabs") == "file with\ttabs"
-        assert (
-            sanitize_filename("file with\r\nwindows newlines")
-            == "file with\r\nwindows newlines"
-        )
+        assert sanitize_filename("file with\r\nwindows newlines") == "file with\r\nwindows newlines"
 
     def test_sanitize_filename_unicode(self):
         """Test filename sanitization with unicode."""
@@ -58,7 +58,7 @@ class TestCommonUtilsComprehensive:
         result = sanitize_filename(long_name)
         assert len(result) <= 245  # Should be truncated to safe length
 
-    @patch("utils.common.http.client.HTTPSConnection")
+    @patch("src.services.network.checker.http.client.HTTPSConnection")
     def test_check_site_connection_success(self, mock_conn):
         """Test successful site connection check."""
         mock_response = Mock()
@@ -69,8 +69,8 @@ class TestCommonUtilsComprehensive:
         assert success is True
         assert message == ""
 
-    @patch("utils.common.http.client.HTTPSConnection")
-    @patch("utils.common.socket.gethostbyname")
+    @patch("src.services.network.checker.http.client.HTTPSConnection")
+    @patch("src.services.network.checker.socket.gethostbyname")
     def test_check_site_connection_failure(self, mock_gethostbyname, mock_conn):
         """Test failed site connection check."""
         mock_conn.side_effect = Exception("Connection failed")
@@ -86,8 +86,8 @@ class TestCommonUtilsComprehensive:
         assert success is False
         assert "Unknown service" in message
 
-    @patch("utils.common.socket.create_connection")
-    @patch("utils.common.http.client.HTTPSConnection")
+    @patch("src.services.network.checker.socket.create_connection")
+    @patch("src.services.network.checker.http.client.HTTPSConnection")
     def test_check_internet_connection_success(self, mock_conn, mock_create_conn):
         """Test successful internet connection check."""
         mock_create_conn.return_value = None
@@ -99,7 +99,7 @@ class TestCommonUtilsComprehensive:
         assert success is True
         assert message == ""
 
-    @patch("utils.common.socket.create_connection")
+    @patch("src.services.network.checker.socket.create_connection")
     def test_check_internet_connection_failure(self, mock_create_conn):
         """Test failed internet connection check."""
         mock_create_conn.side_effect = OSError("No internet")
@@ -108,7 +108,7 @@ class TestCommonUtilsComprehensive:
         assert success is False
         assert "Cannot connect to network" in message
 
-    @patch("utils.common.check_site_connection")
+    @patch("src.utils.common.check_site_connection")
     def test_check_all_services(self, mock_check_site):
         """Test checking all services."""
         mock_check_site.return_value = (True, "Connected")
@@ -120,7 +120,7 @@ class TestCommonUtilsComprehensive:
         assert "Instagram" in results
         assert "Twitter" in results
 
-    @patch("utils.common.check_all_services")
+    @patch("src.utils.common.check_all_services")
     def test_get_problem_services(self, mock_check_all):
         """Test getting problem services."""
         mock_check_all.return_value = {
@@ -136,7 +136,7 @@ class TestCommonUtilsComprehensive:
         assert "Twitter" in problems
         assert "Google" not in problems
 
-    @patch("utils.common.check_site_connection")
+    @patch("src.utils.common.check_site_connection")
     def test_is_service_connected(self, mock_check_site):
         """Test service connection status."""
         mock_check_site.return_value = (True, "Connected")
@@ -146,7 +146,7 @@ class TestCommonUtilsComprehensive:
         mock_check_site.return_value = (False, "Failed")
         assert is_service_connected("Google") is False
 
-    @patch("utils.common.requests.Session")
+    @patch("src.utils.common.requests.Session")
     def test_download_file_success(self, mock_session):
         """Test successful file download."""
         mock_response = Mock()
@@ -224,7 +224,7 @@ class TestWindowUtilsComprehensive:
         mixin = WindowCenterMixin()
         assert mixin is not None
 
-    @patch("utils.window.tk")
+    @patch("src.utils.window.tk")
     def test_center_window_basic(self, mock_tk):
         """Test basic window centering."""
         # Mock tkinter classes
@@ -242,13 +242,10 @@ class TestWindowUtilsComprehensive:
         mixin.geometry = Mock()
 
         # Should not raise an error
-        try:
+        with contextlib.suppress(TypeError):
             mixin.center_window()
-        except TypeError:
-            # Expected since we're not using with Tk/Toplevel
-            pass
 
-    @patch("utils.window.tk")
+    @patch("src.utils.window.tk")
     def test_center_window_different_sizes(self, mock_tk):
         """Test window centering with different screen sizes."""
         # Mock tkinter classes
@@ -266,13 +263,10 @@ class TestWindowUtilsComprehensive:
         mixin.geometry = Mock()
 
         # Should not raise an error
-        try:
+        with contextlib.suppress(TypeError):
             mixin.center_window()
-        except TypeError:
-            # Expected since we're not using with Tk/Toplevel
-            pass
 
-    @patch("utils.window.tk")
+    @patch("src.utils.window.tk")
     def test_center_window_edge_cases(self, mock_tk):
         """Test window centering edge cases."""
         # Mock tkinter classes
@@ -290,13 +284,10 @@ class TestWindowUtilsComprehensive:
         mixin.geometry = Mock()
 
         # Should not raise an error
-        try:
+        with contextlib.suppress(TypeError):
             mixin.center_window()
-        except TypeError:
-            # Expected since we're not using with Tk/Toplevel
-            pass
 
-    @patch("utils.window.tk")
+    @patch("src.utils.window.tk")
     def test_center_window_zero_dimensions(self, mock_tk):
         """Test window centering with zero dimensions."""
         # Mock tkinter classes
@@ -314,13 +305,10 @@ class TestWindowUtilsComprehensive:
         mixin.geometry = Mock()
 
         # Should not raise an error
-        try:
+        with contextlib.suppress(TypeError):
             mixin.center_window()
-        except TypeError:
-            # Expected since we're not using with Tk/Toplevel
-            pass
 
-    @patch("utils.window.tk")
+    @patch("src.utils.window.tk")
     def test_center_window_no_master(self, mock_tk):
         """Test window centering without master window."""
         # Mock tkinter classes
@@ -339,8 +327,5 @@ class TestWindowUtilsComprehensive:
         mixin.geometry = Mock()
 
         # Should not raise an error
-        try:
+        with contextlib.suppress(TypeError):
             mixin.center_window()
-        except TypeError:
-            # Expected since we're not using with Tk/Toplevel
-            pass

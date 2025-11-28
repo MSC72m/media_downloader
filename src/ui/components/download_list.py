@@ -1,12 +1,12 @@
 import tkinter as tk
 from collections.abc import Callable
-from typing import List, Optional
+from typing import Optional
 
 import customtkinter as ctk
 
 from src.core import Download, DownloadStatus
 from src.core.enums.theme_event import ThemeEvent
-from src.ui.utils.theme_manager import get_theme_manager, ThemeManager
+from src.ui.utils.theme_manager import ThemeManager, get_theme_manager
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -28,9 +28,7 @@ class DownloadListView(ctk.CTkFrame):
         self._downloads: list[Download] = []  # Store actual Download objects
 
         # Subscribe to theme manager - injected with default
-        self._theme_manager = theme_manager or get_theme_manager(
-            master.winfo_toplevel()
-        )
+        self._theme_manager = theme_manager or get_theme_manager(master.winfo_toplevel())
         self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
 
         # Create text widget - clean modern design
@@ -205,14 +203,12 @@ class DownloadListView(ctk.CTkFrame):
         if self.on_selection_change:
             self.on_selection_change([])
 
-    def remove_downloads(self, indices: List[int]) -> None:
+    def remove_downloads(self, indices: list[int]) -> None:
         """Remove downloads by their indices and refresh the list."""
         if not indices:
             return
         # Remove from the stored list (work on a copy, remove highest indices first)
-        unique_indices = sorted(
-            set(i for i in indices if 0 <= i < len(self._downloads)), reverse=True
-        )
+        unique_indices = sorted({i for i in indices if 0 <= i < len(self._downloads)}, reverse=True)
         for i in unique_indices:
             del self._downloads[i]
         # Re-render list and rebuild line mapping
@@ -237,14 +233,10 @@ class DownloadListView(ctk.CTkFrame):
             logger.debug("[DOWNLOAD_LIST] No completed downloads to remove")
             return 0
 
-            logger.info(
-                f"[DOWNLOAD_LIST] Removing {len(completed_indices)} completed downloads"
-            )
+            logger.info(f"[DOWNLOAD_LIST] Removing {len(completed_indices)} completed downloads")
             self.remove_downloads(completed_indices)
         return len(completed_indices)
 
     def has_completed_downloads(self) -> bool:
         """Check if there are any completed downloads in the list."""
-        return any(
-            download.status == DownloadStatus.COMPLETED for download in self._downloads
-        )
+        return any(download.status == DownloadStatus.COMPLETED for download in self._downloads)

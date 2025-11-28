@@ -3,7 +3,7 @@
 import json
 import os
 import re
-from typing import Callable, Optional
+from collections.abc import Callable
 
 import requests
 from bs4 import BeautifulSoup
@@ -12,6 +12,7 @@ from bs4.element import Tag
 from src.core.config import get_config
 from src.core.enums import ServiceType
 from src.core.interfaces import BaseDownloader, IErrorNotifier, IFileService
+
 from ...utils.logger import get_logger
 from ..file.service import FileService
 from ..network.checker import check_site_connection
@@ -24,8 +25,8 @@ class PinterestDownloader(BaseDownloader):
 
     def __init__(
         self,
-        error_handler: Optional[IErrorNotifier] = None,
-        file_service: Optional[IFileService] = None,
+        error_handler: IErrorNotifier | None = None,
+        file_service: IFileService | None = None,
         config=None,
     ):
         """Initialize Pinterest downloader.
@@ -45,7 +46,7 @@ class PinterestDownloader(BaseDownloader):
         self,
         url: str,
         save_path: str,
-        progress_callback: Optional[Callable[[float, float], None]] = None,
+        progress_callback: Callable[[float, float], None] | None = None,
     ) -> bool:
         """
         Download media from Pinterest URLs.
@@ -100,13 +101,11 @@ class PinterestDownloader(BaseDownloader):
         except Exception as e:
             logger.error(f"Error downloading from Pinterest: {str(e)}", exc_info=True)
             if self.error_handler:
-                self.error_handler.handle_exception(
-                    e, "Pinterest download", "Pinterest"
-                )
+                self.error_handler.handle_exception(e, "Pinterest download", "Pinterest")
             return False
 
     @staticmethod
-    def _get_extension_from_url(url: str) -> Optional[str]:
+    def _get_extension_from_url(url: str) -> str | None:
         """Extract file extension from URL."""
         try:
             # Get the path from URL and extract extension
@@ -122,7 +121,7 @@ class PinterestDownloader(BaseDownloader):
         except Exception:
             return None
 
-    def _get_media_url(self, url: str) -> Optional[str]:
+    def _get_media_url(self, url: str) -> str | None:
         """Get media URL from Pinterest pin URL."""
         try:
             # Method 1: Try oembed endpoint
@@ -191,7 +190,5 @@ class PinterestDownloader(BaseDownloader):
         except Exception as e:
             logger.error(f"Error getting Pinterest media URL: {e}", exc_info=True)
             if self.error_handler:
-                self.error_handler.handle_exception(
-                    e, "Getting Pinterest media URL", "Pinterest"
-                )
+                self.error_handler.handle_exception(e, "Getting Pinterest media URL", "Pinterest")
             return None

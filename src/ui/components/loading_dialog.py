@@ -2,8 +2,8 @@
 
 import customtkinter as ctk
 
-from ...utils.window import WindowCenterMixin
 from ...utils.logger import get_logger
+from ...utils.window import WindowCenterMixin
 
 logger = get_logger(__name__)
 
@@ -117,10 +117,10 @@ class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         # Cancel scheduled animations
         if self._animation_id:
-            try:
+            import contextlib
+
+            with contextlib.suppress(Exception):
                 self.after_cancel(self._animation_id)
-            except Exception:
-                pass
             self._animation_id = None
 
     def _timeout(self):
@@ -135,10 +135,10 @@ class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         # Cancel timeout if still pending
         if self._timeout_id:
-            try:
+            import contextlib
+
+            with contextlib.suppress(Exception):
                 self.after_cancel(self._timeout_id)
-            except Exception:
-                pass
             self._timeout_id = None
 
         # Release grab and destroy in finally block

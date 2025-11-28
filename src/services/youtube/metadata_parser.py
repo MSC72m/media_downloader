@@ -1,7 +1,7 @@
 """YouTube metadata parser and formatter."""
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from src.core.config import AppConfig, get_config
 from src.core.interfaces import IParser
@@ -24,7 +24,7 @@ class YouTubeMetadataParser(IParser):
         self.config = config
         self.subtitle_parser = YouTubeSubtitleParser(config)
 
-    def validate(self, url: str, context: Optional[Dict[str, Any]] = None) -> bool:
+    def validate(self, url: str, context: dict[str, Any] | None = None) -> bool:
         """Validate if a YouTube URL is valid and processable.
 
         Args:
@@ -39,8 +39,8 @@ class YouTubeMetadataParser(IParser):
         return bool(_YOUTUBE_URL_PATTERN.search(url))
 
     def parse(
-        self, data: Dict[str, Any], context: Optional[Dict[str, Any]] = None
-    ) -> List[Dict[str, Any]]:
+        self, data: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
         """Parse metadata info dict into standardized format.
 
         Args:
@@ -51,16 +51,12 @@ class YouTubeMetadataParser(IParser):
             List containing a single parsed metadata dict
         """
         # Handle both direct info dict and wrapped format
-        info = (
-            data
-            if isinstance(data, dict) and "title" in data
-            else data.get("info", data)
-        )
+        info = data if isinstance(data, dict) and "title" in data else data.get("info", data)
 
         parsed = self.parse_info(info)
         return [parsed]
 
-    def parse_info(self, info: Dict[str, Any]) -> Dict[str, Any]:
+    def parse_info(self, info: dict[str, Any]) -> dict[str, Any]:
         """Parse yt-dlp info dict into standardized format.
 
         Args:
@@ -118,11 +114,11 @@ class YouTubeMetadataParser(IParser):
         except Exception:
             return "Unknown date"
 
-    def extract_qualities(self, info: Dict[str, Any]) -> List[str]:
+    def extract_qualities(self, info: dict[str, Any]) -> list[str]:
         """Return standard video qualities."""
         return self.config.youtube.supported_qualities
 
-    def extract_formats(self, info: Dict[str, Any]) -> List[str]:
+    def extract_formats(self, info: dict[str, Any]) -> list[str]:
         """Extract available format options.
 
         Returns user-friendly format names from config, not internal values.
@@ -131,7 +127,7 @@ class YouTubeMetadataParser(IParser):
         # Return user-friendly format names from config
         return self.config.ui.format_options
 
-    def extract_subtitles(self, info: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def extract_subtitles(self, info: dict[str, Any]) -> list[dict[str, Any]]:
         """Extract subtitle information from info dict.
 
         Returns empty list if no subtitles are available.

@@ -1,7 +1,7 @@
 """Minimal pytest configuration for 100% coverage testing."""
 
-import sys
 import os
+import sys
 from unittest.mock import Mock
 
 # Add src to path for all tests

@@ -2,17 +2,14 @@
 
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, List, Optional
 from urllib.parse import urlparse
 
 from src.core.config import AppConfig, get_config
-from src.core.models import Download
-from src.services.events.queue import Message
 from src.core.enums import ServiceType
 from src.core.enums.download_status import DownloadStatus
 from src.core.enums.message_level import MessageLevel
-from src.core.models import DownloadOptions
 from src.core.interfaces import (
     IAutoCookieManager,
     ICookieHandler,
@@ -21,10 +18,12 @@ from src.core.interfaces import (
     IErrorNotifier,
     IFileService,
     IMessageQueue,
+    INotifier,
     IServiceFactory,
     IUIState,
-    INotifier,
 )
+from src.core.models import Download, DownloadOptions
+from src.services.events.queue import Message
 from src.services.notifications.notifier import NotifierService
 from src.utils.logger import get_logger
 
@@ -39,9 +38,9 @@ class DownloadHandler(IDownloadHandler):
         file_service: IFileService,
         ui_state: IUIState,
         cookie_handler: ICookieHandler,
-        auto_cookie_manager: Optional[IAutoCookieManager] = None,
-        message_queue: Optional[IMessageQueue] = None,
-        error_handler: Optional[IErrorNotifier] = None,
+        auto_cookie_manager: IAutoCookieManager | None = None,
+        message_queue: IMessageQueue | None = None,
+        error_handler: IErrorNotifier | None = None,
         config: AppConfig = get_config(),
     ):
         self.config = config
@@ -69,7 +68,7 @@ class DownloadHandler(IDownloadHandler):
         """Add a download item."""
         self.download_service.add_download(download)
 
-    def remove_downloads(self, indices: List[int]) -> None:
+    def remove_downloads(self, indices: list[int]) -> None:
         """Remove download items by indices."""
         self.download_service.remove_downloads(indices)
 
@@ -77,7 +76,7 @@ class DownloadHandler(IDownloadHandler):
         """Clear all download items."""
         self.download_service.clear_downloads()
 
-    def get_downloads(self) -> List[Download]:
+    def get_downloads(self) -> list[Download]:
         """Get all download items."""
         return self.download_service.get_downloads() or []
 
@@ -88,10 +87,10 @@ class DownloadHandler(IDownloadHandler):
 
     def start_downloads(
         self,
-        downloads: List[Download],
-        download_dir: Optional[str] = None,
-        progress_callback: Optional[Callable[[Download, float], None]] = None,
-        completion_callback: Optional[Callable[[bool, Optional[str]], None]] = None,
+        downloads: list[Download],
+        download_dir: str | None = None,
+        progress_callback: Callable[[Download, float], None] | None = None,
+        completion_callback: Callable[[bool, str | None], None] | None = None,
     ) -> None:
         """Start downloads by delegating to appropriate service handlers."""
         if download_dir is None:
@@ -101,15 +100,11 @@ class DownloadHandler(IDownloadHandler):
         # Early return: validate inputs
         if not downloads:
             logger.warning("[DOWNLOAD_HANDLER] No downloads provided")
-            self._invoke_completion_callback(
-                completion_callback, False, "No downloads to process"
-            )
+            self._invoke_completion_callback(completion_callback, False, "No downloads to process")
             return
 
         # Validate and expand download directory
-        validated_dir = self._validate_download_directory(
-            download_dir, completion_callback
-        )
+        validated_dir = self._validate_download_directory(download_dir, completion_callback)
         if not validated_dir:
             return
 
@@ -132,25 +127,17 @@ class DownloadHandler(IDownloadHandler):
 
         try:
             # Use injected service factory (mandatory dependency)
-            logger.info(
-                f"[DOWNLOAD_HANDLER] Using service factory: {self.service_factory}"
-            )
+            logger.info(f"[DOWNLOAD_HANDLER] Using service factory: {self.service_factory}")
 
             # Create a downloader with the download's specific options
             service_type = self.service_factory.detect_service_type(download.url)
             logger.info(f"[DOWNLOAD_HANDLER] Detected service type: {service_type}")
 
             # Debug: Log all download attributes
-            logger.info(
-                f"[DOWNLOAD_HANDLER] Download object attributes: {download.__dict__}"
-            )
-            logger.info(
-                f"[DOWNLOAD_HANDLER] Has cookie_path: {hasattr(download, 'cookie_path')}"
-            )
+            logger.info(f"[DOWNLOAD_HANDLER] Download object attributes: {download.__dict__}")
+            logger.info(f"[DOWNLOAD_HANDLER] Has cookie_path: {hasattr(download, 'cookie_path')}")
             if hasattr(download, "cookie_path"):
-                logger.info(
-                    f"[DOWNLOAD_HANDLER] cookie_path value: {download.cookie_path}"
-                )
+                logger.info(f"[DOWNLOAD_HANDLER] cookie_path value: {download.cookie_path}")
 
             downloader = self.service_factory.get_downloader(download.url)
             if not downloader:
@@ -167,16 +154,10 @@ class DownloadHandler(IDownloadHandler):
 
             if service_type == ServiceType.YOUTUBE:
                 cookie_manager = self.cookie_handler
-                if (
-                    cookie_manager
-                    and hasattr(download, "cookie_path")
-                    and download.cookie_path
-                ):
+                if cookie_manager and hasattr(download, "cookie_path") and download.cookie_path:
                     try:
                         cookie_manager.set_cookie_file(download.cookie_path)
-                        logger.info(
-                            "[DOWNLOAD_HANDLER] Successfully set cookies for download"
-                        )
+                        logger.info("[DOWNLOAD_HANDLER] Successfully set cookies for download")
                     except Exception as e:
                         logger.error(f"[DOWNLOAD_HANDLER] Failed to set cookies: {e}")
                         if self.error_handler:
@@ -184,15 +165,11 @@ class DownloadHandler(IDownloadHandler):
                                 e, "Setting cookies for download", "Download Handler"
                             )
 
-            logger.info(
-                f"[DOWNLOAD_HANDLER] Downloader obtained: {type(downloader).__name__}"
-            )
+            logger.info(f"[DOWNLOAD_HANDLER] Downloader obtained: {type(downloader).__name__}")
 
             # Prepare download
             output_path = self._prepare_download_path(download, download_dir)
-            progress_wrapper = self._create_progress_wrapper(
-                download, progress_callback
-            )
+            progress_wrapper = self._create_progress_wrapper(download, progress_callback)
 
             # Execute download
             logger.info("[DOWNLOAD_HANDLER] Starting download...")
@@ -201,9 +178,7 @@ class DownloadHandler(IDownloadHandler):
                 save_path=output_path,
                 progress_callback=progress_wrapper,
             )
-            logger.info(
-                f"[DOWNLOAD_HANDLER] Download completed with success: {success}"
-            )
+            logger.info(f"[DOWNLOAD_HANDLER] Download completed with success: {success}")
 
             # Handle result with early return
             if not success:
@@ -223,9 +198,7 @@ class DownloadHandler(IDownloadHandler):
             )
             self._handle_download_failure(download, completion_callback, error_msg)
 
-    def _validate_download_directory(
-        self, download_dir: str, completion_callback
-    ) -> Optional[str]:
+    def _validate_download_directory(self, download_dir: str, completion_callback) -> str | None:
         """Validate and expand download directory. Returns validated path or None."""
         try:
             expanded_dir = Path(download_dir).expanduser().resolve()
@@ -236,9 +209,7 @@ class DownloadHandler(IDownloadHandler):
                 return str(expanded_dir)
 
             if not expanded_dir.is_dir():
-                logger.error(
-                    f"[DOWNLOAD_HANDLER] Path is not a directory: {expanded_dir}"
-                )
+                logger.error(f"[DOWNLOAD_HANDLER] Path is not a directory: {expanded_dir}")
                 self._invoke_completion_callback(
                     completion_callback,
                     False,
@@ -261,7 +232,7 @@ class DownloadHandler(IDownloadHandler):
 
     def _start_download_threads(
         self,
-        downloads: List[Download],
+        downloads: list[Download],
         download_dir: str,
         progress_callback,
         completion_callback,
@@ -314,9 +285,7 @@ class DownloadHandler(IDownloadHandler):
         base_name = self.file_service.clean_filename(download.name or "download")
         # Don't add extension - downloader will add it
         output_path = str(target_dir / base_name)
-        logger.info(
-            f"[DOWNLOAD_HANDLER] Output path (without extension): {output_path}"
-        )
+        logger.info(f"[DOWNLOAD_HANDLER] Output path (without extension): {output_path}")
         return output_path
 
     def _create_progress_wrapper(self, download: Download, progress_callback):
@@ -336,9 +305,7 @@ class DownloadHandler(IDownloadHandler):
         """Handle successful download completion."""
         logger.info(f"[DOWNLOAD_HANDLER] Successfully downloaded: {download.name}")
         download.update_progress(100.0, 0.0)
-        self._invoke_completion_callback(
-            completion_callback, True, f"Downloaded: {download.name}"
-        )
+        self._invoke_completion_callback(completion_callback, True, f"Downloaded: {download.name}")
 
     def _handle_download_failure(
         self, download: Download, completion_callback, message: str
@@ -352,9 +319,7 @@ class DownloadHandler(IDownloadHandler):
             )
         self._invoke_completion_callback(completion_callback, False, message)
 
-    def _invoke_completion_callback(
-        self, callback, success: bool, message: str
-    ) -> None:
+    def _invoke_completion_callback(self, callback, success: bool, message: str) -> None:
         """Safely invoke completion callback if available."""
         if not callback:
             return
@@ -377,7 +342,7 @@ class DownloadHandler(IDownloadHandler):
         self.ui_state.download_directory = options.save_directory
 
     # IDownloadHandler interface implementation
-    def process_url(self, url: str, options: Optional[dict] = None) -> bool:
+    def process_url(self, url: str, options: dict | None = None) -> bool:
         """Process a URL for download."""
         try:
             # Create download from URL
@@ -393,13 +358,9 @@ class DownloadHandler(IDownloadHandler):
             return True
 
         except Exception as e:
-            logger.error(
-                f"[DOWNLOAD_HANDLER] Failed to process URL {url}: {e}", exc_info=True
-            )
+            logger.error(f"[DOWNLOAD_HANDLER] Failed to process URL {url}: {e}", exc_info=True)
             if self.error_handler:
-                self.error_handler.handle_exception(
-                    e, "Processing URL", "Download Handler"
-                )
+                self.error_handler.handle_exception(e, "Processing URL", "Download Handler")
             return False
 
     def handle_download_error(self, error: Exception) -> None:
@@ -407,9 +368,7 @@ class DownloadHandler(IDownloadHandler):
         logger.error(f"[DOWNLOAD_HANDLER] Download error: {error}", exc_info=True)
 
         if self.error_handler:
-            self.error_handler.handle_exception(
-                error, "Download operation", "Download Handler"
-            )
+            self.error_handler.handle_exception(error, "Download operation", "Download Handler")
             return
 
         if self.message_queue:
@@ -422,9 +381,7 @@ class DownloadHandler(IDownloadHandler):
                     )
                 )
             except Exception as msg_error:
-                logger.error(
-                    f"[DOWNLOAD_HANDLER] Failed to show error message: {msg_error}"
-                )
+                logger.error(f"[DOWNLOAD_HANDLER] Failed to show error message: {msg_error}")
 
     def is_available(self) -> bool:
         """Check if handler is available."""

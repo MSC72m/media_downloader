@@ -1,22 +1,23 @@
 """Comprehensive tests for coordinators with proper dependency injection."""
 
+from unittest.mock import MagicMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, MagicMock, patch
 
 from src.coordinators.download_coordinator import DownloadCoordinator
 from src.coordinators.main_coordinator import EventCoordinator
 from src.coordinators.platform_dialog_coordinator import PlatformDialogCoordinator
-from src.core.models import Download, DownloadStatus
-from src.services.events.event_bus import DownloadEventBus
 from src.core.interfaces import (
+    ICookieHandler,
     IDownloadHandler,
     IDownloadService,
     IErrorNotifier,
-    ICookieHandler,
     IFileService,
-    INetworkChecker,
     IMessageQueue,
+    INetworkChecker,
 )
+from src.core.models import Download, DownloadStatus
+from src.services.events.event_bus import DownloadEventBus
 
 
 class MockDownloadHandler(IDownloadHandler):
@@ -129,9 +130,7 @@ class MockFileService(IFileService):
     def clean_filename(self, filename: str) -> str:
         return filename.replace("/", "_")
 
-    def get_unique_filename(
-        self, directory: str, base_name: str, extension: str
-    ) -> str:
+    def get_unique_filename(self, directory: str, base_name: str, extension: str) -> str:
         return f"{base_name}.{extension}"
 
     def ensure_directory(self, directory: str) -> bool:
@@ -284,9 +283,7 @@ class TestDownloadCoordinator:
         assert not coordinator.has_items()
 
         # Add a download
-        download_service.downloads = [
-            Download(url="https://test.com/video", name="test")
-        ]
+        download_service.downloads = [Download(url="https://test.com/video", name="test")]
         assert coordinator.has_items()
 
     def test_download_coordinator_has_active_downloads(self):

@@ -4,15 +4,15 @@ import re
 import threading
 import time
 from collections.abc import Callable
-from typing import Optional
 
 import customtkinter as ctk
 
-from src.core.config import get_config, AppConfig
+from src.core.config import AppConfig, get_config
 from src.core.enums.message_level import MessageLevel
-from src.core.models import Download
 from src.core.interfaces import IErrorNotifier, IMessageQueue, YouTubeMetadata
+from src.core.models import Download
 from src.services.events.queue import Message
+
 from ...utils.logger import get_logger
 from ...utils.window import WindowCenterMixin, close_loading_dialog
 from ..components.loading_dialog import LoadingDialog
@@ -33,8 +33,8 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         metadata_service=None,
         pre_fetched_metadata: YouTubeMetadata | None = None,
         initial_cookie_path: str | None = None,
-        error_handler: Optional[IErrorNotifier] = None,
-        message_queue: Optional[IMessageQueue] = None,
+        error_handler: IErrorNotifier | None = None,
+        message_queue: IMessageQueue | None = None,
         config: AppConfig = get_config(),
     ):
         super().__init__(parent)
@@ -79,10 +79,10 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         except Exception as e:
             logger.warning(f"Could not center window: {e}")
             # Set a default geometry if centering fails
-            try:
+            import contextlib
+
+            with contextlib.suppress(Exception):
                 self.geometry("700x900")
-            except Exception:
-                pass
 
         # Don't hide dialog yet - loading overlay needs visible parent
         # Show loading overlay immediately, then start fetch
@@ -94,11 +94,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
     def _poll_metadata_completion(self):
         """Poll for metadata completion from the main thread."""
         # Check for errors first
-        if (
-            self.video_metadata
-            and self.video_metadata.error
-            and not self._metadata_handler_called
-        ):
+        if self.video_metadata and self.video_metadata.error and not self._metadata_handler_called:
             logger.info("Metadata error detected - calling error handler")
             try:
                 self._handle_metadata_error()
@@ -188,9 +184,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
                     # Debug output
                     logger.debug(f"YouTube dialog fetch_metadata - url: {self.url}")
-                    logger.debug(
-                        f"YouTube dialog fetch_metadata - cookie_path: {cookie_path}"
-                    )
+                    logger.debug(f"YouTube dialog fetch_metadata - cookie_path: {cookie_path}")
 
                     # Fetch metadata with cookies and timeout protection
                     logger.info("Calling metadata_service.fetch_metadata...")
@@ -211,26 +205,19 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                             fetch_completed[0] = True
 
                     # Start fetch thread
-                    fetch_thread = threading.Thread(
-                        target=fetch_with_timeout, daemon=True
-                    )
+                    fetch_thread = threading.Thread(target=fetch_with_timeout, daemon=True)
                     fetch_thread.start()
 
                     # Wait for completion or timeout
                     timeout_seconds = 60  # 1 minute timeout
                     start_time = time.time()
 
-                    while (
-                        not fetch_completed[0]
-                        and (time.time() - start_time) < timeout_seconds
-                    ):
+                    while not fetch_completed[0] and (time.time() - start_time) < timeout_seconds:
                         time.sleep(self.config.ui.metadata_poll_interval)
 
                     # Check result
                     if not fetch_completed[0]:
-                        logger.error(
-                            f"Metadata fetch timed out after {timeout_seconds} seconds"
-                        )
+                        logger.error(f"Metadata fetch timed out after {timeout_seconds} seconds")
                         raise TimeoutError(
                             f"Metadata fetch timed out after {timeout_seconds} seconds"
                         )
@@ -239,9 +226,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                         raise metadata_error[0]
 
                     self.video_metadata = metadata_result[0]
-                    logger.info(
-                        f"Metadata fetch completed. Result: {self.video_metadata}"
-                    )
+                    logger.info(f"Metadata fetch completed. Result: {self.video_metadata}")
                     logger.info(f"Metadata type: {type(self.video_metadata)}")
 
                     if self.video_metadata and self.video_metadata.error:
@@ -257,9 +242,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                     # Signal that metadata is ready - the main thread polling will detect this
                     logger.info("Setting metadata ready flag for main thread polling")
                     self._metadata_ready = True
-                    logger.debug(
-                        "Metadata ready flag set, main thread polling will detect this"
-                    )
+                    logger.debug("Metadata ready flag set, main thread polling will detect this")
                 else:
                     error_msg = "No metadata service available"
                     if self.error_handler:
@@ -287,7 +270,9 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                     code = code_match.group(1)
                     error_msg = error_map.get(code, error_msg)
                 elif timeout_pattern.search(error_msg):
-                    error_msg = "Connection timed out. Please check your internet connection and try again."
+                    error_msg = (
+                        "Connection timed out. Please check your internet connection and try again."
+                    )
 
                 if not self.video_metadata:
                     self.video_metadata = YouTubeMetadata(
@@ -295,9 +280,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                     )
 
                 if self.error_handler:
-                    self.error_handler.handle_exception(
-                        e, "YouTube metadata fetch", "YouTube"
-                    )
+                    self.error_handler.handle_exception(e, "YouTube metadata fetch", "YouTube")
 
                 self._schedule_ui_update(self._handle_metadata_error)
 
@@ -322,9 +305,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         except Exception as e:
             logger.warning(f"Could not update idletasks in error handler: {e}")
 
-        error_msg = (
-            "Failed to fetch video metadata. Please check the URL and try again."
-        )
+        error_msg = "Failed to fetch video metadata. Please check the URL and try again."
         if self.video_metadata and self.video_metadata.error:
             error_msg = f"Failed to fetch video metadata: {self.video_metadata.error}"
 
@@ -626,9 +607,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         quality_frame = ctk.CTkFrame(options_frame, fg_color="transparent")
         quality_frame.pack(fill="x", padx=10, pady=8)
 
-        quality_label = ctk.CTkLabel(
-            quality_frame, text="Quality:", font=("Roboto", 11)
-        )
+        quality_label = ctk.CTkLabel(quality_frame, text="Quality:", font=("Roboto", 11))
         quality_label.pack(side="left", padx=(0, 10))
 
         self.quality_var = ctk.StringVar(value=self.config.youtube.default_quality)
@@ -675,9 +654,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.subtitle_frame = ctk.CTkFrame(options_frame, fg_color="transparent")
         self.subtitle_frame.pack(fill="x", padx=10, pady=8)
 
-        subtitle_label = ctk.CTkLabel(
-            self.subtitle_frame, text="Subtitles:", font=("Roboto", 11)
-        )
+        subtitle_label = ctk.CTkLabel(self.subtitle_frame, text="Subtitles:", font=("Roboto", 11))
         subtitle_label.pack(anchor="w", pady=(0, 5))
 
         self.subtitle_dropdown = SubtitleChecklist(
@@ -739,9 +716,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         speed_frame = ctk.CTkFrame(advanced_options_frame, fg_color="transparent")
         speed_frame.pack(fill="x", padx=10, pady=5)
 
-        speed_label = ctk.CTkLabel(
-            speed_frame, text="Speed Limit (KB/s):", font=("Roboto", 10)
-        )
+        speed_label = ctk.CTkLabel(speed_frame, text="Speed Limit (KB/s):", font=("Roboto", 10))
         speed_label.pack(side="left", padx=(0, 10))
 
         self.speed_limit_var = ctk.StringVar(value="")
@@ -768,9 +743,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         retry_entry.pack(side="left", padx=(0, 20))
 
         # Concurrent downloads
-        concurrent_label = ctk.CTkLabel(
-            retry_frame, text="Concurrent:", font=("Roboto", 10)
-        )
+        concurrent_label = ctk.CTkLabel(retry_frame, text="Concurrent:", font=("Roboto", 10))
         concurrent_label.pack(side="left", padx=(0, 10))
 
         self.concurrent_var = ctk.StringVar(value="1")

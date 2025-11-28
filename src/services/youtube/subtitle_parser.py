@@ -2,7 +2,7 @@
 
 import re
 from itertools import chain
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from src.core.config import AppConfig, get_config
 from src.core.interfaces import IParser
@@ -23,7 +23,7 @@ class YouTubeSubtitleParser(IParser):
     def __init__(self, config: AppConfig = get_config()):
         self.config = config
 
-    def validate(self, url: str, context: Optional[Dict[str, Any]] = None) -> bool:
+    def validate(self, url: str, context: dict[str, Any] | None = None) -> bool:
         """Validate if a subtitle URL is valid and downloadable.
 
         Args:
@@ -43,8 +43,8 @@ class YouTubeSubtitleParser(IParser):
         return self._is_valid_subtitle_url(url, video_id, language_code)
 
     def parse(
-        self, data: Dict[str, Any], context: Optional[Dict[str, Any]] = None
-    ) -> List[Dict[str, Any]]:
+        self, data: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
         """Parse subtitle dictionaries into formatted list.
 
         Args:
@@ -64,9 +64,7 @@ class YouTubeSubtitleParser(IParser):
 
         return self._parse_subtitles(subtitles, automatic_captions, video_id)
 
-    def _is_valid_subtitle_url(
-        self, url: str, video_id: str, language_code: str
-    ) -> bool:
+    def _is_valid_subtitle_url(self, url: str, video_id: str, language_code: str) -> bool:
         """Check if subtitle URL is actually valid and downloadable.
 
         CRITICAL: Only accept URLs where lang_code matches the 'lang=' parameter,
@@ -103,16 +101,12 @@ class YouTubeSubtitleParser(IParser):
         # Extract all lang= values - use set comprehension for O(1) lookup and deduplication
         lang_matches = _LANG_PARAM_PATTERN.findall(url_stripped)
         # Normalize efficiently: lowercase and take first part before & or # (no loops, direct string ops)
-        lang_values = {
-            m.lower().partition("&")[0].partition("#")[0] for m in lang_matches
-        }
+        lang_values = {m.lower().partition("&")[0].partition("#")[0] for m in lang_matches}
 
         # Extract all tlang= values - use set comprehension for O(1) lookup and deduplication
         tlang_matches = _TLANG_PARAM_PATTERN.findall(url_stripped)
         # Normalize efficiently: lowercase and take first part before & or # (no loops, direct string ops)
-        tlang_values = {
-            m.lower().partition("&")[0].partition("#")[0] for m in tlang_matches
-        }
+        tlang_values = {m.lower().partition("&")[0].partition("#")[0] for m in tlang_matches}
 
         # Accept if lang_code matches a 'lang=' parameter value (actual subtitle in any language)
         # Reject if it only matches 'tlang=' (translation option)
@@ -123,10 +117,10 @@ class YouTubeSubtitleParser(IParser):
 
     def _parse_subtitles(
         self,
-        subtitles: Dict[str, Any],
-        automatic_captions: Dict[str, Any],
+        subtitles: dict[str, Any],
+        automatic_captions: dict[str, Any],
         video_id: str,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Parse and validate subtitle dictionaries into formatted list.
 
         Args:
@@ -142,7 +136,7 @@ class YouTubeSubtitleParser(IParser):
         # Key: (language_code, is_auto_generated) - deduplicate same language+type combinations
         # This ensures we only keep one entry per language+auto combination
         seen: set[tuple[str, bool]] = set()
-        unique_result: List[Dict[str, Any]] = []
+        unique_result: list[dict[str, Any]] = []
 
         # Process both subtitle dicts via chain
         for lang_code, sub_list, is_auto in chain(
@@ -154,9 +148,7 @@ class YouTubeSubtitleParser(IParser):
                 continue
 
             sub_url = sub_list[0].get("url", "")
-            if not sub_url or not self._is_valid_subtitle_url(
-                sub_url, video_id, lang_code
-            ):
+            if not sub_url or not self._is_valid_subtitle_url(sub_url, video_id, lang_code):
                 continue
 
             # Normalize language code for deduplication (case-insensitive)

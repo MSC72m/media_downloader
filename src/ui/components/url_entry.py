@@ -1,12 +1,12 @@
 import re
 import tkinter as tk
 from collections.abc import Callable
-from typing import Optional
 
 import customtkinter as ctk
 
 from src.core.enums.theme_event import ThemeEvent
-from src.ui.utils.theme_manager import get_theme_manager, ThemeManager
+from src.ui.utils.theme_manager import ThemeManager, get_theme_manager
+
 from ..dialogs.input_dialog import CenteredInputDialog
 
 # Compiled regex patterns for efficient URL matching
@@ -19,11 +19,9 @@ class URLEntryFrame(ctk.CTkFrame):
     def __init__(
         self,
         master,
-        on_add: Callable[
-            [str, str], None
-        ],  # Callback signature: (url: str, name: str) -> None
+        on_add: Callable[[str, str], None],  # Callback signature: (url: str, name: str) -> None
         on_youtube_detected: Callable[[str], None] | None = None,
-        theme_manager: Optional[ThemeManager] = None,
+        theme_manager: ThemeManager | None = None,
     ):
         super().__init__(master, fg_color="transparent")
 
@@ -31,9 +29,7 @@ class URLEntryFrame(ctk.CTkFrame):
         self.on_youtube_detected = on_youtube_detected
 
         # Subscribe to theme manager - injected with default
-        self._theme_manager = theme_manager or get_theme_manager(
-            master.winfo_toplevel()
-        )
+        self._theme_manager = theme_manager or get_theme_manager(master.winfo_toplevel())
         self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
 
         # Configure grid
@@ -93,18 +89,14 @@ class URLEntryFrame(ctk.CTkFrame):
             # Extract plain color string - ensure it's a string, not tuple
             if isinstance(button_color, tuple):
                 button_color = (
-                    button_color[0]
-                    if isinstance(button_color[0], str)
-                    else str(button_color[0])
+                    button_color[0] if isinstance(button_color[0], str) else str(button_color[0])
                 )
             elif not isinstance(button_color, str):
                 button_color = str(button_color)
 
             if isinstance(hover_color, tuple):
                 hover_color = (
-                    hover_color[0]
-                    if isinstance(hover_color[0], str)
-                    else str(hover_color[0])
+                    hover_color[0] if isinstance(hover_color[0], str) else str(hover_color[0])
                 )
             elif not isinstance(hover_color, str):
                 hover_color = str(hover_color)
@@ -131,9 +123,7 @@ class URLEntryFrame(ctk.CTkFrame):
             self.clear()
             return
 
-        dialog = CenteredInputDialog(
-            text="Enter a name for this link:", title="Link Name"
-        )
+        dialog = CenteredInputDialog(text="Enter a name for this link:", title="Link Name")
         name = dialog.get_input()
 
         if name:

@@ -1,4 +1,6 @@
-from typing import Any, Callable, Optional, TypeVar
+from collections.abc import Callable
+from typing import Any, TypeVar
+
 from src.core.interfaces import (
     HasCleanupProtocol,
     HasClearProtocol,
@@ -13,7 +15,7 @@ logger = get_logger(__name__)
 T = TypeVar("T")
 
 
-def get_ui_context(ui_context: Any) -> Optional[UIContextProtocol]:
+def get_ui_context(ui_context: Any) -> UIContextProtocol | None:
     """Safely extract UI context (orchestrator or event coordinator).
 
     Args:
@@ -26,9 +28,7 @@ def get_ui_context(ui_context: Any) -> Optional[UIContextProtocol]:
     # Note: container attribute is optional as EventCoordinator might not have it
     if hasattr(ui_context, "root"):
         # Check for explicit methods or dynamic dispatch capability
-        if hasattr(ui_context, "platform_download") or hasattr(
-            ui_context, "youtube_download"
-        ):
+        if hasattr(ui_context, "platform_download") or hasattr(ui_context, "youtube_download"):
             return ui_context
 
         # Check if it has container (Orchestrator case) which might delegate
@@ -42,13 +42,11 @@ def get_ui_context(ui_context: Any) -> Optional[UIContextProtocol]:
     if hasattr(ui_context, "event_coordinator"):
         return ui_context.event_coordinator
 
-    logger.warning(
-        f"[TYPE_HELPER] ui_context is not a valid UIContextProtocol: {type(ui_context)}"
-    )
+    logger.warning(f"[TYPE_HELPER] ui_context is not a valid UIContextProtocol: {type(ui_context)}")
     return None
 
 
-def get_root(ui_context: Any) -> Optional[TkRootProtocol]:
+def get_root(ui_context: Any) -> TkRootProtocol | None:
     """Safely extract Tk root from UI context.
 
     Args:
@@ -63,9 +61,7 @@ def get_root(ui_context: Any) -> Optional[TkRootProtocol]:
     return None
 
 
-def get_platform_callback(
-    ui_context: Any, platform: str
-) -> Optional[Callable[[str], None]]:
+def get_platform_callback(ui_context: Any, platform: str) -> Callable[[str], None] | None:
     """Get platform-specific download callback.
 
     Args:
@@ -90,9 +86,7 @@ def get_platform_callback(
     return callback_map.get(platform)
 
 
-def schedule_on_main_thread(
-    root: Any, func: Callable[[], Any], immediate: bool = False
-) -> None:
+def schedule_on_main_thread(root: Any, func: Callable[[], Any], immediate: bool = False) -> None:
     """Schedule function on main thread if possible, otherwise execute immediately.
 
     Args:

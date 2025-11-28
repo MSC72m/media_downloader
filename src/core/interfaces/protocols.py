@@ -1,6 +1,7 @@
 """Protocol definitions for structural typing."""
 
-from typing import Any, Callable, Optional, Protocol, runtime_checkable
+from collections.abc import Callable
+from typing import Any, Protocol, runtime_checkable
 
 
 @runtime_checkable
@@ -18,7 +19,7 @@ class UIContextProtocol(Protocol):
 
     def pinterest_download(self, url: str, **kwargs) -> None: ...
 
-    def generic_download(self, url: str, name: Optional[str] = None) -> None: ...
+    def generic_download(self, url: str, name: str | None = None) -> None: ...
 
 
 @runtime_checkable
@@ -72,7 +73,7 @@ class TkRootProtocol(Protocol):
 class DownloadAttributesProtocol(Protocol):
     """Protocol for download objects with optional attributes."""
 
-    cookie_path: Optional[str]
+    cookie_path: str | None
     quality: str
     download_playlist: bool
     audio_only: bool

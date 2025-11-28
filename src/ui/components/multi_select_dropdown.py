@@ -1,7 +1,7 @@
 """Multi-select dropdown component with checkbox support."""
 
 from collections.abc import Callable
-from typing import Any, Dict, List
+from typing import Any
 
 import customtkinter as ctk
 
@@ -17,8 +17,8 @@ class MultiSelectDropdown(ctk.CTkFrame):
         self,
         master,
         placeholder: str = "Select items...",
-        options: List[Dict[str, Any]] = None,
-        on_change: Callable[[List[str]], None] | None = None,
+        options: list[dict[str, Any]] = None,
+        on_change: Callable[[list[str]], None] | None = None,
         width: int = 200,
         height: int = 30,
         **kwargs,
@@ -31,10 +31,10 @@ class MultiSelectDropdown(ctk.CTkFrame):
         self.width = width
         self.height = height
 
-        self.selected_options: List[str] = []
+        self.selected_options: list[str] = []
         self.dropdown_window: ctk.CTkToplevel | None = None
         self.is_open = False
-        self.checkboxes: Dict[str, ctk.CTkCheckBox] = {}
+        self.checkboxes: dict[str, ctk.CTkCheckBox] = {}
 
         self._create_widgets()
 
@@ -128,14 +128,14 @@ class MultiSelectDropdown(ctk.CTkFrame):
         except Exception:
             # If anything goes wrong, ensure we clean up
             if hasattr(self, "dropdown_window") and self.dropdown_window:
-                try:
+                import contextlib
+
+                with contextlib.suppress(Exception):
                     self.dropdown_window.destroy()
-                except Exception:
-                    pass
                 self.dropdown_window = None
             self.is_open = False
 
-    def _create_option_item(self, parent, option: Dict[str, Any], index: int):
+    def _create_option_item(self, parent, option: dict[str, Any], index: int):
         """Create a single option item with checkbox."""
         try:
             option_frame = ctk.CTkFrame(parent, fg_color="transparent")
@@ -154,9 +154,7 @@ class MultiSelectDropdown(ctk.CTkFrame):
                 text="",
                 variable=var,
                 width=20,
-                command=lambda oid=option_id, v=var: self._handle_option_change(
-                    oid, v.get()
-                ),
+                command=lambda oid=option_id, v=var: self._handle_option_change(oid, v.get()),
             )
             checkbox.pack(side="left", padx=(0, 10))
 
@@ -223,7 +221,7 @@ class MultiSelectDropdown(ctk.CTkFrame):
 
     def _deselect_all(self):
         """Deselect all options."""
-        for option_id, var in self.checkboxes.items():
+        for _option_id, var in self.checkboxes.items():
             var.set(False)
 
         self.selected_options.clear()
@@ -245,10 +243,10 @@ class MultiSelectDropdown(ctk.CTkFrame):
     def _close_dropdown(self):
         """Close the dropdown menu."""
         if self.dropdown_window:
-            try:
+            import contextlib
+
+            with contextlib.suppress(Exception):
                 self.dropdown_window.destroy()
-            except Exception:
-                pass
             self.dropdown_window = None
 
         # Clean up references
@@ -307,7 +305,7 @@ class MultiSelectDropdown(ctk.CTkFrame):
         """Get currently selected option IDs."""
         return self.selected_options.copy()
 
-    def set_selected_options(self, selected_ids: List[str]):
+    def set_selected_options(self, selected_ids: list[str]):
         """Set currently selected option IDs."""
         self.selected_options = selected_ids.copy()
         self._update_display_text()
@@ -329,15 +327,13 @@ class SubtitleMultiSelect(MultiSelectDropdown):
         height: int = 35,
         **kwargs,
     ):
-        super().__init__(
-            master, placeholder=placeholder, width=width, height=height, **kwargs
-        )
+        super().__init__(master, placeholder=placeholder, width=width, height=height, **kwargs)
 
         # Group options by auto/manual
-        self.auto_options: List[Dict[str, Any]] = []
-        self.manual_options: List[Dict[str, Any]] = []
+        self.auto_options: list[dict[str, Any]] = []
+        self.manual_options: list[dict[str, Any]] = []
 
-    def set_subtitle_options(self, subtitles: List[Dict[str, Any]]):
+    def set_subtitle_options(self, subtitles: list[dict[str, Any]]):
         """Set subtitle options from metadata."""
         options = []
         self.auto_options = []
@@ -378,7 +374,7 @@ class SubtitleMultiSelect(MultiSelectDropdown):
 
         self.set_options(options)
 
-    def _create_option_item(self, parent, option: Dict[str, Any], index: int):
+    def _create_option_item(self, parent, option: dict[str, Any], index: int):
         """Override to handle separator items."""
         if option.get("is_separator"):
             # Create separator line
@@ -390,7 +386,7 @@ class SubtitleMultiSelect(MultiSelectDropdown):
 
         super()._create_option_item(parent, option, index)
 
-    def get_selected_subtitles(self) -> List[Dict[str, str]]:
+    def get_selected_subtitles(self) -> list[dict[str, str]]:
         """Get selected subtitles as list of language codes and types."""
         selected = []
         for option_id in self.selected_options:

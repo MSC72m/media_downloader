@@ -13,8 +13,9 @@ def ensure_gui_available() -> bool:
     process.
     """
     try:
-        import customtkinter as _ctk  # noqa: F401
         import tkinter as _tk  # noqa: F401
+
+        import customtkinter as _ctk  # noqa: F401
 
         return True
     except Exception as e:
