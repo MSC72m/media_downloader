@@ -80,7 +80,7 @@ class YouTubeDownloader(BaseDownloader):
             "hls_prefer_native": True,
             "nocheckcertificate": True,
             "user_agent": self.config.network.user_agent,
-            "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
+            "extractor_args": {"youtube": {"player_client": ["android", "ios", "tv_embedded", "web"]}},  # Try multiple clients, Android first to match mobile cookies
             "writethumbnail": self.download_thumbnail,
             "embedmetadata": self.embed_metadata,
         }

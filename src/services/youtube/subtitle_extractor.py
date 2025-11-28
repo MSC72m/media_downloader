@@ -38,27 +38,32 @@ class YouTubeSubtitleExtractor:
         Returns:
             Dict with 'subtitles' and 'automatic_captions' keys
         """
-        # Try extraction with tv_embedded client (most reliable for subtitles)
-        opts = self._build_options(cookie_path, browser, "tv_embedded")
+        # Try multiple client types in order: android, ios, tv_embedded
+        clients_to_try = ["android", "ios", "tv_embedded"]
+        
+        for client in clients_to_try:
+            opts = self._build_options(cookie_path, browser, client)
+            logger.debug(f"[SUBTITLE_EXTRACTOR] Trying subtitle extraction with {client} client")
+            
+            try:
+                with yt_dlp.YoutubeDL(opts) as ydl:  # type: ignore
+                    info = ydl.extract_info(url, download=False)
+                    if info:
+                        subtitles = info.get("subtitles", {})
+                        automatic_captions = info.get("automatic_captions", {})
 
-        try:
-            with yt_dlp.YoutubeDL(opts) as ydl:  # type: ignore
-                info = ydl.extract_info(url, download=False)
-                if info:
-                    subtitles = info.get("subtitles", {})
-                    automatic_captions = info.get("automatic_captions", {})
-
-                    if subtitles or automatic_captions:
-                        logger.info(
-                            f"[SUBTITLE_EXTRACTOR] Found {len(subtitles)} manual and "
-                            f"{len(automatic_captions)} auto subtitles"
-                        )
-                        return {
-                            "subtitles": subtitles,
-                            "automatic_captions": automatic_captions,
-                        }
-        except Exception as e:
-            logger.debug(f"[SUBTITLE_EXTRACTOR] Subtitle extraction error: {e}")
+                        if subtitles or automatic_captions:
+                            logger.info(
+                                f"[SUBTITLE_EXTRACTOR] Found {len(subtitles)} manual and "
+                                f"{len(automatic_captions)} auto subtitles with {client} client"
+                            )
+                            return {
+                                "subtitles": subtitles,
+                                "automatic_captions": automatic_captions,
+                            }
+            except Exception as e:
+                logger.debug(f"[SUBTITLE_EXTRACTOR] {client} client subtitle extraction error: {e}")
+                continue
 
         # Fallback: Assume English auto captions are available
         logger.info("[SUBTITLE_EXTRACTOR] Using fallback - assuming English auto captions")
@@ -68,7 +73,7 @@ class YouTubeSubtitleExtractor:
         self,
         cookie_path: Optional[str] = None,
         browser: Optional[str] = None,
-        client: str = "tv_embedded",
+        client: str = "android",
     ) -> Dict[str, Any]:
         """Build yt-dlp options for subtitle extraction."""
         opts = {

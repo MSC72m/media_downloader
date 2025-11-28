@@ -158,7 +158,7 @@ class YouTubeHandler(BaseHandler, LinkHandlerInterface):
                 return
 
             # Early return if cookies are generating - reject URL
-            if self._is_cookie_generating():
+            if self._is_cookie_generating(ui_context):
                 logger.warning("[YOUTUBE_HANDLER] Cookies are being generated, rejecting URL")
                 self._show_cookie_generating_message(ui_context)
                 return
@@ -329,19 +329,33 @@ class YouTubeHandler(BaseHandler, LinkHandlerInterface):
         """
         return "music.youtube.com" in url.lower()
 
-    def _is_cookie_generating(self) -> bool:
+    def _is_cookie_generating(self, ui_context: Any) -> bool:
         """Check if cookies are currently being generated.
+        
+        Args:
+            ui_context: UI context (for potential future use)
         
         Returns:
             True if cookies are generating, False otherwise
         """
         # Check direct state first
         if self.auto_cookie_manager.is_generating():
+            logger.info("[YOUTUBE_HANDLER] Cookie manager reports cookies are generating")
             return True
         
         # Check state object for real-time updates
         state = self.auto_cookie_manager.get_state()
-        return state is not None and state.is_generating
+        if state is not None and state.is_generating:
+            logger.info("[YOUTUBE_HANDLER] Cookie state reports cookies are generating")
+            return True
+        
+        # Also check generator state directly for real-time updates
+        generator_state = self.auto_cookie_manager.generator.get_state()
+        if generator_state and generator_state.is_generating:
+            logger.info("[YOUTUBE_HANDLER] Cookie generator reports cookies are generating")
+            return True
+        
+        return False
 
     def _show_cookie_generating_message(self, ui_context: Any) -> None:
         """Show status bar message when cookies are being generated and reject URL.

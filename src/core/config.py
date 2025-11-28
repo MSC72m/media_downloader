@@ -29,8 +29,8 @@ class CookieConfig(BaseModel):
     wait_after_load: float = Field(default=1.0, description="Wait time after page load in seconds")
     wait_for_network_idle: float = Field(default=5.0, description="Wait time for network idle in seconds")
     scroll_delay: float = Field(default=0.5, description="Delay after scroll interaction in seconds")
-    viewport_width: int = Field(default=1920, description="Browser viewport width")
-    viewport_height: int = Field(default=1080, description="Browser viewport height")
+    viewport_width: int = Field(default=412, description="Browser viewport width (Android mobile)")
+    viewport_height: int = Field(default=915, description="Browser viewport height (Android mobile)")
 
 
 class PathConfig(BaseModel):
@@ -77,8 +77,8 @@ class NetworkConfig(BaseModel):
         description="Default user agent string"
     )
     cookie_user_agent: str = Field(
-        default="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        description="User agent for cookie generation"
+        default="Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+        description="User agent for cookie generation (Android mobile)"
     )
     minimal_user_agent: str = Field(
         default="Mozilla/5.0",

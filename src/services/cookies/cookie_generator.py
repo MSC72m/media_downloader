@@ -92,13 +92,33 @@ class CookieGenerator:
                     self._update_state(state)
                     return state
 
-                # Create incognito context
+                # Create incognito context with Android mobile settings
                 try:
+                    # Use mobile device emulation for Android with proper headers
                     context = await browser.new_context(
                         viewport={"width": self.config.cookies.viewport_width, "height": self.config.cookies.viewport_height},
                         user_agent=self.config.network.cookie_user_agent,
+                        device_scale_factor=3.0,  # Android high DPI
+                        is_mobile=True,  # Identify as mobile device
+                        has_touch=True,  # Touch screen support
+                        locale="en-US",
+                        timezone_id="America/New_York",
+                        # Set proper mobile headers
+                        extra_http_headers={
+                            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                            "Accept-Language": "en-US,en;q=0.9",
+                            "Accept-Encoding": "gzip, deflate, br",
+                            "DNT": "1",
+                            "Connection": "keep-alive",
+                            "Upgrade-Insecure-Requests": "1",
+                            "Sec-Fetch-Dest": "document",
+                            "Sec-Fetch-Mode": "navigate",
+                            "Sec-Fetch-Site": "none",
+                            "Sec-Fetch-User": "?1",
+                        },
                     )
                     page = await context.new_page()
+                    logger.info(f"[COOKIE_GENERATOR] Created Android mobile context (viewport: {self.config.cookies.viewport_width}x{self.config.cookies.viewport_height})")
                 except Exception as context_error:
                     error_msg = f"Failed to create browser context: {str(context_error)}"
                     logger.error(f"[COOKIE_GENERATOR] {error_msg}")
@@ -116,13 +136,15 @@ class CookieGenerator:
                 cookie_config = self.config.cookies
 
                 try:
+                    # Navigate to YouTube homepage first
                     await page.goto(
                         "https://www.youtube.com",
                         wait_until="domcontentloaded",
                         timeout=cookie_config.generation_timeout * 1000
                     )
-                    logger.info("[COOKIE_GENERATOR] YouTube loaded successfully")
+                    logger.info("[COOKIE_GENERATOR] YouTube homepage loaded")
 
+                    # Wait for page to fully load
                     await asyncio.sleep(cookie_config.wait_after_load)
 
                     try:
@@ -135,11 +157,56 @@ class CookieGenerator:
 
                     await asyncio.sleep(cookie_config.wait_after_load)
 
+                    # Simulate mobile user interactions on homepage
                     try:
-                        await page.evaluate("() => window.scrollTo(0, 100)")
+                        # Scroll down to trigger lazy loading and get more cookies
+                        await page.evaluate("() => window.scrollTo(0, 300)")
+                        await asyncio.sleep(cookie_config.scroll_delay)
+                        
+                        # Scroll back up
+                        await page.evaluate("() => window.scrollTo(0, 0)")
                         await asyncio.sleep(cookie_config.scroll_delay)
                     except Exception:
                         logger.debug("[COOKIE_GENERATOR] Scroll interaction failed, continuing")
+                    
+                    # Navigate to a popular video to get proper authentication cookies
+                    # Using a popular video that's likely to be available
+                    test_video_url = "https://www.youtube.com/watch?v=jNQXAC9IVRw"  # Popular test video
+                    logger.info(f"[COOKIE_GENERATOR] Navigating to video page: {test_video_url}")
+                    
+                    try:
+                        await page.goto(
+                            test_video_url,
+                            wait_until="domcontentloaded",
+                            timeout=cookie_config.generation_timeout * 1000
+                        )
+                        logger.info("[COOKIE_GENERATOR] Video page loaded successfully")
+
+                        # Wait for video page to fully load
+                        await asyncio.sleep(cookie_config.wait_after_load * 2)  # Longer wait for video page
+
+                        try:
+                            await page.wait_for_load_state(
+                                "networkidle",
+                                timeout=int(cookie_config.wait_for_network_idle * 1000)
+                            )
+                        except Exception:
+                            logger.debug("[COOKIE_GENERATOR] Video page network idle timeout, continuing")
+
+                        # Scroll on video page to trigger more cookie generation
+                        await page.evaluate("() => window.scrollTo(0, 200)")
+                        await asyncio.sleep(cookie_config.scroll_delay)
+                        
+                        # Scroll back
+                        await page.evaluate("() => window.scrollTo(0, 0)")
+                        await asyncio.sleep(cookie_config.scroll_delay)
+                        
+                        logger.info("[COOKIE_GENERATOR] Video page interactions completed")
+                    except Exception as video_error:
+                        logger.warning(f"[COOKIE_GENERATOR] Failed to navigate to video page: {video_error}, continuing with homepage cookies")
+                    
+                    # Final wait for all cookies to be set
+                    await asyncio.sleep(cookie_config.wait_after_load)
 
                 except Exception as e:
                     logger.error(f"[COOKIE_GENERATOR] Failed to navigate to YouTube: {e}")
@@ -166,6 +233,11 @@ class CookieGenerator:
                 google_cookies = [c for c in cookies if "google.com" in c.get("domain", "")]
                 logger.info(f"[COOKIE_GENERATOR] Retrieved {len(cookies)} total cookies ({len(youtube_cookies)} YouTube, {len(google_cookies)} Google)")
 
+                # Log important cookie names for debugging
+                important_cookies = ["VISITOR_INFO1_LIVE", "YSC", "PREF", "__Secure-YSC", "__Secure-3PSID", "__Secure-3PAPISID"]
+                found_important = [c.get("name") for c in youtube_cookies if c.get("name") in important_cookies]
+                logger.info(f"[COOKIE_GENERATOR] Important cookies found: {found_important}")
+
                 # Check if we have valid cookies
                 if not cookies or (not youtube_cookies and not google_cookies):
                     logger.warning("[COOKIE_GENERATOR] No valid cookies retrieved")
@@ -175,6 +247,14 @@ class CookieGenerator:
                     self._update_state(state)
                     await browser.close()
                     return state
+                
+                # Check for minimum required cookies
+                has_visitor_info = any(c.get("name") == "VISITOR_INFO1_LIVE" for c in youtube_cookies)
+                has_ysc = any(c.get("name") == "YSC" for c in youtube_cookies)
+                
+                if not has_visitor_info and not has_ysc:
+                    logger.warning("[COOKIE_GENERATOR] Missing critical cookies (VISITOR_INFO1_LIVE or YSC)")
+                    # Continue anyway - some cookies are better than none
 
                 # Save cookies to JSON file
                 try:

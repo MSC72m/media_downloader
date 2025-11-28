@@ -300,8 +300,8 @@ class ApplicationOrchestrator:
         if "status_bar" in components:
             sb = components["status_bar"]
             
-            def update_status_wrapper(msg: str, is_err: bool = False) -> None:
-                if is_err:
+            def update_status_wrapper(msg: str, is_error: bool = False) -> None:
+                if is_error:
                     sb.show_error(msg)
                 else:
                     sb.show_message(msg)
