@@ -95,10 +95,11 @@ class YouTubeDownloader(BaseDownloader):
             options["writeautomaticsub"] = True
             options["subtitlesformat"] = "srt"  # Request SRT format directly
             # Extract language codes from selected subtitles
+            # Only use actual language codes, no default fallback
             subtitle_langs = [
-                sub.get("language_code", sub.get("id", "en"))
+                sub.get("language_code") or sub.get("id")
                 for sub in self.selected_subtitles
-                if isinstance(sub, dict)
+                if isinstance(sub, dict) and (sub.get("language_code") or sub.get("id"))
             ]
             if subtitle_langs:
                 options["subtitleslangs"] = subtitle_langs

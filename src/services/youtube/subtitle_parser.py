@@ -126,46 +126,56 @@ class YouTubeSubtitleParser(IParser):
             
         Returns:
             List of validated subtitle dicts with language_code, language_name, 
-            is_auto_generated, and url fields. Duplicates removed.
+            is_auto_generated, and url fields. Duplicates removed using set-based deduplication.
         """
-        # Single list comprehension processing both dicts via chain
-        # CRITICAL: Only include subtitles with valid, downloadable YouTube API URLs
-        result = [
-            {
-                "language_code": lang_code,
-                "language_name": (
+        # Use set for efficient O(1) duplicate detection
+        # Key: (language_code, is_auto_generated) - deduplicate same language+type combinations
+        # This ensures we only keep one entry per language+auto combination
+        seen: set[tuple[str, bool]] = set()
+        unique_result: List[Dict[str, Any]] = []
+        
+        # Process both subtitle dicts via chain
+        for lang_code, sub_list, is_auto in chain(
+            ((lang, sub_list, False) for lang, sub_list in subtitles.items()),
+            ((lang, sub_list, True) for lang, sub_list in automatic_captions.items()),
+        ):
+            # Skip invalid entries
+            if not (sub_list and isinstance(sub_list, list) and len(sub_list) > 0):
+                continue
+            
+            sub_url = sub_list[0].get("url", "")
+            if not sub_url or not self._is_valid_subtitle_url(sub_url, video_id, lang_code):
+                continue
+            
+            # Normalize language code for deduplication (case-insensitive)
+            normalized_lang = lang_code.lower()
+            dedup_key = (normalized_lang, is_auto)
+            
+            # Only add if not seen before (O(1) lookup with set)
+            if dedup_key not in seen:
+                seen.add(dedup_key)
+                language_name = (
                     f"{self._get_language_name(lang_code)} (Auto)"
                     if is_auto
                     else self._get_language_name(lang_code)
-                ),
-                "is_auto_generated": is_auto,
-                "url": sub_url,
-            }
-            for lang_code, sub_list, is_auto in chain(
-                ((lang, sub_list, False) for lang, sub_list in subtitles.items()),
-                ((lang, sub_list, True) for lang, sub_list in automatic_captions.items()),
-            )
-            if (sub_list
-                and isinstance(sub_list, list)
-                and len(sub_list) > 0
-                and (sub_url := sub_list[0].get("url", ""))
-                and self._is_valid_subtitle_url(sub_url, video_id, lang_code))
-        ]
+                )
+                unique_result.append({
+                    "id": lang_code,  # Use language_code as ID for UI components
+                    "language_code": lang_code,
+                    "language_name": language_name,
+                    "display": language_name,  # For UI display
+                    "is_auto_generated": is_auto,
+                    "is_auto": is_auto,  # Alias for compatibility
+                    "url": sub_url,
+                })
         
-        # Remove duplicates using set - deduplicate by (language_code, is_auto_generated) tuple
-        seen = set()
-        unique_result = []
-        for item in result:
-            # Create unique key: (language_code, is_auto_generated)
-            key = (item["language_code"], item["is_auto_generated"])
-            if key not in seen:
-                seen.add(key)
-                unique_result.append(item)
+        total_processed = len(subtitles) + len(automatic_captions)
+        duplicates_removed = total_processed - len(unique_result)
         
         logger.info(
             f"[YOUTUBE_SUBTITLE_PARSER] Extracted {len(unique_result)} unique valid subtitles "
             f"(from {len(subtitles)} manual, {len(automatic_captions)} auto raw entries, "
-            f"{len(result) - len(unique_result)} duplicates removed)"
+            f"{duplicates_removed} duplicates removed)"
         )
         return unique_result
 
