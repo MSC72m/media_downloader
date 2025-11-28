@@ -63,6 +63,14 @@ class CookieManager:
                         needs_regeneration = True
                         self._state.is_valid = False
                         self._state.error_message = "Cookie file validation failed"
+                    # Also check if cookie age exceeds configured expiry
+                    elif self._state.generated_at:
+                        age_hours = (datetime.now() - self._state.generated_at).total_seconds() / 3600
+                        if age_hours >= self.config.cookies.cookie_expiry_hours:
+                            logger.warning(f"[COOKIE_MANAGER] Cookie age ({age_hours:.1f}h) exceeds configured expiry ({self.config.cookies.cookie_expiry_hours}h), marking for regeneration")
+                            needs_regeneration = True
+                            self._state.is_valid = False
+                            self._state.error_message = f"Cookie age ({age_hours:.1f}h) exceeds expiry time"
             
             if needs_regeneration:
                 logger.info("[COOKIE_MANAGER] Cookies need regeneration")
@@ -114,7 +122,27 @@ class CookieManager:
             self.initialize()
 
         with self._lock:
+            # Check if cookies need regeneration (expired, invalid, missing, or too old)
             if not self._state or not self._state.is_valid or self._state.should_regenerate():
+                # Delete old cookie files before regenerating
+                if self._state and self._state.cookie_path:
+                    old_cookie_path = Path(self._state.cookie_path)
+                    if old_cookie_path.exists():
+                        try:
+                            old_cookie_path.unlink()
+                            logger.info(f"[COOKIE_MANAGER] Deleted expired cookie file: {old_cookie_path}")
+                        except Exception as e:
+                            logger.warning(f"[COOKIE_MANAGER] Failed to delete old cookie file: {e}")
+                
+                # Also delete JSON cookie file if it exists
+                json_cookie_file = self.storage_dir / self.config.cookies.cookie_file_name
+                if json_cookie_file.exists():
+                    try:
+                        json_cookie_file.unlink()
+                        logger.info(f"[COOKIE_MANAGER] Deleted expired JSON cookie file: {json_cookie_file}")
+                    except Exception as e:
+                        logger.warning(f"[COOKIE_MANAGER] Failed to delete JSON cookie file: {e}")
+                
                 logger.info("[COOKIE_MANAGER] No valid cookies available, triggering generation")
                 try:
                     loop = asyncio.get_event_loop()

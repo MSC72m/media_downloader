@@ -12,6 +12,7 @@ from playwright.async_api import async_playwright
 from src.core.config import get_config, AppConfig
 from src.core.models import CookieState
 from src.utils.logger import get_logger
+from src.utils.user_agent_rotator import get_random_user_agent
 
 logger = get_logger(__name__)
 
@@ -94,10 +95,14 @@ class CookieGenerator:
 
                 # Create incognito context with Android mobile settings
                 try:
+                    # Get random user agent for each cookie generation
+                    user_agent = get_random_user_agent()
+                    logger.info(f"[COOKIE_GENERATOR] Using random user agent: {user_agent[:50]}...")
+                    
                     # Use mobile device emulation for Android with proper headers
                     context = await browser.new_context(
                         viewport={"width": self.config.cookies.viewport_width, "height": self.config.cookies.viewport_height},
-                        user_agent=self.config.network.cookie_user_agent,
+                        user_agent=user_agent,
                         device_scale_factor=3.0,  # Android high DPI
                         is_mobile=True,  # Identify as mobile device
                         has_touch=True,  # Touch screen support

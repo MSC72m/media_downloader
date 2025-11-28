@@ -32,13 +32,28 @@ class CookieState(BaseModel):
         return datetime.now() >= self.expires_at
 
     def should_regenerate(self) -> bool:
-        """Check if cookies should be regenerated."""
-        return (
-            not self.is_valid
-            or self.is_expired()
-            or not self.cookie_path
-            or not Path(self.cookie_path).exists()
-        )
+        """Check if cookies should be regenerated.
+        
+        Also checks if cookie age exceeds configured expiry time.
+        """
+        from src.core.config import get_config
+        
+        # Basic checks
+        if not self.is_valid or not self.cookie_path or not Path(self.cookie_path).exists():
+            return True
+        
+        # Check if expired based on expires_at
+        if self.is_expired():
+            return True
+        
+        # Check if cookie age exceeds configured expiry hours
+        config = get_config()
+        if self.generated_at:
+            age_hours = (datetime.now() - self.generated_at).total_seconds() / 3600
+            if age_hours >= config.cookies.cookie_expiry_hours:
+                return True
+        
+        return False
 
 
 class Download(BaseModel):
