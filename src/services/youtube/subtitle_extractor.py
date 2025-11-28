@@ -1,7 +1,7 @@
 """YouTube subtitle extractor using yt-dlp library."""
 
+import re
 from typing import Any, Dict, Optional
-from urllib.parse import parse_qs, urlparse
 
 import yt_dlp
 
@@ -85,23 +85,24 @@ class YouTubeSubtitleExtractor:
                             return False
                         
                         # CRITICAL: Only accept if lang_code matches 'lang=' parameter (actual subtitle)
-                        # NOT 'tlang=' (translation option). Must parse URL properly to avoid false matches.
-                        try:
-                            parsed = urlparse(url_stripped)
-                            params = parse_qs(parsed.query)
-                            lang_params = [l.lower() for l in params.get("lang", [])]
-                            tlang_params = [t.lower() for t in params.get("tlang", [])]
-                            
-                            base_lang = lang_code.split("-")[0].lower()
-                            # Only accept if lang_code matches a 'lang=' parameter value (actual subtitle)
-                            # Reject if it only matches 'tlang=' (translation option)
-                            lang_matches = base_lang in lang_params
-                            tlang_only = base_lang in tlang_params and not lang_matches
-                            
-                            return lang_matches and not tlang_only
-                        except Exception:
-                            # If URL parsing fails, fall back to strict rejection
-                            return False
+                        # NOT 'tlang=' (translation option). Use regex for efficient single-pass matching.
+                        # Accept ALL actual subtitles (English, Spanish, French, etc.) - only reject translations.
+                        base_lang = lang_code.split("-")[0].lower()
+                        
+                        # Single regex pattern to check both lang= and tlang= in one pass (more efficient)
+                        # Pattern: (?i) ensures case-insensitive, captures lang value, checks for tlang separately
+                        # Match lang=XX (not preceded by t) - this is the actual subtitle language
+                        lang_match_pattern = re.compile(rf'[?&]lang=({re.escape(base_lang)})(?:[&"\']|$)', re.IGNORECASE)
+                        # Match tlang=XX - this is a translation option
+                        tlang_match_pattern = re.compile(rf'[?&]tlang=({re.escape(base_lang)})(?:[&"\']|$)', re.IGNORECASE)
+                        
+                        # Check if lang_code matches lang= parameter (actual subtitle in any language)
+                        lang_matches = bool(lang_match_pattern.search(url_stripped))
+                        # Check if lang_code only matches tlang= (translation option, not actual subtitle)
+                        tlang_only = bool(tlang_match_pattern.search(url_stripped)) and not lang_matches
+                        
+                        # Accept if it's an actual subtitle (lang= matches), reject if it's only a translation (tlang= only)
+                        return lang_matches and not tlang_only
                     
                     valid_subtitles = {
                         lang: sub_list

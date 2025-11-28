@@ -244,9 +244,10 @@ class MediaDownloaderApp(ctk.CTk):
         # Download List
         self.download_list = DownloadListView(
             self.main_frame,
-            on_selection_change=lambda sel: self.action_buttons.set_enabled(True)
-            if sel
-            else None,
+            on_selection_change=lambda sel: self.action_buttons.update_button_states(
+                has_selection=len(sel) > 0,
+                has_items=len(coord.downloads.get_downloads()) > 0
+            ),
         )
 
         # Action Buttons - wire directly to coordinator
