@@ -1,20 +1,58 @@
 """YouTube metadata parser and formatter."""
 
 import re
-from itertools import chain
 from typing import Any, Dict, List, Optional
 
 from src.core.config import AppConfig, get_config
+from src.interfaces.parser import IParser
+from src.services.youtube.subtitle_parser import YouTubeSubtitleParser
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# YouTube URL patterns for validation
+_YOUTUBE_URL_PATTERN = re.compile(
+    r'(?:youtube\.com/(?:watch\?v=|embed/|v/)|youtu\.be/)([a-zA-Z0-9_-]{11})',
+    re.IGNORECASE
+)
 
-class YouTubeMetadataParser:
+
+class YouTubeMetadataParser(IParser):
     """Parses and formats YouTube metadata from yt-dlp info dict."""
 
     def __init__(self, config: AppConfig = get_config()):
         self.config = config
+        self.subtitle_parser = YouTubeSubtitleParser(config)
+
+    def validate(self, url: str, context: Optional[Dict[str, Any]] = None) -> bool:
+        """Validate if a YouTube URL is valid and processable.
+        
+        Args:
+            url: YouTube URL to validate
+            context: Optional context dictionary (not used for URL validation)
+            
+        Returns:
+            True if URL is a valid YouTube URL, False otherwise
+        """
+        if not url or not isinstance(url, str):
+            return False
+        return bool(_YOUTUBE_URL_PATTERN.search(url))
+
+    def parse(self, data: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """Parse metadata info dict into standardized format.
+        
+        Args:
+            data: Raw info dict from yt-dlp (or dict with 'info' key)
+            context: Optional context dictionary (not currently used)
+            
+        Returns:
+            List containing a single parsed metadata dict
+        """
+        # Handle both direct info dict and wrapped format
+        info = data if isinstance(data, dict) and "title" in data else data.get("info", data)
+        
+        parsed = self.parse_info(info)
+        return [parsed]
 
     def parse_info(self, info: Dict[str, Any]) -> Dict[str, Any]:
         """Parse yt-dlp info dict into standardized format.
@@ -94,89 +132,15 @@ class YouTubeMetadataParser:
         If no subtitles are selected in UI, it's automatically treated as "None".
         Only returns subtitles with valid, downloadable URLs containing video ID or timedtext pattern.
         """
-        # Chain both subtitle dicts and process in a single loop
         manual_subs = info.get("subtitles", {}) or {}
         auto_subs = info.get("automatic_captions", {}) or {}
         video_id = info.get("id", "")
         
-        # Helper function for strict validation - only real YouTube subtitle API URLs
-        def _is_valid_subtitle_url(url: str, vid_id: str, lang_code: str) -> bool:
-            """Check if subtitle URL is actually valid and downloadable.
-            
-            CRITICAL: Only accept URLs where lang_code matches the 'lang=' parameter,
-            NOT 'tlang='. 'tlang=' indicates translation options, not actual subtitles.
-            """
-            if not url or not isinstance(url, str):
-                return False
-            
-            url_stripped = url.strip()
-            # Must be valid YouTube subtitle API URL with ALL required components
-            if not (url_stripped.startswith("https://www.youtube.com/api/timedtext")
-                    and len(url_stripped) > 100  # Real YouTube subtitle URLs are much longer
-                    and vid_id in url_stripped  # Must contain video ID
-                    and "timedtext" in url_stripped  # Must be timedtext API
-                    and "fmt=" in url_stripped):  # Must have format parameter
-                return False
-            
-            # CRITICAL: Only accept if lang_code matches 'lang=' parameter (actual subtitle)
-            # NOT 'tlang=' (translation option). Use regex for efficient single-pass matching.
-            # Accept ALL actual subtitles (English, Spanish, French, etc.) - only reject translations.
-            base_lang = lang_code.split("-")[0].lower()
-            
-            # Single regex pattern to check both lang= and tlang= in one pass (more efficient)
-            # Pattern: (?i) ensures case-insensitive, captures lang value, checks for tlang separately
-            # Match lang=XX (not preceded by t) - this is the actual subtitle language
-            lang_match_pattern = re.compile(rf'[?&]lang=({re.escape(base_lang)})(?:[&"\']|$)', re.IGNORECASE)
-            # Match tlang=XX - this is a translation option
-            tlang_match_pattern = re.compile(rf'[?&]tlang=({re.escape(base_lang)})(?:[&"\']|$)', re.IGNORECASE)
-            
-            # Check if lang_code matches lang= parameter (actual subtitle in any language)
-            lang_matches = bool(lang_match_pattern.search(url_stripped))
-            # Check if lang_code only matches tlang= (translation option, not actual subtitle)
-            tlang_only = bool(tlang_match_pattern.search(url_stripped)) and not lang_matches
-            
-            # Accept if it's an actual subtitle (lang= matches), reject if it's only a translation (tlang= only)
-            return lang_matches and not tlang_only
-        
-        # Single list comprehension processing both dicts via chain
-        # CRITICAL: Only include subtitles with valid, downloadable YouTube API URLs
-        # YouTube returns entries for all languages, but most don't have actual subtitle files
-        # Config languages are ONLY for translation/mapping, NOT for showing all languages
-        result = [
-            {
-                "language_code": lang_code,
-                "language_name": (
-                    f"{self._get_language_name(lang_code)} (Auto)"
-                    if is_auto
-                    else self._get_language_name(lang_code)
-                ),
-                "is_auto_generated": is_auto,
-                "url": sub_url,
-            }
-            for lang_code, sub_list, is_auto in chain(
-                ((lang, sub_list, False) for lang, sub_list in manual_subs.items()),
-                ((lang, sub_list, True) for lang, sub_list in auto_subs.items()),
-            )
-            if (sub_list
-                and isinstance(sub_list, list)
-                and len(sub_list) > 0
-                and (sub_url := sub_list[0].get("url", ""))
-                and _is_valid_subtitle_url(sub_url, video_id, lang_code))
-        ]
-        
-        logger.info(
-            f"[METADATA_PARSER] Extracted {len(result)} valid subtitles "
-            f"(from {len(manual_subs)} manual, {len(auto_subs)} auto raw entries)"
-        )
-        return result
-
-    def _get_language_name(self, lang_code: str) -> str:
-        """Convert language code to readable language name.
-        
-        Returns full language name from config if available,
-        otherwise returns the language code itself (not uppercase).
-        Config languages are only for translation/mapping, not for showing all languages.
-        """
-        base_code = lang_code.split("-")[0].lower()
-        return self.config.youtube.supported_languages.get(base_code, lang_code)
+        # Delegate to subtitle parser using generic interface
+        data = {
+            "subtitles": manual_subs,
+            "automatic_captions": auto_subs,
+        }
+        context = {"video_id": video_id}
+        return self.subtitle_parser.parse(data, context)
 

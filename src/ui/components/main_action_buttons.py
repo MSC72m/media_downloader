@@ -152,16 +152,8 @@ class ActionButtonBar(ctk.CTkFrame):
 
         logger.debug(f"[ACTION_BUTTONS] Setting download_button to: {download_state}")
         self.download_button.configure(state=download_state)
-
-    def update_button_states(self, has_selection: bool, has_items: bool):
-        """Update button states based on selection and items."""
-        # Simple, direct button state management
-        remove_state = "normal" if has_selection else "disabled"
-        clear_state = "normal" if has_items else "disabled"
-        download_state = (
-            "normal" if (has_items and not self._download_in_progress) else "disabled"
-        )
-
-        self.remove_button.configure(state=remove_state)
-        self.clear_button.configure(state=clear_state)
-        self.download_button.configure(state=download_state)
+        
+        # Also update manage_files_button state (should be disabled if no items)
+        manage_state = "normal" if has_items else "disabled"
+        logger.debug(f"[ACTION_BUTTONS] Setting manage_files_button to: {manage_state}")
+        self.manage_files_button.configure(state=manage_state)

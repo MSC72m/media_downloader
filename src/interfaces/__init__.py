@@ -1,6 +1,7 @@
 """Abstraction layer interfaces for the media downloader application."""
 
 from .cookie_detection import BrowserType, ICookieDetector, ICookieManager, PlatformType
+from .parser import IParser
 from .protocols import (
     HasCleanupProtocol,
     HasClearProtocol,
@@ -34,6 +35,8 @@ __all__ = [
     "ICookieManager",
     "BrowserType",
     "PlatformType",
+    # Parser
+    "IParser",
     # YouTube Metadata
     "IYouTubeMetadataService",
     "SubtitleInfo",
