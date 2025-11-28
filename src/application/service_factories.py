@@ -3,6 +3,7 @@
 from typing import Any
 
 from src.application.di_container import ServiceContainer
+from src.application.service_factory import ServiceFactory
 from src.coordinators.error_notifier import ErrorNotifier
 from src.coordinators.main_coordinator import EventCoordinator
 from src.core.config import AppConfig
@@ -10,7 +11,6 @@ from src.core.interfaces import (
     IAutoCookieManager,
     ICookieHandler,
     IDownloadHandler,
-    IDownloadService,
     IErrorNotifier,
     IFileService,
     IMessageQueue,
@@ -21,7 +21,6 @@ from src.core.interfaces import (
 from src.handlers.cookie_handler import CookieHandler
 from src.handlers.download_handler import DownloadHandler
 from src.handlers.network_checker import NetworkChecker
-from src.services.downloads import DownloadService, ServiceFactory
 from src.services.instagram import InstagramAuthManager
 from src.services.youtube.metadata_service import YouTubeMetadataService
 
@@ -82,15 +81,9 @@ class ServiceFactoryRegistry:
             config=config,
         )
 
-    def create_download_service(self) -> DownloadService:
-        """Factory for DownloadService."""
-        service_factory = self.container.get(IServiceFactory)
-        return DownloadService(service_factory)
-
     def create_download_handler(self) -> DownloadHandler:
         """Factory for DownloadHandler."""
         return DownloadHandler(
-            download_service=self.container.get(IDownloadService),
             service_factory=self.container.get(IServiceFactory),
             file_service=self.container.get(IFileService),
             ui_state=self.container.get(IUIState),
@@ -110,7 +103,6 @@ class ServiceFactoryRegistry:
             file_service=self.container.get(IFileService),
             network_checker=self.container.get(INetworkChecker),
             cookie_handler=self.container.get(ICookieHandler),
-            download_service=self.container.get(IDownloadService),
             message_queue=self.container.get_optional(IMessageQueue),
             downloads_folder=downloads_folder,
             instagram_auth_manager=instagram_auth_manager,

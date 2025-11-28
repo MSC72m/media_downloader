@@ -11,27 +11,9 @@ from typing import (
 )
 
 from src.core.config import AppConfig, get_config
-from src.core.models import Download, DownloadOptions
 
 if TYPE_CHECKING:
     from src.core.enums import ServiceType
-
-
-@runtime_checkable
-class IDownloadService(Protocol):
-    def add_download(self, download: Download) -> None: ...
-
-    def remove_downloads(self, indices: list[int]) -> None: ...
-
-    def clear_downloads(self) -> None: ...
-
-    def get_downloads(self) -> list[Download]: ...
-
-    def start_download(self, download: Download, options: DownloadOptions) -> None: ...
-
-    def pause_download(self, download: Download) -> None: ...
-
-    def cancel_download(self, download: Download) -> None: ...
 
 
 @runtime_checkable

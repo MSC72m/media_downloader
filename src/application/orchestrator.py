@@ -11,7 +11,6 @@ from src.core.interfaces import (
     IAutoCookieManager,
     ICookieHandler,
     IDownloadHandler,
-    IDownloadService,
     IErrorNotifier,
     IFileService,
     IMessageQueue,
@@ -105,9 +104,6 @@ class ApplicationOrchestrator:
         )
         self.container.register_singleton(
             IServiceFactory, self.factory_registry.create_service_factory
-        )
-        self.container.register_singleton(
-            IDownloadService, self.factory_registry.create_download_service
         )
 
     def _register_coordinators(self) -> None:

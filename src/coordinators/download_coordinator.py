@@ -6,7 +6,6 @@ from src.core.config import AppConfig, get_config
 from src.core.enums.message_level import MessageLevel
 from src.core.interfaces import (
     IDownloadHandler,
-    IDownloadService,
     IErrorNotifier,
     IMessageQueue,
 )
@@ -29,7 +28,6 @@ class DownloadCoordinator:
         event_bus: DownloadEventBus,
         download_handler: IDownloadHandler,
         error_handler: IErrorNotifier,
-        download_service: IDownloadService,
         message_queue: IMessageQueue | None = None,
         ui_callbacks: dict[str, Callable] | None = None,
         config: AppConfig = get_config(),
@@ -39,7 +37,6 @@ class DownloadCoordinator:
         self.event_bus = event_bus
         self.download_handler = download_handler
         self.error_handler = error_handler
-        self.download_service = download_service
         self.message_queue = message_queue
         self.ui_callbacks = ui_callbacks or {}
 
@@ -98,8 +95,8 @@ class DownloadCoordinator:
         refresh_callback = self._get_ui_callback("refresh_download_list")
         if refresh_callback:
             try:
-                # Get downloads from the service (source of truth)
-                downloads = self.download_service.get_downloads()
+                # Get downloads from the handler (source of truth)
+                downloads = self.download_handler.get_downloads()
                 refresh_callback(downloads)
                 logger.debug(f"[DOWNLOAD_COORDINATOR] Refreshed UI with {len(downloads)} downloads")
             except Exception as e:
@@ -340,9 +337,9 @@ class DownloadCoordinator:
             logger.error("[DOWNLOAD_COORDINATOR] Download handler not available")
 
     def get_downloads(self) -> list[Download]:
-        """Get all downloads via the download service."""
+        """Get all downloads via the download handler."""
         try:
-            return self.download_service.get_downloads() or []
+            return self.download_handler.get_downloads() or []
         except Exception as e:
             logger.error(f"[DOWNLOAD_COORDINATOR] Error getting downloads: {e}", exc_info=True)
             if self.error_handler:

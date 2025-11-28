@@ -9,7 +9,6 @@ from src.core.enums.message_level import MessageLevel
 from src.core.interfaces import (
     ICookieHandler,
     IDownloadHandler,
-    IDownloadService,
     IErrorNotifier,
     IFileService,
     IMessageQueue,
@@ -51,7 +50,6 @@ class EventCoordinator:
         file_service: IFileService,
         network_checker: INetworkChecker,
         cookie_handler: ICookieHandler,
-        download_service: IDownloadService,
         message_queue: IMessageQueue | None = None,
         downloads_folder: str | None = None,
         config: AppConfig | None = None,
@@ -71,7 +69,6 @@ class EventCoordinator:
         self.file_service = file_service
         self.network_checker = network_checker
         self.cookie_handler = cookie_handler
-        self.download_service = download_service
         self.message_queue = message_queue
         self.downloads_folder = downloads_folder
 
@@ -87,7 +84,6 @@ class EventCoordinator:
             event_bus=self.event_bus,
             download_handler=download_handler,
             error_handler=self.error_handler,
-            download_service=self.download_service,
             message_queue=self.message_queue,
         )
         # Platform dialog coordinator needs orchestrator reference for UI components

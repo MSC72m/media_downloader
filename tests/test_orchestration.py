@@ -9,7 +9,6 @@ from src.core.interfaces import (
     IAutoCookieManager,
     ICookieHandler,
     IDownloadHandler,
-    IDownloadService,
     IErrorNotifier,
     IFileService,
     IMessageQueue,
@@ -61,31 +60,6 @@ class MockDownloadHandler(IDownloadHandler):
         progress_callback=None,
         completion_callback=None,
     ) -> None:
-        pass
-
-    def cancel_download(self, download) -> None:
-        pass
-
-
-class MockDownloadService(IDownloadService):
-    """Mock download service for testing."""
-
-    def get_downloads(self) -> list:
-        return []
-
-    def add_download(self, download) -> None:
-        pass
-
-    def remove_downloads(self, indices: list) -> None:
-        pass
-
-    def clear_downloads(self) -> None:
-        pass
-
-    def start_download(self, download, options=None) -> None:
-        pass
-
-    def pause_download(self, download) -> None:
         pass
 
     def cancel_download(self, download) -> None:
@@ -229,7 +203,6 @@ class TestApplicationOrchestrator:
         # Check that core interfaces are registered
         assert container.has(IErrorNotifier)
         assert container.has(IDownloadHandler)
-        assert container.has(IDownloadService)
         assert container.has(IFileService)
         assert container.has(ICookieHandler)
         assert container.has(IMetadataService)
@@ -249,7 +222,6 @@ class TestApplicationOrchestrator:
         # Should be able to resolve all dependencies
         error_handler = container.get(IErrorNotifier)
         download_handler = container.get(IDownloadHandler)
-        download_service = container.get(IDownloadService)
         file_service = container.get(IFileService)
         cookie_handler = container.get(ICookieHandler)
         metadata_service = container.get(IMetadataService)
@@ -261,7 +233,6 @@ class TestApplicationOrchestrator:
         # Verify we got the right types
         assert isinstance(error_handler, IErrorNotifier)
         assert isinstance(download_handler, IDownloadHandler)
-        assert isinstance(download_service, IDownloadService)
         assert isinstance(file_service, IFileService)
         assert isinstance(cookie_handler, ICookieHandler)
         assert isinstance(metadata_service, IMetadataService)
@@ -388,7 +359,6 @@ class TestOrchestratorIntegration:
         from src.coordinators.error_handler import ErrorHandler
         from src.handlers.download_handler import DownloadHandler
         from src.handlers.network_checker import NetworkChecker
-        from src.services.downloads import DownloadService
         from src.services.file import FileService
 
         mock_root = MagicMock()
@@ -397,20 +367,17 @@ class TestOrchestratorIntegration:
         container = orchestrator.container
 
         # Override some services with real implementations
-        container.register_singleton(IDownloadService, DownloadService)
         container.register_singleton(IFileService, FileService)
         container.register_singleton(INetworkChecker, NetworkChecker)
         container.register_singleton(IDownloadHandler, DownloadHandler)
         container.register_singleton(IErrorNotifier, ErrorHandler)
 
         # Should be able to resolve real services
-        download_service = container.get(IDownloadService)
         file_service = container.get(IFileService)
         network_checker = container.get(INetworkChecker)
         download_handler = container.get(IDownloadHandler)
         error_handler = container.get(IErrorNotifier)
 
-        assert isinstance(download_service, DownloadService)
         assert isinstance(file_service, FileService)
         assert isinstance(network_checker, NetworkChecker)
         assert isinstance(download_handler, DownloadHandler)
@@ -419,7 +386,7 @@ class TestOrchestratorIntegration:
     @patch("customtkinter.CTk")
     def test_orchestrator_service_factory_integration(self, mock_ctk):
         """Test service factory integration with orchestrator."""
-        from src.services.downloads import ServiceFactory
+        from src.application.service_factory import ServiceFactory
 
         mock_root = MagicMock()
 
@@ -462,7 +429,7 @@ class TestOrchestratorIntegration:
         try:
             orchestrator.container.get(IErrorNotifier)
             orchestrator.container.get(IDownloadHandler)
-            orchestrator.container.get(IDownloadService)
+            orchestrator.container.get(IDownloadHandler)
             orchestrator.container.get(IFileService)
             orchestrator.container.get(ICookieHandler)
             orchestrator.container.get(IMetadataService)

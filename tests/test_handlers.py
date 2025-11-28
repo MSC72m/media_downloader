@@ -181,24 +181,24 @@ class TestHandlerRegistration:
 
         for handler in handlers:
             # Check for required methods from LinkHandlerInterface
-            assert hasattr(handler, "can_handle"), (
-                f"{handler.__class__.__name__} missing can_handle"
-            )
-            assert hasattr(handler, "get_patterns"), (
-                f"{handler.__class__.__name__} missing get_patterns"
-            )
-            assert hasattr(handler, "get_ui_callback"), (
-                f"{handler.__class__.__name__} missing get_ui_callback"
-            )
-            assert callable(handler.can_handle), (
-                f"{handler.__class__.__name__}.can_handle is not callable"
-            )
-            assert callable(handler.get_patterns), (
-                f"{handler.__class__.__name__}.get_patterns is not callable"
-            )
-            assert callable(handler.get_ui_callback), (
-                f"{handler.__class__.__name__}.get_ui_callback is not callable"
-            )
+            assert hasattr(
+                handler, "can_handle"
+            ), f"{handler.__class__.__name__} missing can_handle"
+            assert hasattr(
+                handler, "get_patterns"
+            ), f"{handler.__class__.__name__} missing get_patterns"
+            assert hasattr(
+                handler, "get_ui_callback"
+            ), f"{handler.__class__.__name__} missing get_ui_callback"
+            assert callable(
+                handler.can_handle
+            ), f"{handler.__class__.__name__}.can_handle is not callable"
+            assert callable(
+                handler.get_patterns
+            ), f"{handler.__class__.__name__}.get_patterns is not callable"
+            assert callable(
+                handler.get_ui_callback
+            ), f"{handler.__class__.__name__}.get_ui_callback is not callable"
 
 
 class TestYouTubeHandler:
@@ -428,21 +428,15 @@ class TestDownloadHandler:
         from src.handlers.download_handler import DownloadHandler
 
         # Create mock dependencies
-        mock_download_service = Mock()
-        mock_download_service.has_downloads.return_value = False
-        mock_download_service.get_downloads.return_value = []
-
         mock_file_service = MockFileService()
         mock_ui_state = MockUIState()
 
         handler = DownloadHandler(
-            download_service=mock_download_service,
             service_factory=Mock(),
             file_service=mock_file_service,
             ui_state=mock_ui_state,
+            cookie_handler=Mock(),
         )
-
-        assert handler.download_service is mock_download_service
         assert handler.file_service is mock_file_service
         assert handler.ui_state is mock_ui_state
 
@@ -451,19 +445,14 @@ class TestDownloadHandler:
         from src.handlers.download_handler import DownloadHandler
 
         # Create mock dependencies
-        mock_download_service = Mock()
-        mock_download_service.has_downloads.return_value = False
-        mock_download_service.get_downloads.return_value = []
-        mock_download_service.add_download = Mock()
-
         mock_file_service = MockFileService()
         mock_ui_state = MockUIState()
 
         handler = DownloadHandler(
-            download_service=mock_download_service,
             service_factory=Mock(),
             file_service=mock_file_service,
             ui_state=mock_ui_state,
+            cookie_handler=Mock(),
         )
 
         # Test interface methods
@@ -474,7 +463,7 @@ class TestDownloadHandler:
         # Test process_url
         result = handler.process_url("https://example.com/video")
         assert isinstance(result, bool)
-        mock_download_service.add_download.assert_called_once()
+        assert len(handler.get_downloads()) == 1
 
         # Test is_available
         available = handler.is_available()
@@ -485,18 +474,14 @@ class TestDownloadHandler:
         from src.handlers.download_handler import DownloadHandler
 
         # Create mock dependencies
-        mock_download_service = Mock()
-        mock_download_service.has_downloads.return_value = False
-        mock_download_service.get_downloads.return_value = []
-
         mock_file_service = MockFileService()
         mock_ui_state = MockUIState()
 
         handler = DownloadHandler(
-            download_service=mock_download_service,
             service_factory=Mock(),
             file_service=mock_file_service,
             ui_state=mock_ui_state,
+            cookie_handler=Mock(),
         )
 
         # Test URL type detection
@@ -511,9 +496,9 @@ class TestDownloadHandler:
 
         for url, expected_type in test_cases:
             detected_type = handler._detect_service_type(url)
-            assert detected_type == expected_type, (
-                f"Expected {expected_type}, got {detected_type} for {url}"
-            )
+            assert (
+                detected_type == expected_type
+            ), f"Expected {expected_type}, got {detected_type} for {url}"
 
 
 class TestHandlerIntegration:

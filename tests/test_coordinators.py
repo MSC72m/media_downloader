@@ -10,7 +10,6 @@ from src.coordinators.platform_dialog_coordinator import PlatformDialogCoordinat
 from src.core.interfaces import (
     ICookieHandler,
     IDownloadHandler,
-    IDownloadService,
     IErrorNotifier,
     IFileService,
     IMessageQueue,
@@ -53,34 +52,6 @@ class MockDownloadHandler(IDownloadHandler):
         completion_callback=None,
     ) -> None:
         self.started_downloads.extend(downloads)
-
-    def cancel_download(self, download: Download) -> None:
-        pass
-
-
-class MockDownloadService(IDownloadService):
-    """Mock download service for testing."""
-
-    def __init__(self):
-        self.downloads = []
-
-    def get_downloads(self) -> list:
-        return self.downloads.copy()
-
-    def add_download(self, download: Download) -> None:
-        self.downloads.append(download)
-
-    def remove_downloads(self, indices: list) -> None:
-        pass
-
-    def clear_downloads(self) -> None:
-        self.downloads.clear()
-
-    def start_download(self, download: Download, options=None) -> None:
-        pass
-
-    def pause_download(self, download: Download) -> None:
-        pass
 
     def cancel_download(self, download: Download) -> None:
         pass
@@ -198,21 +169,18 @@ class TestDownloadCoordinator:
         event_bus = DownloadEventBus(None)
         download_handler = MockDownloadHandler()
         error_handler = MockErrorHandler()
-        download_service = MockDownloadService()
         message_queue = MockMessageQueue()
 
         coordinator = DownloadCoordinator(
             event_bus=event_bus,
             download_handler=download_handler,
             error_handler=error_handler,
-            download_service=download_service,
             message_queue=message_queue,
         )
 
         assert coordinator.event_bus is event_bus
         assert coordinator.download_handler is download_handler
         assert coordinator.error_handler is error_handler
-        assert coordinator.download_service is download_service
         assert coordinator.message_queue is message_queue
 
     def test_download_coordinator_add_download(self):
@@ -220,14 +188,12 @@ class TestDownloadCoordinator:
         event_bus = DownloadEventBus(None)
         download_handler = MockDownloadHandler()
         error_handler = MockErrorHandler()
-        download_service = MockDownloadService()
         message_queue = MockMessageQueue()
 
         coordinator = DownloadCoordinator(
             event_bus=event_bus,
             download_handler=download_handler,
             error_handler=error_handler,
-            download_service=download_service,
             message_queue=message_queue,
         )
 
@@ -242,21 +208,19 @@ class TestDownloadCoordinator:
         event_bus = DownloadEventBus(None)
         download_handler = MockDownloadHandler()
         error_handler = MockErrorHandler()
-        download_service = MockDownloadService()
         message_queue = MockMessageQueue()
 
         coordinator = DownloadCoordinator(
             event_bus=event_bus,
             download_handler=download_handler,
             error_handler=error_handler,
-            download_service=download_service,
             message_queue=message_queue,
         )
 
         # Add some downloads to the service
         download1 = Download(url="https://example.com/video1", name="Video 1")
         download2 = Download(url="https://example.com/video2", name="Video 2")
-        download_service.downloads = [download1, download2]
+        download_handler.downloads = [download1, download2]
 
         downloads = coordinator.get_downloads()
         assert len(downloads) == 2
@@ -268,14 +232,12 @@ class TestDownloadCoordinator:
         event_bus = DownloadEventBus(None)
         download_handler = MockDownloadHandler()
         error_handler = MockErrorHandler()
-        download_service = MockDownloadService()
         message_queue = MockMessageQueue()
 
         coordinator = DownloadCoordinator(
             event_bus=event_bus,
             download_handler=download_handler,
             error_handler=error_handler,
-            download_service=download_service,
             message_queue=message_queue,
         )
 
@@ -283,7 +245,7 @@ class TestDownloadCoordinator:
         assert not coordinator.has_items()
 
         # Add a download
-        download_service.downloads = [Download(url="https://test.com/video", name="test")]
+        download_handler.downloads = [Download(url="https://test.com/video", name="test")]
         assert coordinator.has_items()
 
     def test_download_coordinator_has_active_downloads(self):
@@ -291,14 +253,12 @@ class TestDownloadCoordinator:
         event_bus = DownloadEventBus(None)
         download_handler = MockDownloadHandler()
         error_handler = MockErrorHandler()
-        download_service = MockDownloadService()
         message_queue = MockMessageQueue()
 
         coordinator = DownloadCoordinator(
             event_bus=event_bus,
             download_handler=download_handler,
             error_handler=error_handler,
-            download_service=download_service,
             message_queue=message_queue,
         )
 
@@ -309,14 +269,14 @@ class TestDownloadCoordinator:
         completed_download = Download(
             url="https://test.com/video", name="test", status=DownloadStatus.COMPLETED
         )
-        download_service.downloads = [completed_download]
+        download_handler.downloads = [completed_download]
         assert not coordinator.has_active_downloads()
 
         # Active download
         active_download = Download(
             url="https://test.com/video", name="test", status=DownloadStatus.DOWNLOADING
         )
-        download_service.downloads = [active_download]
+        download_handler.downloads = [active_download]
         assert coordinator.has_active_downloads()
 
     def test_download_coordinator_start_downloads(self):
@@ -324,14 +284,12 @@ class TestDownloadCoordinator:
         event_bus = DownloadEventBus(None)
         download_handler = MockDownloadHandler()
         error_handler = MockErrorHandler()
-        download_service = MockDownloadService()
         message_queue = MockMessageQueue()
 
         coordinator = DownloadCoordinator(
             event_bus=event_bus,
             download_handler=download_handler,
             error_handler=error_handler,
-            download_service=download_service,
             message_queue=message_queue,
         )
 
@@ -351,7 +309,6 @@ class TestDownloadCoordinator:
         event_bus = DownloadEventBus(None)
         download_handler = MockDownloadHandler()
         error_handler = MockErrorHandler()
-        download_service = MockDownloadService()
         message_queue = MockMessageQueue()
 
         ui_callbacks = {
@@ -365,7 +322,6 @@ class TestDownloadCoordinator:
             event_bus=event_bus,
             download_handler=download_handler,
             error_handler=error_handler,
-            download_service=download_service,
             message_queue=message_queue,
             ui_callbacks=ui_callbacks,
         )
@@ -376,7 +332,7 @@ class TestDownloadCoordinator:
 
         # Test refresh callback
         test_downloads = [Download(url="https://test.com/video", name="test")]
-        download_service.downloads = test_downloads
+        download_handler.downloads = test_downloads
         coordinator._refresh_ui_after_event()
         ui_callbacks["refresh_download_list"].assert_called_once_with(test_downloads)
 
@@ -385,14 +341,12 @@ class TestDownloadCoordinator:
         event_bus = DownloadEventBus(None)
         download_handler = MockDownloadHandler()
         error_handler = MockErrorHandler()
-        download_service = MockDownloadService()
         message_queue = MockMessageQueue()
 
         coordinator = DownloadCoordinator(
             event_bus=event_bus,
             download_handler=download_handler,
             error_handler=error_handler,
-            download_service=download_service,
             message_queue=message_queue,
         )
 
@@ -419,7 +373,6 @@ class TestEventCoordinator:
         file_service = MockFileService()
         network_checker = MockNetworkChecker()
         cookie_handler = MockCookieHandler()
-        download_service = MockDownloadService()
         message_queue = MockMessageQueue()
 
         coordinator = EventCoordinator(
@@ -429,7 +382,6 @@ class TestEventCoordinator:
             file_service=file_service,
             network_checker=network_checker,
             cookie_handler=cookie_handler,
-            download_service=download_service,
             message_queue=message_queue,
         )
 
@@ -439,7 +391,6 @@ class TestEventCoordinator:
         assert coordinator.file_service is file_service
         assert coordinator.network_checker is network_checker
         assert coordinator.cookie_handler is cookie_handler
-        assert coordinator.download_service is download_service
         assert coordinator.message_queue is message_queue
 
     @patch("customtkinter.CTk")
@@ -451,7 +402,6 @@ class TestEventCoordinator:
         file_service = MockFileService()
         network_checker = MockNetworkChecker()
         cookie_handler = MockCookieHandler()
-        download_service = MockDownloadService()
         message_queue = MockMessageQueue()
 
         coordinator = EventCoordinator(
@@ -461,7 +411,6 @@ class TestEventCoordinator:
             file_service=file_service,
             network_checker=network_checker,
             cookie_handler=cookie_handler,
-            download_service=download_service,
             message_queue=message_queue,
         )
 
@@ -479,7 +428,6 @@ class TestEventCoordinator:
         file_service = MockFileService()
         network_checker = MockNetworkChecker()
         cookie_handler = MockCookieHandler()
-        download_service = MockDownloadService()
         message_queue = MockMessageQueue()
 
         coordinator = EventCoordinator(
@@ -489,7 +437,6 @@ class TestEventCoordinator:
             file_service=file_service,
             network_checker=network_checker,
             cookie_handler=cookie_handler,
-            download_service=download_service,
             message_queue=message_queue,
         )
 
@@ -532,7 +479,6 @@ class TestCoordinatorIntegration:
         file_service = MockFileService()
         network_checker = MockNetworkChecker()
         cookie_handler = MockCookieHandler()
-        download_service = MockDownloadService()
         message_queue = MockMessageQueue()
 
         # Create main coordinator
@@ -543,7 +489,6 @@ class TestCoordinatorIntegration:
             file_service=file_service,
             network_checker=network_checker,
             cookie_handler=cookie_handler,
-            download_service=download_service,
             message_queue=message_queue,
         )
 
@@ -569,14 +514,12 @@ class TestCoordinatorIntegration:
         event_bus = DownloadEventBus(None)
         download_handler = MockDownloadHandler()
         error_handler = MockErrorHandler()
-        download_service = MockDownloadService()
         message_queue = MockMessageQueue()
 
         coordinator = DownloadCoordinator(
             event_bus=event_bus,
             download_handler=download_handler,
             error_handler=error_handler,
-            download_service=download_service,
             message_queue=message_queue,
         )
 

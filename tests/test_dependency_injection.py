@@ -201,22 +201,6 @@ class TestServiceContainer:
 class TestRealInterfaces:
     """Test real interface implementations with DI container."""
 
-    def test_real_download_service_interface(self):
-        """Test real IDownloadService implementation."""
-        from src.services.downloads import DownloadService
-
-        # Create mock dependencies
-        mock_service_factory = MagicMock()
-
-        # Create service directly
-        service = DownloadService(service_factory=mock_service_factory)
-
-        assert isinstance(service, DownloadService)
-        # Test that it has required methods (duck typing)
-        assert hasattr(service, "get_downloads")
-        assert hasattr(service, "add_download")
-        assert hasattr(service, "remove_downloads")
-
     def test_real_file_service_interface(self):
         """Test real IFileService implementation."""
         from src.services.file import FileService
@@ -249,17 +233,17 @@ class TestRealInterfaces:
         from src.handlers.download_handler import DownloadHandler
 
         # Create mock dependencies using MagicMock which has __name__
-        mock_download_service = MagicMock()
         mock_service_factory = MagicMock()
         mock_file_service = MagicMock()
         mock_ui_state = MagicMock()
+        mock_cookie_handler = MagicMock()
 
         # Create handler directly with mocks
         handler = DownloadHandler(
-            download_service=mock_download_service,
             service_factory=mock_service_factory,
             file_service=mock_file_service,
             ui_state=mock_ui_state,
+            cookie_handler=mock_cookie_handler,
         )
 
         assert isinstance(handler, DownloadHandler)

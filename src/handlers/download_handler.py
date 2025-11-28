@@ -14,7 +14,6 @@ from src.core.interfaces import (
     IAutoCookieManager,
     ICookieHandler,
     IDownloadHandler,
-    IDownloadService,
     IErrorNotifier,
     IFileService,
     IMessageQueue,
@@ -33,7 +32,6 @@ logger = get_logger(__name__)
 class DownloadHandler(IDownloadHandler):
     def __init__(
         self,
-        download_service: IDownloadService,
         service_factory: IServiceFactory,
         file_service: IFileService,
         ui_state: IUIState,
@@ -44,7 +42,6 @@ class DownloadHandler(IDownloadHandler):
         config: AppConfig = get_config(),
     ):
         self.config = config
-        self.download_service = download_service
         self.service_factory = service_factory
         self.file_service = file_service
         self.ui_state = ui_state
@@ -53,6 +50,8 @@ class DownloadHandler(IDownloadHandler):
         self.error_handler = error_handler
         self.notifier: INotifier = NotifierService(message_queue)
         self._initialized = False
+        # Manage download queue directly
+        self._downloads: list[Download] = []
 
     def initialize(self) -> None:
         """Initialize the download handler."""
@@ -66,24 +65,30 @@ class DownloadHandler(IDownloadHandler):
 
     def add_download(self, download: Download) -> None:
         """Add a download item."""
-        self.download_service.add_download(download)
+        self._downloads.append(download)
+        logger.info(f"[DOWNLOAD_HANDLER] Added download: {download.name}")
 
     def remove_downloads(self, indices: list[int]) -> None:
         """Remove download items by indices."""
-        self.download_service.remove_downloads(indices)
+        # Sort in reverse order to avoid index shifting
+        for index in sorted(indices, reverse=True):
+            if 0 <= index < len(self._downloads):
+                removed = self._downloads.pop(index)
+                logger.info(f"[DOWNLOAD_HANDLER] Removed download: {removed.name}")
 
     def clear_downloads(self) -> None:
         """Clear all download items."""
-        self.download_service.clear_downloads()
+        count = len(self._downloads)
+        self._downloads.clear()
+        logger.info(f"[DOWNLOAD_HANDLER] Cleared {count} downloads")
 
     def get_downloads(self) -> list[Download]:
         """Get all download items."""
-        return self.download_service.get_downloads() or []
+        return self._downloads.copy()
 
     def has_items(self) -> bool:
         """Check if there are any download items."""
-        downloads = self.get_downloads()
-        return len(downloads) > 0
+        return len(self._downloads) > 0
 
     def start_downloads(
         self,
@@ -328,7 +333,7 @@ class DownloadHandler(IDownloadHandler):
 
     def has_active_downloads(self) -> bool:
         """Check if there are active downloads."""
-        return self.download_service.has_downloads()
+        return len(self._downloads) > 0
 
     def get_options(self) -> DownloadOptions:
         """Get current download options."""
@@ -352,8 +357,8 @@ class DownloadHandler(IDownloadHandler):
                 service_type=self._detect_service_type(url),
             )
 
-            # Add to download service
-            self.download_service.add_download(download)
+            # Add to download queue
+            self.add_download(download)
             logger.info(f"[DOWNLOAD_HANDLER] Added download: {url}")
             return True
 
@@ -385,7 +390,7 @@ class DownloadHandler(IDownloadHandler):
 
     def is_available(self) -> bool:
         """Check if handler is available."""
-        return self._initialized and self.download_service is not None
+        return self._initialized
 
     def _extract_name_from_url(self, url: str) -> str:
         """Extract a default name from URL."""

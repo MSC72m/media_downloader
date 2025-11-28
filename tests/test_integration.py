@@ -5,6 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from src.application.orchestrator import ApplicationOrchestrator
+from src.core.interfaces import IDownloadHandler
 from src.core.models import Download, DownloadStatus
 from src.handlers import _register_link_handlers
 from src.services.detection.link_detector import LinkDetector
@@ -99,9 +100,9 @@ class TestSystemIntegration:
                 print(f"⚠ {expected} URL not detected: {url}")
 
         # Should detect most services (some may not be detected without full setup)
-        assert len(detected_services) >= 3, (
-            f"Expected at least 3 services, got {len(detected_services)}"
-        )
+        assert (
+            len(detected_services) >= 3
+        ), f"Expected at least 3 services, got {len(detected_services)}"
 
     @patch("customtkinter.CTk")
     def test_download_flow_integration(self, mock_ctk):
@@ -117,11 +118,11 @@ class TestSystemIntegration:
         )
 
         # Test that the download can be added to the system
-        download_service = orchestrator.container.get_download_service()
-        download_service.add_download(download)
+        download_handler = orchestrator.container.get(IDownloadHandler)
+        download_handler.add_download(download)
 
         # Verify it was added
-        downloads = download_service.get_downloads()
+        downloads = download_handler.get_downloads()
         assert len(downloads) == 1
         assert downloads[0].url == "https://www.youtube.com/watch?v=test123"
         assert downloads[0].name == "Test Video"
@@ -178,9 +179,9 @@ class TestSystemIntegration:
         assert error_handler1 is error_handler2, "ErrorHandler should be singleton"
 
         # Test that different services are different instances
-        download_service = container.get_download_service()
+        download_handler = container.get(IDownloadHandler)
         file_service = container.get_file_service()
-        assert download_service is not file_service
+        assert download_handler is not file_service
 
         print("✓ Dependency injection lifecycle working")
 
@@ -195,7 +196,6 @@ class TestSystemIntegration:
             IAutoCookieManager,
             ICookieHandler,
             IDownloadHandler,
-            IDownloadService,
             IErrorNotifier,
             IFileService,
             IMetadataService,
@@ -208,7 +208,6 @@ class TestSystemIntegration:
         interface_implementations = [
             (IErrorNotifier, container.get(IErrorNotifier)),
             (IDownloadHandler, container.get(IDownloadHandler)),
-            (IDownloadService, container.get(IDownloadService)),
             (IFileService, container.get(IFileService)),
             (ICookieHandler, container.get(ICookieHandler)),
             (IMetadataService, container.get(IMetadataService)),
@@ -219,9 +218,9 @@ class TestSystemIntegration:
         ]
 
         for interface, implementation in interface_implementations:
-            assert isinstance(implementation, interface), (
-                f"{implementation.__class__.__name__} should implement {interface.__name__}"
-            )
+            assert isinstance(
+                implementation, interface
+            ), f"{implementation.__class__.__name__} should implement {interface.__name__}"
 
         print("✓ All services comply with their interfaces")
 
@@ -261,7 +260,7 @@ class TestSystemIntegration:
         for _ in range(100):
             container.get_ui_state()
             container.get_error_handler()
-            container.get_download_service()
+            container.get(IDownloadHandler)
         end_time = time.time()
 
         resolution_time = end_time - start_time
@@ -325,11 +324,11 @@ class TestSystemEndToEnd:
             service_type="youtube",
         )
 
-        download_service = orchestrator.container.get_download_service()
-        download_service.add_download(download)
+        download_handler = orchestrator.container.get(IDownloadHandler)
+        download_handler.add_download(download)
 
         # Step 3: Verify download was added
-        downloads = download_service.get_downloads()
+        downloads = download_handler.get_downloads()
         assert len(downloads) == 1
         assert downloads[0].name == "Never Gonna Give You Up"
 
@@ -370,9 +369,9 @@ class TestSystemEndToEnd:
                     break
 
         # Should detect at least some platforms
-        assert len(detected_platforms) >= 3, (
-            f"Expected at least 3 platforms, got {len(detected_platforms)}"
-        )
+        assert (
+            len(detected_platforms) >= 3
+        ), f"Expected at least 3 platforms, got {len(detected_platforms)}"
         print(f"✓ Multi-platform support working: {detected_platforms}")
 
     @patch("customtkinter.CTk")
