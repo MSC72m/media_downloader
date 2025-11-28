@@ -1,6 +1,7 @@
 """YouTube subtitle extractor using yt-dlp library."""
 
 from typing import Any, Dict, Optional
+from urllib.parse import parse_qs, urlparse
 
 import yt_dlp
 
@@ -54,26 +55,61 @@ class YouTubeSubtitleExtractor:
                     subtitles = info.get("subtitles", {}) or {}
                     automatic_captions = info.get("automatic_captions", {}) or {}
                     
-                    # Extract video ID for validation
+                    # Extract video ID for strict validation
                     video_id = info.get("id", "")
                     
-                    # Filter to only include subtitles with valid, downloadable HTTP URLs
-                    # CRITICAL: Only return subtitles that actually exist and can be downloaded
-                    # Must contain video ID or timedtext API pattern to be valid
+                    # CRITICAL: Only return subtitles that actually exist and are downloadable
+                    # YouTube returns entries for all languages, but most are translation options (tlang=)
+                    # not actual subtitles (lang=). Only accept where lang_code matches 'lang=' parameter.
                     # Config languages are ONLY for translation, NOT for showing all languages
+                    def _is_valid_subtitle_entry(sub_entry: Dict[str, Any], vid_id: str, lang_code: str) -> bool:
+                        """Check if subtitle entry is actually valid and downloadable.
+                        
+                        CRITICAL: Only accept URLs where lang_code matches the 'lang=' parameter,
+                        NOT 'tlang='. 'tlang=' indicates translation options, not actual subtitles.
+                        """
+                        if not sub_entry or not isinstance(sub_entry, dict):
+                            return False
+                        
+                        url = sub_entry.get("url", "")
+                        if not url or not isinstance(url, str):
+                            return False
+                        
+                        url_stripped = url.strip()
+                        # Must be valid YouTube subtitle API URL with all required components
+                        if not (url_stripped.startswith("https://www.youtube.com/api/timedtext")
+                                and len(url_stripped) > 100  # Real YouTube subtitle URLs are much longer
+                                and vid_id in url_stripped  # Must contain video ID
+                                and "timedtext" in url_stripped  # Must be timedtext API
+                                and "fmt=" in url_stripped):  # Must have format parameter
+                            return False
+                        
+                        # CRITICAL: Only accept if lang_code matches 'lang=' parameter (actual subtitle)
+                        # NOT 'tlang=' (translation option). Must parse URL properly to avoid false matches.
+                        try:
+                            parsed = urlparse(url_stripped)
+                            params = parse_qs(parsed.query)
+                            lang_params = [l.lower() for l in params.get("lang", [])]
+                            tlang_params = [t.lower() for t in params.get("tlang", [])]
+                            
+                            base_lang = lang_code.split("-")[0].lower()
+                            # Only accept if lang_code matches a 'lang=' parameter value (actual subtitle)
+                            # Reject if it only matches 'tlang=' (translation option)
+                            lang_matches = base_lang in lang_params
+                            tlang_only = base_lang in tlang_params and not lang_matches
+                            
+                            return lang_matches and not tlang_only
+                        except Exception:
+                            # If URL parsing fails, fall back to strict rejection
+                            return False
+                    
                     valid_subtitles = {
                         lang: sub_list
                         for lang, sub_list in subtitles.items()
                         if (sub_list 
                             and isinstance(sub_list, list) 
                             and len(sub_list) > 0
-                            and (url := sub_list[0].get("url", ""))
-                            and isinstance(url, str)
-                            and (url_stripped := url.strip())
-                            and url_stripped
-                            and url_stripped.startswith("http")
-                            and len(url_stripped) > 50  # YouTube subtitle URLs are longer
-                            and ("timedtext" in url_stripped or (video_id and video_id in url_stripped)))
+                            and _is_valid_subtitle_entry(sub_list[0], video_id, lang))
                     }
                     
                     valid_auto = {
@@ -82,13 +118,7 @@ class YouTubeSubtitleExtractor:
                         if (sub_list 
                             and isinstance(sub_list, list) 
                             and len(sub_list) > 0
-                            and (url := sub_list[0].get("url", ""))
-                            and isinstance(url, str)
-                            and (url_stripped := url.strip())
-                            and url_stripped
-                            and url_stripped.startswith("http")
-                            and len(url_stripped) > 50  # YouTube subtitle URLs are longer
-                            and ("timedtext" in url_stripped or (video_id and video_id in url_stripped)))
+                            and _is_valid_subtitle_entry(sub_list[0], video_id, lang))
                     }
 
                     if not (valid_subtitles or valid_auto):

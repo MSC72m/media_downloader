@@ -3,6 +3,7 @@
 import re
 from itertools import chain
 from typing import Any, Dict, List, Optional
+from urllib.parse import parse_qs, urlparse
 
 from src.core.config import AppConfig, get_config
 from src.utils.logger import get_logger
@@ -99,9 +100,47 @@ class YouTubeMetadataParser:
         auto_subs = info.get("automatic_captions", {}) or {}
         video_id = info.get("id", "")
         
+        # Helper function for strict validation - only real YouTube subtitle API URLs
+        def _is_valid_subtitle_url(url: str, vid_id: str, lang_code: str) -> bool:
+            """Check if subtitle URL is actually valid and downloadable.
+            
+            CRITICAL: Only accept URLs where lang_code matches the 'lang=' parameter,
+            NOT 'tlang='. 'tlang=' indicates translation options, not actual subtitles.
+            """
+            if not url or not isinstance(url, str):
+                return False
+            
+            url_stripped = url.strip()
+            # Must be valid YouTube subtitle API URL with ALL required components
+            if not (url_stripped.startswith("https://www.youtube.com/api/timedtext")
+                    and len(url_stripped) > 100  # Real YouTube subtitle URLs are much longer
+                    and vid_id in url_stripped  # Must contain video ID
+                    and "timedtext" in url_stripped  # Must be timedtext API
+                    and "fmt=" in url_stripped):  # Must have format parameter
+                return False
+            
+            # CRITICAL: Only accept if lang_code matches 'lang=' parameter (actual subtitle)
+            # NOT 'tlang=' (translation option). Must parse URL properly to avoid false matches.
+            try:
+                parsed = urlparse(url_stripped)
+                params = parse_qs(parsed.query)
+                lang_params = [l.lower() for l in params.get("lang", [])]
+                tlang_params = [t.lower() for t in params.get("tlang", [])]
+                
+                base_lang = lang_code.split("-")[0].lower()
+                # Only accept if lang_code matches a 'lang=' parameter value (actual subtitle)
+                # Reject if it only matches 'tlang=' (translation option)
+                lang_matches = base_lang in lang_params
+                tlang_only = base_lang in tlang_params and not lang_matches
+                
+                return lang_matches and not tlang_only
+            except Exception:
+                # If URL parsing fails, fall back to strict rejection
+                return False
+        
         # Single list comprehension processing both dicts via chain
-        # CRITICAL: Only include subtitles with valid, downloadable HTTP URLs
-        # Must contain video ID or timedtext API pattern to be valid
+        # CRITICAL: Only include subtitles with valid, downloadable YouTube API URLs
+        # YouTube returns entries for all languages, but most don't have actual subtitle files
         # Config languages are ONLY for translation/mapping, NOT for showing all languages
         result = [
             {
@@ -122,12 +161,7 @@ class YouTubeMetadataParser:
                 and isinstance(sub_list, list)
                 and len(sub_list) > 0
                 and (sub_url := sub_list[0].get("url", ""))
-                and isinstance(sub_url, str)
-                and (url_stripped := sub_url.strip())
-                and url_stripped
-                and url_stripped.startswith("http")
-                and len(url_stripped) > 50  # YouTube subtitle URLs are longer
-                and ("timedtext" in url_stripped or (video_id and video_id in url_stripped)))
+                and _is_valid_subtitle_url(sub_url, video_id, lang_code))
         ]
         
         logger.info(
