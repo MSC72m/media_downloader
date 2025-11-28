@@ -16,6 +16,7 @@ import customtkinter as ctk  # noqa: E402
 from tkinter import Menu  # noqa: E402
 
 from src.core import get_application_orchestrator  # noqa: E402
+from src.core.config import get_config  # noqa: E402
 from src.core.interfaces import IMessageQueue  # noqa: E402
 from src.services.events.queue import MessageQueue  # noqa: E402
 from src.ui.components.download_list import DownloadListView  # noqa: E402
@@ -24,9 +25,10 @@ from src.ui.components.options_bar import OptionsBar  # noqa: E402
 from src.ui.components.status_bar import StatusBar  # noqa: E402
 from src.ui.components.theme_switcher import ThemeSwitcher  # noqa: E402
 from src.ui.components.url_entry import URLEntryFrame  # noqa: E402
-from src.ui.utils.theme_manager import ThemeManager  # noqa: E402
+from src.ui.utils.theme_manager import get_theme_manager  # noqa: E402
 
-# Theme will be set by ThemeManager
+# Theme will be initialized by ThemeManager after root window is created
+# This ensures proper initialization order for dark/light mode
 
 
 def _check_playwright_installation():
@@ -167,8 +169,13 @@ class MediaDownloaderApp(ctk.CTk):
         ApplicationOrchestrator = get_application_orchestrator()
         self.orchestrator = ApplicationOrchestrator(self)
 
-        # Initialize theme manager
-        self.theme_manager = ThemeManager.get_instance(self)
+        # Initialize theme manager - must be after root window is created
+        # This ensures CTK is properly initialized before theme is applied
+        self.theme_manager = get_theme_manager(self)
+        
+        # Force initial theme application to ensure dark mode works
+        # This updates all existing widgets
+        self.update()
 
         # Note: MessageQueue will be created after status_bar is available
         # See _create_ui() for message_queue registration
@@ -179,8 +186,12 @@ class MediaDownloaderApp(ctk.CTk):
         self._setup_layout()
         self._setup_menu()
 
-        # Bind close handler
+        # Bind close handler for graceful shutdown
         self.protocol("WM_DELETE_WINDOW", self._on_closing)
+        
+        # Register shutdown handler
+        import atexit
+        atexit.register(self._graceful_shutdown)
 
         logger.info("Media Downloader initialized")
 
@@ -210,19 +221,27 @@ class MediaDownloaderApp(ctk.CTk):
 
     def _create_ui(self):
         """Create all UI components."""
-        # Header bar with title and theme switcher
-        self.header_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
-        self.header_frame.grid_columnconfigure(0, weight=1)
-        
-        # Title
-        self.title_label = ctk.CTkLabel(
-            self.header_frame, text="Media Downloader", font=("Roboto", 32, "bold")
+        # Header bar with title and theme switcher - modern design
+        self.header_frame = ctk.CTkFrame(
+            self.main_frame, 
+            fg_color="transparent",
+            corner_radius=0
         )
-        self.title_label.grid(row=0, column=0, sticky="w", pady=(0, 20))
+        # Configure for centered title
+        self.header_frame.grid_columnconfigure(0, weight=1)
+        self.header_frame.grid_columnconfigure(1, weight=0)
         
-        # Theme switcher
+        # Title centered with better spacing
+        self.title_label = ctk.CTkLabel(
+            self.header_frame, 
+            text="Media Downloader", 
+            font=("Roboto", 36, "bold")
+        )
+        self.title_label.grid(row=0, column=0, sticky="", pady=(0, 25))
+        
+        # Theme switcher - compact and modern
         self.theme_switcher = ThemeSwitcher(self.header_frame, self.theme_manager)
-        self.theme_switcher.grid(row=0, column=1, sticky="e", pady=(0, 20))
+        self.theme_switcher.grid(row=0, column=1, sticky="e", pady=(0, 25))
 
         # Get coordinator for direct wiring
         coord = self.orchestrator.event_coordinator
@@ -315,17 +334,17 @@ class MediaDownloaderApp(ctk.CTk):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        self.main_frame.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
+        self.main_frame.grid(row=0, column=0, sticky="nsew", padx=25, pady=25)
         self.main_frame.grid_columnconfigure(0, weight=1)
         self.main_frame.grid_rowconfigure(3, weight=1)  # Download list row
 
-        # Arrange widgets
-        self.header_frame.grid(row=0, column=0, sticky="ew", pady=(0, 10))
-        self.url_entry.grid(row=1, column=0, sticky="ew", pady=(0, 10))
+        # Arrange widgets with modern spacing
+        self.header_frame.grid(row=0, column=0, sticky="ew", pady=(0, 20))
+        self.url_entry.grid(row=1, column=0, sticky="ew", pady=(0, 15))
         # OptionsBar is empty (no content) - skip gridding to avoid empty space
         # self.options_bar.grid(row=2, column=0, sticky="ew", pady=(0, 10))
-        self.download_list.grid(row=3, column=0, sticky="nsew", pady=(0, 10))
-        self.action_buttons.grid(row=4, column=0, sticky="ew", pady=(0, 10))
+        self.download_list.grid(row=3, column=0, sticky="nsew", pady=(0, 15))
+        self.action_buttons.grid(row=4, column=0, sticky="ew", pady=(0, 15))
         self.status_bar.grid(row=5, column=0, sticky="ew")
 
     def _setup_menu(self):
@@ -341,19 +360,35 @@ class MediaDownloaderApp(ctk.CTk):
         )
         menubar.add_cascade(label="Tools", menu=tools_menu)
 
+    def _graceful_shutdown(self):
+        """Graceful shutdown - persist settings and cleanup."""
+        try:
+            logger.info("[MAIN_APP] Graceful shutdown - persisting settings")
+            
+            # Persist theme if it has changed
+            if hasattr(self, 'theme_manager'):
+                try:
+                    self.theme_manager._persist_theme()
+                except Exception as e:
+                    logger.error(f"[MAIN_APP] Failed to persist theme: {e}", exc_info=True)
+            
+            # Cleanup orchestrator
+            if hasattr(self, 'orchestrator'):
+                try:
+                    self.orchestrator.cleanup()
+                except Exception as e:
+                    logger.error(f"[MAIN_APP] Error during orchestrator cleanup: {e}", exc_info=True)
+            
+            logger.info("[MAIN_APP] Graceful shutdown complete")
+        except Exception as e:
+            logger.error(f"[MAIN_APP] Error during graceful shutdown: {e}", exc_info=True)
+    
     def _on_closing(self):
         """Handle application closing."""
         logger.info("[MAIN_APP] Application closing - cleaning up")
-
-        # Cleanup orchestrator first
-        try:
-            self.orchestrator.cleanup()
-            logger.info("[MAIN_APP] Orchestrator cleanup complete")
-        except Exception as e:
-            logger.error(f"[MAIN_APP] Error during orchestrator cleanup: {e}")
-
-        # Destroy the window - this will handle cleanup automatically
-        # Don't call quit() first, just destroy()
+        self._graceful_shutdown()
+        
+        # Destroy the window
         try:
             self.destroy()
             logger.info("[MAIN_APP] Application closed")

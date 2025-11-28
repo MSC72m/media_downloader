@@ -6,24 +6,24 @@ import customtkinter as ctk
 
 from src.core import Download, DownloadStatus
 from src.core.enums.theme_event import ThemeEvent
-from src.ui.utils.theme_manager import ThemeManager
+from src.ui.utils.theme_manager import get_theme_manager, ThemeManager
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+
 class DownloadListView(ctk.CTkFrame):
     """List view for showing download items and their status."""
 
-    def __init__(self, master, on_selection_change: Callable[[list[int]], None], theme_manager: Optional[ThemeManager] = None):
+    def __init__(self, master, on_selection_change: Callable[[list[int]], None], theme_manager: Optional["ThemeManager"] = None):
         super().__init__(master)
 
         self.on_selection_change = on_selection_change
         self._item_line_mapping: dict[str, int] = {}  # Maps item name to line number
         self._downloads: list[Download] = []  # Store actual Download objects
         
-        # Subscribe to theme manager
-        root_window = master.winfo_toplevel()
-        self._theme_manager = theme_manager or ThemeManager.get_instance(root_window)
+        # Subscribe to theme manager - injected with default
+        self._theme_manager = theme_manager or get_theme_manager(master.winfo_toplevel())
         self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
 
         # Create text widget for displaying downloads with modern styling
@@ -37,9 +37,17 @@ class DownloadListView(ctk.CTkFrame):
         self.list_view.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
     
     def _on_theme_changed(self, appearance, color):
-        """Handle theme change event."""
-        # Textbox will automatically update with CTK theme change
-        pass
+        """Handle theme change event - apply custom colors."""
+        theme_json = self._theme_manager.get_theme_json()
+        
+        # Apply custom colors to text widget
+        frame_config = theme_json.get("CTkFrame", {})
+        label_config = theme_json.get("CTkLabel", {})
+        if frame_config and label_config:
+            self.list_view.configure(
+                fg_color=frame_config.get("fg_color"),
+                text_color=label_config.get("text_color"),
+            )
 
         # Bind selection event
         self.list_view.bind("<<Selection>>", self._handle_selection)
@@ -209,8 +217,6 @@ class DownloadListView(ctk.CTkFrame):
         Returns:
             Number of downloads removed
         """
-        logger = get_logger(__name__)
-
         # Find indices of completed downloads
         completed_indices = []
         for i, download in enumerate(self._downloads):
@@ -220,14 +226,14 @@ class DownloadListView(ctk.CTkFrame):
                     f"[DOWNLOAD_LIST] Marking completed download for removal: {download.name}"
                 )
 
-        if completed_indices:
-            logger.info(
-                f"[DOWNLOAD_LIST] Removing {len(completed_indices)} completed downloads"
-            )
-            self.remove_downloads(completed_indices)
-        else:
+        if not completed_indices:
             logger.debug("[DOWNLOAD_LIST] No completed downloads to remove")
+            return 0
 
+        logger.info(
+            f"[DOWNLOAD_LIST] Removing {len(completed_indices)} completed downloads"
+        )
+        self.remove_downloads(completed_indices)
         return len(completed_indices)
 
     def has_completed_downloads(self) -> bool:

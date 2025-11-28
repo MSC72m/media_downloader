@@ -1,4 +1,4 @@
-"""Theme switcher component for changing UI themes."""
+"""Theme switcher component with modern UI/UX design."""
 
 from typing import Optional
 
@@ -6,17 +6,17 @@ import customtkinter as ctk
 
 from src.core.enums.appearance_mode import AppearanceMode
 from src.core.enums.color_theme import ColorTheme
-from src.ui.utils.theme_manager import ThemeManager
+from src.ui.utils.theme_manager import get_theme_manager
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
 class ThemeSwitcher(ctk.CTkFrame):
-    """Theme switcher component with appearance and color selection."""
+    """Modern theme switcher with dropdown menu for better UX."""
 
-    def __init__(self, master, theme_manager: Optional[ThemeManager] = None):
-        """Initialize theme switcher.
+    def __init__(self, master, theme_manager: Optional["ThemeManager"] = None):
+        """Initialize theme switcher with modern design.
         
         Args:
             master: Parent widget
@@ -24,67 +24,87 @@ class ThemeSwitcher(ctk.CTkFrame):
         """
         super().__init__(master, fg_color="transparent")
         
-        self._theme_manager = theme_manager or ThemeManager.get_instance(master.winfo_toplevel())
+        # Theme manager injected with default
+        self._theme_manager = theme_manager or get_theme_manager(master.winfo_toplevel())
         
-        # Configure grid
-        self.grid_columnconfigure((0, 1), weight=1)
+        # Configure grid - single row, compact design
+        self.grid_columnconfigure(0, weight=1)
         
-        # Appearance mode switcher
-        self.appearance_label = ctk.CTkLabel(
-            self, text="Mode:", font=("Roboto", 12)
-        )
-        self.appearance_label.grid(row=0, column=0, padx=(0, 5), sticky="w")
+        # Create compact container
+        container = ctk.CTkFrame(self, fg_color="transparent")
+        container.grid(row=0, column=0, sticky="e")
         
-        self.appearance_switch = ctk.CTkSegmentedButton(
-            self,
-            values=["Dark", "Light"],
-            command=self._on_appearance_change,
-            font=("Roboto", 11),
-            height=28,
-        )
-        # Set initial value
+        # Appearance mode toggle - compact switch with proper initialization
         current_mode = self._theme_manager.get_appearance()
-        self.appearance_switch.set("Dark" if current_mode == AppearanceMode.DARK else "Light")
-        self.appearance_switch.grid(row=0, column=1, padx=(0, 10), sticky="ew")
+        is_dark = current_mode == AppearanceMode.DARK
         
-        # Color theme switcher
-        self.color_label = ctk.CTkLabel(
-            self, text="Theme:", font=("Roboto", 12)
+        self.appearance_switch = ctk.CTkSwitch(
+            container,
+            text="🌙 Dark" if is_dark else "☀️ Light",
+            command=self._on_appearance_toggle,
+            font=("Roboto", 11),
+            width=90,
         )
-        self.color_label.grid(row=0, column=2, padx=(10, 5), sticky="w")
+        if is_dark:
+            self.appearance_switch.select()
+        self.appearance_switch.grid(row=0, column=0, padx=(0, 15))
         
-        color_values = [theme.value.capitalize() for theme in ColorTheme]
-        self.color_switch = ctk.CTkSegmentedButton(
-            self,
+        # Color theme dropdown - modern combobox
+        self.color_label = ctk.CTkLabel(
+            container, text="Theme:", font=("Roboto", 11)
+        )
+        self.color_label.grid(row=0, column=1, padx=(0, 5), sticky="w")
+        
+        # Create theme options with emoji indicators
+        theme_options = {
+            "Blue": "🔵",
+            "Green": "🟢", 
+            "Purple": "🟣",
+            "Orange": "🟠",
+            "Teal": "🔷",
+            "Pink": "🌸",
+            "Indigo": "💙",
+            "Amber": "🟡",
+        }
+        
+        color_values = [f"{emoji} {name}" for name, emoji in theme_options.items()]
+        current_color = self._theme_manager.get_color_theme()
+        current_display = f"{theme_options.get(current_color.value.capitalize(), '🔵')} {current_color.value.capitalize()}"
+        
+        # Use CTkOptionMenu instead of CTkComboBox - non-editable dropdown button
+        self.color_dropdown = ctk.CTkOptionMenu(
+            container,
             values=color_values,
             command=self._on_color_change,
             font=("Roboto", 11),
+            width=120,
             height=28,
+            dropdown_font=("Roboto", 11),
         )
-        # Set initial value
-        current_color = self._theme_manager.get_color_theme()
-        self.color_switch.set(current_color.value.capitalize())
-        self.color_switch.grid(row=0, column=3, padx=(0, 0), sticky="ew")
-        
-        # Update column weights
-        self.grid_columnconfigure(3, weight=2)
+        self.color_dropdown.set(current_display)
+        self.color_dropdown.grid(row=0, column=2, padx=(0, 0))
 
-    def _on_appearance_change(self, value: str) -> None:
-        """Handle appearance mode change."""
-        appearance = AppearanceMode.DARK if value == "Dark" else AppearanceMode.LIGHT
+    def _on_appearance_toggle(self) -> None:
+        """Handle appearance mode toggle."""
+        is_dark = self.appearance_switch.get()
+        appearance = AppearanceMode.DARK if is_dark else AppearanceMode.LIGHT
         current_color = self._theme_manager.get_color_theme()
         
         logger.info(f"[THEME_SWITCHER] Changing appearance to {appearance.value}")
         self._theme_manager.set_theme(appearance, current_color)
+        
+        # Update switch text
+        self.appearance_switch.configure(text="🌙 Dark" if is_dark else "☀️ Light")
 
     def _on_color_change(self, value: str) -> None:
         """Handle color theme change."""
+        # Extract color name from display string (e.g., "🔵 Blue" -> "blue")
+        color_name = value.split()[-1].lower()
         try:
-            color = ColorTheme(value.lower())
+            color = ColorTheme(color_name)
             current_appearance = self._theme_manager.get_appearance()
             
             logger.info(f"[THEME_SWITCHER] Changing color to {color.value}")
             self._theme_manager.set_theme(current_appearance, color)
         except ValueError:
-            logger.error(f"[THEME_SWITCHER] Invalid color theme: {value}")
-
+            logger.error(f"[THEME_SWITCHER] Invalid color theme: {color_name}")

@@ -4,7 +4,7 @@ from functools import cache
 import json
 import os
 from pathlib import Path
-from typing import Any, Optional, TYPE_CHECKING
+from typing import Any, Dict, Optional, TYPE_CHECKING
 
 import yaml
 from pydantic import BaseModel, Field, field_validator
@@ -12,9 +12,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from src.core.enums.appearance_mode import AppearanceMode
 from src.core.enums.color_theme import ColorTheme
+from src.utils.logger import get_logger
 
 if TYPE_CHECKING:
     pass
+
+logger = get_logger(__name__)
 
 
 class CookieConfig(BaseModel):
@@ -399,7 +402,7 @@ class SoundCloudConfig(BaseModel):
 
 
 class ThemeConfig(BaseModel):
-    """Theme-related configuration."""
+    """Theme-related configuration with color schemes."""
 
     appearance_mode: "AppearanceMode" = Field(
         default="dark",
@@ -441,6 +444,212 @@ class ThemeConfig(BaseModel):
         if isinstance(self.color_theme, str):
             return ColorTheme(self.color_theme)
         return self.color_theme
+    
+    @staticmethod
+    @cache
+    def get_color_schemes() -> Dict[str, Dict[str, Any]]:
+        """Get all color schemes for themes (cached for performance)."""
+        return {
+            # Dark themes
+            "dark_blue": {
+                "fg_color": ["#1a1a1a", "#2b2b2b"],
+                "hover_color": ["#3a3a3a", "#4a4a4a"],
+                "border_color": ["#3a3a3a", "#4a4a4a"],
+                "button_color": "#1f538d",
+                "button_hover_color": "#14375e",
+                "text_color": ["#ffffff", "#ffffff"],
+            },
+            "dark_green": {
+                "fg_color": ["#1a1a1a", "#2b2b2b"],
+                "hover_color": ["#3a3a3a", "#4a4a4a"],
+                "border_color": ["#3a3a3a", "#4a4a4a"],
+                "button_color": "#2d8659",
+                "button_hover_color": "#1f5c3f",
+                "text_color": ["#ffffff", "#ffffff"],
+            },
+            "dark_purple": {
+                "fg_color": ["#1a1a1a", "#2b2b2b"],
+                "hover_color": ["#3a3a3a", "#4a4a4a"],
+                "border_color": ["#3a3a3a", "#4a4a4a"],
+                "button_color": "#7b2cbf",
+                "button_hover_color": "#5a1f8f",
+                "text_color": ["#ffffff", "#ffffff"],
+            },
+            "dark_orange": {
+                "fg_color": ["#1a1a1a", "#2b2b2b"],
+                "hover_color": ["#3a3a3a", "#4a4a4a"],
+                "border_color": ["#3a3a3a", "#4a4a4a"],
+                "button_color": "#d97706",
+                "button_hover_color": "#92400e",
+                "text_color": ["#ffffff", "#ffffff"],
+            },
+            "dark_teal": {
+                "fg_color": ["#1a1a1a", "#2b2b2b"],
+                "hover_color": ["#3a3a3a", "#4a4a4a"],
+                "border_color": ["#3a3a3a", "#4a4a4a"],
+                "button_color": "#0d9488",
+                "button_hover_color": "#0f766e",
+                "text_color": ["#ffffff", "#ffffff"],
+            },
+            "dark_pink": {
+                "fg_color": ["#1a1a1a", "#2b2b2b"],
+                "hover_color": ["#3a3a3a", "#4a4a4a"],
+                "border_color": ["#3a3a3a", "#4a4a4a"],
+                "button_color": "#db2777",
+                "button_hover_color": "#be185d",
+                "text_color": ["#ffffff", "#ffffff"],
+            },
+            "dark_indigo": {
+                "fg_color": ["#1a1a1a", "#2b2b2b"],
+                "hover_color": ["#3a3a3a", "#4a4a4a"],
+                "border_color": ["#3a3a3a", "#4a4a4a"],
+                "button_color": "#4f46e5",
+                "button_hover_color": "#4338ca",
+                "text_color": ["#ffffff", "#ffffff"],
+            },
+            "dark_amber": {
+                "fg_color": ["#1a1a1a", "#2b2b2b"],
+                "hover_color": ["#3a3a3a", "#4a4a4a"],
+                "border_color": ["#3a3a3a", "#4a4a4a"],
+                "button_color": "#f59e0b",
+                "button_hover_color": "#d97706",
+                "text_color": ["#ffffff", "#ffffff"],
+            },
+            # Light themes
+            "light_blue": {
+                "fg_color": ["#f0f0f0", "#ffffff"],
+                "hover_color": ["#e0e0e0", "#f5f5f5"],
+                "border_color": ["#d0d0d0", "#e0e0e0"],
+                "button_color": "#3b82f6",
+                "button_hover_color": "#2563eb",
+                "text_color": ["#000000", "#000000"],
+            },
+            "light_green": {
+                "fg_color": ["#f0f0f0", "#ffffff"],
+                "hover_color": ["#e0e0e0", "#f5f5f5"],
+                "border_color": ["#d0d0d0", "#e0e0e0"],
+                "button_color": "#10b981",
+                "button_hover_color": "#059669",
+                "text_color": ["#000000", "#000000"],
+            },
+            "light_purple": {
+                "fg_color": ["#f0f0f0", "#ffffff"],
+                "hover_color": ["#e0e0e0", "#f5f5f5"],
+                "border_color": ["#d0d0d0", "#e0e0e0"],
+                "button_color": "#8b5cf6",
+                "button_hover_color": "#7c3aed",
+                "text_color": ["#000000", "#000000"],
+            },
+            "light_orange": {
+                "fg_color": ["#f0f0f0", "#ffffff"],
+                "hover_color": ["#e0e0e0", "#f5f5f5"],
+                "border_color": ["#d0d0d0", "#e0e0e0"],
+                "button_color": "#f97316",
+                "button_hover_color": "#ea580c",
+                "text_color": ["#000000", "#000000"],
+            },
+            "light_teal": {
+                "fg_color": ["#f0f0f0", "#ffffff"],
+                "hover_color": ["#e0e0e0", "#f5f5f5"],
+                "border_color": ["#d0d0d0", "#e0e0e0"],
+                "button_color": "#14b8a6",
+                "button_hover_color": "#0d9488",
+                "text_color": ["#000000", "#000000"],
+            },
+            "light_pink": {
+                "fg_color": ["#f0f0f0", "#ffffff"],
+                "hover_color": ["#e0e0e0", "#f5f5f5"],
+                "border_color": ["#d0d0d0", "#e0e0e0"],
+                "button_color": "#ec4899",
+                "button_hover_color": "#db2777",
+                "text_color": ["#000000", "#000000"],
+            },
+            "light_indigo": {
+                "fg_color": ["#f0f0f0", "#ffffff"],
+                "hover_color": ["#e0e0e0", "#f5f5f5"],
+                "border_color": ["#d0d0d0", "#e0e0e0"],
+                "button_color": "#6366f1",
+                "button_hover_color": "#4f46e5",
+                "text_color": ["#000000", "#000000"],
+            },
+            "light_amber": {
+                "fg_color": ["#f0f0f0", "#ffffff"],
+                "hover_color": ["#e0e0e0", "#f5f5f5"],
+                "border_color": ["#d0d0d0", "#e0e0e0"],
+                "button_color": "#fbbf24",
+                "button_hover_color": "#f59e0b",
+                "text_color": ["#000000", "#000000"],
+            },
+        }
+    
+    @staticmethod
+    @cache
+    def get_theme_json(appearance: AppearanceMode, color: ColorTheme) -> Dict[str, Any]:
+        """Get CTK theme JSON structure for appearance and color combination (cached)."""
+        schemes = ThemeConfig.get_color_schemes()
+        key = f"{appearance.value}_{color.value}"
+        scheme = schemes.get(key, schemes[f"{appearance.value}_blue"])
+        
+        # Extract colors - handle both list and string formats
+        fg_colors = scheme["fg_color"]
+        if isinstance(fg_colors, list):
+            fg_color = fg_colors[0]
+            top_fg_color = fg_colors[1]
+        else:
+            fg_color = fg_colors
+            top_fg_color = fg_colors
+            
+        text_colors = scheme["text_color"]
+        if isinstance(text_colors, list):
+            text_color = text_colors[0]
+            text_color_disabled = text_colors[1]
+        else:
+            text_color = text_colors
+            text_color_disabled = text_colors
+        
+        border_colors = scheme.get("border_color", fg_colors)
+        if isinstance(border_colors, list):
+            border_color = border_colors[0]
+        else:
+            border_color = border_colors
+        
+        # CTK theme JSON structure
+        return {
+            "CTk": {
+                "fg_color": [fg_color, top_fg_color],
+                "top_fg_color": top_fg_color,
+                "text_color": [text_color, text_color_disabled],
+                "text_color_disabled": text_color_disabled,
+                "button_color": scheme["button_color"],
+                "button_hover_color": scheme["button_hover_color"],
+                "button_border_color": border_color,
+                "border_color": [border_color, border_color],
+                "border_width": 1,
+                "corner_radius": 8,
+            },
+            "CTkButton": {
+                "corner_radius": 12,
+                "border_width": 0,
+                "fg_color": scheme["button_color"],
+                "hover_color": scheme["button_hover_color"],
+                "text_color": text_color,
+            },
+            "CTkEntry": {
+                "corner_radius": 12,
+                "border_width": 1,
+                "fg_color": [fg_color, top_fg_color],
+                "border_color": [border_color, border_color],
+                "text_color": text_color,
+            },
+            "CTkFrame": {
+                "corner_radius": 12,
+                "border_width": 0,
+                "fg_color": [fg_color, top_fg_color],
+            },
+            "CTkLabel": {
+                "text_color": text_color,
+            },
+        }
 
 
 class UIConfig(BaseModel):
@@ -556,6 +765,60 @@ class AppConfig(BaseSettings):
             dotenv_settings,
             file_secret_settings,
         )
+    
+    def save_to_file(self) -> None:
+        """Save current config to file (JSON or YAML based on existing file).
+        
+        Saves to the same file that was loaded, or defaults to ~/.media_downloader/config.json
+        """
+        config_dir = Path.home() / ".media_downloader"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Find existing config file to determine format
+        config_files = [
+            Path("config.yaml"),
+            Path("config.json"),
+            config_dir / "config.yaml",
+            config_dir / "config.json",
+        ]
+        
+        config_file = None
+        for file in config_files:
+            if file.exists():
+                config_file = file
+                break
+        
+        # Default to JSON in user config directory
+        if config_file is None:
+            config_file = config_dir / "config.json"
+        
+        # Convert to dict, handling Path objects and enums
+        config_dict = self.model_dump(mode="json", exclude_none=True)
+        
+        # Convert Path objects to strings
+        def convert_paths(obj):
+            if isinstance(obj, dict):
+                return {k: convert_paths(v) for k, v in obj.items()}
+            if isinstance(obj, list):
+                return [convert_paths(item) for item in obj]
+            if isinstance(obj, Path):
+                return str(obj)
+            return obj
+        
+        config_dict = convert_paths(config_dict)
+        
+        # Save to file
+        try:
+            with open(config_file, "w", encoding="utf-8") as f:
+                if config_file.suffix in (".yaml", ".yml"):
+                    yaml.safe_dump(config_dict, f, default_flow_style=False, sort_keys=False)
+                    return None
+                json.dump(config_dict, f, indent=2, ensure_ascii=False)
+
+            logger.info(f"[CONFIG] Saved configuration to {config_file}")
+            return None
+        except Exception as e:
+            logger.error(f"[CONFIG] Failed to save configuration: {e}", exc_info=True)
 
 
 # Singleton instance

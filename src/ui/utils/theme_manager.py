@@ -1,8 +1,7 @@
 """Thread-safe theme manager using generic EventBus pattern."""
 
-import json
-from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from functools import cache
+from typing import Any, Dict, Optional
 
 import customtkinter as ctk
 
@@ -15,6 +14,9 @@ from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# Module-level cached theme manager instance
+_theme_manager_instance: Optional["ThemeManager"] = None
+
 
 class ThemeManager(EventBus[ThemeEvent]):
     """Thread-safe theme manager using EventBus for observer pattern.
@@ -23,36 +25,26 @@ class ThemeManager(EventBus[ThemeEvent]):
     All theme changes are published via EventBus for real-time updates.
     """
 
-    _instance: Optional["ThemeManager"] = None
-
     def __init__(self, root: Optional[Any] = None, config: AppConfig = get_config()):
         """Initialize theme manager.
         
         Args:
             root: Root window for main thread processing
-            config: Application configuration
+            config: Application configuration (injected with get_config() default)
         """
         super().__init__(ThemeEvent, root)
-        self._config = config
+        self.config = config
         self._current_appearance: AppearanceMode = config.ui.theme.appearance_mode_enum
         self._current_color: ColorTheme = config.ui.theme.color_theme_enum
         self._current_colors: Dict[str, Any] = {}
+        self._theme_json: Dict[str, Any] = {}
         
-        # Initialize CTK with current theme
+        # Initialize CTK with current theme - must be done before creating widgets
         self._apply_theme(self._current_appearance, self._current_color)
         
         logger.info(
             f"[THEME_MANAGER] Initialized with {self._current_appearance.value}/{self._current_color.value}"
         )
-
-    @classmethod
-    def get_instance(cls, root: Optional[Any] = None) -> "ThemeManager":
-        """Get singleton instance of theme manager."""
-        if cls._instance is None:
-            cls._instance = cls(root)
-        elif root and cls._instance._root != root:
-            cls._instance.set_root(root)
-        return cls._instance
 
     def set_theme(
         self, appearance: AppearanceMode, color: ColorTheme, persist: bool = True
@@ -72,10 +64,15 @@ class ThemeManager(EventBus[ThemeEvent]):
         self._current_color = color
 
         # Apply theme immediately (on main thread)
+        # This must happen before publishing event so widgets get updated
         self._apply_theme(appearance, color)
+        
+        # Force CTK to update all widgets - critical for dark mode
+        if self._root:
+            self._root.update()
 
         # Persist if requested
-        if persist and self._config.ui.theme.theme_persistence:
+        if persist and self.config.ui.theme.theme_persistence:
             self._persist_theme()
 
         # Publish theme change event via EventBus (thread-safe)
@@ -85,188 +82,48 @@ class ThemeManager(EventBus[ThemeEvent]):
         )
 
     def _apply_theme(self, appearance: AppearanceMode, color: ColorTheme) -> None:
-        """Apply theme to CustomTkinter."""
-        # Set appearance mode
+        """Apply theme to CustomTkinter with custom color schemes."""
+        # Set appearance mode first - this is critical for dark/light mode
+        # Must be called before any widgets are created for proper initialization
         ctk.set_appearance_mode(appearance.value)
-
-        # Map our color themes to CTK built-in themes
-        # CTK supports: "blue", "green", "dark-blue"
-        ctk_theme_map = {
+        
+        # Map color themes to CTK built-in themes for button colors
+        # CTK only supports: "blue", "green", "dark-blue"
+        color_to_ctk_theme = {
             ColorTheme.BLUE: "blue",
             ColorTheme.GREEN: "green",
-            ColorTheme.PURPLE: "blue",  # Fallback to blue
-            ColorTheme.ORANGE: "blue",  # Fallback to blue
-            ColorTheme.TEAL: "green",  # Fallback to green
-            ColorTheme.PINK: "blue",  # Fallback to blue
-            ColorTheme.INDIGO: "blue",  # Fallback to blue
-            ColorTheme.AMBER: "blue",  # Fallback to blue
+            ColorTheme.PURPLE: "blue",
+            ColorTheme.ORANGE: "blue",
+            ColorTheme.TEAL: "green",
+            ColorTheme.PINK: "blue",
+            ColorTheme.INDIGO: "blue",
+            ColorTheme.AMBER: "blue",
         }
-        
-        ctk_theme = ctk_theme_map.get(color, "blue")
+        ctk_theme = color_to_ctk_theme.get(color, "blue")
         ctk.set_default_color_theme(ctk_theme)
-
-        # Store custom color scheme for components that want to use them
+        
+        # Get theme JSON and color scheme from config
+        self._theme_json = self.config.ui.theme.get_theme_json(appearance, color)
         color_scheme = self._get_color_scheme(appearance, color)
-        self._apply_custom_colors(color_scheme)
+        self._current_colors = color_scheme
+        
+        logger.debug("[THEME_MANAGER] Applied theme and color scheme")
 
     def _get_color_scheme(
         self, appearance: AppearanceMode, color: ColorTheme
-    ) -> Dict[str, str]:
+    ) -> Dict[str, Any]:
         """Get color scheme dictionary for appearance and color combination."""
-        schemes = self._get_all_schemes()
+        schemes = self.config.ui.theme.get_color_schemes()
         key = f"{appearance.value}_{color.value}"
         return schemes.get(key, schemes[f"{appearance.value}_blue"])
-
-    def _get_all_schemes(self) -> Dict[str, Dict[str, str]]:
-        """Get all color schemes."""
-        return {
-            # Dark themes
-            "dark_blue": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#3a3a3a", "#4a4a4a"],
-                "button_color": "#1f538d",
-                "button_hover_color": "#14375e",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            "dark_green": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#3a3a3a", "#4a4a4a"],
-                "button_color": "#2d8659",
-                "button_hover_color": "#1f5c3f",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            "dark_purple": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#3a3a3a", "#4a4a4a"],
-                "button_color": "#7b2cbf",
-                "button_hover_color": "#5a1f8f",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            "dark_orange": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#3a3a3a", "#4a4a4a"],
-                "button_color": "#d97706",
-                "button_hover_color": "#92400e",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            "dark_teal": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#3a3a3a", "#4a4a4a"],
-                "button_color": "#0d9488",
-                "button_hover_color": "#0f766e",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            "dark_pink": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#3a3a3a", "#4a4a4a"],
-                "button_color": "#db2777",
-                "button_hover_color": "#be185d",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            "dark_indigo": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#3a3a3a", "#4a4a4a"],
-                "button_color": "#4f46e5",
-                "button_hover_color": "#4338ca",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            "dark_amber": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#3a3a3a", "#4a4a4a"],
-                "button_color": "#f59e0b",
-                "button_hover_color": "#d97706",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            # Light themes
-            "light_blue": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#d0d0d0", "#e0e0e0"],
-                "button_color": "#3b82f6",
-                "button_hover_color": "#2563eb",
-                "text_color": ["#000000", "#000000"],
-            },
-            "light_green": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#d0d0d0", "#e0e0e0"],
-                "button_color": "#10b981",
-                "button_hover_color": "#059669",
-                "text_color": ["#000000", "#000000"],
-            },
-            "light_purple": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#d0d0d0", "#e0e0e0"],
-                "button_color": "#8b5cf6",
-                "button_hover_color": "#7c3aed",
-                "text_color": ["#000000", "#000000"],
-            },
-            "light_orange": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#d0d0d0", "#e0e0e0"],
-                "button_color": "#f97316",
-                "button_hover_color": "#ea580c",
-                "text_color": ["#000000", "#000000"],
-            },
-            "light_teal": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#d0d0d0", "#e0e0e0"],
-                "button_color": "#14b8a6",
-                "button_hover_color": "#0d9488",
-                "text_color": ["#000000", "#000000"],
-            },
-            "light_pink": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#d0d0d0", "#e0e0e0"],
-                "button_color": "#ec4899",
-                "button_hover_color": "#db2777",
-                "text_color": ["#000000", "#000000"],
-            },
-            "light_indigo": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#d0d0d0", "#e0e0e0"],
-                "button_color": "#6366f1",
-                "button_hover_color": "#4f46e5",
-                "text_color": ["#000000", "#000000"],
-            },
-            "light_amber": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#d0d0d0", "#e0e0e0"],
-                "button_color": "#fbbf24",
-                "button_hover_color": "#f59e0b",
-                "text_color": ["#000000", "#000000"],
-            },
-        }
-
-    def _apply_custom_colors(self, color_scheme: Dict[str, Any]) -> None:
-        """Apply custom colors to CTK widgets.
-        
-        Note: CustomTkinter doesn't have a direct API for custom color schemes,
-        so we'll need to set colors per widget. For now, we set the default theme
-        and widgets will need to use theme manager colors.
-        """
-        # CTK uses a theme system, but we can't directly override it
-        # Instead, we'll store the colors and components will query them
-        self._current_colors = color_scheme
-        logger.debug(f"[THEME_MANAGER] Applied color scheme: {color_scheme}")
 
     def get_colors(self) -> Dict[str, Any]:
         """Get current color scheme."""
         return self._get_color_scheme(self._current_appearance, self._current_color)
+    
+    def get_theme_json(self) -> Dict[str, Any]:
+        """Get current theme JSON structure."""
+        return self._theme_json
 
     def get_appearance(self) -> AppearanceMode:
         """Get current appearance mode."""
@@ -277,32 +134,36 @@ class ThemeManager(EventBus[ThemeEvent]):
         return self._current_color
 
     def _persist_theme(self) -> None:
-        """Persist theme to config file."""
+        """Persist theme to config file using config object."""
         try:
-            config_file = Path.home() / ".media_downloader" / "config.json"
-            config_file.parent.mkdir(parents=True, exist_ok=True)
-
-            # Load existing config or create new
-            if config_file.exists():
-                with open(config_file, "r", encoding="utf-8") as f:
-                    config_data = json.load(f)
-            else:
-                config_data = {}
-
-            # Update theme config
-            if "ui" not in config_data:
-                config_data["ui"] = {}
-            if "theme" not in config_data["ui"]:
-                config_data["ui"]["theme"] = {}
-
-            config_data["ui"]["theme"]["appearance_mode"] = self._current_appearance.value
-            config_data["ui"]["theme"]["color_theme"] = self._current_color.value
-
-            # Write back
-            with open(config_file, "w", encoding="utf-8") as f:
-                json.dump(config_data, f, indent=2)
-
+            # Update config object
+            self.config.ui.theme.appearance_mode = self._current_appearance.value
+            self.config.ui.theme.color_theme = self._current_color.value
+            
+            # Save using config object's save method
+            self.config.save_to_file()
             logger.info("[THEME_MANAGER] Theme persisted to config file")
         except Exception as e:
             logger.error(f"[THEME_MANAGER] Failed to persist theme: {e}", exc_info=True)
 
+
+@cache
+def get_theme_manager(root: Optional[Any] = None) -> ThemeManager:
+    """Get cached theme manager instance.
+    
+    Uses module-level caching to ensure single instance per root window.
+    
+    Args:
+        root: Optional root window for main thread processing
+        
+    Returns:
+        ThemeManager instance (cached per root)
+    """
+    global _theme_manager_instance
+    
+    if _theme_manager_instance is None:
+        _theme_manager_instance = ThemeManager(root)
+    elif root and _theme_manager_instance._root != root:
+        _theme_manager_instance.set_root(root)
+    
+    return _theme_manager_instance
