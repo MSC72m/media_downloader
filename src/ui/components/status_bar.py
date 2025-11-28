@@ -1,6 +1,5 @@
 import queue
 import re
-import threading
 import time
 
 import customtkinter as ctk
