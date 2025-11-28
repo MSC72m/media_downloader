@@ -4,10 +4,10 @@ from typing import Any, Callable, List, Optional
 
 from src.core.config import get_config, AppConfig
 from src.core.enums.message_level import MessageLevel
-from src.interfaces.service_interfaces import (
+from src.core.interfaces import (
     IDownloadHandler,
     IDownloadService,
-    IErrorHandler,
+    IErrorNotifier,
     IMessageQueue,
 )
 from src.core.models import Download, DownloadStatus
@@ -30,7 +30,7 @@ class DownloadCoordinator:
         self,
         event_bus: DownloadEventBus,
         download_handler: IDownloadHandler,
-        error_handler: IErrorHandler,
+        error_handler: IErrorNotifier,
         download_service: IDownloadService,
         message_queue: Optional[IMessageQueue] = None,
         ui_callbacks: Optional[dict[str, Callable]] = None,

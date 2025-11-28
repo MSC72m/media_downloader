@@ -4,19 +4,18 @@ import re
 from typing import Any, Callable, Dict, Optional
 
 from src.core.config import get_config, AppConfig
-from src.core.base.base_handler import BaseHandler
 from src.core.enums.instagram_auth_status import InstagramAuthStatus
 from src.core.enums.message_level import MessageLevel
 from src.core.enums.service_type import ServiceType
+from src.core.interfaces import IErrorNotifier, IMessageQueue
 from src.core.models import Download, DownloadStatus
-from src.interfaces.service_interfaces import IErrorHandler
 from src.services.events.queue import Message
 from src.services.instagram.auth_manager import InstagramAuthManager
 from src.services.detection.link_detector import (
     DetectionResult,
-    LinkHandlerInterface,
     auto_register_handler,
 )
+from src.services.detection.base_handler import BaseHandler
 from src.ui.components.loading_dialog import LoadingDialog
 from src.utils.error_helpers import extract_error_context
 from src.utils.logger import get_logger
@@ -31,25 +30,15 @@ logger = get_logger(__name__)
 
 
 @auto_register_handler
-class InstagramHandler(BaseHandler, LinkHandlerInterface):
-    """Handler for Instagram URLs."""
-
+class InstagramHandler(BaseHandler):
     def __init__(
         self,
         instagram_auth_manager: InstagramAuthManager,
-        error_handler: Optional[IErrorHandler] = None,
-        message_queue=None,
+        error_handler: Optional[IErrorNotifier] = None,
+        message_queue: Optional[IMessageQueue] = None,
         config: AppConfig = get_config(),
     ):
-        """Initialize Instagram handler.
-
-        Args:
-            instagram_auth_manager: Instagram authentication manager
-            error_handler: Optional error handler for user notifications
-            message_queue: Optional message queue for notifications
-            config: AppConfig instance (defaults to get_config() if None)
-        """
-        super().__init__(message_queue, config)
+        super().__init__(message_queue, config, service_name="instagram")
         self.instagram_auth_manager = instagram_auth_manager
         self.error_handler = error_handler
 
@@ -121,9 +110,8 @@ class InstagramHandler(BaseHandler, LinkHandlerInterface):
                     self.error_handler.handle_service_failure("Instagram Handler", "callback", error_msg, url)
                 return
 
-            # Check authentication state (polymorphic - no if/else chains)
             if self.instagram_auth_manager.is_authenticating():
-                self.notify_user("authenticating")
+                self.notifier.notify_user("authenticating")
                 return
 
             root = get_root(ui_context)

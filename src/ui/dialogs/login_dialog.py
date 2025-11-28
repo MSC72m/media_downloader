@@ -3,7 +3,7 @@ from typing import Optional
 import customtkinter as ctk
 
 from src.core.enums.message_level import MessageLevel
-from src.interfaces.service_interfaces import IErrorHandler, IMessageQueue
+from src.core.interfaces import IErrorNotifier, IMessageQueue
 from src.services.events.queue import Message
 from src.utils.logger import get_logger
 from src.utils.window import WindowCenterMixin
@@ -15,7 +15,7 @@ class LoginDialog(ctk.CTkToplevel, WindowCenterMixin):
     def __init__(
         self,
         parent,
-        error_handler: Optional[IErrorHandler] = None,
+        error_handler: Optional[IErrorNotifier] = None,
         message_queue: Optional[IMessageQueue] = None,
     ):
         logger.info(f"[LOGIN_DIALOG] Initializing with parent: {parent}")

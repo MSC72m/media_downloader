@@ -3,7 +3,7 @@
 from typing import List, Optional, Tuple
 
 from src.core.enums import ServiceType
-from src.interfaces.service_interfaces import IErrorHandler
+from src.core.interfaces import IErrorNotifier
 from src.services.network.checker import (
     check_internet_connection,
     check_site_connection,
@@ -17,7 +17,7 @@ logger = get_logger(__name__)
 class NetworkChecker:
     """Network checker for verifying connectivity to services."""
 
-    def __init__(self, error_handler: Optional[IErrorHandler] = None):
+    def __init__(self, error_handler: Optional[IErrorNotifier] = None):
         """Initialize network checker.
 
         Args:
@@ -57,3 +57,4 @@ class NetworkChecker:
     def get_problem_services(self) -> List[str]:
         """Get list of services with connection issues."""
         return get_problem_services()
+

@@ -6,11 +6,9 @@ from typing import Callable, List, Optional
 
 import requests
 
-from src.interfaces.service_interfaces import BaseDownloader
+from src.core.interfaces import BaseDownloader, IErrorNotifier, IFileService
 from ...core.enums import ServiceType
-from src.interfaces.service_interfaces import IErrorHandler
 from ...utils.logger import get_logger
-from ..file.sanitizer import FilenameSanitizer
 from ..file.service import FileService
 from ..network.checker import check_site_connection
 
@@ -20,15 +18,17 @@ logger = get_logger(__name__)
 class TwitterDownloader(BaseDownloader):
     """Twitter downloader service."""
 
-    def __init__(self, error_handler: Optional[IErrorHandler] = None, config=None):
+    def __init__(self, error_handler: Optional[IErrorNotifier] = None, file_service: Optional[IFileService] = None, config=None):
         """Initialize Twitter downloader.
 
         Args:
             error_handler: Optional error handler for user notifications
+            file_service: Optional file service for file operations
             config: AppConfig instance (defaults to get_config() if None)
         """
         super().__init__(config)
         self.error_handler = error_handler
+        self.file_service = file_service or FileService()
 
     def download(
         self,
@@ -114,8 +114,6 @@ class TwitterDownloader(BaseDownloader):
             progress_callback: Optional[Callable[[float, float], None]] = None
     ) -> bool:
         """Download media files from tweet media data."""
-        file_service = FileService()
-        filename_sanitizer = FilenameSanitizer()
         success = False
 
         for i, item in enumerate(media):
@@ -124,16 +122,17 @@ class TwitterDownloader(BaseDownloader):
                 ext = '.mp4' if item['type'] == 'video' else '.jpg'
                 
                 if len(media) > 1:
-                    filename = filename_sanitizer.sanitize_filename(
+                    filename = self.file_service.sanitize_filename(
                         f'{os.path.basename(save_path)}_{i}{ext}'
                     )
                 else:
-                    filename = filename_sanitizer.sanitize_filename(
+                    filename = self.file_service.sanitize_filename(
                         f'{os.path.basename(save_path)}{ext}'
                     )
                 
                 full_path = os.path.join(os.path.dirname(save_path), filename)
 
+                file_service = FileService()
                 result = file_service.download_file(url, full_path, progress_callback)
                 if result.success:
                     success = True

@@ -2,7 +2,6 @@
 
 from datetime import datetime, timedelta
 from enum import StrEnum
-from pathlib import Path
 from typing import TYPE_CHECKING, Dict, List, Optional
 
 from pydantic import BaseModel, Field
@@ -10,14 +9,13 @@ from pydantic import BaseModel, Field
 from .config import get_config
 from .enums.download_status import DownloadStatus
 from .enums.service_type import ServiceType
+from .enums.events import DownloadEvent
 
 if TYPE_CHECKING:
-    from src.services.events.event_bus import DownloadEventBus
+    from .interfaces.event_bus import IEventBus
 
 
 class CookieState(BaseModel):
-    """State model for cookie generation and management."""
-
     generated_at: datetime = Field(default_factory=datetime.now)
     expires_at: datetime = Field(
         default_factory=lambda: datetime.now() + timedelta(hours=8)
@@ -28,25 +26,15 @@ class CookieState(BaseModel):
     error_message: Optional[str] = None
 
     def is_expired(self) -> bool:
-        """Check if cookies are expired."""
         return datetime.now() >= self.expires_at
 
     def should_regenerate(self) -> bool:
-        """Check if cookies should be regenerated.
-        
-        Also checks if cookie age exceeds configured expiry time.
-        """
-        from src.core.config import get_config
-        
-        # Basic checks
-        if not self.is_valid or not self.cookie_path or not Path(self.cookie_path).exists():
+        if not self.is_valid or not self.cookie_path:
             return True
         
-        # Check if expired based on expires_at
         if self.is_expired():
             return True
         
-        # Check if cookie age exceeds configured expiry hours
         config = get_config()
         if self.generated_at:
             age_hours = (datetime.now() - self.generated_at).total_seconds() / 3600
@@ -57,8 +45,6 @@ class CookieState(BaseModel):
 
 
 class Download(BaseModel):
-    """Model representing a download item with individual configuration."""
-
     name: str
     url: str
     status: DownloadStatus = Field(default=DownloadStatus.PENDING)
@@ -69,7 +55,6 @@ class Download(BaseModel):
     error_message: Optional[str] = None
     service_type: Optional[ServiceType] = None
 
-    # Individual download options for YouTube items
     quality: Optional[str] = Field(default_factory=lambda: get_config().youtube.default_quality)
     format: Optional[str] = Field(default="video")
     audio_only: bool = Field(default=False)
@@ -84,8 +69,7 @@ class Download(BaseModel):
     retries: int = Field(default=3)
     concurrent_downloads: int = Field(default=1)
 
-    # Event bus for state changes
-    _event_bus: Optional["DownloadEventBus"] = None
+    _event_bus: Optional["IEventBus"] = None
 
     model_config = {"arbitrary_types_allowed": True}
 
@@ -94,67 +78,47 @@ class Download(BaseModel):
         if hasattr(self, "url") and self.url:
             self._validate_url(self.url)
 
-    def set_event_bus(self, event_bus: "DownloadEventBus") -> None:
-        """Set the event bus for this download."""
+    def set_event_bus(self, event_bus: "IEventBus") -> None:
         self._event_bus = event_bus
 
     def _validate_url(self, v):
-        """Validate URL format."""
         if not v.startswith(("http://", "https://")):
             raise ValueError("URL must start with http:// or https://")
 
     def update_progress(self, progress: float, speed: float):
-        """Update download progress and speed."""
-        from src.utils.logger import get_logger
-
-        logger = get_logger(__name__)
-
         self.progress = progress
         self.speed = speed
 
         if not self._event_bus:
-            logger.warning(f"[DOWNLOAD] {self.name} - NO EVENT BUS ATTACHED")
             return
-
-        logger.info(f"[DOWNLOAD] {self.name} - Publishing progress: {progress}%")
-
-        from src.services.events.event_bus import DownloadEvent
 
         self._event_bus.publish(
             DownloadEvent.PROGRESS, download=self, progress=progress, speed=speed
         )
 
         if progress >= 100:
-            logger.info(f"[DOWNLOAD] {self.name} - Publishing completion")
             self.status = DownloadStatus.COMPLETED
             self.completed_at = datetime.now()
             self._event_bus.publish(DownloadEvent.COMPLETED, download=self)
 
     def mark_failed(self, error_message: str):
-        """Mark download as failed with error message."""
         self.status = DownloadStatus.FAILED
         self.error_message = error_message
         self.completed_at = datetime.now()
 
         if self._event_bus:
-            from src.services.events.event_bus import DownloadEvent
-
             self._event_bus.publish(
                 DownloadEvent.FAILED, download=self, error=error_message
             )
 
 
 class DownloadOptions(BaseModel):
-    """Options for downloading media."""
-
     save_directory: str = Field(
         default_factory=lambda: str(get_config().paths.downloads_dir)
     )
 
 
 class UIState(BaseModel):
-    """Main UI state model."""
-
     download_directory: str = Field(
         default_factory=lambda: str(get_config().paths.downloads_dir)
     )
@@ -166,16 +130,12 @@ class UIState(BaseModel):
 
 
 class AuthState(BaseModel):
-    """Authentication state for services."""
-
     is_authenticated: bool = Field(default=False)
     service: Optional[ServiceType] = None
     username: Optional[str] = None
 
 
 class ButtonState(StrEnum):
-    """Button state enumeration."""
-
     REMOVE = "remove"
     CLEAR = "clear"
     DOWNLOAD = "download"
@@ -184,8 +144,6 @@ class ButtonState(StrEnum):
 
 
 class ConnectionResult(BaseModel):
-    """Result of a connection check."""
-
     is_connected: bool
     error_message: str = ""
     response_time: float = 0.0
@@ -193,8 +151,6 @@ class ConnectionResult(BaseModel):
 
 
 class DownloadResult(BaseModel):
-    """Result of a download operation."""
-
     success: bool
     file_path: Optional[str] = None
     bytes_downloaded: int = 0

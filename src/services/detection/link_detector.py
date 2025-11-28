@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Type
 
+from src.core.config import get_config, AppConfig
+from src.core.interfaces import IMessageQueue
 from src.utils.logger import get_logger
 
 logging.basicConfig(
@@ -21,37 +23,19 @@ class DetectionResult:
     metadata: Dict[str, Any] | None = None
 
 
-class LinkHandlerInterface(ABC):
-    """Interface for link handlers."""
+from .base_handler import BaseHandler
 
-    @abstractmethod
-    def can_handle(self, url: str) -> DetectionResult:
-        """Check if this handler can process the given URL."""
-        pass
-
-    @abstractmethod
-    def get_metadata(self, url: str) -> Dict[str, Any]:
-        """Get metadata for the URL."""
-        pass
-
-    @abstractmethod
-    def process_download(self, url: str, options: Dict[str, Any]) -> bool:
-        """Process the download with given options."""
-        pass
-
-    @abstractmethod
-    def get_ui_callback(self) -> Callable:
-        """Get the UI callback for handling this link type."""
-        pass
+# Alias for backward compatibility - handlers can use either name
+LinkHandlerInterface = BaseHandler
 
 
 class LinkDetectionRegistry:
     """Registry for link handlers with automatic registration."""
 
     _instance = None
-    _handlers: Dict[str, Type[LinkHandlerInterface]] = {}
+    _handlers: Dict[str, Type[BaseHandler]] = {}
     _compiled_patterns: Dict[str, List[re.Pattern]] = {}
-    _handler_factory: Optional[Callable[[Type[LinkHandlerInterface]], LinkHandlerInterface]] = None
+    _handler_factory: Optional[Callable[[Type[BaseHandler]], BaseHandler]] = None
 
     def __new__(cls):
         if cls._instance is None:
@@ -59,13 +43,13 @@ class LinkDetectionRegistry:
         return cls._instance
 
     @classmethod
-    def set_handler_factory(cls, factory: Callable[[Type[LinkHandlerInterface]], LinkHandlerInterface]) -> None:
+    def set_handler_factory(cls, factory: Callable[[Type[BaseHandler]], BaseHandler]) -> None:
         """Set factory function for creating handler instances with dependencies."""
         cls._handler_factory = factory
         logger.info("[REGISTRY] Handler factory set")
 
     @classmethod
-    def register(cls, handler_class: Type[LinkHandlerInterface]):
+    def register(cls, handler_class: Type[BaseHandler]):
         """Register a link handler class."""
         handler_name = handler_class.__name__
         logger.info(f"[REGISTRATION] Attempting to register handler: {handler_name}")
@@ -101,7 +85,7 @@ class LinkDetectionRegistry:
             )
 
     @classmethod
-    def detect_handler(cls, url: str) -> Optional[LinkHandlerInterface]:
+    def detect_handler(cls, url: str) -> Optional[BaseHandler]:
         """Detect the appropriate handler for a URL."""
         logger.info(f"[DETECTION] Starting URL detection for: {url}")
         logger.info(f"[DETECTION] Available handlers: {list(cls._handlers.keys())}")
@@ -166,7 +150,7 @@ class LinkDetectionRegistry:
 class LinkDetector:
     """Main link detector that uses the registry."""
 
-    def __init__(self, handler_factory: Optional[Callable[[Type[LinkHandlerInterface]], LinkHandlerInterface]] = None):
+    def __init__(self, handler_factory: Optional[Callable[[Type[BaseHandler]], BaseHandler]] = None):
         self.registry = LinkDetectionRegistry()
         if handler_factory:
             self.registry.set_handler_factory(handler_factory)
@@ -216,7 +200,7 @@ class LinkDetector:
         return None
 
 
-def auto_register_handler(handler_class: Type[LinkHandlerInterface]):
+def auto_register_handler(handler_class: Type[BaseHandler]):
     """Decorator for automatic handler registration."""
     logger.info(f"[DECORATOR] Auto-registering handler: {handler_class.__name__}")
     try:

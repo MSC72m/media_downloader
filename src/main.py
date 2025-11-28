@@ -16,7 +16,7 @@ import customtkinter as ctk  # noqa: E402
 from tkinter import Menu  # noqa: E402
 
 from src.core import get_application_orchestrator  # noqa: E402
-from src.interfaces.service_interfaces import IMessageQueue  # noqa: E402
+from src.core.interfaces import IMessageQueue  # noqa: E402
 from src.services.events.queue import MessageQueue  # noqa: E402
 from src.ui.components.download_list import DownloadListView  # noqa: E402
 from src.ui.components.main_action_buttons import ActionButtonBar  # noqa: E402

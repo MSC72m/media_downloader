@@ -5,7 +5,7 @@ import subprocess
 from typing import Optional
 
 from src.core.config import AppConfig, get_config
-from src.interfaces.service_interfaces import IErrorHandler
+from src.core.interfaces import IErrorNotifier
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -14,7 +14,7 @@ logger = get_logger(__name__)
 class AudioExtractor:
     """Utility class for extracting audio from video files using FFmpeg."""
 
-    def __init__(self, config: AppConfig = get_config(), error_handler: Optional[IErrorHandler] = None):
+    def __init__(self, config: AppConfig = get_config(), error_handler: Optional[IErrorNotifier] = None):
         """Initialize audio extractor.
 
         Args:

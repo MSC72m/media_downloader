@@ -4,7 +4,7 @@ from threading import Lock
 from typing import Optional
 
 from src.core.config import get_config, AppConfig
-from src.interfaces.service_interfaces import IErrorHandler
+from src.core.interfaces import IErrorNotifier
 from src.services.instagram.downloader import InstagramDownloader
 from src.utils.logger import get_logger
 
@@ -14,7 +14,7 @@ logger = get_logger(__name__)
 class InstagramAuthManager:
     """Manages Instagram authentication state and authenticated downloader instance."""
 
-    def __init__(self, error_handler: Optional[IErrorHandler] = None, config: AppConfig = get_config()):
+    def __init__(self, error_handler: Optional[IErrorNotifier] = None, config: AppConfig = get_config()):
         """Initialize Instagram authentication manager.
 
         Args:

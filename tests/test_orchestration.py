@@ -3,15 +3,15 @@
 import pytest
 from unittest.mock import Mock, MagicMock, patch
 
-from src.core.application.orchestrator import ApplicationOrchestrator
-from src.core.application.di_container import ServiceContainer, LifetimeScope
+from src.application.orchestrator import ApplicationOrchestrator
+from src.application.di_container import ServiceContainer, LifetimeScope
 from src.core.interfaces import (
     IDownloadService,
     IDownloadHandler,
     ICookieHandler,
     IMetadataService,
     INetworkChecker,
-    IErrorHandler,
+    IErrorNotifier,
     IAutoCookieManager,
     IFileService,
     IMessageQueue,
@@ -21,7 +21,7 @@ from src.core.interfaces import (
 from src.services.events.event_bus import DownloadEventBus
 
 
-class MockErrorHandler(IErrorHandler):
+class MockErrorHandler(IErrorNotifier):
     """Mock error handler for testing."""
 
     def show_error(self, title: str, message: str) -> None:
@@ -222,7 +222,7 @@ class TestApplicationOrchestrator:
         container = orchestrator.container
 
         # Check that core interfaces are registered
-        assert container.has(IErrorHandler)
+        assert container.has(IErrorNotifier)
         assert container.has(IDownloadHandler)
         assert container.has(IDownloadService)
         assert container.has(IFileService)
@@ -242,7 +242,7 @@ class TestApplicationOrchestrator:
         container = orchestrator.container
 
         # Should be able to resolve all dependencies
-        error_handler = container.get(IErrorHandler)
+        error_handler = container.get(IErrorNotifier)
         download_handler = container.get(IDownloadHandler)
         download_service = container.get(IDownloadService)
         file_service = container.get(IFileService)
@@ -254,7 +254,7 @@ class TestApplicationOrchestrator:
         ui_state = container.get(IUIState)
 
         # Verify we got the right types
-        assert isinstance(error_handler, IErrorHandler)
+        assert isinstance(error_handler, IErrorNotifier)
         assert isinstance(download_handler, IDownloadHandler)
         assert isinstance(download_service, IDownloadService)
         assert isinstance(file_service, IFileService)
@@ -278,8 +278,8 @@ class TestApplicationOrchestrator:
         ui_state2 = container.get(IUIState)
         assert ui_state1 is ui_state2
 
-        error_handler1 = container.get(IErrorHandler)
-        error_handler2 = container.get(IErrorHandler)
+        error_handler1 = container.get(IErrorNotifier)
+        error_handler2 = container.get(IErrorNotifier)
         assert error_handler1 is error_handler2
 
     @patch('customtkinter.CTk')
@@ -350,7 +350,7 @@ class TestApplicationOrchestrator:
         orchestrator = ApplicationOrchestrator(mock_root)
 
         error_handler = orchestrator.error_handler
-        assert isinstance(error_handler, IErrorHandler)
+        assert isinstance(error_handler, IErrorNotifier)
 
     @patch('customtkinter.CTk')
     def test_orchestrator_connectivity_check(self, mock_ctk):
@@ -397,14 +397,14 @@ class TestOrchestratorIntegration:
         container.register_singleton(IFileService, FileService)
         container.register_singleton(INetworkChecker, NetworkChecker)
         container.register_singleton(IDownloadHandler, DownloadHandler)
-        container.register_singleton(IErrorHandler, ErrorHandler)
+        container.register_singleton(IErrorNotifier, ErrorHandler)
 
         # Should be able to resolve real services
         download_service = container.get(IDownloadService)
         file_service = container.get(IFileService)
         network_checker = container.get(INetworkChecker)
         download_handler = container.get(IDownloadHandler)
-        error_handler = container.get(IErrorHandler)
+        error_handler = container.get(IErrorNotifier)
 
         assert isinstance(download_service, DownloadService)
         assert isinstance(file_service, FileService)
@@ -456,7 +456,7 @@ class TestOrchestratorIntegration:
 
         # All services should be resolvable
         try:
-            orchestrator.container.get(IErrorHandler)
+            orchestrator.container.get(IErrorNotifier)
             orchestrator.container.get(IDownloadHandler)
             orchestrator.container.get(IDownloadService)
             orchestrator.container.get(IFileService)

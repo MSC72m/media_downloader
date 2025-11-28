@@ -5,7 +5,7 @@ from itertools import chain
 from typing import Any, Dict, List, Optional
 
 from src.core.config import AppConfig, get_config
-from src.interfaces.parser import IParser
+from src.core.interfaces import IParser
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)

@@ -1,41 +1,23 @@
-"""Base handler with common behaviors for all link handlers."""
+"""Notifier service implementation."""
 
 from typing import Dict, Any, Optional
-from enum import Enum
 
-from src.core.config import get_config, AppConfig
 from src.core.enums.message_level import MessageLevel
-from src.interfaces.service_interfaces import IMessageQueue
+from src.core.interfaces import IMessageQueue, INotifier
 from src.services.events.queue import Message
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-class NotificationType(Enum):
-    """Types of notifications."""
-    INFO = "INFO"
-    WARNING = "WARNING"
-    ERROR = "ERROR"
-    SUCCESS = "SUCCESS"
-
-
-class BaseHandler:
-    """Base handler with common notification behavior for all handlers."""
-
-    def __init__(self, message_queue: Optional[IMessageQueue] = None, config: AppConfig = get_config()):
-        """Initialize base handler with config injection.
-        
-        Args:
-            message_queue: Optional message queue for notifications
-            config: AppConfig instance (defaults to get_config() if None)
-        """
-        self.config = config
+class NotifierService(INotifier):
+    def __init__(self, message_queue: Optional[IMessageQueue] = None, custom_templates: Optional[Dict[str, Dict[str, Any]]] = None):
         self.message_queue = message_queue
-        self._notification_templates = self._get_notification_templates()
+        self._templates = self._get_templates()
+        if custom_templates:
+            self._templates.update(custom_templates)
 
-    def _get_notification_templates(self) -> Dict[str, Dict[str, Any]]:
-        """Get notification templates. Override in subclasses for service-specific messages."""
+    def _get_templates(self) -> Dict[str, Dict[str, Any]]:
         return {
             "cookies_generating": {
                 "text": "Cookies are being generated. Please wait a moment and try again.",
@@ -69,23 +51,16 @@ class BaseHandler:
             }
         }
 
-    def notify_user(self, notification_type: str, **kwargs) -> None:
-        """Notify user using template with polymorphic behavior."""
-        template_data = self._notification_templates.get(notification_type)
+    def notify_user(self, notification_type: str, **kwargs: Any) -> None:
+        template_data = self._templates.get(notification_type)
         if not template_data:
-            logger.warning(f"[HANDLER] Notification template not found: {notification_type}")
+            logger.warning(f"[NOTIFIER] Template not found: {notification_type}")
             return
 
-        # Allow template customization through kwargs
         message_data = template_data.copy()
         message_data.update(kwargs)
 
-        self._send_notification(message_data)
-
-    def _send_notification(self, message_data: Dict[str, Any]) -> None:
-        """Send notification using message queue."""
         if not self.message_queue:
-            logger.debug(f"[HANDLER] No message queue available for notification: {message_data.get('title')}")
             return
 
         try:
@@ -98,11 +73,11 @@ class BaseHandler:
                 )
             )
         except Exception as e:
-            logger.error(f"[HANDLER] Failed to send notification: {e}")
+            logger.error(f"[NOTIFIER] Failed to send notification: {e}")
 
     def notify_error(self, error: Exception, context: str = "") -> None:
-        """Notify about errors with context."""
         self.notify_user(
             "download_error",
             text=f"Error in {context}: {str(error)}",
         )
+

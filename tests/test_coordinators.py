@@ -11,7 +11,7 @@ from src.services.events.event_bus import DownloadEventBus
 from src.core.interfaces import (
     IDownloadHandler,
     IDownloadService,
-    IErrorHandler,
+    IErrorNotifier,
     ICookieHandler,
     IFileService,
     INetworkChecker,
@@ -79,7 +79,7 @@ class MockDownloadService(IDownloadService):
         pass
 
 
-class MockErrorHandler(IErrorHandler):
+class MockErrorHandler(IErrorNotifier):
     """Mock error handler for testing."""
 
     def __init__(self):

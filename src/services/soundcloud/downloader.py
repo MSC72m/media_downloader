@@ -7,7 +7,7 @@ from typing import Any, Callable, Dict, Optional
 import yt_dlp
 
 from src.core.config import get_config, AppConfig
-from src.interfaces.service_interfaces import BaseDownloader, IErrorHandler
+from src.core.interfaces import BaseDownloader, IErrorNotifier
 from ...utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -25,7 +25,7 @@ class SoundCloudDownloader(BaseDownloader):
         download_thumbnail: bool = True,
         speed_limit: Optional[int] = None,
         retries: Optional[int] = None,
-        error_handler: Optional[IErrorHandler] = None,
+        error_handler: Optional[IErrorNotifier] = None,
         config=None,
     ):
         """Initialize SoundCloud downloader.

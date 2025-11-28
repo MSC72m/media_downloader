@@ -1,62 +1,52 @@
-from typing import Any, Callable, Optional, Protocol, runtime_checkable
+"""Protocol definitions for structural typing."""
 
-# ServiceContainer type hint for protocols
-class ServiceContainer:
-    """Placeholder ServiceContainer type for protocols."""
-    pass
+from typing import Any, Callable, Optional, Protocol, runtime_checkable
 
 
 @runtime_checkable
 class UIContextProtocol(Protocol):
-    """Protocol for UI context objects (orchestrator or event coordinator)."""
+    """Protocol for UI context objects."""
 
-    container: ServiceContainer
-    root: Any  # Tk root window
+    container: Any
+    root: Any
 
     def youtube_download(self, url: str, **kwargs) -> None:
-        """Handle YouTube download."""
         ...
 
     def twitter_download(self, url: str, **kwargs) -> None:
-        """Handle Twitter download."""
         ...
 
     def instagram_download(self, url: str, **kwargs) -> None:
-        """Handle Instagram download."""
         ...
 
     def pinterest_download(self, url: str, **kwargs) -> None:
-        """Handle Pinterest download."""
         ...
 
     def generic_download(self, url: str, name: Optional[str] = None) -> None:
-        """Handle generic download."""
         ...
 
 
 @runtime_checkable
 class HasEventCoordinatorProtocol(Protocol):
-    """Protocol for objects that have an event_coordinator attribute."""
+    """Protocol for objects with event_coordinator attribute."""
 
     event_coordinator: UIContextProtocol
 
 
 @runtime_checkable
 class HandlerWithPatternsProtocol(Protocol):
-    """Protocol for link handlers that provide URL patterns."""
+    """Protocol for link handlers with URL patterns."""
 
     @classmethod
     def get_patterns(cls) -> list[str]:
-        """Get URL patterns for this handler."""
         ...
 
 
 @runtime_checkable
 class HasCleanupProtocol(Protocol):
-    """Protocol for objects that have a cleanup method."""
+    """Protocol for objects with cleanup method."""
 
     def cleanup(self) -> None:
-        """Clean up resources."""
         ...
 
 
@@ -65,33 +55,28 @@ class HasClearProtocol(Protocol):
     """Protocol for UI components that can be cleared."""
 
     def clear(self) -> None:
-        """Clear the component."""
         ...
 
 
 @runtime_checkable
 class HasCompletedDownloadsProtocol(Protocol):
-    """Protocol for download lists that track completed downloads."""
+    """Protocol for download lists tracking completed downloads."""
 
     def has_completed_downloads(self) -> bool:
-        """Check if there are completed downloads."""
         ...
 
     def remove_completed_downloads(self) -> int:
-        """Remove completed downloads and return count."""
         ...
 
 
 @runtime_checkable
 class TkRootProtocol(Protocol):
-    """Protocol for Tk root window with after method."""
+    """Protocol for Tk root window."""
 
     def after(self, ms: int, func: Callable[[], Any]) -> str:
-        """Schedule a function to be called after a delay."""
         ...
 
     def winfo_exists(self) -> bool:
-        """Check if window still exists."""
         ...
 
 
@@ -103,3 +88,4 @@ class DownloadAttributesProtocol(Protocol):
     quality: str
     download_playlist: bool
     audio_only: bool
+

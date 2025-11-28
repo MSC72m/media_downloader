@@ -10,17 +10,13 @@ from typing import Any, Dict, List, Optional
 
 from src.utils.logger import get_logger
 
-from ...interfaces.cookie_detection import (
-    BrowserType,
-    ICookieDetector,
-    ICookieManager,
-    PlatformType,
-)
+from src.core.enums import BrowserType, PlatformType
+from src.core.interfaces import ICookieManager
 
 logger = get_logger(__name__)
 
 
-class CookieDetector(ICookieDetector):
+class CookieDetector:
     """Concrete implementation for detecting browser cookies."""
 
     def __init__(self):

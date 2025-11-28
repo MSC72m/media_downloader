@@ -1,5 +1,5 @@
 from typing import Any, Callable, Optional, TypeVar
-from src.interfaces.protocols import (
+from src.core.interfaces import (
     HasCleanupProtocol,
     HasClearProtocol,
     HasCompletedDownloadsProtocol,

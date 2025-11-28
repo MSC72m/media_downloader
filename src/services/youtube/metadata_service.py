@@ -5,8 +5,8 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import parse_qs, urlparse
 
 from src.core.config import get_config, AppConfig
-from src.interfaces.service_interfaces import IErrorHandler
-from ...interfaces.youtube_metadata import (
+from src.core.interfaces import (
+    IErrorNotifier,
     IYouTubeMetadataService,
     SubtitleInfo,
     YouTubeMetadata,
@@ -25,7 +25,7 @@ class YouTubeMetadataService(IYouTubeMetadataService):
 
     def __init__(
         self,
-        error_handler: Optional[IErrorHandler] = None,
+        error_handler: Optional[IErrorNotifier] = None,
         config: AppConfig = get_config(),
     ):
         self.config = config

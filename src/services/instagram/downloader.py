@@ -8,11 +8,9 @@ from urllib.parse import urlparse
 import instaloader
 
 from src.core.config import get_config, AppConfig
-from src.interfaces.service_interfaces import BaseDownloader
+from src.core.interfaces import BaseDownloader, IErrorNotifier, IFileService
 from ...core.enums import ServiceType
-from src.interfaces.service_interfaces import IErrorHandler
 from ...utils.logger import get_logger
-from ..file.sanitizer import FilenameSanitizer
 from ..file.service import FileService
 from ..network.checker import check_site_connection
 
@@ -22,11 +20,12 @@ logger = get_logger(__name__)
 class InstagramDownloader(BaseDownloader):
     """Instagram downloader service with authentication support."""
 
-    def __init__(self, error_handler: Optional[IErrorHandler] = None, config=None):
+    def __init__(self, error_handler: Optional[IErrorNotifier] = None, file_service: Optional[IFileService] = None, config: AppConfig = get_config()):
         """Initialize Instagram downloader.
 
         Args:
             error_handler: Optional error handler for user notifications
+            file_service: Optional file service for file operations
             config: AppConfig instance (defaults to get_config() if None)
         """
         super().__init__(config)
@@ -36,6 +35,7 @@ class InstagramDownloader(BaseDownloader):
         self.max_login_attempts = self.config.instagram.max_login_attempts
         self.last_login_attempt = 0
         self.error_handler = error_handler
+        self.file_service = file_service or FileService()
 
     def authenticate(self, username: str, password: str) -> bool:
         """
@@ -181,14 +181,13 @@ class InstagramDownloader(BaseDownloader):
             post = instaloader.Post.from_shortcode(self.loader.context, shortcode)
 
             file_service = FileService()
-            filename_sanitizer = FilenameSanitizer()
-            save_dir = self._get_save_directory(save_path)
-            self._ensure_directory_exists(save_path)
+            save_dir = os.path.dirname(save_path) if os.path.dirname(save_path) else "."
+            self.file_service.ensure_directory(save_dir)
 
             if post.is_video:
                 # Download video
                 video_url = post.video_url
-                filename = filename_sanitizer.sanitize_filename(
+                filename = self.file_service.sanitize_filename(
                     os.path.basename(save_path) + ".mp4"
                 )
                 full_path = os.path.join(save_dir, filename)
@@ -215,11 +214,11 @@ class InstagramDownloader(BaseDownloader):
 
                             # Generate filename
                             if i > 0:
-                                filename = filename_sanitizer.sanitize_filename(
+                                filename = self.file_service.sanitize_filename(
                                     f"{os.path.basename(save_path)}_{i}{ext}"
                                 )
                             else:
-                                filename = filename_sanitizer.sanitize_filename(
+                                filename = self.file_service.sanitize_filename(
                                     f"{os.path.basename(save_path)}{ext}"
                                 )
 
@@ -237,7 +236,7 @@ class InstagramDownloader(BaseDownloader):
                 else:
                     # Single image post
                     image_url = post.url
-                    filename = filename_sanitizer.sanitize_filename(
+                    filename = self.file_service.sanitize_filename(
                         f"{os.path.basename(save_path)}.jpg"
                     )
                     full_path = os.path.join(save_dir, filename)

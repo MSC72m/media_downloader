@@ -17,10 +17,6 @@ from typing import (
     get_args,
 )
 
-from src.utils.logger import get_logger
-
-logger = get_logger(__name__)
-
 T = TypeVar('T')
 
 
@@ -91,7 +87,6 @@ class ServiceContainer:
         """Register a singleton service (same instance each time)."""
         if instance is not None:
             self._singletons[service_type] = instance
-            logger.info(f"[CONTAINER] Registered singleton instance: {service_type.__name__}")
             return self
 
         return self._register_service(
@@ -115,12 +110,6 @@ class ServiceContainer:
 
         descriptor.validate()
         self._services[service_type] = descriptor
-
-        logger.info(
-            f"[CONTAINER] Registered {lifetime.name.lower()}: "
-            f"{service_type.__name__} -> {descriptor.implementation.__name__}"
-        )
-
         return self
 
     def get(self, service_type: Type[T]) -> T:
@@ -130,9 +119,7 @@ class ServiceContainer:
 
         # Check for existing singleton
         if service_type in self._singletons:
-            instance = self._singletons[service_type]
-            logger.debug(f"[CONTAINER] Retrieved singleton: {service_type.__name__}")
-            return instance
+            return self._singletons[service_type]
 
         # Get service descriptor
         if service_type not in self._services:
@@ -157,7 +144,6 @@ class ServiceContainer:
             if descriptor.lifetime == LifetimeScope.SINGLETON:
                 self._singletons[service_type] = instance
 
-            logger.debug(f"[CONTAINER] Created {descriptor.lifetime.name.lower()}: {service_type.__name__}")
             return instance
 
         finally:
@@ -263,22 +249,27 @@ class ServiceContainer:
         """Clear all services and singletons."""
         self._services.clear()
         self._singletons.clear()
-        logger.debug("[CONTAINER] Cleared all services")
 
     def register_instance(self, service_type: Type[T], instance: T) -> 'ServiceContainer':
         """Register a service instance as singleton.
         
-        For ABC interfaces, uses issubclass check instead of isinstance
-        to handle cases where the instance implements the interface but
-        doesn't explicitly inherit from it.
+        For ABC interfaces, uses issubclass check.
+        For Protocols, validates if @runtime_checkable is used, otherwise skips check.
         """
-        # Check if instance implements the service type
-        # For ABC interfaces, check if instance's class is a subclass
-        is_valid = isinstance(instance, service_type)
+        is_valid = False
         
-        # If isinstance fails, try issubclass for ABC interfaces
-        if not is_valid and hasattr(service_type, '__abstractmethods__'):
+        if hasattr(service_type, '__abstractmethods__'):
             is_valid = issubclass(type(instance), service_type)
+        elif hasattr(service_type, '__protocol__'):
+            if hasattr(service_type, '__runtime_checkable__'):
+                try:
+                    is_valid = isinstance(instance, service_type)
+                except TypeError:
+                    is_valid = True
+            else:
+                is_valid = True
+        else:
+            is_valid = isinstance(instance, service_type)
         
         if not is_valid:
             raise ValueError(
@@ -292,7 +283,6 @@ class ServiceContainer:
         )
         self._services[service_type] = descriptor
         self._singletons[service_type] = instance
-        logger.info(f"[CONTAINER] Registered instance: {service_type.__name__}")
         return self
 
     def register_factory(self, service_type: Type[T], factory: Callable[[], T]) -> 'ServiceContainer':
@@ -306,23 +296,15 @@ class ServiceContainer:
             lifetime=LifetimeScope.TRANSIENT
         )
         self._services[service_type] = descriptor
-        logger.info(f"[CONTAINER] Registered factory: {service_type.__name__}")
         return self
 
     def validate_dependencies(self) -> None:
         """Validate that all registered dependencies can be resolved."""
-        logger.info("[CONTAINER] Validating dependencies")
-
         for service_type, descriptor in self._services.items():
             try:
-                # Try to resolve the service
                 self.get(service_type)
-                logger.debug(f"[CONTAINER] ✓ {service_type.__name__}")
             except Exception as e:
-                logger.error(f"[CONTAINER] ✗ {service_type.__name__}: {e}")
                 raise ValueError(f"Dependency validation failed for {service_type.__name__}: {e}")
-
-        logger.info("[CONTAINER] All dependencies validated successfully")
 
 
 def auto_register_by_convention(container: ServiceContainer, module_path: str) -> None:
@@ -348,15 +330,11 @@ def auto_register_by_convention(container: ServiceContainer, module_path: str) -
             interfaces = [base for base in obj.__bases__ if hasattr(base, '__abstractmethods__')]
 
             if interfaces:
-                # Register with the first interface found
                 interface = interfaces[0]
                 container.register_singleton(interface, obj)
-                logger.info(f"[AUTO_REGISTER] {name} -> {interface.__name__}")
             else:
-                # Register concrete class as itself
                 container.register_singleton(obj, obj)
-                logger.info(f"[AUTO_REGISTER] {name} -> {name}")
 
-    except ImportError as e:
-        logger.warning(f"[AUTO_REGISTER] Failed to import module {module_path}: {e}")
+    except ImportError:
+        pass
 

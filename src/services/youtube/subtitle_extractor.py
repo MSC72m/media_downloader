@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional
 import yt_dlp
 
 from src.core.config import AppConfig, get_config
-from src.interfaces.service_interfaces import IErrorHandler
+from src.core.interfaces import IErrorNotifier
 from src.services.youtube.subtitle_parser import YouTubeSubtitleParser
 from src.utils.logger import get_logger
 
@@ -17,7 +17,7 @@ class YouTubeSubtitleExtractor:
 
     def __init__(
         self,
-        error_handler: Optional[IErrorHandler] = None,
+        error_handler: Optional[IErrorNotifier] = None,
         config: AppConfig = get_config(),
     ):
         self.error_handler = error_handler

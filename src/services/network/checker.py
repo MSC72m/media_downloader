@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from src.core.config import get_config, AppConfig
 from src.core.enums import ServiceType
-from src.interfaces.service_interfaces import IErrorHandler
+from src.core.interfaces import IErrorNotifier
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -45,7 +45,7 @@ class BaseNetworkChecker(ABC):
 class HTTPNetworkChecker(BaseNetworkChecker):
     """HTTP-based network checker."""
 
-    def __init__(self, timeout: Optional[int] = None, error_handler: Optional[IErrorHandler] = None, config: AppConfig = get_config()):
+    def __init__(self, timeout: Optional[int] = None, error_handler: Optional[IErrorNotifier] = None, config: AppConfig = get_config()):
         """Initialize network checker.
         
         Args:
@@ -427,7 +427,7 @@ class HTTPNetworkChecker(BaseNetworkChecker):
 class NetworkService:
     """High-level network service interface."""
 
-    def __init__(self, checker: Optional[NetworkChecker] = None, error_handler: Optional[IErrorHandler] = None):
+    def __init__(self, checker: Optional[NetworkChecker] = None, error_handler: Optional[IErrorNotifier] = None):
         self.checker = checker or HTTPNetworkChecker(error_handler=error_handler)
 
     def check_internet_connection(self) -> Tuple[bool, str]:

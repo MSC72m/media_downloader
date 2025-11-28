@@ -11,9 +11,8 @@ import customtkinter as ctk
 from src.core.config import get_config, AppConfig
 from src.core.enums.message_level import MessageLevel
 from src.core.models import Download
-from src.interfaces.service_interfaces import IErrorHandler, IMessageQueue
+from src.core.interfaces import IErrorNotifier, IMessageQueue, YouTubeMetadata
 from src.services.events.queue import Message
-from ...interfaces.youtube_metadata import YouTubeMetadata
 from ...utils.logger import get_logger
 from ...utils.window import WindowCenterMixin, close_loading_dialog
 from ..components.loading_dialog import LoadingDialog
@@ -34,7 +33,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         metadata_service=None,
         pre_fetched_metadata: YouTubeMetadata | None = None,
         initial_cookie_path: str | None = None,
-        error_handler: Optional[IErrorHandler] = None,
+        error_handler: Optional[IErrorNotifier] = None,
         message_queue: Optional[IMessageQueue] = None,
         config: AppConfig = get_config(),
     ):

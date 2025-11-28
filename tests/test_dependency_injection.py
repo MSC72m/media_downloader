@@ -4,14 +4,14 @@ import pytest
 from typing import Optional, List
 from unittest.mock import Mock, MagicMock
 
-from src.core.application.di_container import ServiceContainer, LifetimeScope
+from src.application.di_container import ServiceContainer, LifetimeScope
 from src.core.interfaces import (
     IDownloadService,
     IDownloadHandler,
     ICookieHandler,
     IMetadataService,
     INetworkChecker,
-    IErrorHandler,
+    IErrorNotifier,
     IAutoCookieManager,
     IFileService,
     IMessageQueue,
@@ -281,7 +281,7 @@ class TestRealInterfaces:
         assert hasattr(handler, 'is_available')
 
     def test_real_error_handler_interface(self):
-        """Test real IErrorHandler implementation."""
+        """Test real IErrorNotifier implementation."""
         # Skip due to complex GUI import chain - test ErrorHandler in coordinator tests
         # where proper GUI mocking is already set up
         import pytest

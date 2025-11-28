@@ -8,8 +8,8 @@ from src.core.config import AppConfig, get_config
 from src.core.enums.message_level import MessageLevel
 from src.services.events.queue import Message
 
-from src.interfaces.service_interfaces import (
-    IErrorHandler,
+from src.core.interfaces import (
+    IErrorNotifier,
     IDownloadHandler,
     IFileService,
     INetworkChecker,
@@ -45,7 +45,7 @@ class EventCoordinator:
         - For routing: coord.platform_download(), coord.cookie_detected()
     """
 
-    def __init__(self, root_window: ctk.CTk, error_handler: IErrorHandler,
+    def __init__(self, root_window: ctk.CTk, error_handler: IErrorNotifier,
                  download_handler: IDownloadHandler, file_service: IFileService,
                  network_checker: INetworkChecker, cookie_handler: ICookieHandler,
                  download_service: IDownloadService, message_queue: Optional[IMessageQueue] = None,

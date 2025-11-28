@@ -16,27 +16,26 @@ from src.core.enums import ServiceType
 from src.core.enums.download_status import DownloadStatus
 from src.core.enums.message_level import MessageLevel
 from src.core.models import Download, DownloadOptions, UIState
-from src.core.base.base_handler import BaseHandler
-from src.interfaces.service_interfaces import (
+from src.core.interfaces import (
     IAutoCookieManager,
     ICookieHandler,
     IDownloadHandler,
     IDownloadService,
-    IErrorHandler,
+    IErrorNotifier,
     IFileService,
     IMessageQueue,
     IServiceFactory,
     IUIState,
+    INotifier,
 )
 from src.services.events.queue import Message
+from src.services.notifications.notifier import NotifierService
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-class DownloadHandler(BaseHandler, IDownloadHandler):
-    """Download handler with proper dependency injection."""
-
+class DownloadHandler(IDownloadHandler):
     def __init__(
         self,
         download_service: IDownloadService,
@@ -46,10 +45,10 @@ class DownloadHandler(BaseHandler, IDownloadHandler):
         cookie_handler: ICookieHandler,
         auto_cookie_manager: Optional[IAutoCookieManager] = None,
         message_queue: Optional[IMessageQueue] = None,
-        error_handler: Optional[IErrorHandler] = None,
+        error_handler: Optional[IErrorNotifier] = None,
         config: AppConfig = get_config(),
     ):
-        super().__init__(message_queue, config)
+        self.config = config
         self.download_service = download_service
         self.service_factory = service_factory
         self.file_service = file_service
@@ -57,6 +56,7 @@ class DownloadHandler(BaseHandler, IDownloadHandler):
         self.cookie_handler = cookie_handler
         self.auto_cookie_manager = auto_cookie_manager
         self.error_handler = error_handler
+        self.notifier: INotifier = NotifierService(message_queue)
         self._initialized = False
 
     def initialize(self) -> None:

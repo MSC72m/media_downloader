@@ -10,7 +10,7 @@ from typing import Callable, Optional
 from src.core.config import AppConfig, get_config
 from src.core.enums.instagram_auth_status import InstagramAuthStatus
 from src.core.models import Download
-from src.interfaces.service_interfaces import ICookieHandler, IErrorHandler
+from src.core.interfaces import ICookieHandler, IErrorNotifier
 from src.services.instagram.auth_manager import InstagramAuthManager
 from src.services.instagram.downloader import InstagramDownloader
 from src.services.soundcloud.downloader import SoundCloudDownloader
@@ -26,7 +26,7 @@ logger = get_logger(__name__)
 class DialogHandler(ABC):
     """Base interface for platform-specific dialog handlers."""
 
-    def __init__(self, error_handler: IErrorHandler):
+    def __init__(self, error_handler: IErrorNotifier):
         """Initialize dialog handler with error handler.
 
         Args:
@@ -176,7 +176,7 @@ class PlatformDialogCoordinator:
     def __init__(
         self,
         root_window,
-        error_handler: IErrorHandler,
+        error_handler: IErrorNotifier,
         cookie_handler: Optional[ICookieHandler] = None,
         instagram_auth_manager: Optional[InstagramAuthManager] = None,
         orchestrator=None,

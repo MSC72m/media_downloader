@@ -3,8 +3,8 @@
 import pytest
 from unittest.mock import Mock, MagicMock, patch
 
-from src.core.application.di_container import ServiceContainer
-from src.core.application.orchestrator import ApplicationOrchestrator
+from src.application.di_container import ServiceContainer
+from src.application.orchestrator import ApplicationOrchestrator
 from src.core.models import Download, DownloadStatus, DownloadOptions
 from src.handlers import _register_link_handlers
 from src.services.detection.link_detector import LinkDetector
@@ -186,7 +186,7 @@ class TestSystemIntegration:
         container = orchestrator.container
 
         from src.core.interfaces import (
-            IErrorHandler,
+            IErrorNotifier,
             IDownloadHandler,
             IDownloadService,
             IFileService,
@@ -200,7 +200,7 @@ class TestSystemIntegration:
 
         # Test that all services implement their interfaces
         interface_implementations = [
-            (IErrorHandler, container.get(IErrorHandler)),
+            (IErrorNotifier, container.get(IErrorNotifier)),
             (IDownloadHandler, container.get(IDownloadHandler)),
             (IDownloadService, container.get(IDownloadService)),
             (IFileService, container.get(IFileService)),

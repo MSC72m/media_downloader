@@ -4,8 +4,8 @@ from typing import Optional
 
 from src.core.config import AppConfig
 from src.handlers.service_detector import ServiceDetector
-from src.interfaces.cookie_detection import BrowserType, ICookieManager, PlatformType
-from src.interfaces.service_interfaces import ICookieHandler
+from src.core.interfaces import ICookieManager
+from src.core.interfaces import ICookieHandler
 from src.services.youtube.cookie_detector import CookieManager
 from src.utils.logger import get_logger
 
@@ -13,22 +13,13 @@ logger = get_logger(__name__)
 
 
 class CookieHandler(ICookieHandler):
-    """Handler for cookie detection and integration."""
-
     def __init__(self, config: AppConfig, cookie_manager: Optional[ICookieManager] = None):
-        """Initialize cookie handler.
-        
-        Args:
-            config: AppConfig instance (required, injected from DI)
-            cookie_manager: Optional cookie manager (defaults to CookieManager if None)
-        """
         self.config = config
         self._cookie_manager = cookie_manager or CookieManager()
         self._service_detector = ServiceDetector()
         self._initialized = False
 
     def initialize(self) -> None:
-        """Initialize the cookie handler."""
         if self._initialized:
             return
 
@@ -37,24 +28,11 @@ class CookieHandler(ICookieHandler):
         logger.info("Cookie handler initialized")
 
     def cleanup(self) -> None:
-        """Clean up resources."""
         if not self._initialized:
             return
 
         self._cookie_manager.cleanup()
         self._initialized = False
-
-    def get_platform(self) -> PlatformType:
-        """Get the current platform."""
-        return self._cookie_manager.detect_platform()
-
-    def get_supported_browsers(self) -> list[BrowserType]:
-        """Get list of browsers supported on current platform."""
-        return self._cookie_manager.get_available_browsers()
-
-    def detect_cookies_for_browser(self, browser: BrowserType) -> Optional[str]:
-        """Detect cookies for a specific browser."""
-        return self._cookie_manager.detect_cookies_for_browser(browser)
 
     def set_cookie_file(self, cookie_path: str) -> bool:
         """Set cookie file from user selection."""

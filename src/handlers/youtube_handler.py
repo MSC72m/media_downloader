@@ -4,20 +4,19 @@ import re
 from typing import Any, Callable, Dict, Optional
 
 from src.core.config import get_config, AppConfig
-from src.core.base.base_handler import BaseHandler
-from src.interfaces.service_interfaces import (
+from src.core.interfaces import (
     IAutoCookieManager,
     ICookieHandler,
-    IErrorHandler,
+    IErrorNotifier,
     IMessageQueue,
     IMetadataService,
 )
 from src.core.models import Download
 from src.services.detection.link_detector import (
     DetectionResult,
-    LinkHandlerInterface,
     auto_register_handler,
 )
+from src.services.detection.base_handler import BaseHandler
 from src.core.enums.message_level import MessageLevel
 from src.services.events.queue import Message
 from src.services.youtube.metadata_service import YouTubeMetadataService
@@ -37,48 +36,21 @@ logger = get_logger(__name__)
 
 
 @auto_register_handler
-class YouTubeHandler(BaseHandler, LinkHandlerInterface):
-    """Handler for YouTube URLs."""
-
-
+class YouTubeHandler(BaseHandler):
     def __init__(
         self,
         cookie_handler: ICookieHandler,
         metadata_service: IMetadataService,
         auto_cookie_manager: IAutoCookieManager,
         message_queue: IMessageQueue,
-        error_handler: Optional[IErrorHandler] = None,
+        error_handler: Optional[IErrorNotifier] = None,
         config: AppConfig = get_config(),
     ):
-        """Initialize YouTube handler with injected dependencies."""
-        super().__init__(message_queue, config)
+        super().__init__(message_queue, config, service_name="youtube")
         self.cookie_handler = cookie_handler
         self.metadata_service = metadata_service
         self.auto_cookie_manager = auto_cookie_manager
         self.error_handler = error_handler
-
-    def _get_notification_templates(self) -> Dict[str, Dict[str, Any]]:
-        """Get YouTube-specific notification templates."""
-        base_templates = super()._get_notification_templates()
-        youtube_templates = {
-            "cookies_generating": {
-                "text": "YouTube cookies are being generated. Please wait a moment and try again.",
-                "title": "YouTube Cookies Generating",
-                "level": "INFO",
-            },
-            "cookies_unavailable": {
-                "text": "YouTube cookies are not available. Some videos may fail to download.",
-                "title": "YouTube Cookies Unavailable",
-                "level": "WARNING",
-            },
-            "service_unavailable": {
-                "text": "YouTube service is temporarily unavailable. Please try again later.",
-                "title": "YouTube Service Unavailable",
-                "level": "ERROR",
-            }
-        }
-        base_templates.update(youtube_templates)
-        return base_templates
 
     @classmethod
     def get_patterns(cls):

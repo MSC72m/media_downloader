@@ -8,7 +8,7 @@ from src.core.interfaces import (
     IDownloadHandler,
     ICookieHandler,
     IMetadataService,
-    IErrorHandler,
+    IErrorNotifier,
     IFileService,
     IUIState,
     IMessageQueue,
@@ -16,7 +16,7 @@ from src.core.interfaces import (
 from src.handlers import _register_link_handlers
 
 
-class MockErrorHandler(IErrorHandler):
+class MockErrorHandler(IErrorNotifier):
     """Mock error handler for testing."""
 
     def __init__(self):

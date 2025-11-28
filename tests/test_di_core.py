@@ -4,7 +4,7 @@ import pytest
 from typing import Optional
 
 # Import just the core DI system
-from src.core.application.di_container import ServiceContainer, LifetimeScope
+from src.application.di_container import ServiceContainer, LifetimeScope
 
 
 class MockService:
@@ -209,7 +209,7 @@ class TestLazyImports:
 
     def test_application_lazy_imports(self):
         """Test application lazy imports work."""
-        from src.core.application import get_orchestrator
+        from src.application import get_orchestrator
 
         Orchestrator = get_orchestrator()
         assert Orchestrator is not None

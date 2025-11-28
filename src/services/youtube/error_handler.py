@@ -7,7 +7,7 @@ from typing import Dict, Optional
 import yt_dlp
 
 from src.core.enums.download_error_type import DownloadErrorType
-from src.interfaces.service_interfaces import IErrorHandler
+from src.core.interfaces import IErrorNotifier
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -21,7 +21,7 @@ class YouTubeErrorHandler:
     _NETWORK_PATTERN = re.compile(r"(Connection refused|Network Error|Unable to download|Errno 111)", re.IGNORECASE)
     _FORMAT_PATTERN = re.compile(r"(Requested format is not available|No video formats found)", re.IGNORECASE)
 
-    def __init__(self, error_handler: Optional[IErrorHandler] = None):
+    def __init__(self, error_handler: Optional[IErrorNotifier] = None):
         """Initialize YouTube error handler.
 
         Args:

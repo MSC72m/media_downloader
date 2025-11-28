@@ -4,13 +4,12 @@ import re
 from typing import Any, Callable, Dict, Optional
 
 from src.core.config import get_config, AppConfig
-from src.core.base.base_handler import BaseHandler
-from src.interfaces.service_interfaces import IErrorHandler, IMessageQueue
+from src.core.interfaces import IErrorNotifier, IMessageQueue
 from src.services.detection.link_detector import (
     DetectionResult,
-    LinkHandlerInterface,
     auto_register_handler,
 )
+from src.services.detection.base_handler import BaseHandler
 from src.utils.error_helpers import extract_error_context
 from src.utils.logger import get_logger
 from src.utils.type_helpers import (
@@ -23,12 +22,9 @@ logger = get_logger(__name__)
 
 
 @auto_register_handler
-class SoundCloudHandler(BaseHandler, LinkHandlerInterface):
-    """Handler for SoundCloud URLs."""
-
-    def __init__(self, message_queue: IMessageQueue, error_handler: Optional[IErrorHandler] = None, config: AppConfig = get_config()):
-        """Initialize SoundCloud handler with proper dependency injection."""
-        super().__init__(message_queue, config)
+class SoundCloudHandler(BaseHandler):
+    def __init__(self, message_queue: IMessageQueue, error_handler: Optional[IErrorNotifier] = None, config: AppConfig = get_config()):
+        super().__init__(message_queue, config, service_name="soundcloud")
         self.error_handler = error_handler
 
     @classmethod
@@ -117,7 +113,7 @@ class SoundCloudHandler(BaseHandler, LinkHandlerInterface):
                         error_context = extract_error_context(e, "SoundCloud", "download processing", url)
                         self.error_handler.handle_exception(e, "Processing SoundCloud download", "SoundCloud")
                     else:
-                        self.notify_user("error", title="SoundCloud Download Error", message=f"Failed to process SoundCloud download: {str(e)}")
+                        self.notifier.notify_user("error", title="SoundCloud Download Error", message=f"Failed to process SoundCloud download: {str(e)}")
 
             # Schedule on main thread
             schedule_on_main_thread(root, process_soundcloud_download, immediate=True)

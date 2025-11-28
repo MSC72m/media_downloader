@@ -9,9 +9,6 @@ from typing import Any, Optional
 import yaml
 from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from src.utils.logger import get_logger
-
-logger = get_logger(__name__)
 
 
 class CookieConfig(BaseModel):
@@ -93,6 +90,80 @@ class NetworkConfig(BaseModel):
             "soundcloud": ["soundcloud.com", "www.soundcloud.com"],
         },
         description="Service domain mappings"
+    )
+
+
+class NotificationTemplatesConfig(BaseModel):
+    """Notification message templates for handlers."""
+    
+    youtube: dict[str, dict[str, Any]] = Field(
+        default_factory=lambda: {
+            "cookies_generating": {
+                "text": "YouTube cookies are being generated. Please wait a moment and try again.",
+                "title": "YouTube Cookies Generating",
+                "level": "INFO",
+            },
+            "cookies_unavailable": {
+                "text": "YouTube cookies are not available. Some videos may fail to download.",
+                "title": "YouTube Cookies Unavailable",
+                "level": "WARNING",
+            },
+            "service_unavailable": {
+                "text": "YouTube service is temporarily unavailable. Please try again later.",
+                "title": "YouTube Service Unavailable",
+                "level": "ERROR",
+            }
+        },
+        description="YouTube notification templates"
+    )
+    
+    instagram: dict[str, dict[str, Any]] = Field(
+        default_factory=lambda: {
+            "authenticating": {
+                "text": "Instagram authentication is in progress. Please wait a moment and try again.",
+                "title": "Instagram Authentication",
+                "level": "INFO",
+            },
+            "authentication_required": {
+                "text": "Instagram authentication is required to download content.",
+                "title": "Instagram Authentication Required",
+                "level": "INFO",
+            },
+        },
+        description="Instagram notification templates"
+    )
+    
+    twitter: dict[str, dict[str, Any]] = Field(
+        default_factory=lambda: {
+            "service_unavailable": {
+                "text": "Twitter service is temporarily unavailable. Please try again later.",
+                "title": "Twitter Service Unavailable",
+                "level": "ERROR",
+            }
+        },
+        description="Twitter notification templates"
+    )
+    
+    pinterest: dict[str, dict[str, Any]] = Field(
+        default_factory=lambda: {
+            "service_unavailable": {
+                "text": "Pinterest service is temporarily unavailable. Please try again later.",
+                "title": "Pinterest Service Unavailable",
+                "level": "ERROR",
+            }
+        },
+        description="Pinterest notification templates"
+    )
+    
+    soundcloud: dict[str, dict[str, Any]] = Field(
+        default_factory=lambda: {
+            "service_unavailable": {
+                "text": "SoundCloud service is temporarily unavailable. Please try again later.",
+                "title": "SoundCloud Service Unavailable",
+                "level": "ERROR",
+            }
+        },
+        description="SoundCloud notification templates"
     )
 
 
@@ -365,6 +436,7 @@ class AppConfig(BaseSettings):
     paths: PathConfig = Field(default_factory=PathConfig)
     downloads: DownloadConfig = Field(default_factory=DownloadConfig)
     network: NetworkConfig = Field(default_factory=NetworkConfig)
+    notifications: NotificationTemplatesConfig = Field(default_factory=NotificationTemplatesConfig)
     youtube: YouTubeConfig = Field(default_factory=YouTubeConfig)
     twitter: TwitterConfig = Field(default_factory=TwitterConfig)
     instagram: InstagramConfig = Field(default_factory=InstagramConfig)
@@ -404,9 +476,7 @@ class AppConfig(BaseSettings):
                             return yaml.safe_load(f)
                         else:
                             return json.load(f)
-                except Exception as e:
-                    logger.warning(f"Failed to load config file {config_file}: {e}")
-                    # Continue to next file instead of returning None
+                except Exception:
                     continue
                 
         return None

@@ -11,9 +11,8 @@ from bs4.element import Tag
 
 from src.core.config import get_config, AppConfig
 from src.core.enums import ServiceType
-from src.interfaces.service_interfaces import BaseDownloader, IErrorHandler
+from src.core.interfaces import BaseDownloader, IErrorNotifier, IFileService
 from ...utils.logger import get_logger
-from ..file.sanitizer import FilenameSanitizer
 from ..file.service import FileService
 from ..network.checker import check_site_connection
 
@@ -23,15 +22,17 @@ logger = get_logger(__name__)
 class PinterestDownloader(BaseDownloader):
     """Pinterest downloader service."""
 
-    def __init__(self, error_handler: Optional[IErrorHandler] = None, config=None):
+    def __init__(self, error_handler: Optional[IErrorNotifier] = None, file_service: Optional[IFileService] = None, config=None):
         """Initialize Pinterest downloader.
 
         Args:
             error_handler: Optional error handler for user notifications
+            file_service: Optional file service for file operations
             config: AppConfig instance (defaults to get_config() if None)
         """
         super().__init__(config)
         self.error_handler = error_handler
+        self.file_service = file_service or FileService()
 
     def download(
         self,
@@ -66,16 +67,14 @@ class PinterestDownloader(BaseDownloader):
                     self.error_handler.handle_service_failure("Pinterest", "download", error_msg, url)
                 return False
 
-            save_dir = self._get_save_directory(save_path)
-            self._ensure_directory_exists(save_path)
+            save_dir = os.path.dirname(save_path) if os.path.dirname(save_path) else "."
+            file_service = FileService()
+            self.file_service.ensure_directory(save_dir)
 
-            sanitizer = FilenameSanitizer()
-            filename = sanitizer.sanitize_filename(os.path.basename(save_path))
+            filename = self.file_service.sanitize_filename(os.path.basename(save_path))
 
             ext = self._get_extension_from_url(media_url) or ".jpg"
             full_path = os.path.join(save_dir, filename + ext)
-
-            file_service = FileService()
             result = file_service.download_file(media_url, full_path, progress_callback)
             
             if not result.success:

@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 import yt_dlp
 
 from src.core.enums import ServiceType, DownloadErrorType
-from src.interfaces.service_interfaces import BaseDownloader, ICookieHandler, IErrorHandler
-from ..file.sanitizer import FilenameSanitizer
+from src.core.interfaces import BaseDownloader, ICookieHandler, IErrorNotifier, IFileService
+from ..file.service import FileService
 from ..network.checker import check_site_connection
 from ...utils.logger import get_logger
 from .audio_extractor import AudioExtractor
@@ -39,7 +39,8 @@ class YouTubeDownloader(BaseDownloader):
         embed_metadata: bool = True,
         speed_limit: Optional[int] = None,
         retries: Optional[int] = None,
-        error_handler: Optional[IErrorHandler] = None,
+        error_handler: Optional[IErrorNotifier] = None,
+        file_service: Optional[IFileService] = None,
         config=None,
     ):
         super().__init__(config)
@@ -57,6 +58,7 @@ class YouTubeDownloader(BaseDownloader):
         self.speed_limit = speed_limit
         self.retries = retries
         self.error_handler = error_handler
+        self.file_service = file_service or FileService()
         self.metadata_service = YouTubeMetadataService(error_handler=error_handler, config=self.config)
         self.audio_extractor = AudioExtractor(config=self.config, error_handler=error_handler)
         self.youtube_error_handler = YouTubeErrorHandler(error_handler=error_handler)
@@ -182,8 +184,7 @@ class YouTubeDownloader(BaseDownloader):
 
             # Create a filename
             base_filename = os.path.basename(save_path)
-            sanitizer = FilenameSanitizer()
-            sanitized_name = sanitizer.sanitize_filename(base_filename)
+            sanitized_name = self.file_service.sanitize_filename(base_filename)
 
             # Extension depends on audio_only setting
             output_template = os.path.join(save_dir, sanitized_name)
