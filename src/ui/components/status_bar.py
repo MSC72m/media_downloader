@@ -118,7 +118,7 @@ class StatusBar(ctk.CTkFrame):
 
     def _add_message(self, message: str, is_error: bool = False) -> None:
         """Add message to queue and show immediately if no current message.
-        
+
         Args:
             message: Message text to display
             is_error: Whether this is an error message (uses longer timeout)

@@ -68,10 +68,12 @@ class ServiceFactoryRegistry:
 
     def create_service_factory(self) -> ServiceFactory:
         """Factory for ServiceFactory."""
+        from src.core.config import get_config
         cookie_manager = self.container.get(IAutoCookieManager)
         error_handler = self.container.get_optional(IErrorHandler)
         instagram_auth_manager = self.container.get_optional(InstagramAuthManager)
-        return ServiceFactory(cookie_manager, error_handler=error_handler, instagram_auth_manager=instagram_auth_manager)
+        config = get_config()
+        return ServiceFactory(cookie_manager, error_handler=error_handler, instagram_auth_manager=instagram_auth_manager, config=config)
 
     def create_download_service(self) -> DownloadService:
         """Factory for DownloadService."""

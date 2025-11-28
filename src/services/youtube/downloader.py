@@ -1,18 +1,18 @@
 """YouTube downloader service implementation."""
 
 import os
-import re
 import time
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
 import yt_dlp
 
-from src.core.enums import ServiceType
+from src.core.enums import ServiceType, DownloadErrorType
 from src.interfaces.service_interfaces import BaseDownloader, ICookieHandler, IErrorHandler
 from ..file.sanitizer import FilenameSanitizer
 from ..network.checker import check_site_connection
 from ...utils.logger import get_logger
 from .audio_extractor import AudioExtractor
+from .error_handler import YouTubeErrorHandler
 from .metadata_service import YouTubeMetadataService
 
 if TYPE_CHECKING:
@@ -59,6 +59,7 @@ class YouTubeDownloader(BaseDownloader):
         self.error_handler = error_handler
         self.metadata_service = YouTubeMetadataService(error_handler=error_handler, config=self.config)
         self.audio_extractor = AudioExtractor(config=self.config, error_handler=error_handler)
+        self.youtube_error_handler = YouTubeErrorHandler(error_handler=error_handler)
         self.ytdl_opts = self._get_simple_ytdl_options()
         self._extract_audio_separately = False  # Flag for Audio + Video format
 
@@ -293,11 +294,11 @@ class YouTubeDownloader(BaseDownloader):
                     if "DownloadError" in error_type_name:
                         logger.warning(f"YouTube download error (attempt {attempt + 1}/{max_retries}): {error_msg}")
 
-                        error_type = self._classify_download_error(error_msg)
+                        error_type = self.youtube_error_handler.classify_error(error_msg)
                         error_handlers = {
-                            "rate_limit": lambda: self._handle_rate_limit_error(attempt, retry_wait),
-                            "network": lambda: self._handle_network_error(attempt, max_retries, retry_wait, error_msg),
-                            "format": lambda: self._handle_format_error(attempt, opts, url),
+                            DownloadErrorType.RATE_LIMIT: lambda: self.youtube_error_handler.handle_rate_limit_error(attempt, retry_wait),
+                            DownloadErrorType.NETWORK: lambda: self.youtube_error_handler.handle_network_error(attempt, max_retries, retry_wait, error_msg),
+                            DownloadErrorType.FORMAT: lambda: self.youtube_error_handler.handle_format_error(attempt, opts, url, self.config.youtube.quality_format_map),
                         }
 
                         handler = error_handlers.get(error_type)
@@ -305,14 +306,14 @@ class YouTubeDownloader(BaseDownloader):
                             continue
 
                         if not handler:
-                            self._log_specific_error(error_msg)
+                            self.youtube_error_handler.log_specific_error(error_msg)
 
                         if self.error_handler:
                             self.error_handler.handle_exception(e, "YouTube download", "YouTube")
                         return False
 
                         logger.error(f"Error downloading from YouTube: {error_msg}")
-                        self._log_specific_error(error_msg)
+                        self.youtube_error_handler.log_specific_error(error_msg)
                     if self.error_handler:
                         self.error_handler.handle_exception(e, "YouTube download", "YouTube")
                         return False
@@ -380,121 +381,6 @@ class YouTubeDownloader(BaseDownloader):
         )
         return True
 
-    def _classify_download_error(self, error_msg: str) -> str:
-        """Classify the type of download error using pattern matching."""
-        # Use compiled regex patterns for efficient matching instead of string 'in' checks
-        rate_limit_pattern = re.compile(r"HTTP Error 429", re.IGNORECASE)
-        network_pattern = re.compile(r"(Connection refused|Network Error|Unable to download|Errno 111)", re.IGNORECASE)
-        format_pattern = re.compile(r"(Requested format is not available|No video formats found)", re.IGNORECASE)
-
-        if rate_limit_pattern.search(error_msg):
-            return "rate_limit"
-        if network_pattern.search(error_msg):
-            return "network"
-        if format_pattern.search(error_msg):
-            return "format"
-
-        return "other"
-
-    def _handle_rate_limit_error(self, attempt: int, retry_wait: int) -> bool:
-        """Handle rate limit error. Returns True to continue retrying."""
-        wait_time = retry_wait * (2**attempt)
-        logger.warning(
-            f"YouTube rate limit hit, waiting {wait_time} seconds before retry"
-        )
-        time.sleep(wait_time)
-        return True
-
-    def _handle_network_error(
-        self, attempt: int, max_retries: int, retry_wait: int, error_msg: str
-    ) -> bool:
-        """Handle network error. Returns True to continue retrying."""
-        if attempt >= max_retries - 1:
-            logger.error(
-                f"Failed to download after {max_retries} attempts: {error_msg}"
-            )
-            return False
-
-        wait_time = retry_wait * (attempt + 1)
-        logger.warning(
-            f"Network error, retry {attempt + 1}/{max_retries} in {wait_time}s"
-        )
-        time.sleep(wait_time)
-        return True
-
-    def _handle_format_error(self, attempt: int, opts: dict, url: str) -> bool:
-        """Handle format error using fallback strategy."""
-        fallback_strategies = {
-            0: (
-                self.config.youtube.quality_format_map["best"],
-                f"Format not available ({opts.get('format', 'unknown')}), retrying with 'best'",
-            ),
-            1: (self.config.youtube.quality_format_map["lowest"], "Best format failed, trying 'worst' as fallback"),
-        }
-
-        strategy = fallback_strategies.get(attempt)
-        if not strategy:
-            self._log_format_failure(opts, url)
-            return False
-
-        format_type, message = strategy
-        logger.warning(message)
-        opts["format"] = format_type
-        return True
-
-    def _log_format_failure(self, opts: dict, url: str) -> None:
-        """Log detailed information about format failure."""
-        logger.error("All format attempts failed. This may be due to:")
-        logger.error("  1. Outdated yt-dlp version (run: pip install -U yt-dlp)")
-        logger.error("  2. YouTube access restrictions or region-locking")
-        logger.error("  3. Need for browser cookies to access the video")
-
-        try:
-            logger.info("Attempting to list available formats...")
-            list_opts = opts.copy()
-            list_opts.pop("format", None)
-            with yt_dlp.YoutubeDL(list_opts) as ydl:  # type: ignore
-                info = ydl.extract_info(url, download=False)
-                if info and isinstance(info, dict) and "formats" in info:
-                    logger.info(f"Available formats for {url}:")
-                    formats = info.get("formats", [])
-                    if isinstance(formats, list):
-                        for fmt in formats[:10]:
-                            logger.info(
-                                f"  Format {fmt.get('format_id', 'unknown')}: "
-                                f"{fmt.get('format_note', 'N/A')} - "
-                                f"{fmt.get('ext', 'unknown')} - "
-                                f"height={fmt.get('height', 'N/A')}"
-                            )
-                    else:
-                        logger.warning("Formats is not a list")
-        except Exception as list_err:
-            logger.warning(f"Could not list formats: {list_err}")
-
-    def _log_specific_error(self, error_msg: str) -> None:
-        """Log specific error messages based on error content."""
-        error_messages = {
-            "This video is unavailable": "This YouTube video is unavailable or private",
-            "Video unavailable": "This YouTube video has been removed or is private",
-            "Sign in to confirm your age": "This YouTube video requires age verification",
-            "Only images are available": (
-                "This YouTube video only has image storyboards available (no video/audio streams). "
-                "The video may be processing, region-locked, or YouTube is blocking access."
-            ),
-            "nsig extraction failed": (
-                "YouTube's anti-bot protection is blocking download. "
-                "Try: 1) Update yt-dlp to latest version, 2) Use browser cookies, "
-                "3) Wait and try again later"
-            ),
-        }
-
-        for key, message in error_messages.items():
-            if key in error_msg:
-                logger.error(message)
-                return
-
-        # Default error message
-        logger.error(f"YouTube download error: {error_msg}")
 
     @staticmethod
     def _create_progress_hook(callback: Callable[[float, float], None]):

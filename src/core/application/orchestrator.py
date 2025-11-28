@@ -328,7 +328,7 @@ class ApplicationOrchestrator:
                     self._handle_connectivity_result(is_connected, error_message)
 
                 # self.root is always MediaDownloaderApp which has run_on_main_thread
-                self.root.run_on_main_thread(update_ui)
+                    self.root.run_on_main_thread(update_ui)
             except Exception as e:
                 logger.error(f"[ORCHESTRATOR] Error checking connectivity: {e}", exc_info=True)
 
@@ -337,7 +337,7 @@ class ApplicationOrchestrator:
                     self._handle_connectivity_result(False, str(e))
 
                 # self.root is always MediaDownloaderApp which has run_on_main_thread
-                self.root.run_on_main_thread(update_ui_error)
+                    self.root.run_on_main_thread(update_ui_error)
 
         thread = threading.Thread(target=check_in_background, daemon=True)
         thread.start()

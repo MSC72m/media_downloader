@@ -38,8 +38,19 @@ class IYouTubeMetadataService(ABC):
     """Interface for YouTube metadata service."""
 
     @abstractmethod
-    def fetch_metadata(self, url: str) -> Optional[YouTubeMetadata]:
-        """Fetch metadata for a YouTube URL."""
+    def fetch_metadata(
+        self,
+        url: str,
+        cookie_path: Optional[str] = None,
+        browser: Optional[str] = None,
+    ) -> Optional[YouTubeMetadata]:
+        """Fetch metadata for a YouTube URL.
+        
+        Args:
+            url: YouTube URL
+            cookie_path: Optional path to cookie file
+            browser: Optional browser name for cookie extraction
+        """
         pass
 
     @abstractmethod

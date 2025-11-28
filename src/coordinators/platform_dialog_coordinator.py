@@ -318,7 +318,7 @@ class PlatformDialogCoordinator:
             return dialog
         except Exception as e:
             logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error creating loading dialog: {e}", exc_info=True)
-            return None
+        return None
 
     def _authenticate_in_background(
         self,
@@ -491,13 +491,13 @@ class PlatformDialogCoordinator:
                 logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Instagram authentication successful for {username[:3]}***")
                 if callback:
                     logger.info("[PLATFORM_DIALOG_COORDINATOR] Calling callback with AUTHENTICATED status")
-                    callback(InstagramAuthStatus.AUTHENTICATED)
+                callback(InstagramAuthStatus.AUTHENTICATED)
                 self.error_handler.show_info("Instagram Login", f"Successfully authenticated as {username}")
             case False:
                 logger.warning(f"[PLATFORM_DIALOG_COORDINATOR] Instagram authentication failed for {username[:3]}***")
                 if callback:
                     logger.info("[PLATFORM_DIALOG_COORDINATOR] Calling callback with FAILED status")
-                    callback(InstagramAuthStatus.FAILED)
+                callback(InstagramAuthStatus.FAILED)
                 
                 # Show user-friendly error message
                 user_friendly_msg = "Instagram authentication failed. Please check your username and password, then try again."

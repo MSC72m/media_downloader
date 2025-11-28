@@ -28,6 +28,7 @@ from src.utils.logger import get_logger
 from src.utils.type_helpers import (
     get_platform_callback,
     get_root,
+    get_ui_context,
     schedule_on_main_thread,
     safe_getattr,
 )
@@ -147,6 +148,7 @@ class YouTubeHandler(BaseHandler, LinkHandlerInterface):
             """Callback for handling YouTube URLs."""
             logger.info(f"[YOUTUBE_HANDLER] YouTube callback called with URL: {url}")
 
+            # Early return if no download callback
             download_callback = get_platform_callback(ui_context, "youtube")
             if not download_callback:
                 error_msg = "No download callback found"
@@ -155,9 +157,10 @@ class YouTubeHandler(BaseHandler, LinkHandlerInterface):
                     self.error_handler.handle_service_failure("YouTube Handler", "callback", error_msg, url)
                 return
 
-            # Check auto cookie manager state (polymorphic - no if/else chains)
-            if self.auto_cookie_manager.is_generating():
-                self._show_cookie_generating_message()
+            # Early return if cookies are generating - reject URL
+            if self._is_cookie_generating():
+                logger.warning("[YOUTUBE_HANDLER] Cookies are being generated, rejecting URL")
+                self._show_cookie_generating_message(ui_context)
                 return
 
             root = get_root(ui_context)
@@ -325,3 +328,54 @@ class YouTubeHandler(BaseHandler, LinkHandlerInterface):
             True if URL is from music.youtube.com
         """
         return "music.youtube.com" in url.lower()
+
+    def _is_cookie_generating(self) -> bool:
+        """Check if cookies are currently being generated.
+        
+        Returns:
+            True if cookies are generating, False otherwise
+        """
+        # Check direct state first
+        if self.auto_cookie_manager.is_generating():
+            return True
+        
+        # Check state object for real-time updates
+        state = self.auto_cookie_manager.get_state()
+        return state is not None and state.is_generating
+
+    def _show_cookie_generating_message(self, ui_context: Any) -> None:
+        """Show status bar message when cookies are being generated and reject URL.
+        
+        Args:
+            ui_context: UI context to get status bar callback
+        """
+        logger.info("[YOUTUBE_HANDLER] Showing cookie generating message in status bar")
+        message_text = "Generating YouTube cookies, please wait for few seconds and try again"
+        
+        # Try to get status bar update callback from event coordinator
+        ctx = get_ui_context(ui_context)
+        if ctx:
+            downloads = getattr(ctx, "downloads", None)
+            if downloads:
+                status_callback = downloads._get_ui_callback("update_status")
+                if status_callback:
+                    status_callback(message_text, is_error=False)
+                    logger.info("[YOUTUBE_HANDLER] Status bar updated with cookie generation message")
+                    return
+        
+        # Fallback to message queue
+        if not self.message_queue:
+            logger.warning("[YOUTUBE_HANDLER] No message queue available for cookie generation message")
+            return
+        
+        try:
+            self.message_queue.add_message(
+                Message(
+                    text=message_text,
+                    level=MessageLevel.INFO,
+                    title="Cookie Generation",
+                )
+            )
+            logger.info("[YOUTUBE_HANDLER] Message queue updated with cookie generation message")
+        except Exception as e:
+            logger.error(f"[YOUTUBE_HANDLER] Failed to add message to queue: {e}", exc_info=True)
