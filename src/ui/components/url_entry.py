@@ -41,8 +41,8 @@ class URLEntryFrame(ctk.CTkFrame):
         self.url_entry = ctk.CTkEntry(
             self, 
             placeholder_text="Enter a URL", 
-            height=40, 
-            font=("Roboto", 12),
+            height=45, 
+            font=("Roboto", 13),
             corner_radius=8,
             border_width=1,
         )
@@ -55,8 +55,8 @@ class URLEntryFrame(ctk.CTkFrame):
             text="Add",
             command=self.handle_add,
             width=95,
-            height=40,
-            font=("Roboto", 12, "bold"),
+            height=45,
+            font=("Roboto", 13),
             corner_radius=8,
             border_width=0,
         )
@@ -79,10 +79,20 @@ class URLEntryFrame(ctk.CTkFrame):
         # Apply custom colors to add button
         button_config = theme_json.get("CTkButton", {})
         if button_config:
+            button_color = button_config.get("fg_color")
+            hover_color = button_config.get("hover_color")
+            text_color = button_config.get("text_color")
+            
+            # Extract plain color if it's a tuple
+            if isinstance(button_color, tuple):
+                button_color = button_color[0] if isinstance(button_color[0], str) else button_color
+            if isinstance(hover_color, tuple):
+                hover_color = hover_color[0] if isinstance(hover_color[0], str) else hover_color
+            
             self.add_button.configure(
-                fg_color=button_config.get("fg_color"),
-                hover_color=button_config.get("hover_color"),
-                text_color=button_config.get("text_color"),
+                fg_color=button_color,
+                hover_color=hover_color,
+                text_color=text_color,
             )
 
     def handle_add(self):

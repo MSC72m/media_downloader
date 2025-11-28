@@ -293,7 +293,7 @@ class DownloadCoordinator:
             try:
                 self.download_handler.clear_downloads()
                 logger.info("[DOWNLOAD_COORDINATOR] Cleared all downloads")
-                self._refresh_ui_after_event(enable_buttons=False)
+                self._refresh_ui_after_event(enable_buttons=True)
             except Exception as e:
                 logger.error(f"[DOWNLOAD_COORDINATOR] Error clearing downloads: {e}", exc_info=True)
                 if self.error_handler:

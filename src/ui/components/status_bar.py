@@ -41,27 +41,27 @@ class StatusBar(ctk.CTkFrame):
 
         # Configure grid
         self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=0)
 
         # Create center frame for alignment
         self.center_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.center_frame.grid(row=0, column=0, sticky="ew")
+        self.center_frame.grid(row=0, column=0, sticky="nsew")
         self.center_frame.grid_columnconfigure(0, weight=1)
 
         # Status label - clean typography
         self.status_label = ctk.CTkLabel(
             self.center_frame, text="Initializing...", font=("Roboto", 12)
         )
-        self.status_label.grid(row=0, column=0, pady=(5, 4))
+        self.status_label.grid(row=0, column=0, pady=(0, 2))
 
         # Progress bar - prominent and clean
         self.progress_bar = ctk.CTkProgressBar(
             self.center_frame,
             height=22,
-            width=450,
             corner_radius=8,
             border_width=0,
         )
-        self.progress_bar.grid(row=1, column=0, sticky="ew", pady=(0, 5), padx=20)
+        self.progress_bar.grid(row=1, column=0, sticky="ew", pady=(0, 0), padx=0)
         self.progress_bar.set(0)
         
         # Apply initial theme colors now that widgets are created

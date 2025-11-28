@@ -26,16 +26,15 @@ class DownloadListView(ctk.CTkFrame):
         self._theme_manager = theme_manager or get_theme_manager(master.winfo_toplevel())
         self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
 
-        # Create text widget - clean modern design with fixed height
+        # Create text widget - clean modern design
         self.list_view = ctk.CTkTextbox(
             self, 
             activate_scrollbars=True, 
-            height=350, 
             font=("Roboto", 12),
             corner_radius=8,
             border_width=1,
         )
-        self.list_view.pack(fill=tk.BOTH, expand=False, padx=0, pady=0)
+        self.list_view.pack(fill=tk.BOTH, expand=True, padx=0, pady=0)
     
     def _on_theme_changed(self, appearance, color):
         """Handle theme change event - apply custom colors."""

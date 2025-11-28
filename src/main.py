@@ -296,9 +296,6 @@ class MediaDownloaderApp(ctk.CTk):
         def on_clear() -> None:
             coord.downloads.clear_downloads()
 
-        def on_clear_completed() -> None:
-            coord.downloads.clear_downloads()
-
         def on_download() -> None:
             downloads = coord.downloads.get_downloads()
             # Filter for pending downloads if needed, but start_downloads usually handles status check
@@ -311,7 +308,6 @@ class MediaDownloaderApp(ctk.CTk):
             self.main_frame,
             on_remove=on_remove,
             on_clear=on_clear,
-            on_clear_completed=on_clear_completed,
             on_download=on_download,
             on_manage_files=on_manage_files,
             theme_manager=self.theme_manager,
@@ -338,19 +334,18 @@ class MediaDownloaderApp(ctk.CTk):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        # Clean balanced spacing - very generous top padding, no bottom padding
-        self.main_frame.grid(row=0, column=0, sticky="nsew", padx=30, pady=(60, 0))
+        # Clean balanced spacing
+        self.main_frame.grid(row=0, column=0, sticky="nsew", padx=30, pady=(20, 25))
         self.main_frame.grid_columnconfigure(0, weight=1)
-        self.main_frame.grid_rowconfigure(3, weight=0)  # Download list row - no stretch
-        self.main_frame.grid_rowconfigure(5, weight=0)  # Status bar row - no stretch, stick to bottom
+        self.main_frame.grid_rowconfigure(3, weight=1)
+        self.main_frame.grid_rowconfigure(5, weight=0)
 
-        # Arrange widgets with balanced spacing - much more top space, no bottom space
+        # Arrange widgets with balanced spacing
         self.header_frame.grid(row=0, column=0, sticky="ew", pady=(0, 35))
         self.url_entry.grid(row=1, column=0, sticky="ew", pady=(0, 25))
-        # OptionsBar is empty (no content) - skip gridding to avoid empty space
-        self.download_list.grid(row=3, column=0, sticky="ew", pady=(0, 15))
-        self.action_buttons.grid(row=4, column=0, sticky="ew", pady=(0, 8))
-        self.status_bar.grid(row=5, column=0, sticky="swe", pady=0)
+        self.download_list.grid(row=3, column=0, sticky="nsew", pady=(0, 15))
+        self.action_buttons.grid(row=4, column=0, sticky="ew", pady=(0, 10))
+        self.status_bar.grid(row=5, column=0, sticky="ew", pady=(0, 0))
 
     def _setup_menu(self):
         """Set up application menu."""

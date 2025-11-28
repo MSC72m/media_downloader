@@ -121,9 +121,9 @@ class ThemeManager(EventBus[ThemeEvent]):
     def _persist_theme(self) -> None:
         """Persist theme to config file using config object."""
         try:
-            # Update config object
-            self.config.ui.theme.appearance_mode = self._current_appearance.value
-            self.config.ui.theme.color_theme = self._current_color.value
+            # Update config object with enum values (not strings)
+            self.config.ui.theme.appearance_mode = self._current_appearance
+            self.config.ui.theme.color_theme = self._current_color
             
             # Save using config object's save method
             self.config.save_to_file()

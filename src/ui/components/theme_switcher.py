@@ -127,26 +127,44 @@ class ThemeSwitcher(ctk.CTkFrame):
             pass  # If we can't access the entry, that's okay
     
     def _apply_theme_colors(self):
-        """Apply theme colors to switcher components."""
+        """Apply theme colors to switcher components - matching Add button colors."""
         theme_json = self._theme_manager.get_theme_json()
         
-        # Apply colors to switch
+        # Apply colors to switch - use same button color as Add button (no gradient)
         button_config = theme_json.get("CTkButton", {})
         if button_config:
+            button_color = button_config.get("fg_color")
+            hover_color = button_config.get("hover_color")
+            
+            # Use plain color like Add button, not gradient
+            if isinstance(button_color, tuple):
+                button_color = button_color[0] if isinstance(button_color[0], str) else button_color
+            if isinstance(hover_color, tuple):
+                hover_color = hover_color[0] if isinstance(hover_color[0], str) else hover_color
+            
             self.appearance_switch.configure(
-                progress_color=button_config.get("fg_color"),
-                button_color=button_config.get("fg_color"),
-                button_hover_color=button_config.get("hover_color"),
+                progress_color=button_color,
+                button_color=button_color,
+                button_hover_color=hover_color,
             )
         
-        # Apply colors to combobox
+        # Apply colors to combobox - use same button color as Add button
         entry_config = theme_json.get("CTkEntry", {})
-        if entry_config:
+        if entry_config and button_config:
+            button_color = button_config.get("fg_color")
+            hover_color = button_config.get("hover_color")
+            
+            # Use plain color like Add button, not gradient
+            if isinstance(button_color, tuple):
+                button_color = button_color[0] if isinstance(button_color[0], str) else button_color
+            if isinstance(hover_color, tuple):
+                hover_color = hover_color[0] if isinstance(hover_color[0], str) else hover_color
+            
             self.color_dropdown.configure(
                 fg_color=entry_config.get("fg_color"),
                 border_color=entry_config.get("border_color"),
-                button_color=button_config.get("fg_color") if button_config else None,
-                button_hover_color=button_config.get("hover_color") if button_config else None,
+                button_color=button_color,
+                button_hover_color=hover_color,
             )
         
         # Apply colors to label

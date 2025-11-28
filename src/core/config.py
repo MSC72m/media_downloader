@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, TYPE_CHECKING
 
 import yaml
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, field_serializer
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from src.core.enums.appearance_mode import AppearanceMode
@@ -413,6 +413,11 @@ class ThemeConfig(BaseModel):
         description="Color theme selection"
     )
     theme_persistence: bool = Field(default=True, description="Whether to persist theme preference to config file")
+    
+    @field_serializer('appearance_mode', 'color_theme', mode='plain')
+    def serialize_enums(self, value):
+        """Serialize enum values to strings to avoid Pydantic warnings."""
+        return value.value if hasattr(value, 'value') else value
     
     def __init__(self, **data):
         """Initialize with enum conversion."""
@@ -892,7 +897,8 @@ class AppConfig(BaseSettings):
             config_file = config_dir / "config.json"
         
         # Convert to dict, handling Path objects and enums
-        config_dict = self.model_dump(mode="json", exclude_none=True)
+        # Use mode="json" to properly serialize enums to their values
+        config_dict = self.model_dump(mode="json", exclude_none=True, by_alias=False)
         
         # Convert Path objects to strings
         def convert_paths(obj):
