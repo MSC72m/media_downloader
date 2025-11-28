@@ -5,6 +5,7 @@ from .compat import StrEnum
 
 class DownloadStatus(StrEnum):
     """Status of a download item."""
+
     PENDING = "Pending"
     DOWNLOADING = "Downloading"
     COMPLETED = "Completed"

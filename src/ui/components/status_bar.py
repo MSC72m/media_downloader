@@ -20,7 +20,12 @@ class StatusBar(ctk.CTkFrame):
     _SUCCESS_MESSAGE_PATTERN = re.compile(r"Download completed", re.IGNORECASE)
     _CONNECTION_CONFIRMED_PATTERN = re.compile(r"Connection confirmed", re.IGNORECASE)
 
-    def __init__(self, master, config: AppConfig = get_config(), theme_manager: Optional["ThemeManager"] = None):
+    def __init__(
+        self,
+        master,
+        config: AppConfig = get_config(),
+        theme_manager: Optional["ThemeManager"] = None,
+    ):
         super().__init__(master, fg_color="transparent")
 
         # Get root window for scheduling
@@ -32,7 +37,7 @@ class StatusBar(ctk.CTkFrame):
         self._message_timeout: float | None = None
         self._is_error_message: bool = False  # Track if current message is an error
         self._config = config
-        
+
         # Subscribe to theme manager - injected with default
         self._theme_manager = theme_manager or get_theme_manager(self._root_window)
         self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
@@ -63,7 +68,7 @@ class StatusBar(ctk.CTkFrame):
         )
         self.progress_bar.grid(row=1, column=0, sticky="ew", pady=(0, 0), padx=0)
         self.progress_bar.set(0)
-        
+
         # Apply initial theme colors now that widgets are created
         self._apply_theme_colors()
 
@@ -136,17 +141,20 @@ class StatusBar(ctk.CTkFrame):
             message: Message text to display
             is_error: Whether this is an error message (uses longer timeout)
         """
+
         def _update():
             try:
                 # Check if this is a success message that should interrupt current message
                 # Use compiled regex patterns for efficient matching
                 is_success_message = bool(self._SUCCESS_MESSAGE_PATTERN.search(message))
-                is_connection_confirmed = bool(self._CONNECTION_CONFIRMED_PATTERN.search(message))
-                
+                is_connection_confirmed = bool(
+                    self._CONNECTION_CONFIRMED_PATTERN.search(message)
+                )
+
                 # Track if connection confirmed was shown (to prevent immediate "Ready")
                 if is_connection_confirmed:
                     self._connection_confirmed_shown = True
-                
+
                 # If no current message, show immediately
                 if not self._current_message:
                     self._current_message = message
@@ -161,7 +169,7 @@ class StatusBar(ctk.CTkFrame):
                     self._message_timeout = current_time + timeout_seconds
                     self.status_label.configure(text=message)
                     return
-                
+
                 # For success messages, interrupt current message to show success
                 if is_success_message:
                     self._current_message = message
@@ -171,7 +179,7 @@ class StatusBar(ctk.CTkFrame):
                     self._message_timeout = current_time + timeout_seconds
                     self.status_label.configure(text=message)
                     return
-                
+
                 # Add to queue for later (will show after current message times out)
                 self._message_queue.put((message, is_error))
             except Exception as e:
@@ -206,13 +214,13 @@ class StatusBar(ctk.CTkFrame):
                         # Backward compatibility with old string format
                         self._current_message = message_data
                         self._is_error_message = False
-                    
+
                     # Use longer timeout for error messages
                     if self._is_error_message:
                         timeout_seconds = self._config.ui.error_message_timeout_seconds
                     else:
                         timeout_seconds = self._config.ui.message_timeout_seconds
-                    
+
                     self._message_timeout = current_time + timeout_seconds
                     # Display the message
                     self.status_label.configure(text=self._current_message)
@@ -224,7 +232,7 @@ class StatusBar(ctk.CTkFrame):
             if not self._current_message:
                 self.status_label.configure(text="Ready")
                 # Reset connection confirmed flag when showing Ready
-                if hasattr(self, '_connection_confirmed_shown'):
+                if hasattr(self, "_connection_confirmed_shown"):
                     self._connection_confirmed_shown = False
 
         except Exception as e:
@@ -239,9 +247,10 @@ class StatusBar(ctk.CTkFrame):
 
     def update_progress(self, progress: float):
         """Update progress display - thread-safe via queue.
-        
+
         For completion (100%), processes immediately to avoid delays.
         """
+
         def _update():
             try:
                 self.progress_bar.set(progress / 100)
@@ -285,15 +294,15 @@ class StatusBar(ctk.CTkFrame):
     def _on_theme_changed(self, appearance, color):
         """Handle theme change event."""
         self._apply_theme_colors()
-    
+
     def _apply_theme_colors(self):
         """Apply theme colors to components."""
-        if not hasattr(self, 'progress_bar'):
+        if not hasattr(self, "progress_bar"):
             return  # Widgets not created yet
-        
-        colors = self._theme_manager.get_colors()
+
+        self._theme_manager.get_colors()
         theme_json = self._theme_manager.get_theme_json()
-        
+
         # Apply custom colors to progress bar
         button_config = theme_json.get("CTkButton", {})
         if button_config:
@@ -306,5 +315,7 @@ class StatusBar(ctk.CTkFrame):
         """Clean up resources."""
         self._running = False
         if self._theme_manager:
-            self._theme_manager.unsubscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
+            self._theme_manager.unsubscribe(
+                ThemeEvent.THEME_CHANGED, self._on_theme_changed
+            )
         super().destroy()

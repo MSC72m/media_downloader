@@ -139,10 +139,10 @@ class SmallLoadingSpinner(ctk.CTkToplevel, WindowCenterMixin):
         if parent and hasattr(parent, "winfo_exists") and parent.winfo_exists():
             # Transient to parent for better window management
             self.transient(parent)
-        
+
         # Update geometry before centering
         self.update_idletasks()
-        
+
         # Center the window using helper
         self.center_window()
 

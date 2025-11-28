@@ -1,6 +1,6 @@
 """Service factory utilities for dependency injection."""
 
-from typing import Any, Callable, Optional, Type
+from typing import Any
 
 from src.coordinators.error_notifier import ErrorNotifier
 from src.coordinators.main_coordinator import EventCoordinator
@@ -15,7 +15,6 @@ from src.core.interfaces import (
     IErrorNotifier,
     IFileService,
     IMessageQueue,
-    IMetadataService,
     INetworkChecker,
     IServiceFactory,
     IUIState,
@@ -69,12 +68,19 @@ class ServiceFactoryRegistry:
     def create_service_factory(self) -> ServiceFactory:
         """Factory for ServiceFactory."""
         from src.core.config import get_config
+
         cookie_manager = self.container.get(IAutoCookieManager)
         error_handler = self.container.get_optional(IErrorNotifier)
         file_service = self.container.get(IFileService)
         instagram_auth_manager = self.container.get_optional(InstagramAuthManager)
         config = get_config()
-        return ServiceFactory(cookie_manager, error_handler=error_handler, instagram_auth_manager=instagram_auth_manager, file_service=file_service, config=config)
+        return ServiceFactory(
+            cookie_manager,
+            error_handler=error_handler,
+            instagram_auth_manager=instagram_auth_manager,
+            file_service=file_service,
+            config=config,
+        )
 
     def create_download_service(self) -> DownloadService:
         """Factory for DownloadService."""
@@ -109,4 +115,3 @@ class ServiceFactoryRegistry:
             downloads_folder=downloads_folder,
             instagram_auth_manager=instagram_auth_manager,
         )
-

@@ -52,7 +52,9 @@ class ApplicationOrchestrator:
         self.network_checker = self.container.get(INetworkChecker)
 
         self._import_link_handlers()
-        self.link_detector = LinkDetector(handler_factory=self._create_handler_factory())
+        self.link_detector = LinkDetector(
+            handler_factory=self._create_handler_factory()
+        )
         self._initialize_cookies_background()
 
         self.ui_components: dict[str, Any] = {}
@@ -68,7 +70,7 @@ class ApplicationOrchestrator:
 
         try:
             self.container.validate_dependencies()
-        except Exception as e:
+        except Exception:
             raise
 
     def _register_core_services(self) -> None:
@@ -76,28 +78,43 @@ class ApplicationOrchestrator:
         self.container.register_singleton(IFileService, FileService)
         self.container.register_singleton(IAutoCookieManager, AutoCookieManager)
         self.container.register_singleton(
-            InstagramAuthManager,
-            self.factory_registry.create_instagram_auth_manager
+            InstagramAuthManager, self.factory_registry.create_instagram_auth_manager
         )
         self.container.register_singleton(IUIState, UIState)
         self.container.register_singleton(UIState, UIState)
         self.container.register_singleton(ServiceDetector)
 
     def _register_handlers(self) -> None:
-        self.container.register_singleton(ICookieHandler, self.factory_registry.create_cookie_handler)
-        self.container.register_singleton(IErrorNotifier, self.factory_registry.create_error_handler)
-        self.container.register_singleton(IDownloadHandler, self.factory_registry.create_download_handler)
+        self.container.register_singleton(
+            ICookieHandler, self.factory_registry.create_cookie_handler
+        )
+        self.container.register_singleton(
+            IErrorNotifier, self.factory_registry.create_error_handler
+        )
+        self.container.register_singleton(
+            IDownloadHandler, self.factory_registry.create_download_handler
+        )
 
     def _register_services(self) -> None:
-        self.container.register_singleton(IMetadataService, self.factory_registry.create_metadata_service)
-        self.container.register_singleton(INetworkChecker, self.factory_registry.create_network_checker)
-        self.container.register_singleton(IServiceFactory, self.factory_registry.create_service_factory)
-        self.container.register_singleton(IDownloadService, self.factory_registry.create_download_service)
+        self.container.register_singleton(
+            IMetadataService, self.factory_registry.create_metadata_service
+        )
+        self.container.register_singleton(
+            INetworkChecker, self.factory_registry.create_network_checker
+        )
+        self.container.register_singleton(
+            IServiceFactory, self.factory_registry.create_service_factory
+        )
+        self.container.register_singleton(
+            IDownloadService, self.factory_registry.create_download_service
+        )
 
     def _register_coordinators(self) -> None:
         self.container.register_singleton(
             EventCoordinator,
-            lambda: self.factory_registry.create_event_coordinator(self.downloads_folder)
+            lambda: self.factory_registry.create_event_coordinator(
+                self.downloads_folder
+            ),
         )
 
     def _register_detectors(self) -> None:
@@ -110,24 +127,24 @@ class ApplicationOrchestrator:
             except ValueError:
                 try:
                     return handler_class()
-                except Exception as fallback_error:
+                except Exception:
                     raise
             except Exception:
                 try:
                     return handler_class()
-                except Exception as fallback_error:
+                except Exception:
                     raise
-        
+
         return handler_factory
 
     def _import_link_handlers(self) -> None:
         try:
             from src.handlers import (
-                instagram_handler,
-                pinterest_handler,
-                soundcloud_handler,
-                twitter_handler,
-                youtube_handler,
+                instagram_handler,  # noqa: F401
+                pinterest_handler,  # noqa: F401
+                soundcloud_handler,  # noqa: F401
+                twitter_handler,  # noqa: F401
+                youtube_handler,  # noqa: F401
             )
         except Exception:
             pass
@@ -142,13 +159,13 @@ class ApplicationOrchestrator:
                 elif state.error_message:
                     if "Playwright is not installed" in state.error_message:
                         error_message = (
-                                "CRITICAL: Playwright is not installed!\n\n"
-                                "The auto-cookie generation system requires Playwright to function.\n"
-                                "Without it, age-restricted YouTube videos will fail to download.\n\n"
-                                "To fix this, run the following commands:\n\n"
-                                "  pip install playwright\n"
-                                "  playwright install chromium\n\n"
-                                "Then restart the application."
+                            "CRITICAL: Playwright is not installed!\n\n"
+                            "The auto-cookie generation system requires Playwright to function.\n"
+                            "Without it, age-restricted YouTube videos will fail to download.\n\n"
+                            "To fix this, run the following commands:\n\n"
+                            "  pip install playwright\n"
+                            "  playwright install chromium\n\n"
+                            "Then restart the application."
                         )
                         self.root.after(
                             2000,
@@ -181,25 +198,25 @@ class ApplicationOrchestrator:
         if "status_bar" in components:
             message_queue = MessageQueue(components["status_bar"])
             self.container.register_instance(IMessageQueue, message_queue)
-            
+
             if self.container.has(IErrorNotifier):
                 try:
                     error_handler = self.container.get(IErrorNotifier)
                     error_handler.set_message_queue(message_queue)
                 except Exception:
                     pass
-            
+
             if self.event_coordinator:
                 self.event_coordinator.set_message_queue(message_queue)
 
-        if hasattr(self.event_coordinator, 'link_detector'):
+        if hasattr(self.event_coordinator, "link_detector"):
             self.event_coordinator.link_detector = self.link_detector
 
-        if hasattr(self.event_coordinator, 'platform_dialogs'):
+        if hasattr(self.event_coordinator, "platform_dialogs"):
             self.event_coordinator.platform_dialogs.orchestrator = self
 
         callbacks = self._create_ui_callbacks(components)
-        
+
         if self.event_coordinator:
             self.event_coordinator.set_ui_callbacks(callbacks)
             self.event_coordinator.refresh_handlers()
@@ -209,33 +226,41 @@ class ApplicationOrchestrator:
 
         def safe_ui_update(func, *args, **kwargs):
             self.root.run_on_main_thread(partial(func, *args, **kwargs))
-        
+
         if "download_list" in components:
             dl_list = components["download_list"]
-            callbacks["refresh_download_list"] = partial(safe_ui_update, dl_list.refresh_items)
-            callbacks["update_download_progress"] = partial(safe_ui_update, dl_list.update_item_progress)
-        
+            callbacks["refresh_download_list"] = partial(
+                safe_ui_update, dl_list.refresh_items
+            )
+            callbacks["update_download_progress"] = partial(
+                safe_ui_update, dl_list.update_item_progress
+            )
+
         if "action_buttons" in components:
             buttons = components["action_buttons"]
-            callbacks["set_action_buttons_enabled"] = partial(safe_ui_update, buttons.set_enabled)
-        
+            callbacks["set_action_buttons_enabled"] = partial(
+                safe_ui_update, buttons.set_enabled
+            )
+
         if "status_bar" in components:
             sb = components["status_bar"]
-            
+
             def update_status_wrapper(msg: str, is_error: bool = False) -> None:
                 if is_error:
                     sb.show_error(msg)
                 else:
                     sb.show_message(msg)
-            
+
             callbacks["update_status"] = partial(safe_ui_update, update_status_wrapper)
-            
+
             # Add direct progress update callback for faster updates
             def update_progress_wrapper(progress: float) -> None:
                 sb.update_progress(progress)
-            
-            callbacks["update_status_progress"] = partial(safe_ui_update, update_progress_wrapper)
-            
+
+            callbacks["update_status_progress"] = partial(
+                safe_ui_update, update_progress_wrapper
+            )
+
         return callbacks
 
     def check_connectivity(self) -> None:
@@ -249,16 +274,22 @@ class ApplicationOrchestrator:
 
                 def update_ui():
                     self._handle_connectivity_result(is_connected, error_message)
+
                 self.root.run_on_main_thread(update_ui)
             except Exception as e:
+                error_msg = str(e)
+
                 def update_ui_error():
-                    self._handle_connectivity_result(False, str(e))
+                    self._handle_connectivity_result(False, error_msg)
+
                 self.root.run_on_main_thread(update_ui_error)
 
         thread = threading.Thread(target=check_in_background, daemon=True)
         thread.start()
 
-    def _handle_connectivity_result(self, is_connected: bool, error_message: str) -> None:
+    def _handle_connectivity_result(
+        self, is_connected: bool, error_message: str
+    ) -> None:
         status_bar = self.ui_components.get("status_bar")
 
         if is_connected:
@@ -266,7 +297,9 @@ class ApplicationOrchestrator:
                 status_bar.show_message("Connection confirmed")
         else:
             if status_bar:
-                status_bar.show_warning(f"Network issue: {error_message or 'Connection failed'}")
+                status_bar.show_warning(
+                    f"Network issue: {error_message or 'Connection failed'}"
+                )
             if self.container.has(IMessageQueue):
                 try:
                     message_queue = self.container.get(IMessageQueue)
@@ -286,10 +319,10 @@ class ApplicationOrchestrator:
 
     def show_network_status(self) -> None:
         self.event_coordinator.show_network_status()
-    
+
     def cleanup(self) -> None:
         try:
-            if hasattr(self.event_coordinator, 'cleanup'):
+            if hasattr(self.event_coordinator, "cleanup"):
                 self.event_coordinator.cleanup()
 
             self.container.clear()

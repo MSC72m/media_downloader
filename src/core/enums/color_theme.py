@@ -5,6 +5,7 @@ from .compat import StrEnum
 
 class ColorTheme(StrEnum):
     """Color theme options for the UI."""
+
     BLUE = "blue"
     GREEN = "green"
     PURPLE = "purple"
@@ -19,4 +20,3 @@ class ColorTheme(StrEnum):
     ROSE = "rose"
     VIOLET = "violet"
     SLATE = "slate"
-

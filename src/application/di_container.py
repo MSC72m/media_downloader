@@ -1,13 +1,11 @@
 """Type-safe dependency injection container."""
 
-from abc import ABC, abstractmethod
 from enum import Enum, auto
-from inspect import isclass, signature
+from inspect import signature
 from typing import (
     Any,
     Callable,
     Dict,
-    Generic,
     Optional,
     Type,
     TypeVar,
@@ -17,11 +15,12 @@ from typing import (
     get_args,
 )
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class LifetimeScope(Enum):
     """Service lifetime scope."""
+
     SINGLETON = auto()
     TRANSIENT = auto()
 
@@ -35,7 +34,7 @@ class ServiceDescriptor:
         implementation: Optional[Type] = None,
         factory: Optional[Callable] = None,
         instance: Optional[Any] = None,
-        lifetime: LifetimeScope = LifetimeScope.TRANSIENT
+        lifetime: LifetimeScope = LifetimeScope.TRANSIENT,
     ):
         self.service_type = service_type
         self.implementation = implementation
@@ -45,11 +44,13 @@ class ServiceDescriptor:
 
     def validate(self) -> None:
         """Validate the service descriptor."""
-        implementation_count = sum([
-            self.implementation is not None,
-            self.factory is not None,
-            self.instance is not None
-        ])
+        implementation_count = sum(
+            [
+                self.implementation is not None,
+                self.factory is not None,
+                self.instance is not None,
+            ]
+        )
 
         if implementation_count != 1:
             raise ValueError(
@@ -70,8 +71,8 @@ class ServiceContainer:
         self,
         service_type: Type[T],
         implementation: Optional[Type[T]] = None,
-        factory: Optional[Callable[[], T]] = None
-    ) -> 'ServiceContainer':
+        factory: Optional[Callable[[], T]] = None,
+    ) -> "ServiceContainer":
         """Register a transient service (new instance each time)."""
         return self._register_service(
             service_type, implementation, factory, LifetimeScope.TRANSIENT
@@ -82,8 +83,8 @@ class ServiceContainer:
         service_type: Type[T],
         implementation: Optional[Type[T]] = None,
         factory: Optional[Callable[[], T]] = None,
-        instance: Optional[T] = None
-    ) -> 'ServiceContainer':
+        instance: Optional[T] = None,
+    ) -> "ServiceContainer":
         """Register a singleton service (same instance each time)."""
         if instance is not None:
             self._singletons[service_type] = instance
@@ -98,14 +99,14 @@ class ServiceContainer:
         service_type: Type[T],
         implementation: Optional[Type[T]] = None,
         factory: Optional[Callable[[], T]] = None,
-        lifetime: LifetimeScope = LifetimeScope.TRANSIENT
-    ) -> 'ServiceContainer':
+        lifetime: LifetimeScope = LifetimeScope.TRANSIENT,
+    ) -> "ServiceContainer":
         """Internal service registration method."""
         descriptor = ServiceDescriptor(
             service_type=service_type,
             implementation=implementation or service_type,
             factory=factory,
-            lifetime=lifetime
+            lifetime=lifetime,
         )
 
         descriptor.validate()
@@ -151,12 +152,12 @@ class ServiceContainer:
 
     def _create_instance(self, implementation_type: Type[T]) -> T:
         """Create instance with constructor injection.
-        
+
         This method can be used to create instances of classes that aren't registered
         in the container, as long as their dependencies are registered. It automatically
         resolves dependencies based on type hints.
         """
-        if not hasattr(implementation_type, '__init__'):
+        if not hasattr(implementation_type, "__init__"):
             return implementation_type()
 
         sig = signature(implementation_type.__init__)
@@ -175,11 +176,13 @@ class ServiceContainer:
 
         kwargs = {}
         for param_name, param in sig.parameters.items():
-            if param_name == 'self':
+            if param_name == "self":
                 continue
 
             # Skip if parameter has a default value and is not a custom type
-            if param.default != param.empty and not self._is_custom_type(type_hints.get(param_name)):
+            if param.default != param.empty and not self._is_custom_type(
+                type_hints.get(param_name)
+            ):
                 continue
 
             param_type = type_hints.get(param_name)
@@ -188,7 +191,9 @@ class ServiceContainer:
                 origin = get_origin(param_type)
                 if origin is Union and type(None) in get_args(param_type):
                     # Optional type - try to get dependency, use None if not found
-                    non_none_type = next(t for t in get_args(param_type) if t is not type(None))
+                    non_none_type = next(
+                        t for t in get_args(param_type) if t is not type(None)
+                    )
                     if self.has(non_none_type):
                         kwargs[param_name] = self.get(non_none_type)
                     else:
@@ -206,10 +211,10 @@ class ServiceContainer:
                         )
 
         return implementation_type(**kwargs)
-    
+
     def create_with_injection(self, class_type: Type[T]) -> T:
         """Public method to create instances with automatic dependency injection.
-        
+
         This is a convenience method for creating instances of classes that aren't
         registered in the container but need dependency injection. Useful for
         handlers and other transient objects.
@@ -228,11 +233,14 @@ class ServiceContainer:
 
         # Skip typing module types
         from typing import Union, Optional, Any, List, Dict, Tuple, Set
+
         if param_type in (Union, Optional, Any, List, Dict, Tuple, Set):
             return False
 
         # Check if it's a user-defined class
-        return hasattr(param_type, '__module__') and not param_type.__module__.startswith('typing')
+        return hasattr(
+            param_type, "__module__"
+        ) and not param_type.__module__.startswith("typing")
 
     def get_optional(self, service_type: Type[T]) -> Optional[T]:
         """Resolve a service instance, returning None if not registered."""
@@ -250,18 +258,20 @@ class ServiceContainer:
         self._services.clear()
         self._singletons.clear()
 
-    def register_instance(self, service_type: Type[T], instance: T) -> 'ServiceContainer':
+    def register_instance(
+        self, service_type: Type[T], instance: T
+    ) -> "ServiceContainer":
         """Register a service instance as singleton.
-        
+
         For ABC interfaces, uses issubclass check.
         For Protocols, validates if @runtime_checkable is used, otherwise skips check.
         """
         is_valid = False
-        
-        if hasattr(service_type, '__abstractmethods__'):
+
+        if hasattr(service_type, "__abstractmethods__"):
             is_valid = issubclass(type(instance), service_type)
-        elif hasattr(service_type, '__protocol__'):
-            if hasattr(service_type, '__runtime_checkable__'):
+        elif hasattr(service_type, "__protocol__"):
+            if hasattr(service_type, "__runtime_checkable__"):
                 try:
                     is_valid = isinstance(instance, service_type)
                 except TypeError:
@@ -270,7 +280,7 @@ class ServiceContainer:
                 is_valid = True
         else:
             is_valid = isinstance(instance, service_type)
-        
+
         if not is_valid:
             raise ValueError(
                 f"Instance {type(instance).__name__} must be of type {service_type.__name__}"
@@ -279,21 +289,21 @@ class ServiceContainer:
         descriptor = ServiceDescriptor(
             service_type=service_type,
             instance=instance,
-            lifetime=LifetimeScope.SINGLETON
+            lifetime=LifetimeScope.SINGLETON,
         )
         self._services[service_type] = descriptor
         self._singletons[service_type] = instance
         return self
 
-    def register_factory(self, service_type: Type[T], factory: Callable[[], T]) -> 'ServiceContainer':
+    def register_factory(
+        self, service_type: Type[T], factory: Callable[[], T]
+    ) -> "ServiceContainer":
         """Register a factory for creating services."""
         if not callable(factory):
             raise ValueError("Factory must be callable")
 
         descriptor = ServiceDescriptor(
-            service_type=service_type,
-            factory=factory,
-            lifetime=LifetimeScope.TRANSIENT
+            service_type=service_type, factory=factory, lifetime=LifetimeScope.TRANSIENT
         )
         self._services[service_type] = descriptor
         return self
@@ -304,7 +314,9 @@ class ServiceContainer:
             try:
                 self.get(service_type)
             except Exception as e:
-                raise ValueError(f"Dependency validation failed for {service_type.__name__}: {e}")
+                raise ValueError(
+                    f"Dependency validation failed for {service_type.__name__}: {e}"
+                )
 
 
 def auto_register_by_convention(container: ServiceContainer, module_path: str) -> None:
@@ -323,11 +335,13 @@ def auto_register_by_convention(container: ServiceContainer, module_path: str) -
 
         for name, obj in inspect.getmembers(module, inspect.isclass):
             # Skip if it's a private class or from another module
-            if name.startswith('_') or obj.__module__ != module.__name__:
+            if name.startswith("_") or obj.__module__ != module.__name__:
                 continue
 
             # Find interfaces this class implements
-            interfaces = [base for base in obj.__bases__ if hasattr(base, '__abstractmethods__')]
+            interfaces = [
+                base for base in obj.__bases__ if hasattr(base, "__abstractmethods__")
+            ]
 
             if interfaces:
                 interface = interfaces[0]
@@ -337,4 +351,3 @@ def auto_register_by_convention(container: ServiceContainer, module_path: str) -
 
     except ImportError:
         pass
-

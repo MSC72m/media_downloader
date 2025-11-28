@@ -1,6 +1,6 @@
 """Download Coordinator - Delegates all download operations to download_handler."""
 
-from typing import Any, Callable, List, Optional
+from typing import Callable, List, Optional
 
 from src.core.config import get_config, AppConfig
 from src.core.enums.message_level import MessageLevel
@@ -12,8 +12,6 @@ from src.core.interfaces import (
 )
 from src.core.models import Download, DownloadStatus
 from src.services.events.event_bus import DownloadEvent, DownloadEventBus
-from src.services.events.queue import Message
-from src.utils.error_helpers import extract_error_context
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -56,7 +54,9 @@ class DownloadCoordinator:
     def set_ui_callbacks(self, callbacks: dict[str, Callable]) -> None:
         """Set UI callbacks."""
         self.ui_callbacks.update(callbacks)
-        logger.info(f"[DOWNLOAD_COORDINATOR] UI callbacks updated: {list(callbacks.keys())}")
+        logger.info(
+            f"[DOWNLOAD_COORDINATOR] UI callbacks updated: {list(callbacks.keys())}"
+        )
 
     def _get_ui_callback(self, callback_name: str) -> Optional[Callable]:
         """Get a UI callback if available."""
@@ -71,10 +71,14 @@ class DownloadCoordinator:
                 status_callback(message, is_error)
                 return
             except Exception as e:
-                logger.warning(f"[DOWNLOAD_COORDINATOR] UI status callback failed: {e}", exc_info=True)
+                logger.warning(
+                    f"[DOWNLOAD_COORDINATOR] UI status callback failed: {e}",
+                    exc_info=True,
+                )
                 if self.error_handler:
-                    error_context = extract_error_context(e, "Download Coordinator", "UI status callback", "")
-                    self.error_handler.handle_exception(e, "UI status callback", "Download Coordinator")
+                    self.error_handler.handle_exception(
+                        e, "UI status callback", "Download Coordinator"
+                    )
 
         if self.message_queue:
             try:
@@ -85,7 +89,9 @@ class DownloadCoordinator:
             except Exception as e:
                 logger.error(f"[DOWNLOAD_COORDINATOR] Message queue failed: {e}")
                 if self.error_handler:
-                    self.error_handler.handle_exception(e, "Message queue update", "Download Coordinator")
+                    self.error_handler.handle_exception(
+                        e, "Message queue update", "Download Coordinator"
+                    )
         else:
             logger.info(f"[DOWNLOAD_COORDINATOR] Status: {message}")
 
@@ -101,9 +107,13 @@ class DownloadCoordinator:
                     f"[DOWNLOAD_COORDINATOR] Refreshed UI with {len(downloads)} downloads"
                 )
             except Exception as e:
-                logger.error(f"[DOWNLOAD_COORDINATOR] Error refreshing list: {e}", exc_info=True)
+                logger.error(
+                    f"[DOWNLOAD_COORDINATOR] Error refreshing list: {e}", exc_info=True
+                )
                 if self.error_handler:
-                    self.error_handler.handle_exception(e, "Refreshing download list", "Download Coordinator")
+                    self.error_handler.handle_exception(
+                        e, "Refreshing download list", "Download Coordinator"
+                    )
 
         if enable_buttons:
             buttons_callback = self._get_ui_callback("set_action_buttons_enabled")
@@ -111,9 +121,14 @@ class DownloadCoordinator:
                 try:
                     buttons_callback(True)
                 except Exception as e:
-                    logger.error(f"[DOWNLOAD_COORDINATOR] Error enabling buttons: {e}", exc_info=True)
+                    logger.error(
+                        f"[DOWNLOAD_COORDINATOR] Error enabling buttons: {e}",
+                        exc_info=True,
+                    )
                     if self.error_handler:
-                        self.error_handler.handle_exception(e, "Enabling action buttons", "Download Coordinator")
+                        self.error_handler.handle_exception(
+                            e, "Enabling action buttons", "Download Coordinator"
+                        )
 
     def _setup_event_subscriptions(self) -> None:
         """Subscribe to download events from event bus."""
@@ -132,9 +147,14 @@ class DownloadCoordinator:
             try:
                 progress_callback(download, progress)
             except Exception as e:
-                logger.error(f"[DOWNLOAD_COORDINATOR] Error updating progress: {e}", exc_info=True)
+                logger.error(
+                    f"[DOWNLOAD_COORDINATOR] Error updating progress: {e}",
+                    exc_info=True,
+                )
                 if self.error_handler:
-                    self.error_handler.handle_exception(e, "Updating download progress", "Download Coordinator")
+                    self.error_handler.handle_exception(
+                        e, "Updating download progress", "Download Coordinator"
+                    )
 
         # Update status bar progress directly (faster than message queue)
         status_callback = self._get_ui_callback("update_status_progress")
@@ -142,8 +162,11 @@ class DownloadCoordinator:
             try:
                 status_callback(progress)
             except Exception as e:
-                logger.error(f"[DOWNLOAD_COORDINATOR] Error updating status progress: {e}", exc_info=True)
-        
+                logger.error(
+                    f"[DOWNLOAD_COORDINATOR] Error updating status progress: {e}",
+                    exc_info=True,
+                )
+
         # Also update status bar message for non-completion progress
         if progress < 100:
             self._update_status(f"Downloading {download.name}")
@@ -156,8 +179,11 @@ class DownloadCoordinator:
             try:
                 status_callback(100.0)
             except Exception as e:
-                logger.error(f"[DOWNLOAD_COORDINATOR] Error updating completion progress: {e}", exc_info=True)
-        
+                logger.error(
+                    f"[DOWNLOAD_COORDINATOR] Error updating completion progress: {e}",
+                    exc_info=True,
+                )
+
         self._refresh_ui_after_event(enable_buttons=True)
         # Show success message prominently - interrupt current message to show success
         success_msg = f"Download completed: {download.name}"
@@ -200,9 +226,13 @@ class DownloadCoordinator:
                 logger.info(f"[DOWNLOAD_COORDINATOR] Added download: {download.name}")
                 self._refresh_ui_after_event(enable_buttons=True)
             except Exception as e:
-                logger.error(f"[DOWNLOAD_COORDINATOR] Error adding download: {e}", exc_info=True)
+                logger.error(
+                    f"[DOWNLOAD_COORDINATOR] Error adding download: {e}", exc_info=True
+                )
                 if self.error_handler:
-                    self.error_handler.handle_exception(e, "Adding download", "Download Coordinator")
+                    self.error_handler.handle_exception(
+                        e, "Adding download", "Download Coordinator"
+                    )
                 self._update_status(f"Failed to add download: {e}", is_error=True)
         else:
             logger.error("[DOWNLOAD_COORDINATOR] Download handler not available")
@@ -217,7 +247,7 @@ class DownloadCoordinator:
         """Start downloads via the download handler."""
         if download_dir is None:
             download_dir = str(self.config.paths.downloads_dir)
-        
+
         if not self.download_handler:
             logger.error("[DOWNLOAD_COORDINATOR] Download handler not available")
             return
@@ -225,9 +255,11 @@ class DownloadCoordinator:
         try:
             # Create internal progress callback that uses UI callbacks via event system
             if not progress_callback:
+
                 def on_progress(download: Download, progress: float) -> None:
                     """Internal progress callback that triggers UI updates via events."""
                     self._on_progress_event(download, progress, 0.0)
+
                 progress_callback = on_progress
                 logger.debug("[DOWNLOAD_COORDINATOR] Using internal progress callback")
             else:
@@ -235,28 +267,43 @@ class DownloadCoordinator:
 
             # Create internal completion callback that uses UI callbacks via event system
             if not completion_callback:
+
                 def on_complete(success: bool, message: Optional[str] = None) -> None:
                     """Internal completion callback that triggers UI updates via events."""
-                    logger.debug(f"[DOWNLOAD_COORDINATOR] Completion callback: success={success}")
+                    logger.debug(
+                        f"[DOWNLOAD_COORDINATOR] Completion callback: success={success}"
+                    )
                     # Refresh UI when a download completes/fails
                     self._refresh_ui_after_event(enable_buttons=True)
+
                 completion_callback = on_complete
-                logger.debug("[DOWNLOAD_COORDINATOR] Using internal completion callback")
+                logger.debug(
+                    "[DOWNLOAD_COORDINATOR] Using internal completion callback"
+                )
             else:
-                logger.debug("[DOWNLOAD_COORDINATOR] Using provided completion callback")
+                logger.debug(
+                    "[DOWNLOAD_COORDINATOR] Using provided completion callback"
+                )
 
             # Log available UI callbacks for debugging
             available_callbacks = list(self.ui_callbacks.keys())
-            logger.info(f"[DOWNLOAD_COORDINATOR] Available UI callbacks: {available_callbacks}")
+            logger.info(
+                f"[DOWNLOAD_COORDINATOR] Available UI callbacks: {available_callbacks}"
+            )
 
             # Disable buttons BEFORE starting downloads
             buttons_callback = self._get_ui_callback("set_action_buttons_enabled")
             if buttons_callback:
                 try:
                     buttons_callback(False)
-                    logger.info("[DOWNLOAD_COORDINATOR] Disabled action buttons before starting downloads")
+                    logger.info(
+                        "[DOWNLOAD_COORDINATOR] Disabled action buttons before starting downloads"
+                    )
                 except Exception as e:
-                    logger.error(f"[DOWNLOAD_COORDINATOR] Error disabling buttons: {e}", exc_info=True)
+                    logger.error(
+                        f"[DOWNLOAD_COORDINATOR] Error disabling buttons: {e}",
+                        exc_info=True,
+                    )
 
             # Refresh UI to show downloading state (handler will set status to DOWNLOADING)
             self._refresh_ui_after_event(enable_buttons=False)
@@ -266,9 +313,11 @@ class DownloadCoordinator:
                 downloads, download_dir, progress_callback, completion_callback
             )
             logger.info(f"[DOWNLOAD_COORDINATOR] Starting {len(downloads)} downloads")
-            
+
         except Exception as e:
-            logger.error(f"[DOWNLOAD_COORDINATOR] Error starting downloads: {e}", exc_info=True)
+            logger.error(
+                f"[DOWNLOAD_COORDINATOR] Error starting downloads: {e}", exc_info=True
+            )
             self._update_status(f"Failed to start downloads: {e}", is_error=True)
             self._refresh_ui_after_event(enable_buttons=True)
 
@@ -277,12 +326,19 @@ class DownloadCoordinator:
         if self.download_handler:
             try:
                 self.download_handler.remove_downloads(indices)
-                logger.info(f"[DOWNLOAD_COORDINATOR] Removed downloads at indices: {indices}")
+                logger.info(
+                    f"[DOWNLOAD_COORDINATOR] Removed downloads at indices: {indices}"
+                )
                 self._refresh_ui_after_event(enable_buttons=True)
             except Exception as e:
-                logger.error(f"[DOWNLOAD_COORDINATOR] Error removing downloads: {e}", exc_info=True)
+                logger.error(
+                    f"[DOWNLOAD_COORDINATOR] Error removing downloads: {e}",
+                    exc_info=True,
+                )
                 if self.error_handler:
-                    self.error_handler.handle_exception(e, "Removing downloads", "Download Coordinator")
+                    self.error_handler.handle_exception(
+                        e, "Removing downloads", "Download Coordinator"
+                    )
                 self._update_status(f"Failed to remove downloads: {e}", is_error=True)
         else:
             logger.error("[DOWNLOAD_COORDINATOR] Download handler not available")
@@ -295,9 +351,14 @@ class DownloadCoordinator:
                 logger.info("[DOWNLOAD_COORDINATOR] Cleared all downloads")
                 self._refresh_ui_after_event(enable_buttons=True)
             except Exception as e:
-                logger.error(f"[DOWNLOAD_COORDINATOR] Error clearing downloads: {e}", exc_info=True)
+                logger.error(
+                    f"[DOWNLOAD_COORDINATOR] Error clearing downloads: {e}",
+                    exc_info=True,
+                )
                 if self.error_handler:
-                    self.error_handler.handle_exception(e, "Clearing downloads", "Download Coordinator")
+                    self.error_handler.handle_exception(
+                        e, "Clearing downloads", "Download Coordinator"
+                    )
                 self._update_status(f"Failed to clear downloads: {e}", is_error=True)
         else:
             logger.error("[DOWNLOAD_COORDINATOR] Download handler not available")
@@ -307,9 +368,13 @@ class DownloadCoordinator:
         try:
             return self.download_service.get_downloads() or []
         except Exception as e:
-            logger.error(f"[DOWNLOAD_COORDINATOR] Error getting downloads: {e}", exc_info=True)
+            logger.error(
+                f"[DOWNLOAD_COORDINATOR] Error getting downloads: {e}", exc_info=True
+            )
             if self.error_handler:
-                self.error_handler.handle_exception(e, "Getting downloads", "Download Coordinator")
+                self.error_handler.handle_exception(
+                    e, "Getting downloads", "Download Coordinator"
+                )
             return []
 
     def has_items(self) -> bool:
@@ -340,9 +405,13 @@ class DownloadCoordinator:
                     self.download_handler.cancel_download(download)
             logger.info("[DOWNLOAD_COORDINATOR] Cancelled all active downloads")
         except Exception as e:
-            logger.error(f"[DOWNLOAD_COORDINATOR] Error cancelling downloads: {e}", exc_info=True)
+            logger.error(
+                f"[DOWNLOAD_COORDINATOR] Error cancelling downloads: {e}", exc_info=True
+            )
             if self.error_handler:
-                self.error_handler.handle_exception(e, "Cancelling downloads", "Download Coordinator")
+                self.error_handler.handle_exception(
+                    e, "Cancelling downloads", "Download Coordinator"
+                )
 
     def cleanup(self) -> None:
         """Clean up resources."""

@@ -5,5 +5,5 @@ from enum import Enum, auto
 
 class ThemeEvent(Enum):
     """Theme change event types."""
-    THEME_CHANGED = auto()
 
+    THEME_CHANGED = auto()

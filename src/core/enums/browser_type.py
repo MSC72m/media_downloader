@@ -5,4 +5,3 @@ class BrowserType(StrEnum):
     CHROME = "chrome"
     FIREFOX = "firefox"
     SAFARI = "safari"
-

@@ -15,7 +15,12 @@ logger = get_logger(__name__)
 class DownloadListView(ctk.CTkFrame):
     """List view for showing download items and their status."""
 
-    def __init__(self, master, on_selection_change: Callable[[list[int]], None], theme_manager: Optional["ThemeManager"] = None):
+    def __init__(
+        self,
+        master,
+        on_selection_change: Callable[[list[int]], None],
+        theme_manager: Optional["ThemeManager"] = None,
+    ):
         super().__init__(master)
 
         self.on_selection_change = on_selection_change
@@ -23,23 +28,25 @@ class DownloadListView(ctk.CTkFrame):
         self._downloads: list[Download] = []  # Store actual Download objects
 
         # Subscribe to theme manager - injected with default
-        self._theme_manager = theme_manager or get_theme_manager(master.winfo_toplevel())
+        self._theme_manager = theme_manager or get_theme_manager(
+            master.winfo_toplevel()
+        )
         self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
 
         # Create text widget - clean modern design
         self.list_view = ctk.CTkTextbox(
-            self, 
-            activate_scrollbars=True, 
+            self,
+            activate_scrollbars=True,
             font=("Roboto", 12),
             corner_radius=8,
             border_width=1,
         )
         self.list_view.pack(fill=tk.BOTH, expand=True, padx=0, pady=0)
-    
+
     def _on_theme_changed(self, appearance, color):
         """Handle theme change event - apply custom colors."""
         theme_json = self._theme_manager.get_theme_json()
-        
+
         # Apply custom colors to text widget
         frame_config = theme_json.get("CTkFrame", {})
         label_config = theme_json.get("CTkLabel", {})

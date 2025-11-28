@@ -7,7 +7,6 @@ Chromium browser is installed and ready to use.
 
 import subprocess
 import sys
-from pathlib import Path
 
 
 def main():

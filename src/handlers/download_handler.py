@@ -1,21 +1,18 @@
 """Concrete implementation of download handler."""
 
-import re
 import threading
 import time
 from pathlib import Path
-from threading import Thread
 from typing import Callable, List, Optional
 from urllib.parse import urlparse
 
 from src.core.config import AppConfig, get_config
 from src.core.models import Download
 from src.services.events.queue import Message
-from src.services.youtube.downloader import YouTubeDownloader
 from src.core.enums import ServiceType
 from src.core.enums.download_status import DownloadStatus
 from src.core.enums.message_level import MessageLevel
-from src.core.models import Download, DownloadOptions, UIState
+from src.core.models import DownloadOptions
 from src.core.interfaces import (
     IAutoCookieManager,
     ICookieHandler,
@@ -28,7 +25,6 @@ from src.core.interfaces import (
     IUIState,
     INotifier,
 )
-from src.services.events.queue import Message
 from src.services.notifications.notifier import NotifierService
 from src.utils.logger import get_logger
 
@@ -160,20 +156,33 @@ class DownloadHandler(IDownloadHandler):
             if not downloader:
                 error_msg = f"No downloader available for URL: {download.url}"
                 if self.error_handler:
-                    self.error_handler.handle_service_failure("Download Handler", "downloader creation", error_msg, download.url)
+                    self.error_handler.handle_service_failure(
+                        "Download Handler",
+                        "downloader creation",
+                        error_msg,
+                        download.url,
+                    )
                 self._handle_download_failure(download, completion_callback, error_msg)
                 return
 
             if service_type == ServiceType.YOUTUBE:
                 cookie_manager = self.cookie_handler
-                if cookie_manager and hasattr(download, "cookie_path") and download.cookie_path:
+                if (
+                    cookie_manager
+                    and hasattr(download, "cookie_path")
+                    and download.cookie_path
+                ):
                     try:
-                            cookie_manager.set_cookie_file(download.cookie_path)
-                            logger.info("[DOWNLOAD_HANDLER] Successfully set cookies for download")
+                        cookie_manager.set_cookie_file(download.cookie_path)
+                        logger.info(
+                            "[DOWNLOAD_HANDLER] Successfully set cookies for download"
+                        )
                     except Exception as e:
                         logger.error(f"[DOWNLOAD_HANDLER] Failed to set cookies: {e}")
                         if self.error_handler:
-                            self.error_handler.handle_exception(e, "Setting cookies for download", "Download Handler")
+                            self.error_handler.handle_exception(
+                                e, "Setting cookies for download", "Download Handler"
+                            )
 
             logger.info(
                 f"[DOWNLOAD_HANDLER] Downloader obtained: {type(downloader).__name__}"
@@ -213,7 +222,6 @@ class DownloadHandler(IDownloadHandler):
                 exc_info=True,
             )
             self._handle_download_failure(download, completion_callback, error_msg)
-
 
     def _validate_download_directory(
         self, download_dir: str, completion_callback
@@ -272,7 +280,9 @@ class DownloadHandler(IDownloadHandler):
             # (Status may have been set by coordinator, but ensure it's set here too)
             if download.status != DownloadStatus.DOWNLOADING:
                 download.status = DownloadStatus.DOWNLOADING
-                logger.info(f"[DOWNLOAD_HANDLER] Set download status to DOWNLOADING for: {download.name}")
+                logger.info(
+                    f"[DOWNLOAD_HANDLER] Set download status to DOWNLOADING for: {download.name}"
+                )
 
             # Start download thread
             thread = threading.Thread(
@@ -337,7 +347,9 @@ class DownloadHandler(IDownloadHandler):
         logger.error(f"[DOWNLOAD_HANDLER] {message}")
         download.mark_failed(message)
         if self.error_handler:
-            self.error_handler.handle_service_failure("Download Handler", "download", message, download.url)
+            self.error_handler.handle_service_failure(
+                "Download Handler", "download", message, download.url
+            )
         self._invoke_completion_callback(completion_callback, False, message)
 
     def _invoke_completion_callback(
@@ -372,7 +384,7 @@ class DownloadHandler(IDownloadHandler):
             download = Download(
                 url=url,
                 name=self._extract_name_from_url(url),
-                service_type=self._detect_service_type(url)
+                service_type=self._detect_service_type(url),
             )
 
             # Add to download service
@@ -381,9 +393,13 @@ class DownloadHandler(IDownloadHandler):
             return True
 
         except Exception as e:
-            logger.error(f"[DOWNLOAD_HANDLER] Failed to process URL {url}: {e}", exc_info=True)
+            logger.error(
+                f"[DOWNLOAD_HANDLER] Failed to process URL {url}: {e}", exc_info=True
+            )
             if self.error_handler:
-                self.error_handler.handle_exception(e, "Processing URL", "Download Handler")
+                self.error_handler.handle_exception(
+                    e, "Processing URL", "Download Handler"
+                )
             return False
 
     def handle_download_error(self, error: Exception) -> None:
@@ -391,7 +407,9 @@ class DownloadHandler(IDownloadHandler):
         logger.error(f"[DOWNLOAD_HANDLER] Download error: {error}", exc_info=True)
 
         if self.error_handler:
-            self.error_handler.handle_exception(error, "Download operation", "Download Handler")
+            self.error_handler.handle_exception(
+                error, "Download operation", "Download Handler"
+            )
             return
 
         if self.message_queue:
@@ -400,11 +418,13 @@ class DownloadHandler(IDownloadHandler):
                     Message(
                         text=f"Download failed: {str(error)}",
                         level=MessageLevel.ERROR,
-                        title="Download Error"
+                        title="Download Error",
                     )
                 )
             except Exception as msg_error:
-                logger.error(f"[DOWNLOAD_HANDLER] Failed to show error message: {msg_error}")
+                logger.error(
+                    f"[DOWNLOAD_HANDLER] Failed to show error message: {msg_error}"
+                )
 
     def is_available(self) -> bool:
         """Check if handler is available."""
@@ -418,7 +438,7 @@ class DownloadHandler(IDownloadHandler):
     def _detect_service_type(self, url: str) -> str:
         """Detect service type from URL."""
         url_lower = url.lower()
-        
+
         for service_name, domains in self.config.network.service_domains.items():
             if any(domain in url_lower for domain in domains):
                 return service_name

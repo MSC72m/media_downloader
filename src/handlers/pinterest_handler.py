@@ -6,7 +6,6 @@ from typing import Any, Callable, Dict, Optional
 from src.core.config import get_config, AppConfig
 from src.core.interfaces import IErrorNotifier, IMessageQueue
 from src.services.detection.link_detector import (
-    DetectionResult,
     auto_register_handler,
 )
 from src.services.detection.base_handler import BaseHandler
@@ -23,7 +22,12 @@ logger = get_logger(__name__)
 
 @auto_register_handler
 class PinterestHandler(BaseHandler):
-    def __init__(self, error_handler: Optional[IErrorNotifier] = None, message_queue: Optional[IMessageQueue] = None, config: AppConfig = get_config()):
+    def __init__(
+        self,
+        error_handler: Optional[IErrorNotifier] = None,
+        message_queue: Optional[IMessageQueue] = None,
+        config: AppConfig = get_config(),
+    ):
         super().__init__(message_queue, config, service_name="pinterest")
         self.error_handler = error_handler
 
@@ -78,7 +82,9 @@ class PinterestHandler(BaseHandler):
                     error_msg = "No download callback found"
                     logger.error(f"[PINTEREST_HANDLER] {error_msg}")
                     if self.error_handler:
-                        self.error_handler.handle_service_failure("Pinterest Handler", "callback", error_msg, url)
+                        self.error_handler.handle_service_failure(
+                            "Pinterest Handler", "callback", error_msg, url
+                        )
                     return
 
             # Call the platform download method which will show the dialog (or fallback)
@@ -91,10 +97,17 @@ class PinterestHandler(BaseHandler):
                     download_callback(url)
                     logger.info("[PINTEREST_HANDLER] Download callback executed")
                 except Exception as e:
-                    logger.error(f"[PINTEREST_HANDLER] Error processing Pinterest download: {e}", exc_info=True)
+                    logger.error(
+                        f"[PINTEREST_HANDLER] Error processing Pinterest download: {e}",
+                        exc_info=True,
+                    )
                     if self.error_handler:
-                        error_context = extract_error_context(e, "Pinterest", "download processing", url)
-                        self.error_handler.handle_exception(e, "Processing Pinterest download", "Pinterest")
+                        extract_error_context(
+                            e, "Pinterest", "download processing", url
+                        )
+                        self.error_handler.handle_exception(
+                            e, "Processing Pinterest download", "Pinterest"
+                        )
 
             # Schedule on main thread
             schedule_on_main_thread(root, process_pinterest_download, immediate=True)

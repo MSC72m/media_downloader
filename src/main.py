@@ -17,8 +17,6 @@ from tkinter import Menu  # noqa: E402
 
 from src.core import get_application_orchestrator  # noqa: E402
 from src.core.config import get_config  # noqa: E402
-from src.core.interfaces import IMessageQueue  # noqa: E402
-from src.services.events.queue import MessageQueue  # noqa: E402
 from src.ui.components.download_list import DownloadListView  # noqa: E402
 from src.ui.components.main_action_buttons import ActionButtonBar  # noqa: E402
 from src.ui.components.options_bar import OptionsBar  # noqa: E402
@@ -40,6 +38,7 @@ def _check_playwright_installation():
     """
     try:
         import playwright  # noqa: F401
+
         logger.info("[MAIN_APP] Playwright is installed")
     except ImportError as original_error:
         logger.error("[MAIN_APP] Playwright is NOT installed - showing critical error")
@@ -161,7 +160,7 @@ class MediaDownloaderApp(ctk.CTk):
 
         # Load config for UI settings
         self.config = get_config()
-        
+
         self.title(self.config.ui.app_title)
         self.geometry("1000x700")
 
@@ -175,7 +174,7 @@ class MediaDownloaderApp(ctk.CTk):
         # Initialize theme manager - must be after root window is created
         # This ensures CTK is properly initialized before theme is applied
         self.theme_manager = get_theme_manager(self)
-        
+
         # Force initial theme application to ensure dark mode works
         # This updates all existing widgets
         self.update()
@@ -191,9 +190,10 @@ class MediaDownloaderApp(ctk.CTk):
 
         # Bind close handler for graceful shutdown
         self.protocol("WM_DELETE_WINDOW", self._on_closing)
-        
+
         # Register shutdown handler
         import atexit
+
         atexit.register(self._graceful_shutdown)
 
         logger.info("Media Downloader initialized")
@@ -212,7 +212,9 @@ class MediaDownloaderApp(ctk.CTk):
                 except queue.Empty:
                     break
                 except Exception as e:
-                    logger.error(f"[MAIN_APP] Error executing queued task: {e}", exc_info=True)
+                    logger.error(
+                        f"[MAIN_APP] Error executing queued task: {e}", exc_info=True
+                    )
         except Exception as e:
             logger.error(f"[MAIN_APP] Error in event loop: {e}", exc_info=True)
         finally:
@@ -226,23 +228,21 @@ class MediaDownloaderApp(ctk.CTk):
         """Create all UI components."""
         # Header bar - minimal modern design with left-aligned title
         self.header_frame = ctk.CTkFrame(
-            self.main_frame, 
-            fg_color="transparent",
-            corner_radius=0
+            self.main_frame, fg_color="transparent", corner_radius=0
         )
         # Two-column layout: [title] [theme_switcher]
         self.header_frame.grid_columnconfigure(0, weight=1)  # Title column expands
-        self.header_frame.grid_columnconfigure(1, weight=0)  # Theme switcher - no expansion
-        
+        self.header_frame.grid_columnconfigure(
+            1, weight=0
+        )  # Theme switcher - no expansion
+
         # Title - left aligned, clean typography with very generous spacing
         app_title = self.config.ui.app_title
         self.title_label = ctk.CTkLabel(
-            self.header_frame, 
-            text=app_title, 
-            font=("Roboto", 26, "bold")
+            self.header_frame, text=app_title, font=("Roboto", 26, "bold")
         )
         self.title_label.grid(row=0, column=0, sticky="w", pady=8)
-        
+
         # Theme switcher - right aligned with proper spacing
         self.theme_switcher = ThemeSwitcher(self.header_frame, self.theme_manager)
         self.theme_switcher.grid(row=0, column=1, sticky="e", pady=8, padx=(20, 0))
@@ -282,7 +282,7 @@ class MediaDownloaderApp(ctk.CTk):
             self.main_frame,
             on_selection_change=lambda sel: self.action_buttons.update_button_states(
                 has_selection=len(sel) > 0,
-                has_items=len(coord.downloads.get_downloads()) > 0
+                has_items=len(coord.downloads.get_downloads()) > 0,
             ),
             theme_manager=self.theme_manager,
         )
@@ -364,24 +364,31 @@ class MediaDownloaderApp(ctk.CTk):
         """Graceful shutdown - persist settings and cleanup."""
         try:
             logger.info("[MAIN_APP] Graceful shutdown - persisting settings")
-            
+
             # Persist theme if it has changed
-            if hasattr(self, 'theme_manager'):
+            if hasattr(self, "theme_manager"):
                 try:
                     self.theme_manager._persist_theme()
                 except Exception as e:
-                    logger.error(f"[MAIN_APP] Failed to persist theme: {e}", exc_info=True)
-            
+                    logger.error(
+                        f"[MAIN_APP] Failed to persist theme: {e}", exc_info=True
+                    )
+
             # Cleanup orchestrator
-            if hasattr(self, 'orchestrator'):
+            if hasattr(self, "orchestrator"):
                 try:
                     self.orchestrator.cleanup()
                 except Exception as e:
-                    logger.error(f"[MAIN_APP] Error during orchestrator cleanup: {e}", exc_info=True)
-            
+                    logger.error(
+                        f"[MAIN_APP] Error during orchestrator cleanup: {e}",
+                        exc_info=True,
+                    )
+
             logger.info("[MAIN_APP] Graceful shutdown complete")
         except Exception as e:
-            logger.error(f"[MAIN_APP] Error during graceful shutdown: {e}", exc_info=True)
+            logger.error(
+                f"[MAIN_APP] Error during graceful shutdown: {e}", exc_info=True
+            )
 
     def _on_closing(self):
         """Handle application closing."""
@@ -404,7 +411,7 @@ if __name__ == "__main__":
         logger.info("[MAIN_APP] Starting Media Downloader application")
         app = MediaDownloaderApp()
         app.mainloop()
-        
+
     except (SystemExit, ImportError) as e:
         logger.error(f"[MAIN_APP] Missing dependencies: {e}", exc_info=True)
         sys.exit(1)

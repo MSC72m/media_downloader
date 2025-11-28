@@ -126,7 +126,11 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
                 self.error_handler.show_error("File Manager Error", error_msg)
             elif self.message_queue:
                 self.message_queue.add_message(
-                    Message(text=error_msg, level=MessageLevel.ERROR, title="File Manager Error")
+                    Message(
+                        text=error_msg,
+                        level=MessageLevel.ERROR,
+                        title="File Manager Error",
+                    )
                 )
             elif self.show_status:
                 self.show_status(error_msg)
@@ -149,7 +153,11 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
                     self.error_handler.show_error("File Manager Error", error_msg)
                 elif self.message_queue:
                     self.message_queue.add_message(
-                        Message(text=error_msg, level=MessageLevel.ERROR, title="File Manager Error")
+                        Message(
+                            text=error_msg,
+                            level=MessageLevel.ERROR,
+                            title="File Manager Error",
+                        )
                     )
                 elif self.show_status:
                     self.show_status(f"Error: {error_msg}")

@@ -42,49 +42,55 @@ class YouTubeSubtitleExtractor:
         """
         # Try multiple client types in order: android, ios, tv_embedded
         clients_to_try = ["android", "ios", "tv_embedded"]
-        
+
         for client in clients_to_try:
             opts = self._build_options(cookie_path, browser, client)
-            logger.debug(f"[SUBTITLE_EXTRACTOR] Trying subtitle extraction with {client} client")
-            
+            logger.debug(
+                f"[SUBTITLE_EXTRACTOR] Trying subtitle extraction with {client} client"
+            )
+
             try:
                 with yt_dlp.YoutubeDL(opts) as ydl:  # type: ignore
                     info = ydl.extract_info(url, download=False)
                     if not info:
                         continue
-                    
+
                     subtitles = info.get("subtitles", {}) or {}
                     automatic_captions = info.get("automatic_captions", {}) or {}
                     video_id = info.get("id", "")
-                    
+
                     # Use parser to validate and filter subtitles using generic interface
                     valid_subtitles = {
                         lang: sub_list
                         for lang, sub_list in subtitles.items()
-                        if (sub_list 
-                            and isinstance(sub_list, list) 
+                        if (
+                            sub_list
+                            and isinstance(sub_list, list)
                             and len(sub_list) > 0
                             and (sub_url := sub_list[0].get("url", ""))
                             and self.subtitle_parser.validate(
                                 sub_url, {"video_id": video_id, "language_code": lang}
-                            ))
+                            )
+                        )
                     }
-                    
+
                     valid_auto = {
                         lang: sub_list
                         for lang, sub_list in automatic_captions.items()
-                        if (sub_list 
-                            and isinstance(sub_list, list) 
+                        if (
+                            sub_list
+                            and isinstance(sub_list, list)
                             and len(sub_list) > 0
                             and (sub_url := sub_list[0].get("url", ""))
                             and self.subtitle_parser.validate(
                                 sub_url, {"video_id": video_id, "language_code": lang}
-                            ))
+                            )
+                        )
                     }
 
                     if not (valid_subtitles or valid_auto):
                         continue
-                    
+
                     # Remove duplicates - if same language appears in both, prefer manual over auto
                     # Use set for O(1) duplicate checking
                     seen_langs = set(valid_subtitles.keys())
@@ -93,7 +99,7 @@ class YouTubeSubtitleExtractor:
                         for lang, sub_list in valid_auto.items()
                         if lang not in seen_langs
                     }
-                    
+
                     logger.info(
                         f"[SUBTITLE_EXTRACTOR] Found {len(valid_subtitles)} manual and "
                         f"{len(valid_auto_deduped)} auto subtitles with {client} client "
@@ -105,7 +111,9 @@ class YouTubeSubtitleExtractor:
                         "automatic_captions": valid_auto_deduped,
                     }
             except Exception as e:
-                logger.debug(f"[SUBTITLE_EXTRACTOR] {client} client subtitle extraction error: {e}")
+                logger.debug(
+                    f"[SUBTITLE_EXTRACTOR] {client} client subtitle extraction error: {e}"
+                )
                 continue
 
         # No subtitles found - return empty dicts
@@ -133,4 +141,3 @@ class YouTubeSubtitleExtractor:
             opts["cookiesfrombrowser"] = (browser,)
 
         return opts
-

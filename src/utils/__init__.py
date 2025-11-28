@@ -6,6 +6,4 @@ at package import time. Import GUI utilities (window) where needed.
 
 from .logger import get_logger
 
-__all__ = [
-    "get_logger"
-]
+__all__ = ["get_logger"]

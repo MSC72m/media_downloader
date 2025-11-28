@@ -18,7 +18,6 @@ from src.core.interfaces import (
     IMessageQueue,
 )
 from src.services.instagram import InstagramAuthManager
-from src.services.detection.link_detector import LinkDetector
 from src.services.events.event_bus import DownloadEventBus
 from src.ui.dialogs.file_manager_dialog import FileManagerDialog
 from src.ui.dialogs.network_status_dialog import NetworkStatusDialog
@@ -45,20 +44,28 @@ class EventCoordinator:
         - For routing: coord.platform_download(), coord.cookie_detected()
     """
 
-    def __init__(self, root_window: ctk.CTk, error_handler: IErrorNotifier,
-                 download_handler: IDownloadHandler, file_service: IFileService,
-                 network_checker: INetworkChecker, cookie_handler: ICookieHandler,
-                 download_service: IDownloadService, message_queue: Optional[IMessageQueue] = None,
-                 downloads_folder: Optional[str] = None, config: Optional[AppConfig] = None,
-                 instagram_auth_manager: Optional[InstagramAuthManager] = None):
+    def __init__(
+        self,
+        root_window: ctk.CTk,
+        error_handler: IErrorNotifier,
+        download_handler: IDownloadHandler,
+        file_service: IFileService,
+        network_checker: INetworkChecker,
+        cookie_handler: ICookieHandler,
+        download_service: IDownloadService,
+        message_queue: Optional[IMessageQueue] = None,
+        downloads_folder: Optional[str] = None,
+        config: Optional[AppConfig] = None,
+        instagram_auth_manager: Optional[InstagramAuthManager] = None,
+    ):
         """Initialize with proper dependency injection."""
         if config is None:
             config = get_config()
         self.config = config
-        
+
         if downloads_folder is None:
             downloads_folder = str(self.config.paths.downloads_dir)
-        
+
         self.root = root_window
         self.error_handler = error_handler
         self.download_handler = download_handler
@@ -87,11 +94,11 @@ class EventCoordinator:
         # Platform dialog coordinator needs orchestrator reference for UI components
         # We'll set it after orchestrator is fully initialized
         self.platform_dialogs = PlatformDialogCoordinator(
-            root_window, 
-            error_handler, 
-            cookie_handler, 
+            root_window,
+            error_handler,
+            cookie_handler,
             instagram_auth_manager=instagram_auth_manager,
-            orchestrator=None
+            orchestrator=None,
         )
 
         logger.info("[EVENT_COORDINATOR] Initialized with constructor injection")
@@ -113,7 +120,9 @@ class EventCoordinator:
         """Set UI callbacks for download coordinator."""
         if self.downloads:
             self.downloads.set_ui_callbacks(callbacks)
-        logger.info("[EVENT_COORDINATOR] UI callbacks propagated to download coordinator")
+        logger.info(
+            "[EVENT_COORDINATOR] UI callbacks propagated to download coordinator"
+        )
 
     def show_error(self, title: str, message: str) -> None:
         """Show error message via centralized error handler."""
@@ -151,7 +160,8 @@ class EventCoordinator:
             logger.error(f"[EVENT_COORDINATOR] Unknown platform: {platform}")
             return
 
-        callback = lambda download: self.downloads.add_download(download)
+        def callback(download):
+            self.downloads.add_download(download)
 
         if platform == "generic":
             dialog_method(url, name, callback)
@@ -163,7 +173,7 @@ class EventCoordinator:
     # Authentication
     def authenticate_instagram(self, parent_window, callback=None) -> None:
         """Show Instagram authentication dialog - delegates to platform coordinator.
-        
+
         Args:
             parent_window: Parent window for dialogs
             callback: Optional callback to update button state (receives InstagramAuthStatus)
@@ -174,6 +184,7 @@ class EventCoordinator:
     def show_file_manager(self) -> None:
         """Show file manager dialog."""
         try:
+
             def on_directory_change(path: str) -> None:
                 """Update downloads folder when user selects new path."""
                 # Note: In a perfect system, this would go through a config service
@@ -232,16 +243,18 @@ class EventCoordinator:
                     message = Message(
                         text="Network connection is working",
                         level=MessageLevel.INFO,
-                        title="Network Status"
+                        title="Network Status",
                     )
                     self.message_queue.add_message(message)
             else:
-                logger.warning(f"[EVENT_COORDINATOR] Connectivity check failed: {error_message}")
+                logger.warning(
+                    f"[EVENT_COORDINATOR] Connectivity check failed: {error_message}"
+                )
                 if self.message_queue:
                     message = Message(
                         text=f"Network issue: {error_message}",
                         level=MessageLevel.WARNING,
-                        title="Network Issue"
+                        title="Network Issue",
                     )
                     self.message_queue.add_message(message)
 
@@ -253,7 +266,7 @@ class EventCoordinator:
             if self.error_handler:
                 self.error_handler.show_error(
                     "Connectivity Check Error",
-                    f"Failed to check network connectivity: {str(e)}"
+                    f"Failed to check network connectivity: {str(e)}",
                 )
             if self.error_handler:
                 self.error_handler.show_error(

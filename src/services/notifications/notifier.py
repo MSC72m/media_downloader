@@ -11,7 +11,11 @@ logger = get_logger(__name__)
 
 
 class NotifierService(INotifier):
-    def __init__(self, message_queue: Optional[IMessageQueue] = None, custom_templates: Optional[Dict[str, Dict[str, Any]]] = None):
+    def __init__(
+        self,
+        message_queue: Optional[IMessageQueue] = None,
+        custom_templates: Optional[Dict[str, Dict[str, Any]]] = None,
+    ):
         self.message_queue = message_queue
         self._templates = self._get_templates()
         if custom_templates:
@@ -48,7 +52,7 @@ class NotifierService(INotifier):
                 "text": "Failed to download content. Please check the URL and try again.",
                 "title": "Download Error",
                 "level": "ERROR",
-            }
+            },
         }
 
     def notify_user(self, notification_type: str, **kwargs: Any) -> None:
@@ -80,4 +84,3 @@ class NotifierService(INotifier):
             "download_error",
             text=f"Error in {context}: {str(error)}",
         )
-

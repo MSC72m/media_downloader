@@ -16,14 +16,14 @@ EventType = TypeVar("EventType", bound=Enum)
 
 class EventBus(Generic[EventType]):
     """Generic thread-safe event bus using queue-based dispatch.
-    
+
     Works with any Enum type for events. All threading logic is handled
     internally with queue-based processing on the main thread.
     """
 
     def __init__(self, event_enum: type[EventType], root: Optional[Any] = None):
         """Initialize event bus with event enum type.
-        
+
         Args:
             event_enum: The Enum class that defines event types
             root: Optional root window for main thread processing
@@ -181,7 +181,7 @@ class EventBus(Generic[EventType]):
 # Backward compatibility: DownloadEventBus as type alias
 class DownloadEventBus(EventBus[DownloadEvent]):
     """Thread-safe event bus for download events - backward compatibility wrapper."""
-    
+
     def __init__(self, root: Optional[Any] = None):
         """Initialize download event bus."""
         super().__init__(DownloadEvent, root)

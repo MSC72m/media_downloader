@@ -18,7 +18,12 @@ logger = get_logger(__name__)
 class TwitterDownloader(BaseDownloader):
     """Twitter downloader service."""
 
-    def __init__(self, error_handler: Optional[IErrorNotifier] = None, file_service: Optional[IFileService] = None, config=None):
+    def __init__(
+        self,
+        error_handler: Optional[IErrorNotifier] = None,
+        file_service: Optional[IFileService] = None,
+        config=None,
+    ):
         """Initialize Twitter downloader.
 
         Args:
@@ -27,6 +32,7 @@ class TwitterDownloader(BaseDownloader):
             config: AppConfig instance (defaults to get_config() if None)
         """
         from src.core.config import get_config as _get_config
+
         if config is None:
             config = _get_config()
         super().__init__(error_handler, file_service, config)
@@ -37,7 +43,7 @@ class TwitterDownloader(BaseDownloader):
         self,
         url: str,
         save_path: str,
-        progress_callback: Optional[Callable[[float, float], None]] = None
+        progress_callback: Optional[Callable[[float, float], None]] = None,
     ) -> bool:
         """
         Download media from Twitter URLs.
@@ -55,7 +61,9 @@ class TwitterDownloader(BaseDownloader):
             if not connected:
                 logger.error(f"Cannot download from Twitter: {error_msg}")
                 if self.error_handler:
-                    self.error_handler.handle_service_failure("Twitter", "download", error_msg or "Connection failed", url)
+                    self.error_handler.handle_service_failure(
+                        "Twitter", "download", error_msg or "Connection failed", url
+                    )
                 return False
 
             tweet_ids = self._extract_tweet_ids(url)
@@ -63,7 +71,9 @@ class TwitterDownloader(BaseDownloader):
                 error_msg = "No tweet IDs found in URL"
                 logger.error(error_msg)
                 if self.error_handler:
-                    self.error_handler.handle_service_failure("Twitter", "download", error_msg, url)
+                    self.error_handler.handle_service_failure(
+                        "Twitter", "download", error_msg, url
+                    )
                 return False
 
             success = False
@@ -77,7 +87,9 @@ class TwitterDownloader(BaseDownloader):
             if not success:
                 error_msg = "Failed to download media from tweet"
                 if self.error_handler:
-                    self.error_handler.handle_service_failure("Twitter", "download", error_msg, url)
+                    self.error_handler.handle_service_failure(
+                        "Twitter", "download", error_msg, url
+                    )
 
             return success
 
@@ -91,48 +103,51 @@ class TwitterDownloader(BaseDownloader):
     def _extract_tweet_ids(text: str) -> Optional[List[str]]:
         """Extract tweet IDs from a Twitter URL."""
         tweet_ids = re.findall(
-            r"(?:twitter|x)\.com/.{1,15}/(?:web|status(?:es)?)/([0-9]{1,20})", text)
+            r"(?:twitter|x)\.com/.{1,15}/(?:web|status(?:es)?)/([0-9]{1,20})", text
+        )
         return list(dict.fromkeys(tweet_ids)) if tweet_ids else None
 
     def _scrape_media(self, tweet_id: int) -> List[dict]:
         """Scrape media from a tweet using VX Twitter API."""
         try:
             response = requests.get(
-                f'https://api.vxtwitter.com/Twitter/status/{tweet_id}',
+                f"https://api.vxtwitter.com/Twitter/status/{tweet_id}",
                 verify=True,
-                timeout=self.config.network.twitter_api_timeout
+                timeout=self.config.network.twitter_api_timeout,
             )
             response.raise_for_status()
-            return response.json().get('media_extended', [])
+            return response.json().get("media_extended", [])
         except Exception as e:
             logger.error(f"Error scraping media: {str(e)}", exc_info=True)
             if self.error_handler:
-                self.error_handler.handle_exception(e, f"Scraping tweet {tweet_id}", "Twitter")
+                self.error_handler.handle_exception(
+                    e, f"Scraping tweet {tweet_id}", "Twitter"
+                )
             return []
 
     def _download_media(
-            self,
-            media: List[dict],
-            save_path: str,
-            progress_callback: Optional[Callable[[float, float], None]] = None
+        self,
+        media: List[dict],
+        save_path: str,
+        progress_callback: Optional[Callable[[float, float], None]] = None,
     ) -> bool:
         """Download media files from tweet media data."""
         success = False
 
         for i, item in enumerate(media):
             try:
-                url = item['url']
-                ext = '.mp4' if item['type'] == 'video' else '.jpg'
-                
+                url = item["url"]
+                ext = ".mp4" if item["type"] == "video" else ".jpg"
+
                 if len(media) > 1:
                     filename = self.file_service.sanitize_filename(
-                        f'{os.path.basename(save_path)}_{i}{ext}'
+                        f"{os.path.basename(save_path)}_{i}{ext}"
                     )
                 else:
                     filename = self.file_service.sanitize_filename(
-                        f'{os.path.basename(save_path)}{ext}'
+                        f"{os.path.basename(save_path)}{ext}"
                     )
-                
+
                 full_path = os.path.join(os.path.dirname(save_path), filename)
 
                 file_service = FileService()
@@ -140,9 +155,13 @@ class TwitterDownloader(BaseDownloader):
                 if result.success:
                     success = True
             except Exception as e:
-                logger.error(f"Error downloading media item {i}: {str(e)}", exc_info=True)
+                logger.error(
+                    f"Error downloading media item {i}: {str(e)}", exc_info=True
+                )
                 if self.error_handler:
-                    self.error_handler.handle_exception(e, f"Downloading media item {i}", "Twitter")
+                    self.error_handler.handle_exception(
+                        e, f"Downloading media item {i}", "Twitter"
+                    )
                 continue
-        
+
         return success

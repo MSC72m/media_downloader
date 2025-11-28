@@ -20,7 +20,7 @@ def download_file(
     config=None,
 ) -> bool:
     """Download a file from URL.
-    
+
     Args:
         url: URL to download from
         save_path: Path to save the file
@@ -30,20 +30,20 @@ def download_file(
     """
     if config is None:
         config = get_config()
-    
+
     if chunk_size is None:
         chunk_size = config.downloads.chunk_size
-    
+
     os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
 
     session = requests.Session()
     temp_file = f"{save_path}.part"
 
     try:
-        headers = {
-            "User-Agent": config.network.user_agent
-        }
-        response = session.get(url, stream=True, headers=headers, timeout=config.network.default_timeout)
+        headers = {"User-Agent": config.network.user_agent}
+        response = session.get(
+            url, stream=True, headers=headers, timeout=config.network.default_timeout
+        )
         response.raise_for_status()
 
         file_size = int(response.headers.get("content-length", 0))
@@ -61,7 +61,9 @@ def download_file(
                 speed = downloaded / elapsed if elapsed > 0 else 0
                 if progress_callback:
                     mb_to_bytes = config.downloads.kb_to_bytes * 1024
-                    progress_to_report = progress if progress >= 0 else min(99, downloaded / mb_to_bytes)
+                    progress_to_report = (
+                        progress if progress >= 0 else min(99, downloaded / mb_to_bytes)
+                    )
                     progress_callback(progress_to_report, speed)
 
         os.replace(temp_file, save_path)

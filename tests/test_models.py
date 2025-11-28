@@ -13,9 +13,9 @@ class TestDownload:
         download = Download(
             name="Test Video",
             url="https://example.com/video",
-            service_type=ServiceType.YOUTUBE
+            service_type=ServiceType.YOUTUBE,
         )
-        
+
         assert download.name == "Test Video"
         assert download.url == "https://example.com/video"
         assert download.service_type == ServiceType.YOUTUBE
@@ -42,9 +42,9 @@ class TestDownload:
             quality="1080p",
             audio_only=True,
             download_subtitles=True,
-            retries=5
+            retries=5,
         )
-        
+
         assert download.name == "Custom Video"
         assert download.url == "https://example.com/custom"
         assert download.service_type == ServiceType.INSTAGRAM
@@ -57,17 +57,17 @@ class TestDownload:
         """Test Download with subtitle selection."""
         subtitles = [
             {"language_code": "en", "language_name": "English"},
-            {"language_code": "es", "language_name": "Spanish"}
+            {"language_code": "es", "language_name": "Spanish"},
         ]
-        
+
         download = Download(
             name="Video with Subtitles",
             url="https://example.com/subtitles",
             service_type=ServiceType.YOUTUBE,
             download_subtitles=True,
-            selected_subtitles=subtitles
+            selected_subtitles=subtitles,
         )
-        
+
         assert download.download_subtitles is True
         assert len(download.selected_subtitles) == 2
         assert download.selected_subtitles[0]["language_code"] == "en"
@@ -80,13 +80,13 @@ class TestDownloadOptions:
     def test_download_options_default(self):
         """Test DownloadOptions with default values."""
         options = DownloadOptions()
-        
+
         assert options.save_directory == "~/Downloads"
 
     def test_download_options_custom(self):
         """Test DownloadOptions with custom values."""
         options = DownloadOptions(save_directory="/custom/path")
-        
+
         assert options.save_directory == "/custom/path"
 
 
@@ -96,7 +96,7 @@ class TestUIState:
     def test_ui_state_creation(self):
         """Test UIState creation."""
         ui_state = UIState()
-        
+
         # UIState should be creatable
         assert ui_state is not None
 
@@ -107,7 +107,7 @@ class TestAuthState:
     def test_auth_state_creation(self):
         """Test AuthState creation."""
         auth_state = AuthState()
-        
+
         # AuthState should be creatable
         assert auth_state is not None
 

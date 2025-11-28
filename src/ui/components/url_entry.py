@@ -31,7 +31,9 @@ class URLEntryFrame(ctk.CTkFrame):
         self.on_youtube_detected = on_youtube_detected
 
         # Subscribe to theme manager - injected with default
-        self._theme_manager = theme_manager or get_theme_manager(master.winfo_toplevel())
+        self._theme_manager = theme_manager or get_theme_manager(
+            master.winfo_toplevel()
+        )
         self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
 
         # Configure grid
@@ -42,9 +44,9 @@ class URLEntryFrame(ctk.CTkFrame):
 
         # URL Entry - clean modern design
         self.url_entry = ctk.CTkEntry(
-            self, 
-            placeholder_text="Enter a URL", 
-            height=input_height, 
+            self,
+            placeholder_text="Enter a URL",
+            height=input_height,
             font=("Roboto", 13),
             corner_radius=8,
             border_width=1,
@@ -64,14 +66,14 @@ class URLEntryFrame(ctk.CTkFrame):
             border_width=0,
         )
         self.add_button.grid(row=0, column=1, sticky="ns")
-        
+
         # Apply initial theme colors
         self._apply_theme_colors()
-    
+
     def _apply_theme_colors(self):
         """Apply theme colors to entry and button."""
         theme_json = self._theme_manager.get_theme_json()
-        
+
         # Apply custom colors to entry
         entry_config = theme_json.get("CTkEntry", {})
         if entry_config:
@@ -80,31 +82,39 @@ class URLEntryFrame(ctk.CTkFrame):
                 border_color=entry_config.get("border_color"),
                 text_color=entry_config.get("text_color"),
             )
-        
+
         # Apply custom colors to add button - same as action buttons
         button_config = theme_json.get("CTkButton", {})
         if button_config:
             button_color = button_config.get("fg_color")
             hover_color = button_config.get("hover_color")
             text_color = button_config.get("text_color")
-            
+
             # Extract plain color string - ensure it's a string, not tuple
             if isinstance(button_color, tuple):
-                button_color = button_color[0] if isinstance(button_color[0], str) else str(button_color[0])
+                button_color = (
+                    button_color[0]
+                    if isinstance(button_color[0], str)
+                    else str(button_color[0])
+                )
             elif not isinstance(button_color, str):
                 button_color = str(button_color)
-            
+
             if isinstance(hover_color, tuple):
-                hover_color = hover_color[0] if isinstance(hover_color[0], str) else str(hover_color[0])
+                hover_color = (
+                    hover_color[0]
+                    if isinstance(hover_color[0], str)
+                    else str(hover_color[0])
+                )
             elif not isinstance(hover_color, str):
                 hover_color = str(hover_color)
-            
+
             self.add_button.configure(
                 fg_color=button_color,
                 hover_color=hover_color,
                 text_color=text_color,
             )
-    
+
     def _on_theme_changed(self, appearance, color):
         """Handle theme change event - apply custom colors."""
         self._apply_theme_colors()
@@ -114,12 +124,12 @@ class URLEntryFrame(ctk.CTkFrame):
         url = self.url_entry.get().strip()
         if not url:
             return
-        
+
         # Check if it's a YouTube URL using regex pattern
         if self.on_youtube_detected and _YOUTUBE_DOMAIN_PATTERN.search(url):
-                self.on_youtube_detected(url)
-                self.clear()
-                return
+            self.on_youtube_detected(url)
+            self.clear()
+            return
 
         dialog = CenteredInputDialog(
             text="Enter a name for this link:", title="Link Name"

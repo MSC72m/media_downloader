@@ -31,16 +31,16 @@ class CookieState(BaseModel):
     def should_regenerate(self) -> bool:
         if not self.is_valid or not self.cookie_path:
             return True
-        
+
         if self.is_expired():
             return True
-        
+
         config = get_config()
         if self.generated_at:
             age_hours = (datetime.now() - self.generated_at).total_seconds() / 3600
             if age_hours >= config.cookies.cookie_expiry_hours:
                 return True
-        
+
         return False
 
 
@@ -55,7 +55,9 @@ class Download(BaseModel):
     error_message: Optional[str] = None
     service_type: Optional[ServiceType] = None
 
-    quality: Optional[str] = Field(default_factory=lambda: get_config().youtube.default_quality)
+    quality: Optional[str] = Field(
+        default_factory=lambda: get_config().youtube.default_quality
+    )
     format: Optional[str] = Field(default="video")
     audio_only: bool = Field(default=False)
     video_only: bool = Field(default=False)

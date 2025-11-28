@@ -7,7 +7,12 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 import yt_dlp
 
 from src.core.enums import ServiceType, DownloadErrorType
-from src.core.interfaces import BaseDownloader, ICookieHandler, IErrorNotifier, IFileService
+from src.core.interfaces import (
+    BaseDownloader,
+    ICookieHandler,
+    IErrorNotifier,
+    IFileService,
+)
 from ..file.service import FileService
 from ..network.checker import check_site_connection
 from ...utils.logger import get_logger
@@ -44,6 +49,7 @@ class YouTubeDownloader(BaseDownloader):
         config=None,
     ):
         from src.core.config import get_config as _get_config
+
         if config is None:
             config = _get_config()
         super().__init__(error_handler, file_service, config)
@@ -62,8 +68,12 @@ class YouTubeDownloader(BaseDownloader):
         self.retries = retries
         if not self.file_service:
             self.file_service = FileService()
-        self.metadata_service = YouTubeMetadataService(error_handler=error_handler, config=self.config)
-        self.audio_extractor = AudioExtractor(config=self.config, error_handler=error_handler)
+        self.metadata_service = YouTubeMetadataService(
+            error_handler=error_handler, config=self.config
+        )
+        self.audio_extractor = AudioExtractor(
+            config=self.config, error_handler=error_handler
+        )
         self.youtube_error_handler = YouTubeErrorHandler(error_handler=error_handler)
         self.ytdl_opts = self._get_simple_ytdl_options()
         self._extract_audio_separately = False  # Flag for Audio + Video format
@@ -78,14 +88,17 @@ class YouTubeDownloader(BaseDownloader):
             "retries": retry_count,
             "fragment_retries": retry_count,
             "retry_sleep_functions": {
-                "fragment": lambda x: self.config.youtube.retry_sleep_multiplier * (x + 1)
+                "fragment": lambda x: self.config.youtube.retry_sleep_multiplier
+                * (x + 1)
             },
             "socket_timeout": self.config.downloads.socket_timeout,
             "extractor_retries": retry_count,
             "hls_prefer_native": True,
             "nocheckcertificate": True,
             "user_agent": self.config.network.user_agent,
-            "extractor_args": {"youtube": {"player_client": ["android", "ios", "tv_embedded", "web"]}},  # Try multiple clients, Android first to match mobile cookies
+            "extractor_args": {
+                "youtube": {"player_client": ["android", "ios", "tv_embedded", "web"]}
+            },  # Try multiple clients, Android first to match mobile cookies
             "writethumbnail": self.download_thumbnail,
             "embedmetadata": self.embed_metadata,
         }
@@ -124,11 +137,13 @@ class YouTubeDownloader(BaseDownloader):
         # Priority order: auto_cookie_manager > old cookie_manager
         # Use early returns and comprehensions
         cookie_path = None
-        
+
         if self.auto_cookie_manager:
             if not self.auto_cookie_manager.is_ready():
                 if self.auto_cookie_manager.is_generating():
-                    logger.warning("[YOUTUBE_DOWNLOADER] Cookies are still generating, download may fail for age-restricted content")
+                    logger.warning(
+                        "[YOUTUBE_DOWNLOADER] Cookies are still generating, download may fail for age-restricted content"
+                    )
                 else:
                     logger.warning("[YOUTUBE_DOWNLOADER] Auto cookie manager not ready")
             else:
@@ -136,15 +151,21 @@ class YouTubeDownloader(BaseDownloader):
                     cookie_path = self.auto_cookie_manager.get_cookies()
                     if cookie_path:
                         options["cookiefile"] = cookie_path
-                        logger.info(f"[YOUTUBE_DOWNLOADER] Using auto-generated cookies: {cookie_path}")
+                        logger.info(
+                            f"[YOUTUBE_DOWNLOADER] Using auto-generated cookies: {cookie_path}"
+                        )
                 except Exception as e:
-                    logger.error(f"[YOUTUBE_DOWNLOADER] Error getting auto-generated cookies: {e}")
-        
+                    logger.error(
+                        f"[YOUTUBE_DOWNLOADER] Error getting auto-generated cookies: {e}"
+                    )
+
         if not cookie_path and self.cookie_manager:
             cookie_path = self.cookie_manager.get_cookies()
             if cookie_path:
                 options["cookiefile"] = cookie_path
-                logger.info(f"[YOUTUBE_DOWNLOADER] Using cookie manager cookies: {cookie_path}")
+                logger.info(
+                    f"[YOUTUBE_DOWNLOADER] Using cookie manager cookies: {cookie_path}"
+                )
 
         # Handle playlists
         if not self.download_playlist:
@@ -174,7 +195,9 @@ class YouTubeDownloader(BaseDownloader):
         if not connected:
             logger.error(f"Cannot download from YouTube: {error_msg}")
             if self.error_handler:
-                self.error_handler.handle_service_failure("YouTube", "download", error_msg or "Connection failed", url)
+                self.error_handler.handle_service_failure(
+                    "YouTube", "download", error_msg or "Connection failed", url
+                )
             return False
 
         download_successful = False
@@ -209,7 +232,9 @@ class YouTubeDownloader(BaseDownloader):
                     {
                         "key": "FFmpegExtractAudio",
                         "preferredcodec": self.config.youtube.audio_codec,
-                        "preferredquality": self.config.youtube.quality_format_map["192"],
+                        "preferredquality": self.config.youtube.quality_format_map[
+                            "192"
+                        ],
                     }
                 )
                 ext = self.config.youtube.file_extensions["audio"]
@@ -219,11 +244,17 @@ class YouTubeDownloader(BaseDownloader):
                 if self.quality.endswith("p"):
                     height = self.quality.replace("p", "")
                     if height.isdigit():
-                        opts["format"] = f"bestvideo[height<={height}][ext=mp4]/bestvideo[height<={height}]/bestvideo[ext=mp4]/bestvideo/best[height>=360]/best"
+                        opts["format"] = (
+                            f"bestvideo[height<={height}][ext=mp4]/bestvideo[height<={height}]/bestvideo[ext=mp4]/bestvideo/best[height>=360]/best"
+                        )
                     else:
-                        opts["format"] = "bestvideo[ext=mp4]/bestvideo/best[height>=360]/best"
+                        opts["format"] = (
+                            "bestvideo[ext=mp4]/bestvideo/best[height>=360]/best"
+                        )
                 else:
-                    opts["format"] = "bestvideo[ext=mp4]/bestvideo/best[height>=360]/best"
+                    opts["format"] = (
+                        "bestvideo[ext=mp4]/bestvideo/best[height>=360]/best"
+                    )
                 ext = ".mp4"
                 opts["outtmpl"] = {"default": output_template + ext}
             else:
@@ -252,7 +283,7 @@ class YouTubeDownloader(BaseDownloader):
                     opts["format"] = self.config.youtube.quality_format_map["best"]
                 ext = self.config.youtube.file_extensions["video"]
                 opts["outtmpl"] = {"default": output_template + ext}
-                
+
                 # For "Audio + Video" format, we'll extract audio after video download
                 # yt-dlp's FFmpegExtractAudio removes the original, so we do it manually
                 self._extract_audio_separately = True
@@ -279,7 +310,9 @@ class YouTubeDownloader(BaseDownloader):
                             error_msg = "No video information extracted from YouTube"
                             logger.error(error_msg)
                             if self.error_handler:
-                                self.error_handler.handle_service_failure("YouTube", "download", error_msg, url)
+                                self.error_handler.handle_service_failure(
+                                    "YouTube", "download", error_msg, url
+                                )
                             return False
 
                         download_successful = True
@@ -290,13 +323,26 @@ class YouTubeDownloader(BaseDownloader):
                     error_type_name = type(e).__name__
 
                     if "DownloadError" in error_type_name:
-                        logger.warning(f"YouTube download error (attempt {attempt + 1}/{max_retries}): {error_msg}")
+                        logger.warning(
+                            f"YouTube download error (attempt {attempt + 1}/{max_retries}): {error_msg}"
+                        )
 
-                        error_type = self.youtube_error_handler.classify_error(error_msg)
+                        error_type = self.youtube_error_handler.classify_error(
+                            error_msg
+                        )
                         error_handlers = {
-                            DownloadErrorType.RATE_LIMIT: lambda: self.youtube_error_handler.handle_rate_limit_error(attempt, retry_wait),
-                            DownloadErrorType.NETWORK: lambda: self.youtube_error_handler.handle_network_error(attempt, max_retries, retry_wait, error_msg),
-                            DownloadErrorType.FORMAT: lambda: self.youtube_error_handler.handle_format_error(attempt, opts, url, self.config.youtube.quality_format_map),
+                            DownloadErrorType.RATE_LIMIT: lambda: self.youtube_error_handler.handle_rate_limit_error(
+                                attempt, retry_wait
+                            ),
+                            DownloadErrorType.NETWORK: lambda: self.youtube_error_handler.handle_network_error(
+                                attempt, max_retries, retry_wait, error_msg
+                            ),
+                            DownloadErrorType.FORMAT: lambda: self.youtube_error_handler.handle_format_error(
+                                attempt,
+                                opts,
+                                url,
+                                self.config.youtube.quality_format_map,
+                            ),
                         }
 
                         handler = error_handlers.get(error_type)
@@ -307,24 +353,32 @@ class YouTubeDownloader(BaseDownloader):
                             self.youtube_error_handler.log_specific_error(error_msg)
 
                         if self.error_handler:
-                            self.error_handler.handle_exception(e, "YouTube download", "YouTube")
+                            self.error_handler.handle_exception(
+                                e, "YouTube download", "YouTube"
+                            )
                         return False
 
                         logger.error(f"Error downloading from YouTube: {error_msg}")
                         self.youtube_error_handler.log_specific_error(error_msg)
                     if self.error_handler:
-                        self.error_handler.handle_exception(e, "YouTube download", "YouTube")
+                        self.error_handler.handle_exception(
+                            e, "YouTube download", "YouTube"
+                        )
                         return False
 
             if not download_successful:
                 error_msg = "All download attempts failed"
                 logger.error(error_msg)
                 if self.error_handler:
-                    self.error_handler.handle_service_failure("YouTube", "download", error_msg, url)
+                    self.error_handler.handle_service_failure(
+                        "YouTube", "download", error_msg, url
+                    )
                 return False
 
         except Exception as e:
-            logger.error(f"Unexpected error downloading from YouTube: {str(e)}", exc_info=True)
+            logger.error(
+                f"Unexpected error downloading from YouTube: {str(e)}", exc_info=True
+            )
             if self.error_handler:
                 self.error_handler.handle_exception(e, "YouTube download", "YouTube")
             return False
@@ -332,14 +386,18 @@ class YouTubeDownloader(BaseDownloader):
         # Verify the download actually completed successfully
         if download_successful and expected_output_path:
             verified = self._verify_download_completion(expected_output_path)
-            
+
             # For "Audio + Video" format, extract audio separately after video download
             if verified and self._extract_audio_separately:
-                audio_extracted = self.audio_extractor.extract_audio(expected_output_path)
+                audio_extracted = self.audio_extractor.extract_audio(
+                    expected_output_path
+                )
                 if not audio_extracted:
-                    logger.warning("[YOUTUBE_DOWNLOADER] Video downloaded but audio extraction failed")
+                    logger.warning(
+                        "[YOUTUBE_DOWNLOADER] Video downloaded but audio extraction failed"
+                    )
                     # Don't fail the download if audio extraction fails
-            
+
             return verified
 
         return False
@@ -379,7 +437,6 @@ class YouTubeDownloader(BaseDownloader):
         )
         return True
 
-
     @staticmethod
     def _create_progress_hook(callback: Callable[[float, float], None]):
         """Create a progress hook function for yt-dlp."""
@@ -405,7 +462,7 @@ class YouTubeDownloader(BaseDownloader):
             elif status == "finished":
                 # Only report 100% for video files, not subtitles or thumbnails
                 filename = d.get("filename", "")
-                info_dict = d.get("info_dict", {})
+                d.get("info_dict", {})
 
                 # Check if this is a subtitle or thumbnail file
                 is_subtitle = filename.endswith((".vtt", ".srt", ".ass", ".sub"))

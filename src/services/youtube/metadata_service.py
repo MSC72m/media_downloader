@@ -1,7 +1,7 @@
 """YouTube metadata service implementation."""
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 from urllib.parse import parse_qs, urlparse
 
 from src.core.config import get_config, AppConfig
@@ -30,9 +30,13 @@ class YouTubeMetadataService(IYouTubeMetadataService):
     ):
         self.config = config
         self.error_handler = error_handler
-        self.info_extractor = YouTubeInfoExtractor(error_handler=error_handler, config=config)
+        self.info_extractor = YouTubeInfoExtractor(
+            error_handler=error_handler, config=config
+        )
         self.metadata_parser = YouTubeMetadataParser(config=config)
-        self.subtitle_extractor = YouTubeSubtitleExtractor(error_handler=error_handler, config=config)
+        self.subtitle_extractor = YouTubeSubtitleExtractor(
+            error_handler=error_handler, config=config
+        )
 
     def fetch_metadata(
         self,
@@ -56,7 +60,9 @@ class YouTubeMetadataService(IYouTubeMetadataService):
             if not self.validate_url(url):
                 error_msg = "Invalid YouTube URL"
                 if self.error_handler:
-                    self.error_handler.handle_service_failure("YouTube", "metadata fetch", error_msg, url)
+                    self.error_handler.handle_service_failure(
+                        "YouTube", "metadata fetch", error_msg, url
+                    )
                 return YouTubeMetadata(error=error_msg)
 
             # Extract video information using yt-dlp library
@@ -64,17 +70,23 @@ class YouTubeMetadataService(IYouTubeMetadataService):
             if not info:
                 error_msg = "Failed to fetch video information"
                 if self.error_handler:
-                    self.error_handler.handle_service_failure("YouTube", "metadata fetch", error_msg, url)
+                    self.error_handler.handle_service_failure(
+                        "YouTube", "metadata fetch", error_msg, url
+                    )
                 return YouTubeMetadata(error=error_msg)
 
             # Parse the info dict
             parsed_info = self.metadata_parser.parse_info(info)
 
             # Extract subtitle information (may enhance parsed_info)
-            subtitle_data = self.subtitle_extractor.extract_subtitles(url, cookie_path, browser)
+            subtitle_data = self.subtitle_extractor.extract_subtitles(
+                url, cookie_path, browser
+            )
             if subtitle_data:
                 parsed_info["subtitles"] = subtitle_data.get("subtitles", {})
-                parsed_info["automatic_captions"] = subtitle_data.get("automatic_captions", {})
+                parsed_info["automatic_captions"] = subtitle_data.get(
+                    "automatic_captions", {}
+                )
 
             # Extract formatted data
             available_qualities = self.metadata_parser.extract_qualities(parsed_info)
@@ -83,9 +95,15 @@ class YouTubeMetadataService(IYouTubeMetadataService):
 
             return YouTubeMetadata(
                 title=parsed_info.get("title", ""),
-                duration=self.metadata_parser.format_duration(parsed_info.get("duration", 0)),
-                view_count=self.metadata_parser.format_view_count(parsed_info.get("view_count", 0)),
-                upload_date=self.metadata_parser.format_upload_date(parsed_info.get("upload_date", "")),
+                duration=self.metadata_parser.format_duration(
+                    parsed_info.get("duration", 0)
+                ),
+                view_count=self.metadata_parser.format_view_count(
+                    parsed_info.get("view_count", 0)
+                ),
+                upload_date=self.metadata_parser.format_upload_date(
+                    parsed_info.get("upload_date", "")
+                ),
                 channel=parsed_info.get("channel", ""),
                 description=parsed_info.get("description", ""),
                 thumbnail=parsed_info.get("thumbnail", ""),
@@ -98,10 +116,17 @@ class YouTubeMetadataService(IYouTubeMetadataService):
 
         except Exception as e:
             error_msg = str(e)
-            logger.error(f"[METADATA_SERVICE] Error fetching metadata: {error_msg}", exc_info=True)
+            logger.error(
+                f"[METADATA_SERVICE] Error fetching metadata: {error_msg}",
+                exc_info=True,
+            )
             if self.error_handler:
-                error_context = extract_error_context(e, "YouTube", "metadata fetch", url)
-                self.error_handler.handle_exception(e, "YouTube metadata fetch", "YouTube")
+                extract_error_context(
+                    e, "YouTube", "metadata fetch", url
+                )
+                self.error_handler.handle_exception(
+                    e, "YouTube metadata fetch", "YouTube"
+                )
             return YouTubeMetadata(error=f"Failed to fetch metadata: {error_msg}")
 
     def get_available_qualities(self, url: str) -> List[str]:
@@ -144,7 +169,9 @@ class YouTubeMetadataService(IYouTubeMetadataService):
 
     def validate_url(self, url: str) -> bool:
         """Validate if URL is a valid YouTube URL."""
-        return any(re.match(pattern, url) for pattern in self.config.youtube.url_patterns)
+        return any(
+            re.match(pattern, url) for pattern in self.config.youtube.url_patterns
+        )
 
     def extract_video_id(self, url: str) -> Optional[str]:
         """Extract video ID from YouTube URL."""

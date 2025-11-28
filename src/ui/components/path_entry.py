@@ -6,12 +6,7 @@ import customtkinter as ctk
 class PathEntryBar(ctk.CTkFrame):
     """Frame for path entry and navigation."""
 
-    def __init__(
-            self,
-            master,
-            initial_path: str,
-            on_path_change: Callable
-    ):
+    def __init__(self, master, initial_path: str, on_path_change: Callable):
         super().__init__(master, fg_color="transparent")
 
         # Configure grid
@@ -22,10 +17,7 @@ class PathEntryBar(ctk.CTkFrame):
 
         # Path entry
         self.entry = ctk.CTkEntry(
-            self,
-            textvariable=self.path_var,
-            height=40,
-            font=("Roboto", 14)
+            self, textvariable=self.path_var, height=40, font=("Roboto", 14)
         )
         self.entry.grid(row=0, column=0, sticky="ew", padx=(20, 10), pady=20)
 
@@ -36,7 +28,7 @@ class PathEntryBar(ctk.CTkFrame):
             width=60,
             command=on_path_change,
             height=40,
-            font=("Roboto", 14)
+            font=("Roboto", 14),
         )
         self.go_button.grid(row=0, column=1, padx=(0, 20), pady=20)
 

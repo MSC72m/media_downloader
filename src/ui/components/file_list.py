@@ -13,10 +13,10 @@ class FileListBox(tk.Listbox):
             fg="white",
             selectmode=tk.SINGLE,
             selectbackground="#1f538d",
-            font=("Roboto", 12)
+            font=("Roboto", 12),
         )
 
-        self.bind('<Double-1>', on_double_click)
+        self.bind("<Double-1>", on_double_click)
 
     def update_items(self, current_path: str):
         """Update list with directory contents."""

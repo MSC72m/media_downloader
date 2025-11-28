@@ -5,6 +5,6 @@ from .compat import StrEnum
 
 class AppearanceMode(StrEnum):
     """Appearance mode options for the UI theme."""
+
     DARK = "dark"
     LIGHT = "light"
-

@@ -5,24 +5,27 @@ from typing import Dict, List, Optional, Any, Protocol, runtime_checkable
 
 class YouTubeMetadata:
     def __init__(self, **kwargs):
-        self.title: str = kwargs.get('title', '')
-        self.duration: str = kwargs.get('duration', '')
-        self.view_count: str = kwargs.get('view_count', '')
-        self.upload_date: str = kwargs.get('upload_date', '')
-        self.channel: str = kwargs.get('channel', '')
-        self.description: str = kwargs.get('description', '')
-        self.thumbnail: str = kwargs.get('thumbnail', '')
-        self.available_qualities: List[str] = kwargs.get('available_qualities', [])
-        self.available_formats: List[str] = kwargs.get('available_formats', [])
-        self.available_subtitles: List[Dict[str, Any]] = kwargs.get('available_subtitles', [])
-        self.is_playlist: bool = kwargs.get('is_playlist', False)
-        self.playlist_count: int = kwargs.get('playlist_count', 0)
-        self.error: Optional[str] = kwargs.get('error')
+        self.title: str = kwargs.get("title", "")
+        self.duration: str = kwargs.get("duration", "")
+        self.view_count: str = kwargs.get("view_count", "")
+        self.upload_date: str = kwargs.get("upload_date", "")
+        self.channel: str = kwargs.get("channel", "")
+        self.description: str = kwargs.get("description", "")
+        self.thumbnail: str = kwargs.get("thumbnail", "")
+        self.available_qualities: List[str] = kwargs.get("available_qualities", [])
+        self.available_formats: List[str] = kwargs.get("available_formats", [])
+        self.available_subtitles: List[Dict[str, Any]] = kwargs.get(
+            "available_subtitles", []
+        )
+        self.is_playlist: bool = kwargs.get("is_playlist", False)
+        self.playlist_count: int = kwargs.get("playlist_count", 0)
+        self.error: Optional[str] = kwargs.get("error")
 
 
 class SubtitleInfo:
-    def __init__(self, language_code: str, language_name: str,
-                 is_auto_generated: bool, url: str):
+    def __init__(
+        self, language_code: str, language_name: str, is_auto_generated: bool, url: str
+    ):
         self.language_code = language_code
         self.language_name = language_name
         self.is_auto_generated = is_auto_generated
@@ -36,20 +39,14 @@ class IYouTubeMetadataService(Protocol):
         url: str,
         cookie_path: Optional[str] = None,
         browser: Optional[str] = None,
-    ) -> Optional[YouTubeMetadata]:
-        ...
+    ) -> Optional[YouTubeMetadata]: ...
 
-    def get_available_qualities(self, url: str) -> List[str]:
-        ...
+    def get_available_qualities(self, url: str) -> List[str]: ...
 
-    def get_available_formats(self, url: str) -> List[str]:
-        ...
+    def get_available_formats(self, url: str) -> List[str]: ...
 
-    def get_available_subtitles(self, url: str) -> List[SubtitleInfo]:
-        ...
+    def get_available_subtitles(self, url: str) -> List[SubtitleInfo]: ...
 
-    def validate_url(self, url: str) -> bool:
-        ...
+    def validate_url(self, url: str) -> bool: ...
 
-    def extract_video_id(self, url: str) -> Optional[str]:
-        ...
+    def extract_video_id(self, url: str) -> Optional[str]: ...

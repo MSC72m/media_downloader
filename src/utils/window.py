@@ -8,13 +8,13 @@ logger = get_logger(__name__)
 
 def close_loading_dialog(dialog: Optional[object], error_path: bool = False) -> None:
     """Close loading dialog with robust error handling - shared utility.
-    
+
     Args:
         dialog: LoadingDialog instance to close (always has close/destroy/winfo_exists)
         error_path: Whether this is an error path (for logging)
     """
     path_suffix = " (error path)" if error_path else ""
-    
+
     if not dialog:
         logger.warning(f"[WINDOW_UTILS] No loading dialog to close{path_suffix}")
         return
@@ -25,13 +25,17 @@ def close_loading_dialog(dialog: Optional[object], error_path: bool = False) -> 
     try:
         # Check if dialog still exists
         if not dialog.winfo_exists():
-            logger.debug(f"[WINDOW_UTILS] Loading dialog already destroyed{path_suffix}")
+            logger.debug(
+                f"[WINDOW_UTILS] Loading dialog already destroyed{path_suffix}"
+            )
             return
 
         # Try close() first - this should release grab and destroy properly
         try:
             dialog.close()
-            logger.info(f"[WINDOW_UTILS] Loading dialog closed via close(){path_suffix}")
+            logger.info(
+                f"[WINDOW_UTILS] Loading dialog closed via close(){path_suffix}"
+            )
             # Give it a moment to process
             dialog.update_idletasks()
             # Verify it's actually closed
@@ -43,15 +47,22 @@ def close_loading_dialog(dialog: Optional[object], error_path: bool = False) -> 
 
         # Fallback to destroy() if close() failed
         dialog.destroy()
-        logger.info(f"[WINDOW_UTILS] Loading dialog destroyed via destroy(){path_suffix}")
+        logger.info(
+            f"[WINDOW_UTILS] Loading dialog destroyed via destroy(){path_suffix}"
+        )
 
     except Exception as e:
-        logger.error(f"[WINDOW_UTILS] Error closing loading dialog{path_suffix}: {e}", exc_info=True)
+        logger.error(
+            f"[WINDOW_UTILS] Error closing loading dialog{path_suffix}: {e}",
+            exc_info=True,
+        )
         # Ensure cleanup in exception handler
         try:
             if dialog.winfo_exists():
                 dialog.destroy()
-                logger.info(f"[WINDOW_UTILS] Loading dialog force-destroyed in exception handler{path_suffix}")
+                logger.info(
+                    f"[WINDOW_UTILS] Loading dialog force-destroyed in exception handler{path_suffix}"
+                )
         except Exception:
             pass
 

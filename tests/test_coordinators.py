@@ -44,7 +44,13 @@ class MockDownloadHandler(IDownloadHandler):
     def clear_downloads(self) -> None:
         self.downloads.clear()
 
-    def start_downloads(self, downloads: list, download_dir: str, progress_callback=None, completion_callback=None) -> None:
+    def start_downloads(
+        self,
+        downloads: list,
+        download_dir: str,
+        progress_callback=None,
+        completion_callback=None,
+    ) -> None:
         self.started_downloads.extend(downloads)
 
     def cancel_download(self, download: Download) -> None:
@@ -123,7 +129,9 @@ class MockFileService(IFileService):
     def clean_filename(self, filename: str) -> str:
         return filename.replace("/", "_")
 
-    def get_unique_filename(self, directory: str, base_name: str, extension: str) -> str:
+    def get_unique_filename(
+        self, directory: str, base_name: str, extension: str
+    ) -> str:
         return f"{base_name}.{extension}"
 
     def ensure_directory(self, directory: str) -> bool:
@@ -199,7 +207,7 @@ class TestDownloadCoordinator:
             download_handler=download_handler,
             error_handler=error_handler,
             download_service=download_service,
-            message_queue=message_queue
+            message_queue=message_queue,
         )
 
         assert coordinator.event_bus is event_bus
@@ -221,7 +229,7 @@ class TestDownloadCoordinator:
             download_handler=download_handler,
             error_handler=error_handler,
             download_service=download_service,
-            message_queue=message_queue
+            message_queue=message_queue,
         )
 
         download = Download(url="https://example.com/video", name="Test Video")
@@ -243,7 +251,7 @@ class TestDownloadCoordinator:
             download_handler=download_handler,
             error_handler=error_handler,
             download_service=download_service,
-            message_queue=message_queue
+            message_queue=message_queue,
         )
 
         # Add some downloads to the service
@@ -269,14 +277,16 @@ class TestDownloadCoordinator:
             download_handler=download_handler,
             error_handler=error_handler,
             download_service=download_service,
-            message_queue=message_queue
+            message_queue=message_queue,
         )
 
         # Initially empty
         assert not coordinator.has_items()
 
         # Add a download
-        download_service.downloads = [Download(url="https://test.com/video", name="test")]
+        download_service.downloads = [
+            Download(url="https://test.com/video", name="test")
+        ]
         assert coordinator.has_items()
 
     def test_download_coordinator_has_active_downloads(self):
@@ -292,19 +302,23 @@ class TestDownloadCoordinator:
             download_handler=download_handler,
             error_handler=error_handler,
             download_service=download_service,
-            message_queue=message_queue
+            message_queue=message_queue,
         )
 
         # No downloads
         assert not coordinator.has_active_downloads()
 
         # Completed download
-        completed_download = Download(url="https://test.com/video", name="test", status=DownloadStatus.COMPLETED)
+        completed_download = Download(
+            url="https://test.com/video", name="test", status=DownloadStatus.COMPLETED
+        )
         download_service.downloads = [completed_download]
         assert not coordinator.has_active_downloads()
 
         # Active download
-        active_download = Download(url="https://test.com/video", name="test", status=DownloadStatus.DOWNLOADING)
+        active_download = Download(
+            url="https://test.com/video", name="test", status=DownloadStatus.DOWNLOADING
+        )
         download_service.downloads = [active_download]
         assert coordinator.has_active_downloads()
 
@@ -321,12 +335,12 @@ class TestDownloadCoordinator:
             download_handler=download_handler,
             error_handler=error_handler,
             download_service=download_service,
-            message_queue=message_queue
+            message_queue=message_queue,
         )
 
         downloads = [
             Download(url="https://example.com/video1", name="Video 1"),
-            Download(url="https://example.com/video2", name="Video 2")
+            Download(url="https://example.com/video2", name="Video 2"),
         ]
 
         coordinator.start_downloads(downloads, "/test/dir")
@@ -347,7 +361,7 @@ class TestDownloadCoordinator:
             "update_status": Mock(),
             "refresh_download_list": Mock(),
             "set_action_buttons_enabled": Mock(),
-            "update_download_progress": Mock()
+            "update_download_progress": Mock(),
         }
 
         coordinator = DownloadCoordinator(
@@ -356,7 +370,7 @@ class TestDownloadCoordinator:
             error_handler=error_handler,
             download_service=download_service,
             message_queue=message_queue,
-            ui_callbacks=ui_callbacks
+            ui_callbacks=ui_callbacks,
         )
 
         # Test status callback
@@ -382,7 +396,7 @@ class TestDownloadCoordinator:
             download_handler=download_handler,
             error_handler=error_handler,
             download_service=download_service,
-            message_queue=message_queue
+            message_queue=message_queue,
         )
 
         # Simulate a failed download event
@@ -399,7 +413,7 @@ class TestDownloadCoordinator:
 class TestEventCoordinator:
     """Test EventCoordinator with dependency injection."""
 
-    @patch('customtkinter.CTk')
+    @patch("customtkinter.CTk")
     def test_event_coordinator_instantiation(self, mock_ctk):
         """Test EventCoordinator can be instantiated with dependencies."""
         mock_root = MagicMock()
@@ -419,7 +433,7 @@ class TestEventCoordinator:
             network_checker=network_checker,
             cookie_handler=cookie_handler,
             download_service=download_service,
-            message_queue=message_queue
+            message_queue=message_queue,
         )
 
         assert coordinator.root is mock_root
@@ -431,7 +445,7 @@ class TestEventCoordinator:
         assert coordinator.download_service is download_service
         assert coordinator.message_queue is message_queue
 
-    @patch('customtkinter.CTk')
+    @patch("customtkinter.CTk")
     def test_event_coordinator_error_handling(self, mock_ctk):
         """Test EventCoordinator error handling."""
         mock_root = MagicMock()
@@ -451,7 +465,7 @@ class TestEventCoordinator:
             network_checker=network_checker,
             cookie_handler=cookie_handler,
             download_service=download_service,
-            message_queue=message_queue
+            message_queue=message_queue,
         )
 
         # Test error delegation
@@ -459,7 +473,7 @@ class TestEventCoordinator:
         assert len(error_handler.errors_shown) == 1
         assert error_handler.errors_shown[0] == ("Test Title", "Test Message")
 
-    @patch('customtkinter.CTk')
+    @patch("customtkinter.CTk")
     def test_event_coordinator_downloads_property(self, mock_ctk):
         """Test EventCoordinator downloads property."""
         mock_root = MagicMock()
@@ -479,7 +493,7 @@ class TestEventCoordinator:
             network_checker=network_checker,
             cookie_handler=cookie_handler,
             download_service=download_service,
-            message_queue=message_queue
+            message_queue=message_queue,
         )
 
         # The downloads property should return a DownloadCoordinator
@@ -491,7 +505,7 @@ class TestEventCoordinator:
 class TestPlatformDialogCoordinator:
     """Test PlatformDialogCoordinator with dependency injection."""
 
-    @patch('customtkinter.CTk')
+    @patch("customtkinter.CTk")
     def test_platform_dialog_coordinator_instantiation(self, mock_ctk):
         """Test PlatformDialogCoordinator can be instantiated with dependencies."""
         mock_root = MagicMock()
@@ -501,7 +515,7 @@ class TestPlatformDialogCoordinator:
         coordinator = PlatformDialogCoordinator(
             root_window=mock_root,
             error_handler=error_handler,
-            cookie_handler=cookie_handler
+            cookie_handler=cookie_handler,
         )
 
         assert coordinator.root is mock_root
@@ -512,7 +526,7 @@ class TestPlatformDialogCoordinator:
 class TestCoordinatorIntegration:
     """Integration tests for coordinators working together."""
 
-    @patch('customtkinter.CTk')
+    @patch("customtkinter.CTk")
     def test_coordinator_collaboration(self, mock_ctk):
         """Test that coordinators can work together."""
         mock_root = MagicMock()
@@ -533,14 +547,14 @@ class TestCoordinatorIntegration:
             network_checker=network_checker,
             cookie_handler=cookie_handler,
             download_service=download_service,
-            message_queue=message_queue
+            message_queue=message_queue,
         )
 
         # Create platform dialog coordinator
         platform_coordinator = PlatformDialogCoordinator(
             root_window=mock_root,
             error_handler=error_handler,
-            cookie_handler=cookie_handler
+            cookie_handler=cookie_handler,
         )
 
         # Both coordinators should share the same error handler
@@ -566,7 +580,7 @@ class TestCoordinatorIntegration:
             download_handler=download_handler,
             error_handler=error_handler,
             download_service=download_service,
-            message_queue=message_queue
+            message_queue=message_queue,
         )
 
         # Should have subscribed to events during initialization

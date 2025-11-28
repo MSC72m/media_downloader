@@ -1,22 +1,12 @@
 """Comprehensive tests for the new dependency injection system."""
 
 import pytest
-from typing import Optional, List
+from typing import Optional
 from unittest.mock import Mock, MagicMock
 
 from src.application.di_container import ServiceContainer, LifetimeScope
 from src.core.interfaces import (
-    IDownloadService,
-    IDownloadHandler,
-    ICookieHandler,
-    IMetadataService,
-    INetworkChecker,
-    IErrorNotifier,
-    IAutoCookieManager,
     IFileService,
-    IMessageQueue,
-    IServiceFactory,
-    IUIState,
 )
 
 
@@ -154,7 +144,7 @@ class TestServiceContainer:
         """Test container clearing."""
         container = ServiceContainer()
         container.register_singleton(MockService)
-        instance = container.get(MockService)
+        container.get(MockService)
 
         assert len(container._services) > 0
         assert len(container._singletons) > 0
@@ -190,11 +180,11 @@ class TestServiceContainer:
         """Test circular dependency detection."""
 
         class ServiceA:
-            def __init__(self, service_b: 'ServiceB'):
+            def __init__(self, service_b: "ServiceB"):
                 self.service_b = service_b
 
         class ServiceB:
-            def __init__(self, service_a: 'ServiceA'):
+            def __init__(self, service_a: "ServiceA"):
                 self.service_a = service_a
 
         container = ServiceContainer()
@@ -224,9 +214,9 @@ class TestRealInterfaces:
 
         assert isinstance(service, DownloadService)
         # Test that it has required methods (duck typing)
-        assert hasattr(service, 'get_downloads')
-        assert hasattr(service, 'add_download')
-        assert hasattr(service, 'remove_downloads')
+        assert hasattr(service, "get_downloads")
+        assert hasattr(service, "add_download")
+        assert hasattr(service, "remove_downloads")
 
     def test_real_file_service_interface(self):
         """Test real IFileService implementation."""
@@ -238,13 +228,12 @@ class TestRealInterfaces:
         service = container.get(IFileService)
         assert isinstance(service, FileService)
         # Test that it implements key interface methods (duck typing)
-        assert hasattr(service, 'sanitize_filename')
-        assert hasattr(service, 'download_file')
+        assert hasattr(service, "sanitize_filename")
+        assert hasattr(service, "download_file")
 
     def test_real_message_queue_interface(self):
         """Test real IMessageQueue implementation."""
         from src.services.events.queue import MessageQueue
-        from unittest.mock import Mock
 
         # Create MessageQueue directly with mock status bar
         mock_status_bar = Mock()
@@ -252,7 +241,7 @@ class TestRealInterfaces:
 
         # Test that it implements the interface
         assert isinstance(queue, MessageQueue)
-        assert hasattr(queue, 'add_message')
+        assert hasattr(queue, "add_message")
         # Test that we can add a message
         queue.add_message("Test message")
 
@@ -271,21 +260,24 @@ class TestRealInterfaces:
             download_service=mock_download_service,
             service_factory=mock_service_factory,
             file_service=mock_file_service,
-            ui_state=mock_ui_state
+            ui_state=mock_ui_state,
         )
 
         assert isinstance(handler, DownloadHandler)
         # Test that it has required methods
-        assert hasattr(handler, 'process_url')
-        assert hasattr(handler, 'handle_download_error')
-        assert hasattr(handler, 'is_available')
+        assert hasattr(handler, "process_url")
+        assert hasattr(handler, "handle_download_error")
+        assert hasattr(handler, "is_available")
 
     def test_real_error_handler_interface(self):
         """Test real IErrorNotifier implementation."""
         # Skip due to complex GUI import chain - test ErrorHandler in coordinator tests
         # where proper GUI mocking is already set up
         import pytest
-        pytest.skip("ErrorHandler test moved to coordinator tests to avoid GUI import complexity")
+
+        pytest.skip(
+            "ErrorHandler test moved to coordinator tests to avoid GUI import complexity"
+        )
 
 
 class TestIntegrationScenarios:
@@ -295,10 +287,12 @@ class TestIntegrationScenarios:
         """Test a complex dependency graph."""
 
         class Database:
-            def __init__(self): pass
+            def __init__(self):
+                pass
 
         class Logger:
-            def __init__(self): pass
+            def __init__(self):
+                pass
 
         class UserService:
             def __init__(self, db: Database, logger: Logger):
@@ -357,7 +351,9 @@ class TestIntegrationScenarios:
                 self.settings = {}
 
         class OptionalService:
-            def __init__(self, required: str = "test", optional: Optional[Config] = None):
+            def __init__(
+                self, required: str = "test", optional: Optional[Config] = None
+            ):
                 self.required = required
                 self.optional = optional
 

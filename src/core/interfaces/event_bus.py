@@ -10,7 +10,7 @@ EventType = TypeVar("EventType", bound=Enum)
 @runtime_checkable
 class IEventBus(Protocol, Generic[EventType]):
     """Generic event bus interface protocol."""
-    
+
     def publish(self, event: EventType, **kwargs: Any) -> None:
         """Publish an event."""
         ...

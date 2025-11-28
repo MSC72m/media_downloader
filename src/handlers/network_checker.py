@@ -51,10 +51,11 @@ class NetworkChecker:
             error_msg = f"Error checking service connection for {service.value}: {e}"
             logger.error(error_msg, exc_info=True)
             if self.error_handler:
-                self.error_handler.handle_exception(e, f"Checking {service.value} connection", "Network Checker")
+                self.error_handler.handle_exception(
+                    e, f"Checking {service.value} connection", "Network Checker"
+                )
             return False, str(e)
 
     def get_problem_services(self) -> List[str]:
         """Get list of services with connection issues."""
         return get_problem_services()
-

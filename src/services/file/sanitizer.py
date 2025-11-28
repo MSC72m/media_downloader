@@ -20,19 +20,23 @@ class FilenameSanitizer:
             A sanitized filename
         """
         # Remove invalid characters
-        valid_chars = re.compile(r'[^\w\s.\-]')
-        filename = valid_chars.sub('_', filename)
+        valid_chars = re.compile(r"[^\w\s.\-]")
+        filename = valid_chars.sub("_", filename)
 
         # Normalize unicode characters
         try:
-            filename = unicodedata.normalize('NFKD', filename).encode('ASCII', 'ignore').decode('ASCII')
+            filename = (
+                unicodedata.normalize("NFKD", filename)
+                .encode("ASCII", "ignore")
+                .decode("ASCII")
+            )
         except UnicodeError:
             # Fallback: replace problematic characters
-            filename = unicodedata.normalize('NFKC', filename)
-            filename = re.sub(r'[^\w\s.\-]', '_', filename)
+            filename = unicodedata.normalize("NFKC", filename)
+            filename = re.sub(r"[^\w\s.\-]", "_", filename)
 
         # Limit length
         if len(filename) > self.MAX_FILENAME_LENGTH:
-            filename = filename[:self.MAX_FILENAME_LENGTH]
+            filename = filename[: self.MAX_FILENAME_LENGTH]
 
         return filename.strip()

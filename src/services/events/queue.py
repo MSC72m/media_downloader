@@ -1,7 +1,6 @@
 """Message queue for displaying UI messages via status bar."""
 
-import queue
-from typing import Optional, Callable, Dict
+from typing import Optional, Callable
 
 from pydantic import BaseModel, Field
 
@@ -50,32 +49,34 @@ class MessageQueue(IMessageQueue):
     # IMessageQueue interface implementation
     def send_message(self, message: dict) -> None:
         """Send a message - implements IMessageQueue interface.
-        
+
         Args:
             message: Dictionary with 'text', 'level', 'title' keys
         """
         # Convert dict to Message object
         msg = Message(
-            text=message.get('text', ''),
-            level=message.get('level', MessageLevel.INFO),
-            title=message.get('title'),
-            duration=message.get('duration', 5000)
+            text=message.get("text", ""),
+            level=message.get("level", MessageLevel.INFO),
+            title=message.get("title"),
+            duration=message.get("duration", 5000),
         )
         self.add_message(msg)
 
     def register_handler(self, message_type: str, handler: Callable) -> None:
         """Register message handler - implements IMessageQueue interface.
-        
+
         Note: Current implementation routes all messages to status bar.
         This method is kept for interface compatibility.
-        
+
         Args:
             message_type: Type of message (not used in current implementation)
             handler: Handler function (not used in current implementation)
         """
         # Current implementation routes all messages to status bar
         # Handler registration is not needed, but kept for interface compliance
-        logger.debug(f"[MESSAGE_QUEUE] Handler registration requested for {message_type} (not used)")
+        logger.debug(
+            f"[MESSAGE_QUEUE] Handler registration requested for {message_type} (not used)"
+        )
 
     def _show_message(self, message: Message):
         """Show the message in status bar based on level.

@@ -2,7 +2,6 @@
 
 import customtkinter as ctk
 
-from ...core.config import get_config
 from ...utils.window import WindowCenterMixin
 from ...utils.logger import get_logger
 
@@ -11,7 +10,7 @@ logger = get_logger(__name__)
 
 class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
     """Centralized loading dialog with cycling animated dots.
-    
+
     Used by YouTube, Instagram, and other platforms for showing loading states.
     Features:
     - Customizable message text
@@ -27,10 +26,10 @@ class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
         timeout: int = 90,
         max_dots: int = 3,
         dot_animation_interval: int = 500,
-        **kwargs
+        **kwargs,
     ):
         """Initialize loading dialog.
-        
+
         Args:
             parent: Parent window
             message: Loading message text (customizable)
@@ -93,7 +92,7 @@ class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
         """Start the dot animation."""
         if self.is_running:
             return
-        
+
         self.is_running = True
         self._animate_dots()
 
@@ -115,7 +114,7 @@ class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
     def stop_animation(self):
         """Stop the animation."""
         self.is_running = False
-        
+
         # Cancel scheduled animations
         if self._animation_id:
             try:
@@ -133,7 +132,7 @@ class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
         """Close the dialog with proper cleanup."""
         logger.debug("[LOADING_DIALOG] close() called")
         self.stop_animation()
-        
+
         # Cancel timeout if still pending
         if self._timeout_id:
             try:
@@ -141,7 +140,7 @@ class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
             except Exception:
                 pass
             self._timeout_id = None
-        
+
         # Release grab and destroy in finally block
         try:
             self._release_grab()
@@ -154,7 +153,7 @@ class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
     def _release_grab(self):
         """Release window grab if active."""
         try:
-            if hasattr(self, 'grab_current') and self.grab_current():
+            if hasattr(self, "grab_current") and self.grab_current():
                 self.grab_release()
                 logger.debug("[LOADING_DIALOG] Grab released")
         except Exception as e:
@@ -163,7 +162,7 @@ class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
     def destroy(self):
         """Clean up the dialog with proper resource management."""
         logger.debug("[LOADING_DIALOG] destroy() called")
-        
+
         # Ensure cleanup happens in finally block
         try:
             self.stop_animation()
@@ -174,5 +173,7 @@ class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
                 try:
                     super().destroy()
                 except Exception as e:
-                    logger.error(f"[LOADING_DIALOG] Error in super().destroy(): {e}", exc_info=True)
-
+                    logger.error(
+                        f"[LOADING_DIALOG] Error in super().destroy(): {e}",
+                        exc_info=True,
+                    )

@@ -12,8 +12,8 @@ logger = get_logger(__name__)
 
 # YouTube URL patterns for validation
 _YOUTUBE_URL_PATTERN = re.compile(
-    r'(?:youtube\.com/(?:watch\?v=|embed/|v/)|youtu\.be/)([a-zA-Z0-9_-]{11})',
-    re.IGNORECASE
+    r"(?:youtube\.com/(?:watch\?v=|embed/|v/)|youtu\.be/)([a-zA-Z0-9_-]{11})",
+    re.IGNORECASE,
 )
 
 
@@ -26,11 +26,11 @@ class YouTubeMetadataParser(IParser):
 
     def validate(self, url: str, context: Optional[Dict[str, Any]] = None) -> bool:
         """Validate if a YouTube URL is valid and processable.
-        
+
         Args:
             url: YouTube URL to validate
             context: Optional context dictionary (not used for URL validation)
-            
+
         Returns:
             True if URL is a valid YouTube URL, False otherwise
         """
@@ -38,19 +38,25 @@ class YouTubeMetadataParser(IParser):
             return False
         return bool(_YOUTUBE_URL_PATTERN.search(url))
 
-    def parse(self, data: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    def parse(
+        self, data: Dict[str, Any], context: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
         """Parse metadata info dict into standardized format.
-        
+
         Args:
             data: Raw info dict from yt-dlp (or dict with 'info' key)
             context: Optional context dictionary (not currently used)
-            
+
         Returns:
             List containing a single parsed metadata dict
         """
         # Handle both direct info dict and wrapped format
-        info = data if isinstance(data, dict) and "title" in data else data.get("info", data)
-        
+        info = (
+            data
+            if isinstance(data, dict) and "title" in data
+            else data.get("info", data)
+        )
+
         parsed = self.parse_info(info)
         return [parsed]
 
@@ -118,7 +124,7 @@ class YouTubeMetadataParser(IParser):
 
     def extract_formats(self, info: Dict[str, Any]) -> List[str]:
         """Extract available format options.
-        
+
         Returns user-friendly format names from config, not internal values.
         Internal values are mapped in the dialog.
         """
@@ -127,7 +133,7 @@ class YouTubeMetadataParser(IParser):
 
     def extract_subtitles(self, info: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Extract subtitle information from info dict.
-        
+
         Returns empty list if no subtitles are available.
         If no subtitles are selected in UI, it's automatically treated as "None".
         Only returns subtitles with valid, downloadable URLs containing video ID or timedtext pattern.
@@ -135,7 +141,7 @@ class YouTubeMetadataParser(IParser):
         manual_subs = info.get("subtitles", {}) or {}
         auto_subs = info.get("automatic_captions", {}) or {}
         video_id = info.get("id", "")
-        
+
         # Delegate to subtitle parser using generic interface
         data = {
             "subtitles": manual_subs,
@@ -143,4 +149,3 @@ class YouTubeMetadataParser(IParser):
         }
         context = {"video_id": video_id}
         return self.subtitle_parser.parse(data, context)
-

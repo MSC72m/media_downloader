@@ -4,6 +4,8 @@ from typing import Any, Callable, Dict, List, Optional, Type
 
 from src.utils.logger import get_logger
 
+from .base_handler import BaseHandler
+
 logger = get_logger(__name__)
 
 
@@ -14,9 +16,6 @@ class DetectionResult:
     service_type: str
     confidence: float  # 0.0 to 1.0
     metadata: Dict[str, Any] | None = None
-
-
-from .base_handler import BaseHandler
 
 # Alias for backward compatibility - handlers can use either name
 LinkHandlerInterface = BaseHandler
@@ -36,7 +35,9 @@ class LinkDetectionRegistry:
         return cls._instance
 
     @classmethod
-    def set_handler_factory(cls, factory: Callable[[Type[BaseHandler]], BaseHandler]) -> None:
+    def set_handler_factory(
+        cls, factory: Callable[[Type[BaseHandler]], BaseHandler]
+    ) -> None:
         """Set factory function for creating handler instances with dependencies."""
         cls._handler_factory = factory
         logger.info("[REGISTRY] Handler factory set")
@@ -89,14 +90,14 @@ class LinkDetectionRegistry:
         for handler_name, handler_class in cls._handlers.items():
             try:
                 logger.debug(f"[DETECTION] Testing handler: {handler_name}")
-                
+
                 # Use factory if available, otherwise try direct instantiation
                 if cls._handler_factory:
                     handler = cls._handler_factory(handler_class)
                 else:
                     # Fallback: try direct instantiation (for handlers without dependencies)
                     handler = handler_class()
-                
+
                 logger.debug(f"[DETECTION] Created handler instance: {handler}")
                 result = handler.can_handle(url)
                 logger.debug(
@@ -143,7 +144,10 @@ class LinkDetectionRegistry:
 class LinkDetector:
     """Main link detector that uses the registry."""
 
-    def __init__(self, handler_factory: Optional[Callable[[Type[BaseHandler]], BaseHandler]] = None):
+    def __init__(
+        self,
+        handler_factory: Optional[Callable[[Type[BaseHandler]], BaseHandler]] = None,
+    ):
         self.registry = LinkDetectionRegistry()
         if handler_factory:
             self.registry.set_handler_factory(handler_factory)
@@ -189,7 +193,9 @@ class LinkDetector:
             try:
                 return handler.can_handle(url)
             except Exception as e:
-                logger.error(f"[LINK_DETECTOR] Error getting URL info: {e}", exc_info=True)
+                logger.error(
+                    f"[LINK_DETECTOR] Error getting URL info: {e}", exc_info=True
+                )
         return None
 
 

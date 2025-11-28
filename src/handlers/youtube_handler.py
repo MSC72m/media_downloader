@@ -13,16 +13,14 @@ from src.core.interfaces import (
 )
 from src.core.models import Download
 from src.services.detection.link_detector import (
-    DetectionResult,
     auto_register_handler,
 )
 from src.services.detection.base_handler import BaseHandler
 from src.core.enums.message_level import MessageLevel
 from src.services.events.queue import Message
-from src.services.youtube.metadata_service import YouTubeMetadataService
 from src.ui.dialogs.input_dialog import CenteredInputDialog
 from src.ui.dialogs.youtube_downloader_dialog import YouTubeDownloaderDialog
-from src.utils.error_helpers import extract_error_context, format_user_friendly_error
+from src.utils.error_helpers import extract_error_context
 from src.utils.logger import get_logger
 from src.utils.type_helpers import (
     get_platform_callback,
@@ -109,12 +107,16 @@ class YouTubeHandler(BaseHandler):
                 error_msg = "No download callback found"
                 logger.error(f"[YOUTUBE_HANDLER] {error_msg}")
                 if self.error_handler:
-                    self.error_handler.handle_service_failure("YouTube Handler", "callback", error_msg, url)
+                    self.error_handler.handle_service_failure(
+                        "YouTube Handler", "callback", error_msg, url
+                    )
                 return
 
             # Early return if cookies are generating - reject URL
             if self._is_cookie_generating(ui_context):
-                logger.warning("[YOUTUBE_HANDLER] Cookies are being generated, rejecting URL")
+                logger.warning(
+                    "[YOUTUBE_HANDLER] Cookies are being generated, rejecting URL"
+                )
                 self._show_cookie_generating_message(ui_context)
                 return
 
@@ -135,12 +137,21 @@ class YouTubeHandler(BaseHandler):
                                 metadata = self.metadata_service.fetch_metadata(url)
                                 if metadata and metadata.title:
                                     track_name = metadata.title
-                                    logger.info(f"[YOUTUBE_HANDLER] Music metadata fetched: {track_name}")
+                                    logger.info(
+                                        f"[YOUTUBE_HANDLER] Music metadata fetched: {track_name}"
+                                    )
                             except Exception as e:
-                                logger.warning(f"[YOUTUBE_HANDLER] Could not fetch music metadata: {e}", exc_info=True)
+                                logger.warning(
+                                    f"[YOUTUBE_HANDLER] Could not fetch music metadata: {e}",
+                                    exc_info=True,
+                                )
                                 if self.error_handler:
-                                    error_context = extract_error_context(e, "YouTube", "metadata fetch", url)
-                                    self.error_handler.handle_exception(e, "Fetching music metadata", "YouTube")
+                                    extract_error_context(
+                                        e, "YouTube", "metadata fetch", url
+                                    )
+                                    self.error_handler.handle_exception(
+                                        e, "Fetching music metadata", "YouTube"
+                                    )
 
                         dialog = CenteredInputDialog(
                             text="Enter a name for this track:",
@@ -153,7 +164,9 @@ class YouTubeHandler(BaseHandler):
                         name = dialog.get_input()
 
                         if not name:
-                            logger.info("[YOUTUBE_HANDLER] User cancelled YouTube Music name dialog")
+                            logger.info(
+                                "[YOUTUBE_HANDLER] User cancelled YouTube Music name dialog"
+                            )
                             return
 
                         download = Download(
@@ -169,20 +182,29 @@ class YouTubeHandler(BaseHandler):
                         download.embed_metadata = True
 
                         download_callback(download)
-                        logger.info(f"[YOUTUBE_HANDLER] YouTube Music download added: {name}")
+                        logger.info(
+                            f"[YOUTUBE_HANDLER] YouTube Music download added: {name}"
+                        )
 
                     except Exception as e:
-                        logger.error(f"[YOUTUBE_HANDLER] Failed to create music download: {e}", exc_info=True)
+                        logger.error(
+                            f"[YOUTUBE_HANDLER] Failed to create music download: {e}",
+                            exc_info=True,
+                        )
                         if self.error_handler:
-                            error_context = extract_error_context(e, "YouTube", "music download creation", url)
-                            self.error_handler.handle_exception(e, "Creating YouTube Music download", "YouTube")
+                            extract_error_context(
+                                e, "YouTube", "music download creation", url
+                            )
+                            self.error_handler.handle_exception(
+                                e, "Creating YouTube Music download", "YouTube"
+                            )
                         elif self.message_queue:
-                                self.message_queue.add_message(
-                                    Message(
-                                        text=f"Failed to add YouTube Music download: {str(e)}",
-                                        level=MessageLevel.ERROR,
-                                        title="YouTube Music Error",
-                                    )
+                            self.message_queue.add_message(
+                                Message(
+                                    text=f"Failed to add YouTube Music download: {str(e)}",
+                                    level=MessageLevel.ERROR,
+                                    title="YouTube Music Error",
+                                )
                             )
 
                 schedule_on_main_thread(root, show_music_name_dialog, immediate=True)
@@ -207,9 +229,7 @@ class YouTubeHandler(BaseHandler):
                                 f"[YOUTUBE_HANDLER] Failed to get auto cookies: {cookie_error}"
                             )
                     else:
-                        logger.warning(
-                            "[YOUTUBE_HANDLER] Auto cookies not ready yet"
-                        )
+                        logger.warning("[YOUTUBE_HANDLER] Auto cookies not ready yet")
 
                     YouTubeDownloaderDialog(
                         root,
@@ -226,10 +246,17 @@ class YouTubeHandler(BaseHandler):
                         "[YOUTUBE_HANDLER] YouTubeDownloaderDialog created successfully"
                     )
                 except Exception as e:
-                    logger.error(f"[YOUTUBE_HANDLER] Failed to create YouTubeDownloaderDialog: {e}", exc_info=True)
+                    logger.error(
+                        f"[YOUTUBE_HANDLER] Failed to create YouTubeDownloaderDialog: {e}",
+                        exc_info=True,
+                    )
                     if self.error_handler:
-                        error_context = extract_error_context(e, "YouTube", "dialog creation", url)
-                        self.error_handler.handle_exception(e, "Creating YouTube dialog", "YouTube")
+                        extract_error_context(
+                            e, "YouTube", "dialog creation", url
+                        )
+                        self.error_handler.handle_exception(
+                            e, "Creating YouTube dialog", "YouTube"
+                        )
 
             # Schedule dialog creation on main thread (non-blocking)
             schedule_on_main_thread(root, create_youtube_dialog, immediate=True)
@@ -286,41 +313,47 @@ class YouTubeHandler(BaseHandler):
 
     def _is_cookie_generating(self, ui_context: Any) -> bool:
         """Check if cookies are currently being generated.
-        
+
         Args:
             ui_context: UI context (for potential future use)
-        
+
         Returns:
             True if cookies are generating, False otherwise
         """
         # Check direct state first
         if self.auto_cookie_manager.is_generating():
-            logger.info("[YOUTUBE_HANDLER] Cookie manager reports cookies are generating")
+            logger.info(
+                "[YOUTUBE_HANDLER] Cookie manager reports cookies are generating"
+            )
             return True
-        
+
         # Check state object for real-time updates
         state = self.auto_cookie_manager.get_state()
         if state is not None and state.is_generating:
             logger.info("[YOUTUBE_HANDLER] Cookie state reports cookies are generating")
             return True
-        
+
         # Also check generator state directly for real-time updates
         generator_state = self.auto_cookie_manager.generator.get_state()
         if generator_state and generator_state.is_generating:
-            logger.info("[YOUTUBE_HANDLER] Cookie generator reports cookies are generating")
+            logger.info(
+                "[YOUTUBE_HANDLER] Cookie generator reports cookies are generating"
+            )
             return True
-        
+
         return False
 
     def _show_cookie_generating_message(self, ui_context: Any) -> None:
         """Show status bar message when cookies are being generated and reject URL.
-        
+
         Args:
             ui_context: UI context to get status bar callback
         """
         logger.info("[YOUTUBE_HANDLER] Showing cookie generating message in status bar")
-        message_text = "Generating YouTube cookies, please wait for few seconds and try again"
-        
+        message_text = (
+            "Generating YouTube cookies, please wait for few seconds and try again"
+        )
+
         # Try to get status bar update callback from event coordinator
         ctx = get_ui_context(ui_context)
         if ctx:
@@ -329,14 +362,18 @@ class YouTubeHandler(BaseHandler):
                 status_callback = downloads._get_ui_callback("update_status")
                 if status_callback:
                     status_callback(message_text, is_error=False)
-                    logger.info("[YOUTUBE_HANDLER] Status bar updated with cookie generation message")
+                    logger.info(
+                        "[YOUTUBE_HANDLER] Status bar updated with cookie generation message"
+                    )
                     return
-        
+
         # Fallback to message queue
         if not self.message_queue:
-            logger.warning("[YOUTUBE_HANDLER] No message queue available for cookie generation message")
+            logger.warning(
+                "[YOUTUBE_HANDLER] No message queue available for cookie generation message"
+            )
             return
-        
+
         try:
             self.message_queue.add_message(
                 Message(
@@ -345,6 +382,10 @@ class YouTubeHandler(BaseHandler):
                     title="Cookie Generation",
                 )
             )
-            logger.info("[YOUTUBE_HANDLER] Message queue updated with cookie generation message")
+            logger.info(
+                "[YOUTUBE_HANDLER] Message queue updated with cookie generation message"
+            )
         except Exception as e:
-            logger.error(f"[YOUTUBE_HANDLER] Failed to add message to queue: {e}", exc_info=True)
+            logger.error(
+                f"[YOUTUBE_HANDLER] Failed to add message to queue: {e}", exc_info=True
+            )

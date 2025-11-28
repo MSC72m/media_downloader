@@ -13,7 +13,9 @@ logger = get_logger(__name__)
 
 
 class CookieHandler(ICookieHandler):
-    def __init__(self, config: AppConfig, cookie_manager: Optional[ICookieManager] = None):
+    def __init__(
+        self, config: AppConfig, cookie_manager: Optional[ICookieManager] = None
+    ):
         self.config = config
         self._cookie_manager = cookie_manager or CookieManager()
         self._service_detector = ServiceDetector()

@@ -1,5 +1,3 @@
-"""Simple subtitle selection component using a scrollable checklist."""
-
 """Subtitle checklist component for YouTube downloads."""
 
 from collections.abc import Callable, Iterator
@@ -97,58 +95,62 @@ class SubtitleChecklist(ctk.CTkFrame):
 
     def set_subtitle_options(self, subtitles: list[dict[str, Any]]) -> None:
         """Set subtitle options with generator-based batch loading to prevent UI freeze.
-        
+
         Uses a generator with offset/indexing for efficient batch loading.
         Batch size is configurable via config.ui.subtitle_batch_size.
         """
         try:
             # Store all options
             self.options = subtitles or []
-            
+
             # Clear existing options
             self._clear_existing_options()
-            
+
             if not subtitles:
                 self.placeholder_label.pack(pady=20)
                 self.button_frame.pack_forget()
                 return
-            
+
             # Hide placeholder and show buttons
             self.placeholder_label.pack_forget()
             self.button_frame.pack(fill="x", pady=(5, 0))
-            
+
             # Create generator for efficient batch loading with offset/indexing
             self._subtitle_generator = self._subtitle_batch_generator(subtitles)
             self._current_index = 0
-            
+
             # Load first batch immediately
             self._load_next_batch()
-            
+
         except Exception as e:
             logger.error(f"Error setting subtitle options: {e}", exc_info=True)
-    
-    def _subtitle_batch_generator(self, subtitles: List[Dict[str, Any]]) -> Iterator[Dict[str, Any]]:
+
+    def _subtitle_batch_generator(
+        self, subtitles: List[Dict[str, Any]]
+    ) -> Iterator[Dict[str, Any]]:
         """Generator that yields subtitles in batches with offset/indexing.
-        
+
         Args:
             subtitles: Full list of subtitles to process
-            
+
         Yields:
             Tuples of (subtitle_dict, index) for efficient batch processing
         """
         offset = 0
         while offset < len(subtitles):
             # Yield batch with indexing
-            for i, subtitle in enumerate(subtitles[offset:offset + self._batch_size], start=offset):
+            for i, subtitle in enumerate(
+                subtitles[offset : offset + self._batch_size], start=offset
+            ):
                 yield subtitle, i
             offset += self._batch_size
-    
+
     def _load_next_batch(self) -> None:
         """Load next batch of subtitles using generator with offset/indexing."""
         if not self._subtitle_generator:
             self._update_status()
             return
-        
+
         try:
             # Load batch using generator - efficient with offset/indexing
             batch_items = []
@@ -158,25 +160,27 @@ class SubtitleChecklist(ctk.CTkFrame):
                     batch_items.append((subtitle, index))
                 except StopIteration:
                     break
-            
+
             if not batch_items:
                 self._update_status()
                 return
-            
+
             # Create options for this batch using list comprehension
             [
                 self._create_option_item(subtitle, index)
                 for subtitle, index in batch_items
             ]
-            
+
             self._current_index += len(batch_items)
-            
+
             # Schedule next batch if generator has more (check if we got full batch)
             if len(batch_items) == self._batch_size:
-                self.after(10, self._load_next_batch)  # Small delay to keep UI responsive
+                self.after(
+                    10, self._load_next_batch
+                )  # Small delay to keep UI responsive
             else:
                 self._update_status()
-            
+
         except StopIteration:
             self._update_status()
         except Exception as e:
@@ -188,7 +192,7 @@ class SubtitleChecklist(ctk.CTkFrame):
         # Cancel any pending batch loads
         self._subtitle_generator = None
         self._current_index = 0
-        
+
         # Clear checkboxes using list comprehension
         [checkbox.destroy() for checkbox in self.checkboxes.values()]
         self.checkboxes.clear()

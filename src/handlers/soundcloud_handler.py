@@ -6,7 +6,6 @@ from typing import Any, Callable, Dict, Optional
 from src.core.config import get_config, AppConfig
 from src.core.interfaces import IErrorNotifier, IMessageQueue
 from src.services.detection.link_detector import (
-    DetectionResult,
     auto_register_handler,
 )
 from src.services.detection.base_handler import BaseHandler
@@ -23,7 +22,12 @@ logger = get_logger(__name__)
 
 @auto_register_handler
 class SoundCloudHandler(BaseHandler):
-    def __init__(self, message_queue: IMessageQueue, error_handler: Optional[IErrorNotifier] = None, config: AppConfig = get_config()):
+    def __init__(
+        self,
+        message_queue: IMessageQueue,
+        error_handler: Optional[IErrorNotifier] = None,
+        config: AppConfig = get_config(),
+    ):
         super().__init__(message_queue, config, service_name="soundcloud")
         self.error_handler = error_handler
 
@@ -77,7 +81,9 @@ class SoundCloudHandler(BaseHandler):
                     error_msg = "No download callback found"
                     logger.error(f"[SOUNDCLOUD_HANDLER] {error_msg}")
                     if self.error_handler:
-                        self.error_handler.handle_service_failure("SoundCloud Handler", "callback", error_msg, url)
+                        self.error_handler.handle_service_failure(
+                            "SoundCloud Handler", "callback", error_msg, url
+                        )
                     return
 
             # Call the platform download method
@@ -89,12 +95,23 @@ class SoundCloudHandler(BaseHandler):
                     download_callback(url)
                     logger.info("[SOUNDCLOUD_HANDLER] Download callback executed")
                 except Exception as e:
-                    logger.error(f"[SOUNDCLOUD_HANDLER] Error processing SoundCloud download: {e}", exc_info=True)
+                    logger.error(
+                        f"[SOUNDCLOUD_HANDLER] Error processing SoundCloud download: {e}",
+                        exc_info=True,
+                    )
                     if self.error_handler:
-                        error_context = extract_error_context(e, "SoundCloud", "download processing", url)
-                        self.error_handler.handle_exception(e, "Processing SoundCloud download", "SoundCloud")
+                        extract_error_context(
+                            e, "SoundCloud", "download processing", url
+                        )
+                        self.error_handler.handle_exception(
+                            e, "Processing SoundCloud download", "SoundCloud"
+                        )
                     else:
-                        self.notifier.notify_user("error", title="SoundCloud Download Error", message=f"Failed to process SoundCloud download: {str(e)}")
+                        self.notifier.notify_user(
+                            "error",
+                            title="SoundCloud Download Error",
+                            message=f"Failed to process SoundCloud download: {str(e)}",
+                        )
 
             # Schedule on main thread
             schedule_on_main_thread(root, process_soundcloud_download, immediate=True)

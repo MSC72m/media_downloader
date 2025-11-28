@@ -40,8 +40,8 @@ class ActionButtonBar(ctk.CTkFrame):
 
         # Clean modern button style - consistent and polished
         self.button_style = {
-            "height": 45, 
-            "font": ("Roboto", 13), 
+            "height": 45,
+            "font": ("Roboto", 13),
             "corner_radius": 8,
             "border_width": 0,
         }
@@ -94,7 +94,7 @@ class ActionButtonBar(ctk.CTkFrame):
         # Ensure all buttons start in enabled state
         logger.info("[ACTION_BUTTONS] Setting initial button states to enabled")
         self.set_enabled(True)
-        
+
         # Apply initial theme colors
         self._apply_theme_colors()
 
@@ -155,33 +155,41 @@ class ActionButtonBar(ctk.CTkFrame):
 
         logger.debug(f"[ACTION_BUTTONS] Setting download_button to: {download_state}")
         self.download_button.configure(state=download_state)
-        
+
         # Also update manage_files_button state (should be disabled if no items)
         manage_state = "normal" if has_items else "disabled"
         logger.debug(f"[ACTION_BUTTONS] Setting manage_files_button to: {manage_state}")
         self.manage_files_button.configure(state=manage_state)
-    
+
     def _apply_theme_colors(self):
         """Apply plain colors to buttons - matching Add button exactly."""
         theme_json = self._theme_manager.get_theme_json()
-        
+
         button_config = theme_json.get("CTkButton", {})
         if button_config:
             button_color = button_config.get("fg_color")
             hover_color = button_config.get("hover_color")
             text_color = button_config.get("text_color")
-            
+
             # Extract plain color string - ensure it's a string, not tuple (same as Add button)
             if isinstance(button_color, tuple):
-                button_color = button_color[0] if isinstance(button_color[0], str) else str(button_color[0])
+                button_color = (
+                    button_color[0]
+                    if isinstance(button_color[0], str)
+                    else str(button_color[0])
+                )
             elif not isinstance(button_color, str):
                 button_color = str(button_color)
-            
+
             if isinstance(hover_color, tuple):
-                hover_color = hover_color[0] if isinstance(hover_color[0], str) else str(hover_color[0])
+                hover_color = (
+                    hover_color[0]
+                    if isinstance(hover_color[0], str)
+                    else str(hover_color[0])
+                )
             elif not isinstance(hover_color, str):
                 hover_color = str(hover_color)
-            
+
             if button_color:
                 for button in [
                     self.remove_button,
@@ -194,7 +202,7 @@ class ActionButtonBar(ctk.CTkFrame):
                         hover_color=hover_color,
                         text_color=text_color,
                     )
-    
+
     def _on_theme_changed(self, appearance, color):
         """Handle theme change event - apply plain colors to buttons."""
         self._apply_theme_colors()

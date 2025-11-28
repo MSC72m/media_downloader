@@ -1,13 +1,14 @@
 import queue
-import threading
-import tkinter as tk
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import customtkinter as ctk
 
 from src.core.enums.theme_event import ThemeEvent
 from src.ui.utils.theme_manager import get_theme_manager
 from src.utils.logger import get_logger
+
+if TYPE_CHECKING:
+    from src.ui.utils.theme_manager import ThemeManager
 
 logger = get_logger(__name__)
 
@@ -22,7 +23,7 @@ class OptionsBar(ctk.CTkFrame):
         self._update_queue = queue.Queue()
         self._running = True
         self._root_window = self._get_root_window()
-        
+
         # Subscribe to theme manager - injected with default
         self._theme_manager = theme_manager or get_theme_manager(self._root_window)
         self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
@@ -33,7 +34,7 @@ class OptionsBar(ctk.CTkFrame):
 
         # Start processing queue
         self._process_queue()
-    
+
     def _on_theme_changed(self, appearance, color):
         """Handle theme change event."""
         pass

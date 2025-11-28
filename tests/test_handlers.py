@@ -2,10 +2,9 @@
 
 import pytest
 import re
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock, patch
 
 from src.core.interfaces import (
-    IDownloadHandler,
     ICookieHandler,
     IMetadataService,
     IErrorNotifier,
@@ -84,7 +83,9 @@ class MockFileService(IFileService):
     def clean_filename(self, filename: str) -> str:
         return filename.replace("/", "_").replace("\\", "_")
 
-    def get_unique_filename(self, directory: str, base_name: str, extension: str) -> str:
+    def get_unique_filename(
+        self, directory: str, base_name: str, extension: str
+    ) -> str:
         return f"{base_name}.{extension}"
 
     def ensure_directory(self, directory: str) -> bool:
@@ -160,13 +161,18 @@ class TestHandlerRegistration:
         # Should have exactly 5 handlers
         assert len(handlers) == 5
 
-        handler_names = [handler.__name__ if hasattr(handler, '__name__') else handler.__class__.__name__ for handler in handlers]
+        handler_names = [
+            handler.__name__
+            if hasattr(handler, "__name__")
+            else handler.__class__.__name__
+            for handler in handlers
+        ]
         expected_handlers = [
-            'InstagramHandler',
-            'PinterestHandler',
-            'SoundCloudHandler',
-            'TwitterHandler',
-            'YouTubeHandler'
+            "InstagramHandler",
+            "PinterestHandler",
+            "SoundCloudHandler",
+            "TwitterHandler",
+            "YouTubeHandler",
         ]
 
         for expected in expected_handlers:
@@ -178,12 +184,24 @@ class TestHandlerRegistration:
 
         for handler in handlers:
             # Check for required methods from LinkHandlerInterface
-            assert hasattr(handler, 'can_handle'), f"{handler.__class__.__name__} missing can_handle"
-            assert hasattr(handler, 'get_patterns'), f"{handler.__class__.__name__} missing get_patterns"
-            assert hasattr(handler, 'get_ui_callback'), f"{handler.__class__.__name__} missing get_ui_callback"
-            assert callable(handler.can_handle), f"{handler.__class__.__name__}.can_handle is not callable"
-            assert callable(handler.get_patterns), f"{handler.__class__.__name__}.get_patterns is not callable"
-            assert callable(handler.get_ui_callback), f"{handler.__class__.__name__}.get_ui_callback is not callable"
+            assert hasattr(handler, "can_handle"), (
+                f"{handler.__class__.__name__} missing can_handle"
+            )
+            assert hasattr(handler, "get_patterns"), (
+                f"{handler.__class__.__name__} missing get_patterns"
+            )
+            assert hasattr(handler, "get_ui_callback"), (
+                f"{handler.__class__.__name__} missing get_ui_callback"
+            )
+            assert callable(handler.can_handle), (
+                f"{handler.__class__.__name__}.can_handle is not callable"
+            )
+            assert callable(handler.get_patterns), (
+                f"{handler.__class__.__name__}.get_patterns is not callable"
+            )
+            assert callable(handler.get_ui_callback), (
+                f"{handler.__class__.__name__}.get_ui_callback is not callable"
+            )
 
 
 class TestYouTubeHandler:
@@ -195,16 +213,16 @@ class TestYouTubeHandler:
 
         cookie_handler = MockCookieHandler()
         metadata_service = MockMetadataService()
-        error_handler = MockErrorHandler()
-        file_service = MockFileService()
-        ui_state = MockUIState()
+        MockErrorHandler()
+        MockFileService()
+        MockUIState()
         message_queue = MockMessageQueue()
 
         handler = YouTubeHandler(
             cookie_handler=cookie_handler,
             metadata_service=metadata_service,
             auto_cookie_manager=Mock(),  # Add auto_cookie_manager
-            message_queue=message_queue
+            message_queue=message_queue,
         )
 
         assert handler.cookie_handler is cookie_handler
@@ -219,7 +237,7 @@ class TestYouTubeHandler:
             cookie_handler=MockCookieHandler(),
             metadata_service=MockMetadataService(),
             auto_cookie_manager=Mock(),
-            message_queue=MockMessageQueue()
+            message_queue=MockMessageQueue(),
         )
 
         patterns = handler.get_patterns()
@@ -248,7 +266,7 @@ class TestYouTubeHandler:
             cookie_handler=MockCookieHandler(),
             metadata_service=MockMetadataService(),
             auto_cookie_manager=Mock(),
-            message_queue=MockMessageQueue()
+            message_queue=MockMessageQueue(),
         )
 
         # Should handle YouTube URLs
@@ -411,7 +429,6 @@ class TestDownloadHandler:
     def test_download_handler_instantiation(self):
         """Test Download handler can be instantiated with dependencies."""
         from src.handlers.download_handler import DownloadHandler
-        from src.core.models import Download, DownloadStatus
 
         # Create mock dependencies
         mock_download_service = Mock()
@@ -425,7 +442,7 @@ class TestDownloadHandler:
             download_service=mock_download_service,
             service_factory=Mock(),
             file_service=mock_file_service,
-            ui_state=mock_ui_state
+            ui_state=mock_ui_state,
         )
 
         assert handler.download_service is mock_download_service
@@ -435,7 +452,6 @@ class TestDownloadHandler:
     def test_download_handler_interface_compliance(self):
         """Test Download handler implements IDownloadHandler interface."""
         from src.handlers.download_handler import DownloadHandler
-        from src.core.models import Download
 
         # Create mock dependencies
         mock_download_service = Mock()
@@ -450,13 +466,13 @@ class TestDownloadHandler:
             download_service=mock_download_service,
             service_factory=Mock(),
             file_service=mock_file_service,
-            ui_state=mock_ui_state
+            ui_state=mock_ui_state,
         )
 
         # Test interface methods
-        assert hasattr(handler, 'process_url')
-        assert hasattr(handler, 'handle_download_error')
-        assert hasattr(handler, 'is_available')
+        assert hasattr(handler, "process_url")
+        assert hasattr(handler, "handle_download_error")
+        assert hasattr(handler, "is_available")
 
         # Test process_url
         result = handler.process_url("https://example.com/video")
@@ -483,7 +499,7 @@ class TestDownloadHandler:
             download_service=mock_download_service,
             service_factory=Mock(),
             file_service=mock_file_service,
-            ui_state=mock_ui_state
+            ui_state=mock_ui_state,
         )
 
         # Test URL type detection
@@ -498,7 +514,9 @@ class TestDownloadHandler:
 
         for url, expected_type in test_cases:
             detected_type = handler._detect_service_type(url)
-            assert detected_type == expected_type, f"Expected {expected_type}, got {detected_type} for {url}"
+            assert detected_type == expected_type, (
+                f"Expected {expected_type}, got {detected_type} for {url}"
+            )
 
 
 class TestHandlerIntegration:
@@ -520,24 +538,27 @@ class TestHandlerIntegration:
         # No two handlers should have conflicting responsibilities
         handler_types = set()
         for handler in handlers:
-            handler_name = (handler.__name__ if hasattr(handler, '__name__')
-                           else handler.__class__.__name__).lower()
-            if 'youtube' in handler_name:
-                handler_types.add('youtube')
-            elif 'twitter' in handler_name:
-                handler_types.add('twitter')
-            elif 'instagram' in handler_name:
-                handler_types.add('instagram')
-            elif 'pinterest' in handler_name:
-                handler_types.add('pinterest')
-            elif 'soundcloud' in handler_name:
-                handler_types.add('soundcloud')
+            handler_name = (
+                handler.__name__
+                if hasattr(handler, "__name__")
+                else handler.__class__.__name__
+            ).lower()
+            if "youtube" in handler_name:
+                handler_types.add("youtube")
+            elif "twitter" in handler_name:
+                handler_types.add("twitter")
+            elif "instagram" in handler_name:
+                handler_types.add("instagram")
+            elif "pinterest" in handler_name:
+                handler_types.add("pinterest")
+            elif "soundcloud" in handler_name:
+                handler_types.add("soundcloud")
 
-        expected_types = {'youtube', 'twitter', 'instagram', 'pinterest', 'soundcloud'}
+        expected_types = {"youtube", "twitter", "instagram", "pinterest", "soundcloud"}
         assert handler_types == expected_types
 
-    @patch('src.utils.type_helpers.get_platform_callback')
-    @patch('src.utils.type_helpers.get_root')
+    @patch("src.utils.type_helpers.get_platform_callback")
+    @patch("src.utils.type_helpers.get_root")
     def test_handler_callbacks(self, mock_get_root, mock_get_callback):
         """Test that handler callbacks are properly structured."""
         from unittest.mock import Mock
@@ -553,16 +574,18 @@ class TestHandlerIntegration:
         for handler_class in handlers:
             # Create an instance if needed
             try:
-                if handler_class.__name__ in ['YouTubeHandler']:
+                if handler_class.__name__ in ["YouTubeHandler"]:
                     # Skip YouTubeHandler as it requires complex dependencies
                     continue
-                elif handler_class.__name__ == 'SoundCloudHandler':
+                elif handler_class.__name__ == "SoundCloudHandler":
                     handler = handler_class(message_queue=MockMessageQueue())
                 else:
                     handler = handler_class()
 
                 callback = handler.get_ui_callback()
-                assert callable(callback), f"{handler_class.__name__} callback is not callable"
+                assert callable(callback), (
+                    f"{handler_class.__name__} callback is not callable"
+                )
             except Exception as e:
                 # Skip handlers that can't be instantiated easily
                 print(f"Skipping {handler_class.__name__}: {e}")

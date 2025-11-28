@@ -5,7 +5,10 @@ from typing import Optional
 from src.core.enums.message_level import MessageLevel
 from src.core.interfaces import IErrorNotifier, IMessageQueue
 from src.services.events.queue import Message
-from src.utils.error_helpers import extract_error_context, format_user_friendly_error, classify_error_type, get_error_suggestion
+from src.utils.error_helpers import (
+    extract_error_context,
+    format_user_friendly_error,
+)
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -40,7 +43,9 @@ class ErrorNotifier(IErrorNotifier):
             message: Error message text
         """
         if not self.message_queue:
-            logger.error(f"[ERROR_NOTIFIER] Message queue not available. Error: {title} - {message}")
+            logger.error(
+                f"[ERROR_NOTIFIER] Message queue not available. Error: {title} - {message}"
+            )
             return
 
         error_message = Message(text=message, level=MessageLevel.ERROR, title=title)
@@ -55,7 +60,9 @@ class ErrorNotifier(IErrorNotifier):
             message: Warning message text
         """
         if not self.message_queue:
-            logger.warning(f"[ERROR_NOTIFIER] Message queue not available. Warning: {title} - {message}")
+            logger.warning(
+                f"[ERROR_NOTIFIER] Message queue not available. Warning: {title} - {message}"
+            )
             return
 
         warning_message = Message(text=message, level=MessageLevel.WARNING, title=title)
@@ -70,14 +77,18 @@ class ErrorNotifier(IErrorNotifier):
             message: Info message text
         """
         if not self.message_queue:
-            logger.info(f"[ERROR_NOTIFIER] Message queue not available. Info: {title} - {message}")
+            logger.info(
+                f"[ERROR_NOTIFIER] Message queue not available. Info: {title} - {message}"
+            )
             return
 
         info_message = Message(text=message, level=MessageLevel.INFO, title=title)
         self.message_queue.add_message(info_message)
         logger.debug(f"[ERROR_NOTIFIER] Info queued: {title}")
 
-    def handle_exception(self, exception: Exception, context: str = "", service: str = "") -> None:
+    def handle_exception(
+        self, exception: Exception, context: str = "", service: str = ""
+    ) -> None:
         """Handle exception with automatic context extraction using utility functions.
 
         Args:
@@ -86,22 +97,26 @@ class ErrorNotifier(IErrorNotifier):
             service: Service name where error occurred (e.g., 'YouTube', 'Twitter')
         """
         # Extract error context using utility function
-        error_context = extract_error_context(exception, service=service, operation=context)
-        
+        error_context = extract_error_context(
+            exception, service=service, operation=context
+        )
+
         # Format user-friendly message
         message = format_user_friendly_error(error_context)
-        
-        # Classify error type for better handling
-        error_type = classify_error_type(str(exception))
-        
+
         title = f"{service} Error" if service else "Error"
-        
-        logger.error(f"[ERROR_NOTIFIER] Exception in {service or 'unknown'}: {error_context.get('error_type')} - {message}", exc_info=True)
+
+        logger.error(
+            f"[ERROR_NOTIFIER] Exception in {service or 'unknown'}: {error_context.get('error_type')} - {message}",
+            exc_info=True,
+        )
         self.show_error(title, message)
 
-    def handle_service_failure(self, service: str, operation: str, error_message: str, url: str = "") -> None:
+    def handle_service_failure(
+        self, service: str, operation: str, error_message: str, url: str = ""
+    ) -> None:
         """Handle service failure with consistent error formatting.
-        
+
         Args:
             service: Service name where error occurred
             operation: Operation that failed
@@ -116,15 +131,17 @@ class ErrorNotifier(IErrorNotifier):
             "operation": operation,
             "url": url,
         }
-        
+
         # Format user-friendly message
         message = format_user_friendly_error(error_context)
-        
-        # Classify error type
-        error_type = classify_error_type(error_message)
-        
-        title = f"{service} {operation.title()} Failed" if service and operation else "Service Error"
-        
-        logger.error(f"[ERROR_NOTIFIER] Service failure: {service or 'unknown'} - {operation or 'unknown'}: {message}")
-        self.show_error(title, message)
 
+        title = (
+            f"{service} {operation.title()} Failed"
+            if service and operation
+            else "Service Error"
+        )
+
+        logger.error(
+            f"[ERROR_NOTIFIER] Service failure: {service or 'unknown'} - {operation or 'unknown'}: {message}"
+        )
+        self.show_error(title, message)

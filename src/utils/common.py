@@ -5,6 +5,7 @@ logger = get_logger(__name__)
 
 # --- GUI utilities ---------------------------------------------------------
 
+
 def ensure_gui_available() -> bool:
     """Ensure tkinter/customtkinter are available; exit with message if not.
 
@@ -14,6 +15,7 @@ def ensure_gui_available() -> bool:
     try:
         import customtkinter as _ctk  # noqa: F401
         import tkinter as _tk  # noqa: F401
+
         return True
     except Exception as e:
         msg = (

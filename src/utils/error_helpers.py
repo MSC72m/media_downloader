@@ -2,7 +2,6 @@
 
 import re
 from enum import Enum
-from typing import Optional
 
 from src.utils.logger import get_logger
 
@@ -11,6 +10,7 @@ logger = get_logger(__name__)
 
 class ErrorType(Enum):
     """Error type classification."""
+
     NETWORK = "network"
     AUTHENTICATION = "authentication"
     SERVICE = "service"
@@ -18,7 +18,9 @@ class ErrorType(Enum):
     UNKNOWN = "unknown"
 
 
-def extract_error_context(exception: Exception, service: str = "", operation: str = "", url: str = "") -> dict:
+def extract_error_context(
+    exception: Exception, service: str = "", operation: str = "", url: str = ""
+) -> dict:
     """Extract error context from exception and parameters.
 
     Args:
@@ -41,25 +43,25 @@ def extract_error_context(exception: Exception, service: str = "", operation: st
 
 def _truncate_url(url: str, max_length: int = 100) -> str:
     """Truncate long URLs for display.
-    
+
     Args:
         url: URL to truncate
         max_length: Maximum length before truncation
-        
+
     Returns:
         Truncated URL with ellipsis if needed
     """
     if len(url) <= max_length:
         return url
-    return url[:max_length - 3] + "..."
+    return url[: max_length - 3] + "..."
 
 
 def _format_checkpoint_error(error_msg: str) -> str:
     """Format Instagram checkpoint errors with user-friendly message.
-    
+
     Args:
         error_msg: Original error message
-        
+
     Returns:
         Formatted user-friendly message
     """
@@ -83,7 +85,9 @@ def format_user_friendly_error(error_context: dict) -> str:
     url = error_context.get("url", "")
 
     # Handle checkpoint/challenge errors specially
-    if "instagram" in service.lower() and ("checkpoint" in error_msg.lower() or "challenge" in error_msg.lower()):
+    if "instagram" in service.lower() and (
+        "checkpoint" in error_msg.lower() or "challenge" in error_msg.lower()
+    ):
         return _format_checkpoint_error(error_msg)
 
     # Truncate long URLs in error messages
@@ -121,9 +125,15 @@ def classify_error_type(error_message: str) -> ErrorType:
     error_lower = error_message.lower()
 
     # Use compiled regex patterns for efficient matching instead of string 'in' checks
-    network_pattern = re.compile(r"(connection|network|timeout|dns|socket|refused|unreachable)", re.IGNORECASE)
-    auth_pattern = re.compile(r"(authentication|unauthorized|forbidden|401|403|login|password)", re.IGNORECASE)
-    validation_pattern = re.compile(r"(invalid|validation|format|malformed|missing)", re.IGNORECASE)
+    network_pattern = re.compile(
+        r"(connection|network|timeout|dns|socket|refused|unreachable)", re.IGNORECASE
+    )
+    auth_pattern = re.compile(
+        r"(authentication|unauthorized|forbidden|401|403|login|password)", re.IGNORECASE
+    )
+    validation_pattern = re.compile(
+        r"(invalid|validation|format|malformed|missing)", re.IGNORECASE
+    )
 
     if network_pattern.search(error_lower):
         return ErrorType.NETWORK
@@ -149,10 +159,11 @@ def get_error_suggestion(error_type: ErrorType, service: str = "") -> str:
     """
     suggestions = {
         ErrorType.NETWORK: "Please check your internet connection and try again.",
-        ErrorType.AUTHENTICATION: f"Please check your {service} credentials and try again." if service else "Please check your credentials and try again.",
+        ErrorType.AUTHENTICATION: f"Please check your {service} credentials and try again."
+        if service
+        else "Please check your credentials and try again.",
         ErrorType.VALIDATION: "Please check the URL or input and try again.",
         ErrorType.UNKNOWN: "Please try again later or contact support if the problem persists.",
     }
 
     return suggestions.get(error_type, suggestions[ErrorType.UNKNOWN])
-

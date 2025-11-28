@@ -1,10 +1,9 @@
 """Tests for the application orchestration system."""
 
 import pytest
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 from src.application.orchestrator import ApplicationOrchestrator
-from src.application.di_container import ServiceContainer, LifetimeScope
 from src.core.interfaces import (
     IDownloadService,
     IDownloadHandler,
@@ -18,7 +17,6 @@ from src.core.interfaces import (
     IServiceFactory,
     IUIState,
 )
-from src.services.events.event_bus import DownloadEventBus
 
 
 class MockErrorHandler(IErrorNotifier):
@@ -55,7 +53,13 @@ class MockDownloadHandler(IDownloadHandler):
     def clear_downloads(self) -> None:
         pass
 
-    def start_downloads(self, downloads: list, download_dir: str, progress_callback=None, completion_callback=None) -> None:
+    def start_downloads(
+        self,
+        downloads: list,
+        download_dir: str,
+        progress_callback=None,
+        completion_callback=None,
+    ) -> None:
         pass
 
     def cancel_download(self, download) -> None:
@@ -96,7 +100,9 @@ class MockFileService(IFileService):
     def clean_filename(self, filename: str) -> str:
         return filename
 
-    def get_unique_filename(self, directory: str, base_name: str, extension: str) -> str:
+    def get_unique_filename(
+        self, directory: str, base_name: str, extension: str
+    ) -> str:
         return f"{base_name}.{extension}"
 
     def ensure_directory(self, directory: str) -> bool:
@@ -201,7 +207,7 @@ class MockServiceFactory(IServiceFactory):
 class TestApplicationOrchestrator:
     """Test ApplicationOrchestrator with proper dependency injection."""
 
-    @patch('customtkinter.CTk')
+    @patch("customtkinter.CTk")
     def test_orchestrator_instantiation(self, mock_ctk):
         """Test orchestrator can be instantiated with root window."""
         mock_root = MagicMock()
@@ -213,7 +219,7 @@ class TestApplicationOrchestrator:
         assert orchestrator.event_coordinator is not None
         assert orchestrator.ui_state is not None
 
-    @patch('customtkinter.CTk')
+    @patch("customtkinter.CTk")
     def test_orchestrator_dependency_registration(self, mock_ctk):
         """Test that orchestrator registers all necessary dependencies."""
         mock_root = MagicMock()
@@ -233,7 +239,7 @@ class TestApplicationOrchestrator:
         assert container.has(IServiceFactory)
         assert container.has(IUIState)
 
-    @patch('customtkinter.CTk')
+    @patch("customtkinter.CTk")
     def test_orchestrator_dependency_resolution(self, mock_ctk):
         """Test that orchestrator can resolve all dependencies."""
         mock_root = MagicMock()
@@ -265,7 +271,7 @@ class TestApplicationOrchestrator:
         assert isinstance(service_factory, IServiceFactory)
         assert isinstance(ui_state, IUIState)
 
-    @patch('customtkinter.CTk')
+    @patch("customtkinter.CTk")
     def test_orchestrator_singleton_lifetimes(self, mock_ctk):
         """Test that orchestrator uses appropriate lifetimes."""
         mock_root = MagicMock()
@@ -282,7 +288,7 @@ class TestApplicationOrchestrator:
         error_handler2 = container.get(IErrorNotifier)
         assert error_handler1 is error_handler2
 
-    @patch('customtkinter.CTk')
+    @patch("customtkinter.CTk")
     def test_orchestrator_set_ui_components(self, mock_ctk):
         """Test setting UI components on orchestrator."""
         mock_root = MagicMock()
@@ -307,7 +313,7 @@ class TestApplicationOrchestrator:
         # For now, just verify it doesn't crash
         assert orchestrator.ui_components is not None
 
-    @patch('customtkinter.CTk')
+    @patch("customtkinter.CTk")
     def test_orchestrator_event_coordinator_creation(self, mock_ctk):
         """Test that orchestrator properly creates event coordinator."""
         mock_root = MagicMock()
@@ -321,7 +327,7 @@ class TestApplicationOrchestrator:
         # Should have the same root
         assert event_coordinator.root is mock_root
 
-    @patch('customtkinter.CTk')
+    @patch("customtkinter.CTk")
     def test_orchestrator_ui_state_creation(self, mock_ctk):
         """Test that orchestrator creates UI state properly."""
         mock_root = MagicMock()
@@ -332,7 +338,7 @@ class TestApplicationOrchestrator:
         assert isinstance(ui_state, IUIState)
         assert ui_state.get_download_directory() == "~/Downloads"
 
-    @patch('customtkinter.CTk')
+    @patch("customtkinter.CTk")
     def test_orchestrator_auto_cookie_manager_property(self, mock_ctk):
         """Test auto cookie manager property."""
         mock_root = MagicMock()
@@ -342,7 +348,7 @@ class TestApplicationOrchestrator:
         auto_cookie_manager = orchestrator.auto_cookie_manager
         assert isinstance(auto_cookie_manager, IAutoCookieManager)
 
-    @patch('customtkinter.CTk')
+    @patch("customtkinter.CTk")
     def test_orchestrator_error_handler_property(self, mock_ctk):
         """Test error handler property."""
         mock_root = MagicMock()
@@ -352,7 +358,7 @@ class TestApplicationOrchestrator:
         error_handler = orchestrator.error_handler
         assert isinstance(error_handler, IErrorNotifier)
 
-    @patch('customtkinter.CTk')
+    @patch("customtkinter.CTk")
     def test_orchestrator_connectivity_check(self, mock_ctk):
         """Test connectivity check functionality."""
         mock_root = MagicMock()
@@ -362,7 +368,7 @@ class TestApplicationOrchestrator:
         # Should not raise any exceptions
         orchestrator.check_connectivity()
 
-    @patch('customtkinter.CTk')
+    @patch("customtkinter.CTk")
     def test_orchestrator_lazy_imports(self, mock_ctk):
         """Test that orchestrator uses lazy imports properly."""
         mock_root = MagicMock()
@@ -377,12 +383,11 @@ class TestApplicationOrchestrator:
 class TestOrchestratorIntegration:
     """Integration tests for orchestrator with the rest of the system."""
 
-    @patch('customtkinter.CTk')
+    @patch("customtkinter.CTk")
     def test_orchestrator_with_real_services(self, mock_ctk):
         """Test orchestrator with real service implementations."""
         from src.services.downloads import DownloadService
         from src.services.file import FileService
-        from src.services.youtube.cookie_detector import CookieDetector
         from src.handlers.network_checker import NetworkChecker
         from src.handlers.download_handler import DownloadHandler
         from src.coordinators.error_handler import ErrorHandler
@@ -412,7 +417,7 @@ class TestOrchestratorIntegration:
         assert isinstance(download_handler, DownloadHandler)
         assert isinstance(error_handler, ErrorHandler)
 
-    @patch('customtkinter.CTk')
+    @patch("customtkinter.CTk")
     def test_orchestrator_service_factory_integration(self, mock_ctk):
         """Test service factory integration with orchestrator."""
         from src.services.downloads import ServiceFactory
@@ -433,7 +438,7 @@ class TestOrchestratorIntegration:
         assert isinstance(supported_services, list)
         assert len(supported_services) > 0
 
-    @patch('customtkinter.CTk')
+    @patch("customtkinter.CTk")
     def test_orchestrator_container_validation(self, mock_ctk):
         """Test that orchestrator's container passes validation."""
         mock_root = MagicMock()
@@ -444,7 +449,7 @@ class TestOrchestratorIntegration:
         # Should not raise any exceptions
         container.validate_dependencies()
 
-    @patch('customtkinter.CTk')
+    @patch("customtkinter.CTk")
     def test_orchestrator_circular_dependency_prevention(self, mock_ctk):
         """Test that orchestrator prevents circular dependencies."""
         mock_root = MagicMock()

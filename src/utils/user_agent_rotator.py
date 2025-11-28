@@ -62,10 +62,10 @@ USER_AGENTS: List[str] = [
 
 def get_random_user_agent() -> str:
     """Get a random user agent from the list.
-    
+
     Uses current time in nanoseconds as seed for true randomness.
     Each call will have a different seed, ensuring true random selection.
-    
+
     Returns:
         Random user agent string
     """
@@ -74,4 +74,3 @@ def get_random_user_agent() -> str:
     seed = int(time.time_ns())
     random.seed(seed)
     return random.choice(USER_AGENTS)
-

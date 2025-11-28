@@ -9,7 +9,7 @@ import requests
 from bs4 import BeautifulSoup
 from bs4.element import Tag
 
-from src.core.config import get_config, AppConfig
+from src.core.config import get_config
 from src.core.enums import ServiceType
 from src.core.interfaces import BaseDownloader, IErrorNotifier, IFileService
 from ...utils.logger import get_logger
@@ -22,7 +22,12 @@ logger = get_logger(__name__)
 class PinterestDownloader(BaseDownloader):
     """Pinterest downloader service."""
 
-    def __init__(self, error_handler: Optional[IErrorNotifier] = None, file_service: Optional[IFileService] = None, config=None):
+    def __init__(
+        self,
+        error_handler: Optional[IErrorNotifier] = None,
+        file_service: Optional[IFileService] = None,
+        config=None,
+    ):
         """Initialize Pinterest downloader.
 
         Args:
@@ -58,7 +63,9 @@ class PinterestDownloader(BaseDownloader):
             if not connected:
                 logger.error(f"Cannot download from Pinterest: {error_msg}")
                 if self.error_handler:
-                    self.error_handler.handle_service_failure("Pinterest", "download", error_msg or "Connection failed", url)
+                    self.error_handler.handle_service_failure(
+                        "Pinterest", "download", error_msg or "Connection failed", url
+                    )
                 return False
 
             media_url = self._get_media_url(url)
@@ -66,7 +73,9 @@ class PinterestDownloader(BaseDownloader):
                 error_msg = "Could not retrieve media URL from Pinterest"
                 logger.error(error_msg)
                 if self.error_handler:
-                    self.error_handler.handle_service_failure("Pinterest", "download", error_msg, url)
+                    self.error_handler.handle_service_failure(
+                        "Pinterest", "download", error_msg, url
+                    )
                 return False
 
             save_dir = os.path.dirname(save_path) if os.path.dirname(save_path) else "."
@@ -78,18 +87,22 @@ class PinterestDownloader(BaseDownloader):
             ext = self._get_extension_from_url(media_url) or ".jpg"
             full_path = os.path.join(save_dir, filename + ext)
             result = file_service.download_file(media_url, full_path, progress_callback)
-            
+
             if not result.success:
                 error_msg = "Failed to download media file"
                 if self.error_handler:
-                    self.error_handler.handle_service_failure("Pinterest", "download", error_msg, url)
-            
+                    self.error_handler.handle_service_failure(
+                        "Pinterest", "download", error_msg, url
+                    )
+
             return result.success
 
         except Exception as e:
             logger.error(f"Error downloading from Pinterest: {str(e)}", exc_info=True)
             if self.error_handler:
-                self.error_handler.handle_exception(e, "Pinterest download", "Pinterest")
+                self.error_handler.handle_exception(
+                    e, "Pinterest download", "Pinterest"
+                )
             return False
 
     @staticmethod
@@ -114,11 +127,13 @@ class PinterestDownloader(BaseDownloader):
         try:
             # Method 1: Try oembed endpoint
             oembed_url = f"https://www.pinterest.com/oembed/?url={url}"
-            headers = {
-                "User-Agent": self.config.network.user_agent
-            }
+            headers = {"User-Agent": self.config.network.user_agent}
 
-            response = requests.get(oembed_url, headers=headers, timeout=self.config.pinterest.oembed_timeout)
+            response = requests.get(
+                oembed_url,
+                headers=headers,
+                timeout=self.config.pinterest.oembed_timeout,
+            )
             if response.status_code == 200:
                 data = response.json()
                 # Try to get the image URL from oembed response
@@ -128,7 +143,9 @@ class PinterestDownloader(BaseDownloader):
                     return data["thumbnail_url"]
 
             # Method 2: Scrape the page directly
-            response = requests.get(url, headers=headers, timeout=self.config.pinterest.default_timeout)
+            response = requests.get(
+                url, headers=headers, timeout=self.config.pinterest.default_timeout
+            )
             if response.status_code == 200:
                 soup = BeautifulSoup(response.content, "html.parser")
 
@@ -166,7 +183,7 @@ class PinterestDownloader(BaseDownloader):
                                 and isinstance(img["url"], str)
                             ):
                                 return img["url"]
-                                
+
                     except Exception:
                         continue
             return None
@@ -174,5 +191,7 @@ class PinterestDownloader(BaseDownloader):
         except Exception as e:
             logger.error(f"Error getting Pinterest media URL: {e}", exc_info=True)
             if self.error_handler:
-                self.error_handler.handle_exception(e, "Getting Pinterest media URL", "Pinterest")
+                self.error_handler.handle_exception(
+                    e, "Getting Pinterest media URL", "Pinterest"
+                )
             return None

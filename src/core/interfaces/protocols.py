@@ -10,20 +10,15 @@ class UIContextProtocol(Protocol):
     container: Any
     root: Any
 
-    def youtube_download(self, url: str, **kwargs) -> None:
-        ...
+    def youtube_download(self, url: str, **kwargs) -> None: ...
 
-    def twitter_download(self, url: str, **kwargs) -> None:
-        ...
+    def twitter_download(self, url: str, **kwargs) -> None: ...
 
-    def instagram_download(self, url: str, **kwargs) -> None:
-        ...
+    def instagram_download(self, url: str, **kwargs) -> None: ...
 
-    def pinterest_download(self, url: str, **kwargs) -> None:
-        ...
+    def pinterest_download(self, url: str, **kwargs) -> None: ...
 
-    def generic_download(self, url: str, name: Optional[str] = None) -> None:
-        ...
+    def generic_download(self, url: str, name: Optional[str] = None) -> None: ...
 
 
 @runtime_checkable
@@ -38,46 +33,39 @@ class HandlerWithPatternsProtocol(Protocol):
     """Protocol for link handlers with URL patterns."""
 
     @classmethod
-    def get_patterns(cls) -> list[str]:
-        ...
+    def get_patterns(cls) -> list[str]: ...
 
 
 @runtime_checkable
 class HasCleanupProtocol(Protocol):
     """Protocol for objects with cleanup method."""
 
-    def cleanup(self) -> None:
-        ...
+    def cleanup(self) -> None: ...
 
 
 @runtime_checkable
 class HasClearProtocol(Protocol):
     """Protocol for UI components that can be cleared."""
 
-    def clear(self) -> None:
-        ...
+    def clear(self) -> None: ...
 
 
 @runtime_checkable
 class HasCompletedDownloadsProtocol(Protocol):
     """Protocol for download lists tracking completed downloads."""
 
-    def has_completed_downloads(self) -> bool:
-        ...
+    def has_completed_downloads(self) -> bool: ...
 
-    def remove_completed_downloads(self) -> int:
-        ...
+    def remove_completed_downloads(self) -> int: ...
 
 
 @runtime_checkable
 class TkRootProtocol(Protocol):
     """Protocol for Tk root window."""
 
-    def after(self, ms: int, func: Callable[[], Any]) -> str:
-        ...
+    def after(self, ms: int, func: Callable[[], Any]) -> str: ...
 
-    def winfo_exists(self) -> bool:
-        ...
+    def winfo_exists(self) -> bool: ...
 
 
 @runtime_checkable
@@ -88,4 +76,3 @@ class DownloadAttributesProtocol(Protocol):
     quality: str
     download_playlist: bool
     audio_only: bool
-

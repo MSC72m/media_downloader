@@ -141,7 +141,7 @@ class TestServiceContainerCore:
         """Test container clearing."""
         container = ServiceContainer()
         container.register_singleton(MockService)
-        instance = container.get(MockService)
+        container.get(MockService)
 
         assert len(container._services) > 0
         assert len(container._singletons) > 0
@@ -177,7 +177,7 @@ class TestServiceContainerCore:
         """Test circular dependency detection."""
 
         class ServiceA:
-            def __init__(self, service_b: 'ServiceB'):
+            def __init__(self, service_b: "ServiceB"):
                 self.service_b = service_b
 
         class ServiceB:
