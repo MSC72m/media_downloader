@@ -4,7 +4,7 @@ import time
 
 import customtkinter as ctk
 
-from src.core.config import get_config
+from src.core.config import get_config, AppConfig
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -17,7 +17,7 @@ class StatusBar(ctk.CTkFrame):
     _SUCCESS_MESSAGE_PATTERN = re.compile(r"Download completed", re.IGNORECASE)
     _CONNECTION_CONFIRMED_PATTERN = re.compile(r"Connection confirmed", re.IGNORECASE)
 
-    def __init__(self, master):
+    def __init__(self, master, config: AppConfig = get_config()):
         super().__init__(master, fg_color="transparent")
 
         # Get root window for scheduling
@@ -28,7 +28,7 @@ class StatusBar(ctk.CTkFrame):
         self._current_message: str | None = None
         self._message_timeout: float | None = None
         self._is_error_message: bool = False  # Track if current message is an error
-        self._config = get_config()
+        self._config = config
 
         # Configure grid
         self.grid_columnconfigure(0, weight=1)
