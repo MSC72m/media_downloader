@@ -285,10 +285,8 @@ class ApplicationOrchestrator:
 
         def safe_ui_update(func, *args, **kwargs):
             """Execute UI update on main thread."""
-            if hasattr(self.root, 'run_on_main_thread'):
-                self.root.run_on_main_thread(partial(func, *args, **kwargs))
-            else:
-                self.root.after(0, partial(func, *args, **kwargs))
+            # self.root is always MediaDownloaderApp which has run_on_main_thread
+            self.root.run_on_main_thread(partial(func, *args, **kwargs))
         
         if "download_list" in components:
             dl_list = components["download_list"]
@@ -329,10 +327,8 @@ class ApplicationOrchestrator:
                     logger.info(f"[ORCHESTRATOR] Connectivity check complete: connected={is_connected}, error={error_message}")
                     self._handle_connectivity_result(is_connected, error_message)
 
-                if hasattr(self.root, 'run_on_main_thread'):
-                    self.root.run_on_main_thread(update_ui)
-                else:
-                    self.root.after(0, update_ui)
+                # self.root is always MediaDownloaderApp which has run_on_main_thread
+                self.root.run_on_main_thread(update_ui)
             except Exception as e:
                 logger.error(f"[ORCHESTRATOR] Error checking connectivity: {e}", exc_info=True)
 
@@ -340,10 +336,8 @@ class ApplicationOrchestrator:
                     logger.info(f"[ORCHESTRATOR] Connectivity check error: {str(e)}")
                     self._handle_connectivity_result(False, str(e))
 
-                if hasattr(self.root, 'run_on_main_thread'):
-                    self.root.run_on_main_thread(update_ui_error)
-                else:
-                    self.root.after(0, update_ui_error)
+                # self.root is always MediaDownloaderApp which has run_on_main_thread
+                self.root.run_on_main_thread(update_ui_error)
 
         thread = threading.Thread(target=check_in_background, daemon=True)
         thread.start()

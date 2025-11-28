@@ -14,7 +14,7 @@ from src.interfaces.service_interfaces import IErrorHandler, IMessageQueue
 from src.services.events.queue import Message
 from ...interfaces.youtube_metadata import YouTubeMetadata
 from ...utils.logger import get_logger
-from ...utils.window import WindowCenterMixin
+from ...utils.window import WindowCenterMixin, close_loading_dialog
 from ..components.loading_dialog import LoadingDialog
 from ..components.subtitle_checklist import SubtitleChecklist
 
@@ -245,7 +245,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                         logger.error(f"Metadata fetch failed with error: {error_msg}")
                         if self.error_handler:
                             self.error_handler.handle_service_failure("YouTube", "metadata fetch", error_msg, self.url)
-                        self.after(0, self._handle_metadata_error)
+                        self._schedule_ui_update(self._handle_metadata_error)
                         return
 
                     # Signal that metadata is ready - the main thread polling will detect this
@@ -258,7 +258,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                     error_msg = "No metadata service available"
                     if self.error_handler:
                         self.error_handler.handle_service_failure("YouTube", "metadata fetch", error_msg, self.url)
-                    self.after(0, self._handle_metadata_error)
+                    self._schedule_ui_update(self._handle_metadata_error)
                     return
 
             except Exception as e:
@@ -278,33 +278,22 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                 elif "timeout" in error_msg.lower():
                     error_msg = "Connection timed out. Please check your internet connection and try again."
 
-                if not hasattr(self, "video_metadata") or not self.video_metadata:
+                if not self.video_metadata:
                     self.video_metadata = YouTubeMetadata(video_id=None, title=None, error=error_msg)
 
                 if self.error_handler:
                     self.error_handler.handle_exception(e, "YouTube metadata fetch", "YouTube")
 
-                self.after(0, self._handle_metadata_error)
+                self._schedule_ui_update(self._handle_metadata_error)
 
         threading.Thread(target=fetch_worker, daemon=True).start()
 
     def _handle_metadata_error(self):
         """Handle metadata fetch error by closing the dialog."""
-        # Hide loading overlay
+        # Close loading overlay using shared utility
         if self.loading_overlay:
-            try:
-                self.loading_overlay.close()
-            except Exception as e:
-                logger.warning(f"Error closing loading overlay: {e}")
-            finally:
-                # Ensure cleanup in finally block
-                try:
-                    if hasattr(self.loading_overlay, 'destroy'):
-                        self.loading_overlay.destroy()
-                except Exception:
-                    pass
-                finally:
-                    self.loading_overlay = None  # Clear reference
+            close_loading_dialog(self.loading_overlay, error_path=True)
+            self.loading_overlay = None
 
         # Ensure dialog is visible for error message
         try:
@@ -361,19 +350,8 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         # CRITICAL: Close loading overlay FIRST, THEN show main dialog
         if self.loading_overlay:
             logger.info("Closing loading overlay")
-            try:
-                self.loading_overlay.close()
-            except Exception as e:
-                logger.error(f"Error closing loading overlay: {e}")
-            finally:
-                # Ensure cleanup in finally block
-                try:
-                    if hasattr(self.loading_overlay, 'destroy'):
-                        self.loading_overlay.destroy()
-                except Exception:
-                    pass
-                finally:
-                    self.loading_overlay = None  # Clear reference
+            close_loading_dialog(self.loading_overlay, error_path=False)
+            self.loading_overlay = None
 
         # IMPORTANT: Only NOW show the main options dialog after loading is complete
         logger.info("Showing YouTube options dialog after metadata fetch complete")
@@ -927,8 +905,17 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             traceback.print_exc()
         finally:
             # Re-enable button if dialog still exists
-            if hasattr(self, "add_button") and self.winfo_exists():
+            if self.winfo_exists() and hasattr(self, "add_button"):
                 self.add_button.configure(state="normal")
+
+    def _schedule_ui_update(self, update_func: Callable) -> None:
+        """Schedule UI update on main thread using centralized queue from MediaDownloaderApp."""
+        root = self.winfo_toplevel()
+        if hasattr(root, 'run_on_main_thread'):
+            root.run_on_main_thread(update_func)
+        else:
+            # Fallback to after(0, ...) if run_on_main_thread doesn't exist
+            self.after(0, update_func)
 
     def _show_error(self, message: str):
         """Show error message temporarily."""

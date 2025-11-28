@@ -15,8 +15,9 @@ from src.services.instagram.downloader import InstagramDownloader
 from src.services.soundcloud.downloader import SoundCloudDownloader
 from src.ui.components.loading_dialog import LoadingDialog
 from src.ui.dialogs.login_dialog import LoginDialog
-from src.utils.error_helpers import extract_error_context, format_user_friendly_error
+from src.utils.error_helpers import extract_error_context
 from src.utils.logger import get_logger
+from src.utils.window import close_loading_dialog
 
 logger = get_logger(__name__)
 
@@ -59,7 +60,6 @@ class TwitterDialogHandler(DialogHandler):
         except Exception as e:
             logger.error(f"[TWITTER_DIALOG] Error: {e}", exc_info=True)
             error_context = extract_error_context(e, "Twitter", "dialog", url)
-            error_msg = format_user_friendly_error(error_context)
             self.error_handler.handle_exception(e, "Twitter dialog", "Twitter")
 
 
@@ -79,7 +79,6 @@ class InstagramDialogHandler(DialogHandler):
         except Exception as e:
             logger.error(f"[INSTAGRAM_DIALOG] Error: {e}", exc_info=True)
             error_context = extract_error_context(e, "Instagram", "dialog", url)
-            error_msg = format_user_friendly_error(error_context)
             self.error_handler.handle_exception(e, "Instagram dialog", "Instagram")
 
 
@@ -99,7 +98,6 @@ class PinterestDialogHandler(DialogHandler):
         except Exception as e:
             logger.error(f"[PINTEREST_DIALOG] Error: {e}", exc_info=True)
             error_context = extract_error_context(e, "Pinterest", "dialog", url)
-            error_msg = format_user_friendly_error(error_context)
             self.error_handler.handle_exception(e, "Pinterest dialog", "Pinterest")
 
 
@@ -427,70 +425,14 @@ class PlatformDialogCoordinator:
 
         self._schedule_ui_update(update_ui, "error path", parent_window)
 
-    def _close_loading_dialog(self, dialog: Optional[object], error_path: bool = False) -> None:
-        """Close loading dialog with robust error handling using finally blocks.
+    def _close_loading_dialog(self, dialog: Optional[LoadingDialog], error_path: bool = False) -> None:
+        """Close loading dialog using shared utility.
         
         Args:
-            dialog: Loading dialog instance to close
+            dialog: LoadingDialog instance to close
             error_path: Whether this is an error path (for logging)
         """
-        path_suffix = " (error path)" if error_path else ""
-        
-        if not dialog:
-            logger.warning(f"[PLATFORM_DIALOG_COORDINATOR] No loading dialog to close{path_suffix}")
-            return
-
-        logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Attempting to close loading dialog{path_suffix}, dialog type: {type(dialog).__name__}")
-
-        # Use finally block to ensure cleanup always happens
-        try:
-            # Check if dialog still exists
-            if hasattr(dialog, 'winfo_exists'):
-                if not dialog.winfo_exists():
-                    logger.debug(f"[PLATFORM_DIALOG_COORDINATOR] Loading dialog already destroyed{path_suffix}")
-                    return
-
-            # Try close() first - this should release grab and destroy properly
-            if hasattr(dialog, 'close'):
-                try:
-                    dialog.close()
-                    logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Loading dialog closed via close(){path_suffix}")
-                    # Give it a moment to process
-                    if hasattr(dialog, 'update_idletasks'):
-                        dialog.update_idletasks()
-                    # Verify it's actually closed
-                    if hasattr(dialog, 'winfo_exists') and not dialog.winfo_exists():
-                        return
-                    # If still exists, fall through to destroy()
-                except Exception as close_error:
-                    logger.warning(f"[PLATFORM_DIALOG_COORDINATOR] close() failed{path_suffix}: {close_error}")
-                    # Fall through to destroy()
-
-            # Fallback to destroy() if close() doesn't exist or failed
-            if hasattr(dialog, 'destroy'):
-                dialog.destroy()
-                logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Loading dialog destroyed via destroy(){path_suffix}")
-
-        except Exception as e:
-            logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error closing loading dialog{path_suffix}: {e}", exc_info=True)
-        finally:
-            # Ensure dialog is always cleaned up in finally block - always try to destroy
-            try:
-                if hasattr(dialog, 'winfo_exists'):
-                    if dialog.winfo_exists():
-                        if hasattr(dialog, 'destroy'):
-                            dialog.destroy()
-                            logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Loading dialog force-destroyed in finally block{path_suffix}")
-                elif hasattr(dialog, 'destroy'):
-                    # No winfo_exists, try destroy anyway as safety measure
-                    try:
-                        dialog.destroy()
-                        logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Loading dialog force-destroyed in finally block (no winfo_exists){path_suffix}")
-                    except Exception:
-                        # Already destroyed or error - ignore
-                        pass
-            except Exception as final_error:
-                logger.error(f"[PLATFORM_DIALOG_COORDINATOR] Error in finally block{path_suffix}: {final_error}", exc_info=True)
+        close_loading_dialog(dialog, error_path)
 
     def _schedule_ui_update(self, update_func: Callable, context: str, parent_window=None) -> None:
         """Schedule UI update on main thread using centralized queue from MediaDownloaderApp."""
