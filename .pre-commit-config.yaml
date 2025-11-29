@@ -16,7 +16,9 @@ repos:
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
+        exclude: ^(tests/|.*test_.*\.py$)
       - id: ruff-format
+        exclude: ^(tests/|.*test_.*\.py$)
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.11.2
