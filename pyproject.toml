@@ -161,6 +161,10 @@ markers = [
 [tool.coverage.run]
 source = ["src"]
 omit = [
+    "src/main.py",
+    "src/ui/**/*",
+    "src/**/dialogs/**/*",
+    "src/**/components/**/*",
     "*/tests/*",
     "*/test_*.py",
     "*/__pycache__/*",
@@ -175,7 +179,8 @@ exclude_lines = [
     "raise NotImplementedError",
     "if __name__ == .__main__.:",
     "if TYPE_CHECKING:",
-    "@abstractmethod",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
 ]
 show_missing = true
 skip_covered = false

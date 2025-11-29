@@ -226,7 +226,10 @@ class TestRealInterfaces:
         assert isinstance(queue, MessageQueue)
         assert hasattr(queue, "add_message")
         # Test that we can add a message
-        queue.add_message("Test message")
+        from src.services.events.queue import Message
+
+        message = Message(text="Test message")
+        queue.add_message(message)
 
     def test_real_download_handler_interface(self):
         """Test real IDownloadHandler implementation."""

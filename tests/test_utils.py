@@ -17,7 +17,11 @@ def test_logger():
 
 def test_common_utils():
     """Test common utility functions."""
-    from utils.common import sanitize_filename
+    from src.services.file.sanitizer import FilenameSanitizer
+
+    # FilenameSanitizer.sanitize_filename is an instance method
+    sanitizer = FilenameSanitizer()
+    sanitize_filename = sanitizer.sanitize_filename
 
     # Test filename sanitization
     result = sanitize_filename("test<>file|name")

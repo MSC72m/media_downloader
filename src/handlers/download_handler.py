@@ -397,11 +397,30 @@ class DownloadHandler(IDownloadHandler):
         parsed = urlparse(url)
         return parsed.netloc or "download"
 
-    def _detect_service_type(self, url: str) -> str:
+    def _detect_service_type(self, url: str) -> ServiceType:
         """Detect service type from URL."""
         url_lower = url.lower()
 
+        # Map service names to ServiceType enum
+        service_map = {
+            "youtube": ServiceType.YOUTUBE,
+            "twitter": ServiceType.TWITTER,
+            "instagram": ServiceType.INSTAGRAM,
+            "pinterest": ServiceType.PINTEREST,
+            "soundcloud": ServiceType.SOUNDCLOUD,
+            "google": ServiceType.GOOGLE,
+        }
+
+        # Check service domains first
         for service_name, domains in self.config.network.service_domains.items():
             if any(domain in url_lower for domain in domains):
-                return service_name
-        return "unknown"
+                service_name_lower = service_name.lower()
+                if service_name_lower in service_map:
+                    return service_map[service_name_lower]
+                try:
+                    return ServiceType(service_name_lower)
+                except ValueError:
+                    pass
+
+        # Return GENERIC for unknown URLs
+        return ServiceType.GENERIC

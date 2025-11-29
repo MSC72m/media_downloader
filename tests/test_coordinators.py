@@ -38,6 +38,10 @@ class MockDownloadHandler(IDownloadHandler):
     def add_download(self, download: Download) -> None:
         self.downloads.append(download)
 
+    def get_downloads(self) -> list[Download]:
+        """Get all downloads."""
+        return self.downloads.copy()
+
     def remove_downloads(self, indices: list) -> None:
         pass
 
