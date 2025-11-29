@@ -1,11 +1,10 @@
-"""Service interfaces for dependency injection."""
+from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import (
     TYPE_CHECKING,
     Any,
-    Optional,
     Protocol,
     runtime_checkable,
 )
@@ -47,7 +46,7 @@ class INetworkChecker(Protocol):
 
     def check_internet_connection(self) -> tuple[bool, str]: ...
 
-    def check_service_connection(self, service: "ServiceType") -> tuple[bool, str]: ...
+    def check_service_connection(self, service: ServiceType) -> tuple[bool, str]: ...
 
     def get_problem_services(self) -> list[str]: ...
 
@@ -117,27 +116,12 @@ class IUIState(Protocol):
 
 
 class BaseDownloader(ABC):
-    """Base class for downloaders with shared dependencies.
-
-    Provides:
-    - config: AppConfig instance
-    - error_handler: IErrorNotifier for error handling
-    - file_service: IFileService for file operations
-    """
-
     def __init__(
         self,
-        error_handler: Optional["IErrorNotifier"] = None,
-        file_service: Optional["IFileService"] = None,
+        error_handler: IErrorNotifier | None = None,
+        file_service: IFileService | None = None,
         config: AppConfig = get_config(),
     ):
-        """Initialize base downloader with shared dependencies.
-
-        Args:
-            error_handler: Optional error handler for user notifications
-            file_service: Optional file service for file operations
-            config: Application configuration
-        """
         self.config = config
         self.error_handler = error_handler
         self.file_service = file_service

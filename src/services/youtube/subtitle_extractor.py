@@ -1,5 +1,3 @@
-"""YouTube subtitle extractor using yt-dlp library."""
-
 from typing import Any
 
 import yt_dlp
@@ -40,7 +38,6 @@ class YouTubeSubtitleExtractor:
         Returns:
             Dict with 'subtitles' and 'automatic_captions' keys
         """
-        # Try multiple client types in order: android, ios, tv_embedded
         clients_to_try = ["android", "ios", "tv_embedded"]
 
         for client in clients_to_try:
@@ -57,7 +54,6 @@ class YouTubeSubtitleExtractor:
                     automatic_captions = info.get("automatic_captions", {}) or {}
                     video_id = info.get("id", "")
 
-                    # Use parser to validate and filter subtitles using generic interface
                     valid_subtitles = {
                         lang: sub_list
                         for lang, sub_list in subtitles.items()
@@ -89,8 +85,6 @@ class YouTubeSubtitleExtractor:
                     if not (valid_subtitles or valid_auto):
                         continue
 
-                    # Remove duplicates - if same language appears in both, prefer manual over auto
-                    # Use set for O(1) duplicate checking
                     seen_langs = set(valid_subtitles.keys())
                     valid_auto_deduped = {
                         lang: sub_list
@@ -112,7 +106,6 @@ class YouTubeSubtitleExtractor:
                 logger.debug(f"[SUBTITLE_EXTRACTOR] {client} client subtitle extraction error: {e}")
                 continue
 
-        # No subtitles found - return empty dicts
         logger.info("[SUBTITLE_EXTRACTOR] No subtitles found for this video")
         return {"subtitles": {}, "automatic_captions": {}}
 

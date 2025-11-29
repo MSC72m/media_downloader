@@ -1,5 +1,3 @@
-"""SoundCloud downloader service implementation."""
-
 import os
 import re
 from collections.abc import Callable
@@ -16,8 +14,6 @@ logger = get_logger(__name__)
 
 
 class SoundCloudDownloader(BaseDownloader):
-    """SoundCloud downloader service using yt-dlp."""
-
     def __init__(
         self,
         audio_format: str | None = None,

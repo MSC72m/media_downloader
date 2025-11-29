@@ -1,5 +1,3 @@
-"""Event Coordinator - Clean coordination layer with constructor injection."""
-
 from collections.abc import Callable
 
 import customtkinter as ctk
@@ -162,7 +160,7 @@ class EventCoordinator:
         return
 
     # Authentication
-    def authenticate_instagram(self, parent_window, callback=None) -> None:
+    def authenticate_instagram(self, parent_window, callback: Callable | None = None) -> None:
         """Show Instagram authentication dialog - delegates to platform coordinator.
 
         Args:

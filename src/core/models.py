@@ -1,8 +1,8 @@
-"""Core models - requires pydantic (no fallbacks)."""
+from __future__ import annotations
 
 from datetime import datetime, timedelta
 from enum import StrEnum
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
@@ -67,7 +67,7 @@ class Download(BaseModel):
     retries: int = Field(default=3)
     concurrent_downloads: int = Field(default=1)
 
-    _event_bus: Optional["IEventBus"] = None
+    _event_bus: IEventBus | None = None
 
     model_config = {"arbitrary_types_allowed": True}
 
@@ -76,7 +76,7 @@ class Download(BaseModel):
         if hasattr(self, "url") and self.url:
             self._validate_url(self.url)
 
-    def set_event_bus(self, event_bus: "IEventBus") -> None:
+    def set_event_bus(self, event_bus: IEventBus) -> None:
         self._event_bus = event_bus
 
     def _validate_url(self, v):
@@ -94,9 +94,10 @@ class Download(BaseModel):
             DownloadEvent.PROGRESS, download=self, progress=progress, speed=speed
         )
 
-        if progress >= 100:
+        if progress >= 100 and self.status != DownloadStatus.COMPLETED:
             self.status = DownloadStatus.COMPLETED
-            self.completed_at = datetime.now()
+            if not self.completed_at:
+                self.completed_at = datetime.now()
             self._event_bus.publish(DownloadEvent.COMPLETED, download=self)
 
     def mark_failed(self, error_message: str):

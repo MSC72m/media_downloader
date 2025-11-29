@@ -1,5 +1,3 @@
-"""Network file downloader with progress tracking."""
-
 import os
 import time
 from collections.abc import Callable

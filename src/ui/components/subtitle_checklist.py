@@ -1,5 +1,3 @@
-"""Subtitle checklist component for YouTube downloads."""
-
 from collections.abc import Callable, Iterator
 from typing import Any
 
@@ -41,19 +39,16 @@ class SubtitleChecklist(ctk.CTkFrame):
 
     def _create_widgets(self):
         """Create the checklist widgets."""
-        # Title label
         self.title_label = ctk.CTkLabel(
             self, text="Available Subtitles:", font=("Roboto", 11, "bold")
         )
         self.title_label.pack(anchor="w", pady=(0, 5))
 
-        # Scrollable frame for options
         self.scrollable_frame = ctk.CTkScrollableFrame(
             self, height=self.height, fg_color=("gray95", "gray25")
         )
         self.scrollable_frame.pack(fill="both", expand=True)
 
-        # Placeholder label
         self.placeholder_label = ctk.CTkLabel(
             self.scrollable_frame,
             text=self.placeholder,
@@ -62,11 +57,9 @@ class SubtitleChecklist(ctk.CTkFrame):
         )
         self.placeholder_label.pack(pady=20)
 
-        # Button frame
         self.button_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.button_frame.pack(fill="x", pady=(5, 0))
 
-        # Select/Clear buttons
         self.select_all_btn = ctk.CTkButton(
             self.button_frame,
             text="Select All",
@@ -87,7 +80,6 @@ class SubtitleChecklist(ctk.CTkFrame):
         )
         self.clear_all_btn.pack(side="left")
 
-        # Status label
         self.status_label = ctk.CTkLabel(
             self.button_frame, text="0 selected", font=("Roboto", 9), text_color="gray"
         )
@@ -100,10 +92,8 @@ class SubtitleChecklist(ctk.CTkFrame):
         Batch size is configurable via config.ui.subtitle_batch_size.
         """
         try:
-            # Store all options
             self.options = subtitles or []
 
-            # Clear existing options
             self._clear_existing_options()
 
             if not subtitles:
@@ -111,15 +101,12 @@ class SubtitleChecklist(ctk.CTkFrame):
                 self.button_frame.pack_forget()
                 return
 
-            # Hide placeholder and show buttons
             self.placeholder_label.pack_forget()
             self.button_frame.pack(fill="x", pady=(5, 0))
 
-            # Create generator for efficient batch loading with offset/indexing
             self._subtitle_generator = self._subtitle_batch_generator(subtitles)
             self._current_index = 0
 
-            # Load first batch immediately
             self._load_next_batch()
 
         except Exception as e:
@@ -138,7 +125,6 @@ class SubtitleChecklist(ctk.CTkFrame):
         """
         offset = 0
         while offset < len(subtitles):
-            # Yield batch with indexing
             for i, subtitle in enumerate(
                 subtitles[offset : offset + self._batch_size], start=offset
             ):
@@ -152,7 +138,6 @@ class SubtitleChecklist(ctk.CTkFrame):
             return
 
         try:
-            # Load batch using generator - efficient with offset/indexing
             batch_items = []
             for _ in range(self._batch_size):
                 try:
@@ -165,12 +150,10 @@ class SubtitleChecklist(ctk.CTkFrame):
                 self._update_status()
                 return
 
-            # Create options for this batch using list comprehension
             [self._create_option_item(subtitle, index) for subtitle, index in batch_items]
 
             self._current_index += len(batch_items)
 
-            # Schedule next batch if generator has more (check if we got full batch)
             if len(batch_items) == self._batch_size:
                 self.after(10, self._load_next_batch)  # Small delay to keep UI responsive
             else:
@@ -184,18 +167,14 @@ class SubtitleChecklist(ctk.CTkFrame):
 
     def _clear_existing_options(self):
         """Clear existing option widgets."""
-        # Cancel any pending batch loads
         self._subtitle_generator = None
         self._current_index = 0
 
-        # Clear checkboxes using list comprehension
         [checkbox.destroy() for checkbox in self.checkboxes.values()]
         self.checkboxes.clear()
 
-        # Clear variables
         self.option_vars.clear()
 
-        # Clear selections
         self.selected_options.clear()
 
     def _create_option_item(self, option: dict[str, Any], index: int):
@@ -206,14 +185,10 @@ class SubtitleChecklist(ctk.CTkFrame):
 
             option_id = option.get("id", str(index))
             display_text = option.get("display", option_id)
-            # Note: display_text already contains "(Auto)" suffix if it's auto-generated
-            # (added in metadata_parser), so we don't add it again here
 
-            # Create boolean variable
             var = ctk.BooleanVar(value=False)
             self.option_vars[option_id] = var
 
-            # Create checkbox
             checkbox = ctk.CTkCheckBox(
                 option_frame,
                 text=display_text,
@@ -295,7 +270,6 @@ class SubtitleChecklist(ctk.CTkFrame):
         """Get currently selected subtitle dictionaries."""
         selected_dicts = []
         for option_id in self.selected_options:
-            # Find the option details for this ID
             for option in self.options:
                 if option.get("id") == option_id:
                     selected_dicts.append(

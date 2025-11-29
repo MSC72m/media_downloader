@@ -1,9 +1,9 @@
-"""YouTube downloader service implementation."""
+from __future__ import annotations
 
 import os
 import time
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 import yt_dlp
 
@@ -29,8 +29,6 @@ logger = get_logger(__name__)
 
 
 class YouTubeDownloader(BaseDownloader):
-    """YouTube downloader service with cookie support."""
-
     def __init__(
         self,
         quality: str | None = None,
@@ -39,7 +37,7 @@ class YouTubeDownloader(BaseDownloader):
         video_only: bool = False,
         format: str = "video",
         cookie_manager: ICookieHandler | None = None,
-        auto_cookie_manager: Optional["AutoCookieManager"] = None,
+        auto_cookie_manager: AutoCookieManager | None = None,
         download_subtitles: bool = False,
         selected_subtitles: list | None = None,
         download_thumbnail: bool = True,
@@ -76,14 +74,9 @@ class YouTubeDownloader(BaseDownloader):
         self.audio_extractor = AudioExtractor(config=self.config, error_handler=error_handler)
         self.youtube_error_handler = YouTubeErrorHandler(error_handler=error_handler)
         self.ytdl_opts = self._get_simple_ytdl_options()
-        self._extract_audio_separately = False  # Flag for Audio + Video format
+        self._extract_audio_separately = False
 
     def _add_subtitle_options(self, options: dict[str, Any]) -> None:
-        """Add subtitle options to yt-dlp options.
-
-        Args:
-            options: Options dictionary to modify
-        """
         if not (self.download_subtitles and self.selected_subtitles):
             return
 
@@ -110,11 +103,6 @@ class YouTubeDownloader(BaseDownloader):
         )
 
     def _get_cookie_path(self) -> str | None:
-        """Get cookie path from available cookie managers.
-
-        Returns:
-            Cookie file path or None
-        """
         if self.auto_cookie_manager:
             if not self.auto_cookie_manager.is_ready():
                 if self.auto_cookie_manager.is_generating():
@@ -142,7 +130,6 @@ class YouTubeDownloader(BaseDownloader):
         return None
 
     def _get_simple_ytdl_options(self) -> dict[str, Any]:
-        """Generate simple yt-dlp options without format specifications."""
         retry_count = self.retries or self.config.downloads.retry_count
         options = {
             "quiet": True,
@@ -183,15 +170,6 @@ class YouTubeDownloader(BaseDownloader):
     def _configure_audio_format(
         self, opts: dict[str, Any], output_template: str
     ) -> tuple[str, str]:
-        """Configure options for audio-only format.
-
-        Args:
-            opts: Options dictionary to modify
-            output_template: Output template path
-
-        Returns:
-            Tuple of (extension, expected_output_path)
-        """
         opts["format"] = "bestaudio/best"
         opts["outtmpl"] = {"default": output_template}
         if "postprocessors" not in opts:
@@ -209,15 +187,6 @@ class YouTubeDownloader(BaseDownloader):
     def _configure_video_only_format(
         self, opts: dict[str, Any], output_template: str
     ) -> tuple[str, str]:
-        """Configure options for video-only format.
-
-        Args:
-            opts: Options dictionary to modify
-            output_template: Output template path
-
-        Returns:
-            Tuple of (extension, expected_output_path)
-        """
         if self.quality.endswith("p"):
             height = self.quality.replace("p", "")
             if height.isdigit():
@@ -235,15 +204,6 @@ class YouTubeDownloader(BaseDownloader):
     def _configure_video_audio_format(
         self, opts: dict[str, Any], output_template: str
     ) -> tuple[str, str]:
-        """Configure options for video+audio format.
-
-        Args:
-            opts: Options dictionary to modify
-            output_template: Output template path
-
-        Returns:
-            Tuple of (extension, expected_output_path)
-        """
         format_map = {
             "highest": self.config.youtube.quality_format_map["highest"],
             "lowest": self.config.youtube.quality_format_map["lowest"],
@@ -267,15 +227,6 @@ class YouTubeDownloader(BaseDownloader):
         return ext, output_template + ext
 
     def _configure_format_options(self, opts: dict[str, Any], output_template: str) -> str:
-        """Configure format options based on download type.
-
-        Args:
-            opts: Options dictionary to modify
-            output_template: Output template path
-
-        Returns:
-            Expected output path
-        """
         if self.format == "audio" or self.audio_only:
             _, expected_path = self._configure_audio_format(opts, output_template)
         elif self.format == "video_only" or self.video_only:
@@ -293,19 +244,6 @@ class YouTubeDownloader(BaseDownloader):
         opts: dict[str, Any],
         url: str,
     ) -> bool:
-        """Handle download errors with retry logic.
-
-        Args:
-            e: Exception that occurred
-            attempt: Current attempt number
-            max_retries: Maximum retry count
-            retry_wait: Wait time between retries
-            opts: Download options
-            url: YouTube URL
-
-        Returns:
-            True if should retry, False if should abort
-        """
         error_msg = str(e)
         error_type_name = type(e).__name__
 
@@ -343,30 +281,27 @@ class YouTubeDownloader(BaseDownloader):
         return False
 
     def _perform_download_attempts(self, opts: dict[str, Any], url: str) -> bool:
-        """Perform download with retry logic.
-
-        Args:
-            opts: Download options
-            url: YouTube URL
-
-        Returns:
-            True if download succeeded, False otherwise
-        """
         max_retries = self.config.downloads.retry_count
         retry_wait = self.config.youtube.default_retry_wait
 
         for attempt in range(max_retries):
             try:
-                with yt_dlp.YoutubeDL(opts) as ydl:  # type: ignore
+                with yt_dlp.YoutubeDL(opts) as ydl:
                     info = ydl.extract_info(url, download=True)
                     if not info:
                         error_msg = "No video information extracted from YouTube"
-                        logger.error(error_msg)
-                        if self.error_handler:
-                            self.error_handler.handle_service_failure(
-                                "YouTube", "download", error_msg, url
-                            )
-                        return False
+                        logger.warning(f"{error_msg} (attempt {attempt + 1}/{max_retries})")
+
+                        should_retry = self._handle_info_extraction_failure(
+                            attempt, max_retries, opts, url, error_msg
+                        )
+                        if not should_retry:
+                            if self.error_handler:
+                                self.error_handler.handle_service_failure(
+                                    "YouTube", "download", error_msg, url
+                                )
+                            return False
+                        continue
                     return True
 
             except Exception as e:
@@ -382,23 +317,33 @@ class YouTubeDownloader(BaseDownloader):
             self.error_handler.handle_service_failure("YouTube", "download", error_msg, url)
         return False
 
+    def _handle_info_extraction_failure(
+        self, attempt: int, max_retries: int, opts: dict[str, Any], url: str, error_msg: str
+    ) -> bool:
+        """Handle info extraction failure by trying format fallback."""
+        current_format = opts.get("format", "unknown")
+
+        format_fallback_attempts = {
+            0: ("best", "Trying 'best' format as fallback"),
+            1: ("worst", "Trying 'worst' format as fallback"),
+        }
+
+        fallback = format_fallback_attempts.get(attempt)
+        if not fallback:
+            logger.error(f"All format fallbacks exhausted. Original format: {current_format}")
+            return False
+
+        format_type, message = fallback
+        logger.warning(message)
+        opts["format"] = format_type
+        return True
+
     def download(
         self,
         url: str,
         save_path: str,
         progress_callback: Callable[[float, float], None] | None = None,
     ) -> bool:
-        """
-        Download a YouTube video.
-
-        Args:
-            url: YouTube URL to download
-            save_path: Path to save the downloaded content
-            progress_callback: Callback for progress updates
-
-        Returns:
-            True if download was successful, False otherwise
-        """
         connected, error_msg = check_site_connection(ServiceType.YOUTUBE)
         if not connected:
             logger.error(f"Cannot download from YouTube: {error_msg}")
@@ -448,21 +393,17 @@ class YouTubeDownloader(BaseDownloader):
             return False
 
     def _verify_download_completion(self, output_path: str) -> bool:
-        """Verify that the download actually completed successfully."""
         logger.info(f"[VERIFICATION] Checking if download completed: {output_path}")
 
-        # Check if the expected file exists
         if not os.path.exists(output_path):
             logger.error(f"[VERIFICATION] Expected file does not exist: {output_path}")
 
-            # Check for .part file (incomplete download)
             part_file = output_path + ".part"
             if os.path.exists(part_file):
                 logger.error(f"[VERIFICATION] Found incomplete .part file: {part_file}")
                 logger.error("[VERIFICATION] Download was interrupted or failed")
                 return False
 
-            # Check for .temp file
             temp_file = output_path + ".temp"
             if os.path.exists(temp_file):
                 logger.error(f"[VERIFICATION] Found incomplete .temp file: {temp_file}")
@@ -471,7 +412,6 @@ class YouTubeDownloader(BaseDownloader):
             logger.error("[VERIFICATION] No output file or partial file found")
             return False
 
-        # Check file size (should be > 0)
         file_size = os.path.getsize(output_path)
         if file_size == 0:
             logger.error(f"[VERIFICATION] Output file is empty: {output_path}")
@@ -484,7 +424,6 @@ class YouTubeDownloader(BaseDownloader):
 
     @staticmethod
     def _create_progress_hook(callback: Callable[[float, float], None]):
-        """Create a progress hook function for yt-dlp."""
         start_time = time.time()
 
         def hook(d):
@@ -502,15 +441,12 @@ class YouTubeDownloader(BaseDownloader):
                 callback(progress, speed)
 
             elif status == "finished":
-                # Only report 100% for video files, not subtitles or thumbnails
                 filename = d.get("filename", "")
                 d.get("info_dict", {})
 
-                # Check if this is a subtitle or thumbnail file
                 is_subtitle = filename.endswith((".vtt", ".srt", ".ass", ".sub"))
                 is_thumbnail = filename.endswith((".jpg", ".png", ".webp"))
 
-                # Only report completion for the main video/audio file
                 if not is_subtitle and not is_thumbnail:
                     logger.debug(f"Main download finished: {filename}")
                     callback(100.0, 0.0)

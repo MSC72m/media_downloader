@@ -1,9 +1,6 @@
-"""User agent rotation utility for cookie generation."""
-
 import random
 import time
 
-# List of 50 realistic Android mobile user agents
 USER_AGENTS: list[str] = [
     "Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
     "Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
@@ -67,8 +64,6 @@ def get_random_user_agent() -> str:
     Returns:
         Random user agent string
     """
-    # Use current time in nanoseconds as seed for true randomness
-    # This ensures different seed each time
     seed = int(time.time_ns())
     random.seed(seed)
     return random.choice(USER_AGENTS)

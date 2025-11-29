@@ -1,5 +1,3 @@
-"""Core application modules - shared primitives and application infrastructure."""
-
 from .config import AppConfig, get_config, reset_config, set_config
 from .models import (
     AuthState,

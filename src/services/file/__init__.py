@@ -1,5 +1,3 @@
-"""File services for the media downloader application."""
-
 from .downloader import FileDownloader
 from .models import DownloadResult
 from .sanitizer import FilenameSanitizer

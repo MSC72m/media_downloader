@@ -1,5 +1,3 @@
-"""Network connectivity services."""
-
 from .checker import (
     ConnectionResult,
     HTTPNetworkChecker,

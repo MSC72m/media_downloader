@@ -1,5 +1,3 @@
-"""YouTube-specific error handling - extracted for SOLID principles."""
-
 import re
 import time
 
@@ -15,7 +13,6 @@ logger = get_logger(__name__)
 class YouTubeErrorHandler:
     """Handles YouTube-specific download errors with classification and recovery strategies."""
 
-    # Compiled regex patterns for efficient error classification
     _RATE_LIMIT_PATTERN = re.compile(r"HTTP Error 429", re.IGNORECASE)
     _NETWORK_PATTERN = re.compile(
         r"(Connection refused|Network Error|Unable to download|Errno 111)",

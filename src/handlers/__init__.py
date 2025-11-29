@@ -1,6 +1,3 @@
-"""Handler implementations for the media downloader application."""
-
-# Application handlers - imported first to avoid circular imports
 from .cookie_handler import CookieHandler
 from .download_handler import DownloadHandler
 from .network_checker import NetworkChecker
@@ -8,9 +5,6 @@ from .service_detector import ServiceDetector
 
 
 def _register_link_handlers():
-    """Lazy registration of link handlers to avoid circular imports."""
-    # Import link handlers here to trigger auto-registration
-    # This is called after application initialization
     from . import (
         instagram_handler,
         pinterest_handler,
@@ -28,10 +22,7 @@ def _register_link_handlers():
     )
 
 
-# For explicit imports, we can still provide the classes
-# but they won't be imported until explicitly requested
 def __getattr__(name):
-    """Lazy import for link handlers."""
     if name == "YouTubeHandler":
         from .youtube_handler import YouTubeHandler
 
@@ -57,7 +48,6 @@ def __getattr__(name):
 
 __all__ = [
     "CookieHandler",
-    # Application handlers
     "DownloadHandler",
     "InstagramHandler",
     "NetworkChecker",
@@ -65,8 +55,6 @@ __all__ = [
     "ServiceDetector",
     "SoundCloudHandler",
     "TwitterHandler",
-    # Link handlers (lazy loaded)
     "YouTubeHandler",
-    # Registration function
     "_register_link_handlers",
 ]

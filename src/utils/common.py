@@ -3,15 +3,7 @@ from src.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-# --- GUI utilities ---------------------------------------------------------
-
-
 def ensure_gui_available() -> bool:
-    """Ensure tkinter/customtkinter are available; exit with message if not.
-
-    Returns True if GUI modules import successfully, otherwise exits the
-    process.
-    """
     try:
         import tkinter as tk  # noqa: F401
 

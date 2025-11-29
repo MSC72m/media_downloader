@@ -12,20 +12,15 @@ logger = get_logger(__name__)
 
 @dataclass
 class DetectionResult:
-    """Result of link detection."""
-
     service_type: str
-    confidence: float  # 0.0 to 1.0
+    confidence: float
     metadata: dict[str, Any] | None = None
 
 
-# Alias for backward compatibility - handlers can use either name
 LinkHandlerInterface = BaseHandler
 
 
 class LinkDetectionRegistry:
-    """Registry for link handlers with automatic registration."""
-
     _instance: ClassVar[Any] = None
     _handlers: ClassVar[dict[str, type[BaseHandler]]] = {}
     _compiled_patterns: ClassVar[dict[str, list[re.Pattern]]] = {}
@@ -38,13 +33,11 @@ class LinkDetectionRegistry:
 
     @classmethod
     def set_handler_factory(cls, factory: Callable[[type[BaseHandler]], BaseHandler]) -> None:
-        """Set factory function for creating handler instances with dependencies."""
         cls._handler_factory = factory
         logger.info("[REGISTRY] Handler factory set")
 
     @classmethod
     def register(cls, handler_class: type[BaseHandler]):
-        """Register a link handler class."""
         handler_name = handler_class.__name__
         logger.info(f"[REGISTRATION] Attempting to register handler: {handler_name}")
 
@@ -56,7 +49,6 @@ class LinkDetectionRegistry:
         logger.info(f"[REGISTRATION] Total handlers registered: {len(cls._handlers)}")
         logger.info(f"[REGISTRATION] Registered handlers: {list(cls._handlers.keys())}")
 
-        # Compile patterns for faster matching
         if get_patterns := getattr(handler_class, "get_patterns", None):
             patterns = get_patterns()
             compiled = []
@@ -72,7 +64,6 @@ class LinkDetectionRegistry:
 
     @classmethod
     def detect_handler(cls, url: str) -> BaseHandler | None:
-        """Detect the appropriate handler for a URL."""
         logger.info(f"[DETECTION] Starting URL detection for: {url}")
         logger.info(f"[DETECTION] Available handlers: {list(cls._handlers.keys())}")
 
@@ -83,11 +74,9 @@ class LinkDetectionRegistry:
             try:
                 logger.debug(f"[DETECTION] Testing handler: {handler_name}")
 
-                # Use factory if available, otherwise try direct instantiation
                 if cls._handler_factory:
                     handler = cls._handler_factory(handler_class)
                 else:
-                    # Fallback: try direct instantiation (for handlers without dependencies)
                     handler = handler_class()
 
                 logger.debug(f"[DETECTION] Created handler instance: {handler}")
@@ -115,7 +104,6 @@ class LinkDetectionRegistry:
 
     @classmethod
     def quick_detect(cls, url: str) -> str | None:
-        """Quick detection using pre-compiled patterns."""
         for handler_name, patterns in cls._compiled_patterns.items():
             if any(pattern.match(url) for pattern in patterns):
                 return handler_name
@@ -123,19 +111,15 @@ class LinkDetectionRegistry:
 
     @classmethod
     def get_registered_handlers(cls) -> list[str]:
-        """Get list of registered handler names."""
         return list(cls._handlers.keys())
 
     @classmethod
     def clear(cls):
-        """Clear all registered handlers (mainly for testing)."""
         cls._handlers.clear()
         cls._compiled_patterns.clear()
 
 
 class LinkDetector:
-    """Main link detector that uses the registry."""
-
     def __init__(
         self,
         handler_factory: Callable[[type[BaseHandler]], BaseHandler] | None = None,
@@ -145,7 +129,6 @@ class LinkDetector:
             self.registry.set_handler_factory(handler_factory)
 
     def detect_and_handle(self, url: str, ui_context: Any = None) -> bool:
-        """Detect URL type and trigger appropriate handling with early returns."""
         logger.info(f"[LINK_DETECTOR] Starting detect_and_handle for URL: {url}")
 
         handler = self.registry.detect_handler(url)
@@ -179,7 +162,6 @@ class LinkDetector:
             return False
 
     def get_url_info(self, url: str) -> DetectionResult | None:
-        """Get information about a URL without processing it."""
         handler = self.registry.detect_handler(url)
         if handler:
             try:
@@ -190,7 +172,6 @@ class LinkDetector:
 
 
 def auto_register_handler(handler_class: type[BaseHandler]):
-    """Decorator for automatic handler registration."""
     logger.info(f"[DECORATOR] Auto-registering handler: {handler_class.__name__}")
     try:
         LinkDetectionRegistry.register(handler_class)

@@ -1,5 +1,3 @@
-"""Centralized loading dialog component with animated dots for all platforms."""
-
 import customtkinter as ctk
 
 from ...utils.logger import get_logger
@@ -48,30 +46,23 @@ class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
         self._timeout_id = None
         self._animation_id = None
 
-        # Configure window
         self.title("Loading")
         self.geometry("300x100")
         self.resizable(False, False)
         self.overrideredirect(False)
         self.transient(parent)
 
-        # Create content
         self._create_content()
 
-        # Center the window
         self.center_window()
 
-        # Update to ensure window is drawn
         self.update_idletasks()
 
-        # Make visible and grab focus
         self.grab_set()
         self.focus_set()
 
-        # Start animation
         self.start_animation()
 
-        # Set timeout
         if timeout > 0:
             self._timeout_id = self.after(timeout * 1000, self._timeout)
 
@@ -101,21 +92,17 @@ class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
         if not self.is_running:
             return
 
-        # Cycle dots: increment until max, then reset to 1
         self.dot_count = (self.dot_count % self.max_dots) + 1
 
-        # Create dots string
         dots = "." * self.dot_count
         self.message_label.configure(text=f"{self.message}{dots}")
 
-        # Schedule next frame
         self._animation_id = self.after(self.dot_animation_interval, self._animate_dots)
 
     def stop_animation(self):
         """Stop the animation."""
         self.is_running = False
 
-        # Cancel scheduled animations
         if self._animation_id:
             import contextlib
 
@@ -133,7 +120,6 @@ class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
         logger.debug("[LOADING_DIALOG] close() called")
         self.stop_animation()
 
-        # Cancel timeout if still pending
         if self._timeout_id:
             import contextlib
 
@@ -141,7 +127,6 @@ class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
                 self.after_cancel(self._timeout_id)
             self._timeout_id = None
 
-        # Release grab and destroy in finally block
         try:
             self._release_grab()
         finally:
@@ -163,7 +148,6 @@ class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
         """Clean up the dialog with proper resource management."""
         logger.debug("[LOADING_DIALOG] destroy() called")
 
-        # Ensure cleanup happens in finally block
         try:
             self.stop_animation()
         finally:

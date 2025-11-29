@@ -1,5 +1,3 @@
-"""Instagram link handler implementation."""
-
 import re
 from collections.abc import Callable
 from typing import Any
@@ -55,7 +53,6 @@ class InstagramHandler(BaseHandler):
 
     def get_metadata(self, url: str) -> dict[str, str | None | bool]:
         """Get Instagram metadata for the URL."""
-        # This would integrate with Instagram metadata service
         return {
             "type": self._detect_instagram_type(url),
             "shortcode": self._extract_shortcode(url),
@@ -65,7 +62,6 @@ class InstagramHandler(BaseHandler):
     def process_download(self, url: str, options: dict[str, Any]) -> bool:
         """Process Instagram download."""
         logger.info(f"[INSTAGRAM_HANDLER] Processing Instagram download: {url}")
-        # Actual Instagram download logic would go here
         return True
 
     def get_ui_callback(self) -> Callable:
@@ -92,7 +88,6 @@ class InstagramHandler(BaseHandler):
 
             root = get_root(ui_context)
 
-            # Get UI context to access downloads coordinator
             ctx = get_ui_context(ui_context)
             if not ctx:
                 logger.error("[INSTAGRAM_HANDLER] Could not get UI context")
@@ -105,7 +100,6 @@ class InstagramHandler(BaseHandler):
                     )
                 return
 
-            # Add download immediately when Instagram URL is detected
             logger.info("[INSTAGRAM_HANDLER] Adding Instagram URL to downloads immediately")
             download_name = f"Instagram - {url[:50]}..." if len(url) > 50 else f"Instagram - {url}"
             download = Download(
@@ -115,17 +109,14 @@ class InstagramHandler(BaseHandler):
                 service_type=ServiceType.INSTAGRAM,
             )
 
-            # Track download index for potential removal if auth fails
             download_index_ref = {"index": None}
 
             def add_download_to_list():
                 try:
-                    # Add download directly via downloads coordinator
                     if hasattr(ctx, "downloads") and hasattr(ctx.downloads, "add_download"):
                         ctx.downloads.add_download(download)
                         logger.info("[INSTAGRAM_HANDLER] Download added to list directly")
 
-                        # Find the index of the added download
                         if hasattr(ctx.downloads, "get_downloads"):
                             downloads = ctx.downloads.get_downloads()
                             for idx, d in enumerate(downloads):
@@ -136,7 +127,6 @@ class InstagramHandler(BaseHandler):
                                     )
                                     break
                     else:
-                        # Fallback to callback if downloads coordinator not available
                         logger.warning(
                             "[INSTAGRAM_HANDLER] Downloads coordinator not available, using callback"
                         )
@@ -150,7 +140,6 @@ class InstagramHandler(BaseHandler):
 
             schedule_on_main_thread(root, add_download_to_list, immediate=True)
 
-            # Check if authenticated, if not trigger authentication flow
             if not self.instagram_auth_manager.is_authenticated():
                 logger.info("[INSTAGRAM_HANDLER] Instagram not authenticated, triggering auth flow")
 
@@ -184,12 +173,10 @@ class InstagramHandler(BaseHandler):
                         logger.info(
                             "[INSTAGRAM_HANDLER] Authentication successful, download already added"
                         )
-                        # Download was already added, nothing more to do
                     else:
                         logger.warning(
                             f"[INSTAGRAM_HANDLER] Authentication failed or cancelled: {status}"
                         )
-                        # Remove download if authentication failed
                         if download_index_ref["index"] is not None and hasattr(ctx, "downloads"):
 
                             def remove_download():
@@ -206,7 +193,6 @@ class InstagramHandler(BaseHandler):
 
                             schedule_on_main_thread(root, remove_download, immediate=True)
 
-                        # Show error in status bar
                         if self.message_queue:
                             error_msg = "Instagram authentication failed. Please try again."
                             self.message_queue.add_message(
@@ -217,11 +203,9 @@ class InstagramHandler(BaseHandler):
                                 )
                             )
 
-                # Trigger authentication (loading dialog will be shown after credentials are entered)
                 platform_coordinator.authenticate_instagram(root, on_auth_complete)
                 return
 
-            # Already authenticated, proceed with download
             def process_instagram_download():
                 try:
                     logger.info(f"[INSTAGRAM_HANDLER] Calling download callback for: {url}")
@@ -238,7 +222,6 @@ class InstagramHandler(BaseHandler):
                             e, "Processing Instagram download", "Instagram"
                         )
 
-            # Schedule on main thread
             schedule_on_main_thread(root, process_instagram_download, immediate=True)
             logger.info("[INSTAGRAM_HANDLER] Instagram download scheduled")
 

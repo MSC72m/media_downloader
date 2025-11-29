@@ -1,5 +1,3 @@
-"""YouTube info extractor using yt-dlp library directly."""
-
 from pathlib import Path
 from typing import Any
 
@@ -39,8 +37,6 @@ class YouTubeInfoExtractor:
         Returns:
             Video info dict or None if extraction fails
         """
-        # Try multiple client types in order: android, ios, tv_embedded, web
-        # This matches the mobile cookie generation and provides fallbacks
         clients_to_try = ["android", "ios", "tv_embedded", "web"]
 
         for client in clients_to_try:
@@ -49,14 +45,12 @@ class YouTubeInfoExtractor:
             if info:
                 return info
 
-        # Fallback: Try with browser cookies
         if cookie_path or browser:
             logger.info("[INFO_EXTRACTOR] Cookie file failed, trying browser cookies...")
             info = self._extract_with_browser_cookies(url, browser)
             if info:
                 return info
 
-        # Final fallback: Try different client types without cookies
         logger.info("[INFO_EXTRACTOR] Trying different client types without cookies...")
         return self._extract_with_client_fallback(url)
 
@@ -76,7 +70,6 @@ class YouTubeInfoExtractor:
             client: Optional client type to use (defaults to 'web')
         """
 
-        # Verify cookie file exists and is readable
         if cookie_path:
             cookie_file = Path(cookie_path)
             if not cookie_file.exists():
@@ -172,7 +165,6 @@ class YouTubeInfoExtractor:
             "extract_flat": False,
         }
 
-        # Add cookies - verify file exists if cookie_path is provided
         if cookie_path:
             cookie_file = Path(cookie_path)
             if cookie_file.exists():
@@ -187,7 +179,6 @@ class YouTubeInfoExtractor:
             opts["cookiesfrombrowser"] = (browser,)
             logger.info(f"[INFO_EXTRACTOR] Using browser cookies: {browser}")
 
-        # Set client type - default to Android for better compatibility with mobile cookies
         client_type = client or "android"
         opts["extractor_args"] = {"youtube": {"player_client": [client_type]}}
         logger.debug(

@@ -1,5 +1,3 @@
-"""Application Orchestrator - Clean dependency injection initialization."""
-
 import os
 import threading
 from functools import partial

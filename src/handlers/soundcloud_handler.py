@@ -1,5 +1,3 @@
-"""SoundCloud link handler implementation."""
-
 import re
 from collections.abc import Callable
 from typing import Any
@@ -68,7 +66,6 @@ class SoundCloudHandler(BaseHandler):
             logger.info(f"[SOUNDCLOUD_HANDLER] SoundCloud callback called with URL: {url}")
             logger.info(f"[SOUNDCLOUD_HANDLER] UI context: {ui_context}")
 
-            # Get root using type-safe helper
             root = get_root(ui_context)
 
             logger.info(f"[SOUNDCLOUD_HANDLER] Root: {root}")
@@ -85,7 +82,6 @@ class SoundCloudHandler(BaseHandler):
                         )
                     return
 
-            # Call the platform download method
             def process_soundcloud_download():
                 try:
                     logger.info(f"[SOUNDCLOUD_HANDLER] Calling download callback for: {url}")
@@ -108,7 +104,6 @@ class SoundCloudHandler(BaseHandler):
                             message=f"Failed to process SoundCloud download: {e!s}",
                         )
 
-            # Schedule on main thread
             schedule_on_main_thread(root, process_soundcloud_download, immediate=True)
             logger.info("[SOUNDCLOUD_HANDLER] SoundCloud download scheduled")
 

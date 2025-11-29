@@ -1,5 +1,3 @@
-"""Base handler class for link handlers with shared dependencies."""
-
 import re
 from abc import ABC, abstractmethod
 from collections.abc import Callable
@@ -12,7 +10,6 @@ from src.services.notifications.notifier import NotifierService
 if TYPE_CHECKING:
     from .link_detector import DetectionResult
 else:
-    # Import at runtime to avoid circular dependency
     DetectionResult = None
 
 
@@ -43,7 +40,6 @@ class BaseHandler(ABC):
         self.message_queue = message_queue
         self.service_name = service_name
 
-        # Load service-specific templates from config
         templates = self._get_service_templates(service_name)
         self.notifier: INotifier = NotifierService(message_queue, custom_templates=templates)
 

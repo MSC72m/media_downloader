@@ -1,5 +1,3 @@
-"""Enhanced dialog for YouTube video downloads with metadata fetching."""
-
 import re
 import threading
 import time
@@ -55,18 +53,13 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         self._metadata_ready = False
         self.selected_subtitles = []
 
-        # Configure window
         self.title("YouTube Video Downloader")
         self.geometry("700x900")
         self.resizable(True, True)
         self.minsize(600, 700)
 
-        # Make window modal
         self.transient(parent)
-        # Note: Don't grab_set() yet - wait until after metadata is fetched
-        # Otherwise event callbacks won't process properly
 
-        # Ensure dialog appears on top
         self.attributes("-topmost", True)
         try:
             self.update_idletasks()
@@ -74,27 +67,21 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             logger.warning(f"Could not update idletasks in __init__: {e}")
         self.attributes("-topmost", False)
 
-        # Center the window using mixin
         try:
             self.center_window()
         except Exception as e:
             logger.warning(f"Could not center window: {e}")
-            # Set a default geometry if centering fails
             import contextlib
 
             with contextlib.suppress(Exception):
                 self.geometry("700x900")
 
-        # Don't hide dialog yet - loading overlay needs visible parent
-        # Show loading overlay immediately, then start fetch
         self.after(10, self._start_metadata_fetch)
 
-        # Start polling for metadata completion from main thread
         self._poll_metadata_completion()
 
     def _poll_metadata_completion(self):
         """Poll for metadata completion from the main thread."""
-        # Check for errors first
         if self.video_metadata and self.video_metadata.error and not self._metadata_handler_called:
             logger.info("Metadata error detected - calling error handler")
             try:
@@ -104,7 +91,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             except Exception as e:
                 logger.error(f"Error in metadata error handler: {e}", exc_info=True)
 
-        # Check for successful completion
         if self._metadata_ready and not self._metadata_handler_called:
             logger.info("Metadata ready flag detected - calling handler")
             try:
@@ -112,37 +98,29 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             except Exception as e:
                 logger.error(f"Error in metadata handler: {e}", exc_info=True)
         elif not self._metadata_handler_called:
-            # Continue polling every 100ms until metadata is ready or error occurs
             self.after(100, self._poll_metadata_completion)
 
     def _safe_deiconify(self):
         """Safely deiconify the window, handling CustomTkinter race conditions."""
         try:
-            # Ensure geometry is set before deiconifying
             self.update_idletasks()
             self.deiconify()
         except Exception as e:
-            # Handle the "expected integer but got a list" error from CustomTkinter
             logger.warning(f"Error during deiconify (retrying): {e}")
             try:
-                # Try again after a brief update
                 self.update()
                 self.deiconify()
             except Exception as e2:
                 logger.error(f"Failed to deiconify window: {e2}")
-                # Last resort - just continue, window may already be visible
 
     def _start_metadata_fetch_with_cookie(self):
         """Start metadata fetching with auto-generated cookies."""
-        # Auto cookie manager handles cookies, just start fetch
         self._start_metadata_fetch()
 
     def _start_metadata_fetch(self):
         """Start metadata fetching after cookie selection."""
         logger.debug("Starting metadata fetch process")
 
-        # Keep dialog hidden during metadata fetch
-        # The loading overlay will be created as a standalone dialog
         self.withdraw()
 
         self._create_loading_overlay()
@@ -153,8 +131,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         logger.debug("Creating loading overlay")
 
         try:
-            # Create overlay with root window as parent so it shows independently
-            # This allows the main dialog to stay hidden during fetch
             self.loading_overlay = LoadingDialog(
                 self.master,
                 message="Fetching YouTube metadata...",
@@ -164,14 +140,12 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             )
             logger.debug("Loading overlay created successfully")
 
-            # Make sure it's visible and on top
             self.loading_overlay.lift()
             self.loading_overlay.attributes("-topmost", True)
             self.loading_overlay.focus_force()
 
         except Exception as e:
             logger.error(f"Failed to create loading overlay: {e}", exc_info=True)
-            # Continue without overlay
             self.loading_overlay = None
 
     def _fetch_metadata_with_timeout(self, cookie_path: str) -> tuple[Any, Exception | None]:
@@ -299,12 +273,10 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
     def _handle_metadata_error(self):
         """Handle metadata fetch error by closing the dialog."""
-        # Close loading overlay using shared utility
         if self.loading_overlay:
             close_loading_dialog(self.loading_overlay, error_path=True)
             self.loading_overlay = None
 
-        # Ensure dialog is visible for error message
         try:
             self.lift()
             self.focus_force()
@@ -320,7 +292,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         if self.video_metadata and self.video_metadata.error:
             error_msg = f"Failed to fetch video metadata: {self.video_metadata.error}"
 
-        # Show error via status bar only - no popup dialogs
         if self.error_handler:
             self.error_handler.handle_service_failure(
                 "YouTube", "metadata fetch", error_msg, self.url
@@ -473,28 +444,23 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
     def _schedule_main_window_show(self):
         """Schedule showing main window after loading overlay is completely gone."""
-        # Give a small delay to ensure loading overlay is properly closed
         self.after(100, self._show_main_window)
 
     def _show_main_window(self):
         """Show the main window after loading is complete."""
         logger.debug("Showing main window - ensuring visibility")
-        # Show the main window now that everything is ready
         try:
             self.lift()
             self.focus_force()  # Force focus to this window
 
-            # Update UI with metadata
             logger.debug("Updating UI with metadata")
             self._update_ui_with_metadata()
 
-            # Ensure window is visible by updating it
             try:
                 self.update_idletasks()
             except Exception as e:
                 logger.warning(f"Could not update idletasks in show_main_window: {e}")
 
-            # Force another update to ensure visibility
             try:
                 self.update()
             except Exception as e:
@@ -509,22 +475,18 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         if not self.video_metadata:
             return
 
-        # Auto-fill name with video title
         if self.video_metadata.title:
             self.name_entry.delete(0, "end")
             self.name_entry.insert(0, self.video_metadata.title)
 
-        # Update quality options
         if self.video_metadata.available_qualities:
             self.quality_var.set(self.video_metadata.available_qualities[0])
             self.quality_menu.configure(values=self.video_metadata.available_qualities)
 
-        # Update format options
         if self.video_metadata.available_formats:
             self.format_var.set(self.video_metadata.available_formats[0])
             self.format_menu.configure(values=self.video_metadata.available_formats)
 
-        # Update subtitle options
         if self.video_metadata.available_subtitles:
             subtitle_options = [
                 {
@@ -543,26 +505,21 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         else:
             self.subtitle_frame.pack_forget()
 
-        # Update format callback
         self._on_format_change()
 
     def _create_widgets(self):
         """Create dialog widgets with scrolling support."""
-        # Configure window properties
         self.title("YouTube Downloader")
         self.geometry("600x700")
         self.minsize(500, 400)
 
-        # Create scrollable frame using grid
         self.scrollable_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
         self.scrollable_frame.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=1)
 
-        # Main container
         self.main_frame = ctk.CTkFrame(self.scrollable_frame, fg_color="transparent")
 
-        # Title
         title_label = ctk.CTkLabel(
             self.main_frame,
             text="YouTube Video Downloader",
@@ -570,7 +527,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         )
         title_label.pack(pady=(0, 20))
 
-        # URL display
         url_frame = ctk.CTkFrame(self.main_frame)
         url_frame.pack(fill="x", pady=(0, 20))
 
@@ -582,7 +538,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         url_display.configure(state="disabled")
         url_display.pack(fill="x", padx=10, pady=(0, 10))
 
-        # Video name input
         name_frame = ctk.CTkFrame(self.main_frame)
         name_frame.pack(fill="x", pady=(0, 20))
 
@@ -598,7 +553,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         )
         self.name_entry.pack(fill="x", padx=10, pady=(0, 10))
 
-        # Cookie selection
         cookie_frame = ctk.CTkFrame(self.main_frame)
         cookie_frame.pack(fill="x", pady=(0, 20))
 
@@ -622,7 +576,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         )
         self.cookie_status_label.pack(anchor="w", padx=10, pady=5)
 
-        # Download options
         options_frame = ctk.CTkFrame(self.main_frame)
         options_frame.pack(fill="x", pady=(0, 20))
 
@@ -631,7 +584,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         )
         options_label.pack(anchor="w", padx=(10, 5))
 
-        # Quality selection
         quality_frame = ctk.CTkFrame(options_frame, fg_color="transparent")
         quality_frame.pack(fill="x", padx=10, pady=8)
 
@@ -650,15 +602,12 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         )
         self.quality_menu.pack(side="left", padx=(0, 20))
 
-        # Format selection (controls audio/video)
         format_label = ctk.CTkLabel(quality_frame, text="Format:", font=("Roboto", 11))
         format_label.pack(side="left", padx=(0, 10))
 
         self.format_var = ctk.StringVar(value=self.config.ui.format_options[0])
         format_options = self.config.ui.format_options
 
-        # Map user-friendly names to internal values
-        # Note: "Video Only" means video without audio track
         self.format_map = {
             "Video + Audio": "video",  # Combined video+audio file
             "Audio Only": "audio",  # Audio track only (MP3)
@@ -675,10 +624,8 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         )
         self.format_menu.pack(side="left")
 
-        # Store reference for later updates
         self.format_frame = quality_frame
 
-        # Subtitle selection (initially hidden)
         self.subtitle_frame = ctk.CTkFrame(options_frame, fg_color="transparent")
         self.subtitle_frame.pack(fill="x", padx=10, pady=8)
 
@@ -693,11 +640,9 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         )
         self.subtitle_dropdown.pack(fill="both", expand=True)
 
-        # Advanced options
         advanced_frame = ctk.CTkFrame(options_frame, fg_color="transparent")
         advanced_frame.pack(fill="x", padx=10, pady=5)
 
-        # Playlist download
         self.playlist_var = ctk.BooleanVar(value=False)
         playlist_check = ctk.CTkCheckBox(
             advanced_frame,
@@ -707,9 +652,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         )
         playlist_check.pack(anchor="w", pady=2)
 
-        # Subtitle selection is handled by the dropdown above
-
-        # Thumbnail options
         self.thumbnail_var = ctk.BooleanVar(value=True)
         thumbnail_check = ctk.CTkCheckBox(
             advanced_frame,
@@ -719,7 +661,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         )
         thumbnail_check.pack(anchor="w", pady=2)
 
-        # Embed metadata
         self.metadata_var = ctk.BooleanVar(value=True)
         metadata_check = ctk.CTkCheckBox(
             advanced_frame,
@@ -729,7 +670,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         )
         metadata_check.pack(anchor="w", pady=2)
 
-        # Advanced yt-dlp options
         advanced_options_frame = ctk.CTkFrame(self.main_frame)
         advanced_options_frame.pack(fill="x", pady=(0, 20))
 
@@ -740,7 +680,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         )
         advanced_label.pack(anchor="w", padx=(10, 5))
 
-        # Speed limit
         speed_frame = ctk.CTkFrame(advanced_options_frame, fg_color="transparent")
         speed_frame.pack(fill="x", padx=10, pady=5)
 
@@ -757,7 +696,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         )
         speed_entry.pack(side="left")
 
-        # Retry options
         retry_frame = ctk.CTkFrame(advanced_options_frame, fg_color="transparent")
         retry_frame.pack(fill="x", padx=10, pady=5)
 
@@ -770,7 +708,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         )
         retry_entry.pack(side="left", padx=(0, 20))
 
-        # Concurrent downloads
         concurrent_label = ctk.CTkLabel(retry_frame, text="Concurrent:", font=("Roboto", 10))
         concurrent_label.pack(side="left", padx=(0, 10))
 
@@ -780,11 +717,9 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         )
         concurrent_entry.pack(side="left")
 
-        # Buttons
         button_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
         button_frame.pack(fill="x", pady=(30, 0))
 
-        # Add to downloads button
         self.add_button = ctk.CTkButton(
             button_frame,
             text="Add to Downloads",
@@ -797,7 +732,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         )
         self.add_button.pack(side="right", padx=5)
 
-        # Cancel button
         cancel_button = ctk.CTkButton(
             button_frame,
             text="Cancel",
@@ -808,56 +742,44 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         )
         cancel_button.pack(side="right", padx=5)
 
-        # Set focus
         self.name_entry.focus()
 
     def _on_subtitle_change(self, selected_subtitles: list) -> None:
         """Handle subtitle selection change."""
         logger.debug(f"Subtitle selection: {len(selected_subtitles)} selected")
-        # Store the selected subtitles for later use
         self.selected_subtitles = selected_subtitles
 
     def _on_format_change(self) -> None:
         """Handle format selection change."""
         format_display = self.format_var.get()
 
-        # Convert display name to internal value
         format_value = self.format_map.get(format_display, "video")
 
-        # Update UI based on format selection
-
-        # Update the quality options based on format
         self._update_quality_options_for_format(format_value)
         logger.debug(f"Format: {format_display} ({format_value})")
 
     def _update_quality_options_for_format(self, format_value: str) -> None:
         """Update available quality options based on format selection."""
         if format_value == "audio":
-            # For audio only, show audio quality options
             audio_qualities = ["best", "high", "medium", "low"]
             if hasattr(self, "quality_menu"):
                 current_quality = self.quality_var.get()
                 self.quality_menu.configure(values=audio_qualities)
-                # Set a sensible default if current quality is not in audio options
                 if current_quality not in audio_qualities:
                     self.quality_var.set("high")
         else:
-            # For video formats, show video quality options
             video_qualities = self.config.youtube.video_qualities
             if hasattr(self, "quality_menu"):
                 current_quality = self.quality_var.get()
                 self.quality_menu.configure(values=video_qualities)
-                # Set a sensible default if current quality is not in video options
                 if current_quality not in video_qualities:
                     self.quality_var.set(self.config.youtube.default_quality)
 
     def _handle_add_to_downloads(self):
         """Handle add to downloads button click."""
         try:
-            # Disable button to prevent multiple clicks
             self.add_button.configure(state="disabled")
 
-            # Use after to prevent UI blocking
             self.after(10, self._process_add_to_downloads)
 
         except Exception as e:
@@ -865,7 +787,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             import traceback
 
             traceback.print_exc()
-            # Re-enable button on error
             if hasattr(self, "add_button"):
                 self.add_button.configure(state="normal")
 
@@ -877,7 +798,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                 self._show_error("Please enter a name for this download")
                 return
 
-            # Validate options
             try:
                 if self.speed_limit_var.get():
                     int(self.speed_limit_var.get())
@@ -889,16 +809,13 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                 self._show_error("Please enter valid numbers for advanced options")
                 return
 
-            # Get format-specific settings
             format_display = self.format_var.get()
             format_value = self.format_map.get(format_display, "video")
             audio_only = format_value == "audio"
             video_only = format_value == "video_only"
 
-            # Get selected subtitles
             selected_subtitles = self.subtitle_dropdown.get_selected_subtitles()
 
-            # Create Download object with all options
             download = Download(
                 url=self.url,
                 name=name,
@@ -920,11 +837,9 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                 else 1,
             )
 
-            # Call download callback with Download object
             if self.on_download:
                 self.on_download(download)
 
-            # Close dialog after a small delay
             self.after(100, self.destroy)
 
         except Exception as e:
@@ -933,7 +848,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
             traceback.print_exc()
         finally:
-            # Re-enable button if dialog still exists
             if self.winfo_exists() and hasattr(self, "add_button"):
                 self.add_button.configure(state="normal")
 
@@ -943,7 +857,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         if hasattr(root, "run_on_main_thread"):
             root.run_on_main_thread(update_func)
         else:
-            # Fallback to after(0, ...) if run_on_main_thread doesn't exist
             self.after(0, update_func)
 
     def _show_error(self, message: str):

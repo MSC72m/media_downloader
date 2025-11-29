@@ -1,5 +1,3 @@
-"""YouTube link handler implementation."""
-
 import re
 from collections.abc import Callable
 from typing import Any
@@ -87,7 +85,6 @@ class YouTubeHandler(BaseHandler):
         """Process YouTube download."""
         logger.info(f"[YOUTUBE_HANDLER] Processing YouTube download: {url}")
         logger.debug(f"[YOUTUBE_HANDLER] Options: {options}")
-        # Actual download logic would go here
         return True
 
     def get_ui_callback(self) -> Callable:
@@ -98,7 +95,6 @@ class YouTubeHandler(BaseHandler):
             """Callback for handling YouTube URLs."""
             logger.info(f"[YOUTUBE_HANDLER] YouTube callback called with URL: {url}")
 
-            # Early return if no download callback
             download_callback = get_platform_callback(ui_context, "youtube")
             if not download_callback:
                 error_msg = "No download callback found"
@@ -109,7 +105,6 @@ class YouTubeHandler(BaseHandler):
                     )
                 return
 
-            # Early return if cookies are generating - reject URL
             if self._is_cookie_generating(ui_context):
                 logger.warning("[YOUTUBE_HANDLER] Cookies are being generated, rejecting URL")
                 self._show_cookie_generating_message(ui_context)
@@ -117,7 +112,6 @@ class YouTubeHandler(BaseHandler):
 
             root = get_root(ui_context)
 
-            # Check if this is a YouTube Music URL - show name dialog before downloading as audio
             is_music = self._is_youtube_music(url)
             if is_music:
                 logger.info("[YOUTUBE_HANDLER] YouTube Music URL detected - showing name dialog")
@@ -197,13 +191,10 @@ class YouTubeHandler(BaseHandler):
                 schedule_on_main_thread(root, show_music_name_dialog, immediate=True)
                 return
 
-            # For regular YouTube videos, go directly to YouTube dialog
-            # Auto cookie manager will provide cookies automatically
             def create_youtube_dialog():
                 try:
                     logger.info("[YOUTUBE_HANDLER] Creating YouTubeDownloaderDialog")
 
-                    # Get auto-generated cookies if available
                     cookie_path = None
                     if self.auto_cookie_manager and self.auto_cookie_manager.is_ready():
                         try:
@@ -239,7 +230,6 @@ class YouTubeHandler(BaseHandler):
                         extract_error_context(e, "YouTube", "dialog creation", url)
                         self.error_handler.handle_exception(e, "Creating YouTube dialog", "YouTube")
 
-            # Schedule dialog creation on main thread (non-blocking)
             schedule_on_main_thread(root, create_youtube_dialog, immediate=True)
             logger.info("[YOUTUBE_HANDLER] YouTubeDownloaderDialog creation scheduled")
 
@@ -301,18 +291,15 @@ class YouTubeHandler(BaseHandler):
         Returns:
             True if cookies are generating, False otherwise
         """
-        # Check direct state first
         if self.auto_cookie_manager.is_generating():
             logger.info("[YOUTUBE_HANDLER] Cookie manager reports cookies are generating")
             return True
 
-        # Check state object for real-time updates
         state = self.auto_cookie_manager.get_state()
         if state is not None and state.is_generating:
             logger.info("[YOUTUBE_HANDLER] Cookie state reports cookies are generating")
             return True
 
-        # Also check generator state directly for real-time updates
         generator_state = self.auto_cookie_manager.generator.get_state()
         if generator_state and generator_state.is_generating:
             logger.info("[YOUTUBE_HANDLER] Cookie generator reports cookies are generating")
@@ -329,7 +316,6 @@ class YouTubeHandler(BaseHandler):
         logger.info("[YOUTUBE_HANDLER] Showing cookie generating message in status bar")
         message_text = "Generating YouTube cookies, please wait for few seconds and try again"
 
-        # Try to get status bar update callback from event coordinator
         ctx = get_ui_context(ui_context)
         if ctx:
             downloads = getattr(ctx, "downloads", None)
@@ -342,7 +328,6 @@ class YouTubeHandler(BaseHandler):
                     )
                     return
 
-        # Fallback to message queue
         if not self.message_queue:
             logger.warning(
                 "[YOUTUBE_HANDLER] No message queue available for cookie generation message"

@@ -1,5 +1,3 @@
-"""Service factory utilities for dependency injection."""
-
 from typing import Any
 
 from src.application.di_container import ServiceContainer
@@ -26,46 +24,32 @@ from src.services.youtube.metadata_service import YouTubeMetadataService
 
 
 class ServiceFactoryRegistry:
-    """Registry for service factory functions to reduce orchestrator complexity."""
-
     def __init__(self, container: ServiceContainer, root_window: Any):
-        """Initialize factory registry.
-
-        Args:
-            container: Dependency injection container
-            root_window: Root Tkinter window
-        """
         self.container = container
         self.root_window = root_window
 
     def create_cookie_handler(self) -> CookieHandler:
-        """Factory for CookieHandler."""
         config = self.container.get(AppConfig)
         return CookieHandler(config=config)
 
     def create_error_handler(self) -> ErrorNotifier:
-        """Factory for ErrorNotifier."""
         message_queue = self.container.get_optional(IMessageQueue)
         return ErrorNotifier(message_queue)
 
     def create_metadata_service(self) -> YouTubeMetadataService:
-        """Factory for YouTubeMetadataService."""
         error_handler = self.container.get_optional(IErrorNotifier)
         return YouTubeMetadataService(error_handler=error_handler)
 
     def create_network_checker(self) -> NetworkChecker:
-        """Factory for NetworkChecker."""
         error_handler = self.container.get_optional(IErrorNotifier)
         return NetworkChecker(error_handler=error_handler)
 
     def create_instagram_auth_manager(self) -> InstagramAuthManager:
-        """Factory for InstagramAuthManager."""
         error_handler = self.container.get_optional(IErrorNotifier)
         config = self.container.get(AppConfig)
         return InstagramAuthManager(error_handler=error_handler, config=config)
 
     def create_service_factory(self) -> ServiceFactory:
-        """Factory for ServiceFactory."""
         from src.core.config import get_config
 
         cookie_manager = self.container.get(IAutoCookieManager)
@@ -82,7 +66,6 @@ class ServiceFactoryRegistry:
         )
 
     def create_download_handler(self) -> DownloadHandler:
-        """Factory for DownloadHandler."""
         return DownloadHandler(
             service_factory=self.container.get(IServiceFactory),
             file_service=self.container.get(IFileService),
@@ -94,7 +77,6 @@ class ServiceFactoryRegistry:
         )
 
     def create_event_coordinator(self, downloads_folder: str) -> EventCoordinator:
-        """Factory for EventCoordinator."""
         instagram_auth_manager = self.container.get_optional(InstagramAuthManager)
         return EventCoordinator(
             root_window=self.root_window,

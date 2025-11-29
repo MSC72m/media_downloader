@@ -1,5 +1,3 @@
-"""Application configuration using Pydantic Settings with YAML/JSON file support."""
-
 import json
 from functools import cache
 from pathlib import Path
@@ -20,8 +18,6 @@ logger = get_logger(__name__)
 
 
 class CookieConfig(BaseModel):
-    """Cookie-related configuration."""
-
     storage_dir: Path = Field(
         default_factory=lambda: Path.home() / ".media_downloader",
         description="Directory to store cookies and state files",
@@ -47,8 +43,6 @@ class CookieConfig(BaseModel):
 
 
 class PathConfig(BaseModel):
-    """Path-related configuration."""
-
     downloads_dir: Path = Field(
         default_factory=lambda: Path.home() / "Downloads",
         description="Default downloads directory",
@@ -442,7 +436,6 @@ class ThemeConfig(BaseModel):
 
     def __init__(self, **data):
         """Initialize with enum conversion."""
-        # Convert string values to enums if provided as strings
         if "appearance_mode" in data and isinstance(data["appearance_mode"], str):
             data["appearance_mode"] = AppearanceMode(data["appearance_mode"])
         if "appearance_mode" not in data:
@@ -963,7 +956,6 @@ class AppConfig(BaseSettings):
             logger.error(f"[CONFIG] Failed to save configuration: {e}", exc_info=True)
 
 
-# Singleton instance
 _config_instance: AppConfig | None = None
 
 

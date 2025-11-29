@@ -1,5 +1,3 @@
-"""Cookie manager service for managing cookie state and lifecycle."""
-
 import asyncio
 import json
 from datetime import datetime
@@ -16,15 +14,7 @@ logger = get_logger(__name__)
 
 
 class CookieManager:
-    """Manages cookie lifecycle, state, and automatic regeneration."""
-
     def __init__(self, storage_dir: Path | None = None, config: AppConfig = get_config()):
-        """Initialize cookie manager.
-
-        Args:
-            storage_dir: Directory to store cookies and state (uses config if not provided)
-            config: AppConfig instance (defaults to get_config() if None)
-        """
         self.config = config
         self.storage_dir = storage_dir or self.config.cookies.storage_dir
         self.storage_dir.mkdir(parents=True, exist_ok=True)

@@ -1,5 +1,3 @@
-"""Handler for cookie file management (manual cookie file selection only)."""
-
 import os
 from pathlib import Path
 
@@ -56,14 +54,11 @@ class CookieHandler(ICookieHandler):
             logger.error(f"Cookie file does not exist: {cookie_path}")
             return False
 
-        # Basic validation: check if it's a text file
         if cookie_path_obj.suffix.lower() != ".txt":
             logger.warning(f"Cookie file should be .txt format (Netscape format): {cookie_path}")
 
-        # Basic validation: check if file is readable
         try:
             with open(cookie_path_obj, encoding="utf-8") as f:
-                # Read first few lines to check if it looks like Netscape format
                 first_line = f.readline()
                 if "# Netscape HTTP Cookie File" not in first_line and first_line.strip():
                     logger.warning(f"Cookie file may not be in Netscape format: {cookie_path}")
@@ -102,5 +97,4 @@ class CookieHandler(ICookieHandler):
         if not cookie_path:
             return None
 
-        # Return format compatible with yt-dlp
         return {"cookiefile": cookie_path}

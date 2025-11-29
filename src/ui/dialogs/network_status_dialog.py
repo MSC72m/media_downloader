@@ -1,5 +1,3 @@
-"""Network status dialog for checking connectivity to various services."""
-
 import threading
 
 import customtkinter as ctk
@@ -15,32 +13,25 @@ class NetworkStatusDialog(ctk.CTkToplevel, WindowCenterMixin):
     def __init__(self, parent) -> None:
         super().__init__(parent)
 
-        # Initialize state
         self.parent = parent
         self.service_statuses = dict.fromkeys(ServiceType, NetworkStatus.UNKNOWN)
 
-        # Set window properties
         self.title("Network Status")
         self.geometry("500x350")
         self.resizable(False, False)
         self.transient(parent)
 
-        # Center the window using helper
         self.update_idletasks()
         self.center_window()
 
-        # Update to ensure window is drawn
         self.update_idletasks()
 
-        # Make visible and grab focus
         self.grab_set()
         self.focus_set()
 
-        # Create main frame
         self.frame = ctk.CTkFrame(self)
         self.frame.pack(fill=ctk.BOTH, expand=True, padx=20, pady=20)
 
-        # Title
         self.title_label = ctk.CTkLabel(
             self.frame,
             text="Network Connectivity Status",
@@ -48,7 +39,6 @@ class NetworkStatusDialog(ctk.CTkToplevel, WindowCenterMixin):
         )
         self.title_label.pack(pady=(0, 20))
 
-        # Status labels for each service
         self.status_labels = {}
         for service in ServiceType:
             frame = ctk.CTkFrame(self.frame)
@@ -70,50 +60,38 @@ class NetworkStatusDialog(ctk.CTkToplevel, WindowCenterMixin):
 
             self.status_labels[service] = status_label
 
-        # Button frame
         self.button_frame = ctk.CTkFrame(self.frame, fg_color="transparent")
         self.button_frame.pack(side=ctk.BOTTOM, fill=ctk.X, pady=20)
 
-        # Retry button
         self.retry_button = ctk.CTkButton(
             self.button_frame, text="Retry Checks", command=self.check_connectivity
         )
         self.retry_button.pack(side=ctk.LEFT, padx=10)
 
-        # Close button
         self.close_button = ctk.CTkButton(self.button_frame, text="Close", command=self.destroy)
         self.close_button.pack(side=ctk.RIGHT, padx=10)
 
-        # Troubleshooting advice frame (initially hidden)
         self.advice_frame = None
 
-        # Start checking connectivity
         self.check_connectivity()
 
     def check_connectivity(self):
         """Check connectivity to each service."""
-        # Reset UI to show checking
         for service in ServiceType:
             self.service_statuses[service] = NetworkStatus.CHECKING
             self.status_labels[service].configure(text="Checking...", text_color="gray")
 
-        # Disable retry button during check
         self.retry_button.configure(state="disabled")
 
-        # Remove previous advice if it exists
         if self.advice_frame:
             self.advice_frame.destroy()
             self.advice_frame = None
 
-        # Run checks in a background thread
         def check_worker():
-            # First check internet connectivity
             _internet_connected, _error_msg = check_internet_connection()
 
-            # Check individual services
             service_results = check_all_services()
 
-            # Update service statuses
             any_error = False
             for service, (connected, _error) in service_results.items():
                 if connected:
@@ -122,7 +100,6 @@ class NetworkStatusDialog(ctk.CTkToplevel, WindowCenterMixin):
                     self.service_statuses[service] = NetworkStatus.ERROR
                     any_error = True
 
-            # Update UI from main thread
             self.after(0, lambda: self.update_status_display(service_results, any_error))
 
         threading.Thread(target=check_worker, daemon=True).start()
@@ -140,10 +117,8 @@ class NetworkStatusDialog(ctk.CTkToplevel, WindowCenterMixin):
             else:
                 self.status_labels[service].configure(text=f"Error: {error}", text_color="red")
 
-        # Re-enable retry button
         self.retry_button.configure(state="normal")
 
-        # Add advice if there are errors
         if any_error:
             self.add_troubleshooting_advice()
 

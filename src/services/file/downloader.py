@@ -1,5 +1,3 @@
-"""HTTP file downloader service."""
-
 import os
 import time
 from collections.abc import Callable
@@ -16,8 +14,6 @@ logger = get_logger(__name__)
 
 
 class FileDownloader:
-    """HTTP-based file downloader with progress monitoring."""
-
     def __init__(
         self,
         timeout: int | None = None,

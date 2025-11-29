@@ -9,13 +9,10 @@ from src.ui.utils.theme_manager import ThemeManager, get_theme_manager
 
 from ..dialogs.input_dialog import CenteredInputDialog
 
-# Compiled regex patterns for efficient URL matching
 _YOUTUBE_DOMAIN_PATTERN = re.compile(r"(?:youtube\.com|youtu\.be)", re.IGNORECASE)
 
 
 class URLEntryFrame(ctk.CTkFrame):
-    """Frame for URL input and add button."""
-
     def __init__(
         self,
         master,
@@ -28,17 +25,13 @@ class URLEntryFrame(ctk.CTkFrame):
         self.on_add = on_add
         self.on_youtube_detected = on_youtube_detected
 
-        # Subscribe to theme manager - injected with default
         self._theme_manager = theme_manager or get_theme_manager(master.winfo_toplevel())
         self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
 
-        # Configure grid
         self.grid_columnconfigure(0, weight=1)
 
-        # Common height for input and button to ensure they match
         input_height = 45
 
-        # URL Entry - clean modern design
         self.url_entry = ctk.CTkEntry(
             self,
             placeholder_text="Enter a URL",
@@ -50,7 +43,6 @@ class URLEntryFrame(ctk.CTkFrame):
         self.url_entry.grid(row=0, column=0, sticky="ew", padx=(0, 10))
         self.url_entry.bind("<Return>", lambda _e: self.handle_add())
 
-        # Add Button - clean and consistent, same height as input
         self.add_button = ctk.CTkButton(
             self,
             text="Add",
@@ -63,14 +55,11 @@ class URLEntryFrame(ctk.CTkFrame):
         )
         self.add_button.grid(row=0, column=1, sticky="ns")
 
-        # Apply initial theme colors
         self._apply_theme_colors()
 
     def _apply_theme_colors(self):
-        """Apply theme colors to entry and button."""
         theme_json = self._theme_manager.get_theme_json()
 
-        # Apply custom colors to entry
         entry_config = theme_json.get("CTkEntry", {})
         if entry_config:
             self.url_entry.configure(
@@ -79,14 +68,12 @@ class URLEntryFrame(ctk.CTkFrame):
                 text_color=entry_config.get("text_color"),
             )
 
-        # Apply custom colors to add button - same as action buttons
         button_config = theme_json.get("CTkButton", {})
         if button_config:
             button_color = button_config.get("fg_color")
             hover_color = button_config.get("hover_color")
             text_color = button_config.get("text_color")
 
-            # Extract plain color string - ensure it's a string, not tuple
             if isinstance(button_color, tuple):
                 button_color = (
                     button_color[0] if isinstance(button_color[0], str) else str(button_color[0])
@@ -108,16 +95,13 @@ class URLEntryFrame(ctk.CTkFrame):
             )
 
     def _on_theme_changed(self, appearance, color):
-        """Handle theme change event - apply custom colors."""
         self._apply_theme_colors()
 
     def handle_add(self):
-        """Handle add button click."""
         url = self.url_entry.get().strip()
         if not url:
             return
 
-        # Check if it's a YouTube URL using regex pattern
         if self.on_youtube_detected and _YOUTUBE_DOMAIN_PATTERN.search(url):
             self.on_youtube_detected(url)
             self.clear()
@@ -127,9 +111,8 @@ class URLEntryFrame(ctk.CTkFrame):
         name = dialog.get_input()
 
         if name:
-            self.on_add(url, name)  # Call with two arguments
+            self.on_add(url, name)
             self.clear()
 
     def clear(self):
-        """Clear the URL entry field."""
         self.url_entry.delete(0, tk.END)

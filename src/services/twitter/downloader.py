@@ -1,5 +1,3 @@
-"""Twitter downloader service implementation."""
-
 import os
 import re
 from collections.abc import Callable
@@ -17,8 +15,6 @@ logger = get_logger(__name__)
 
 
 class TwitterDownloader(BaseDownloader):
-    """Twitter downloader service."""
-
     def __init__(
         self,
         error_handler: IErrorNotifier | None = None,
@@ -77,10 +73,22 @@ class TwitterDownloader(BaseDownloader):
 
             success = False
             for i, tweet_id in enumerate(tweet_ids):
-                media = self._scrape_media(tweet_id)
-                if media:
+                tweet_data = self._scrape_tweet_data(tweet_id)
+                if tweet_data:
                     save_name = f"{save_path}_{i}" if len(tweet_ids) > 1 else save_path
-                    if self._download_media(media, save_name, progress_callback):
+                    media_success = self._download_media(
+                        tweet_data.get("media", []), save_name, progress_callback
+                    )
+                    text = tweet_data.get("text")
+                    if text:
+                        base_name = os.path.basename(save_name)
+                        save_dir = os.path.dirname(save_name) if os.path.dirname(save_name) else "."
+                        caption_filename = self.file_service.sanitize_filename(
+                            f"{base_name}_description.txt"
+                        )
+                        caption_path = os.path.join(save_dir, caption_filename)
+                        self.file_service.save_text_file(text, caption_path)
+                    if media_success:
                         success = True
 
             if not success:
@@ -104,8 +112,8 @@ class TwitterDownloader(BaseDownloader):
         )
         return list(dict.fromkeys(tweet_ids)) if tweet_ids else None
 
-    def _scrape_media(self, tweet_id: int) -> list[dict]:
-        """Scrape media from a tweet using VX Twitter API."""
+    def _scrape_tweet_data(self, tweet_id: str) -> dict | None:
+        """Scrape tweet data including media and text from VX Twitter API."""
         try:
             response = requests.get(
                 f"https://api.vxtwitter.com/Twitter/status/{tweet_id}",
@@ -113,12 +121,16 @@ class TwitterDownloader(BaseDownloader):
                 timeout=self.config.network.twitter_api_timeout,
             )
             response.raise_for_status()
-            return response.json().get("media_extended", [])
+            data = response.json()
+            return {
+                "media": data.get("media_extended", []),
+                "text": data.get("text", ""),
+            }
         except Exception as e:
-            logger.error(f"Error scraping media: {e!s}", exc_info=True)
+            logger.error(f"Error scraping tweet data: {e!s}", exc_info=True)
             if self.error_handler:
                 self.error_handler.handle_exception(e, f"Scraping tweet {tweet_id}", "Twitter")
-            return []
+            return None
 
     def _download_media(
         self,

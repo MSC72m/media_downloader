@@ -1,11 +1,7 @@
-"""File service models using Pydantic."""
-
 from pydantic import BaseModel, Field
 
 
 class DownloadResult(BaseModel):
-    """Result of a download operation."""
-
     success: bool
     file_path: str | None = Field(default=None, description="Path to downloaded file")
     bytes_downloaded: int = Field(default=0, ge=0, description="Number of bytes downloaded")
@@ -15,6 +11,4 @@ class DownloadResult(BaseModel):
     )
 
     class Config:
-        """Pydantic model configuration."""
-
         validate_assignment = True

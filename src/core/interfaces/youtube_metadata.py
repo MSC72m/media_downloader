@@ -1,5 +1,3 @@
-"""Interface for YouTube metadata service."""
-
 from typing import Any, Protocol, runtime_checkable
 
 

@@ -1,5 +1,3 @@
-"""Instagram service for downloading Instagram content."""
-
 from .auth_manager import InstagramAuthManager
 from .downloader import InstagramDownloader
 

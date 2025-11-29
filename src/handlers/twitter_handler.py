@@ -1,5 +1,3 @@
-"""Twitter link handler implementation."""
-
 import re
 from collections.abc import Callable
 from typing import Any
@@ -57,7 +55,6 @@ class TwitterHandler(BaseHandler):
     def process_download(self, url: str, options: dict[str, Any]) -> bool:
         """Process Twitter download."""
         logger.info(f"[TWITTER_HANDLER] Processing Twitter download: {url}")
-        # Actual Twitter download logic would go here
         return True
 
     def get_ui_callback(self) -> Callable:
@@ -69,7 +66,6 @@ class TwitterHandler(BaseHandler):
             logger.info(f"[TWITTER_HANDLER] Twitter callback called with URL: {url}")
             logger.info(f"[TWITTER_HANDLER] UI context: {ui_context}")
 
-            # Get root using type-safe helper
             root = get_root(ui_context)
 
             logger.info(f"[TWITTER_HANDLER] Root: {root}")
@@ -86,11 +82,9 @@ class TwitterHandler(BaseHandler):
                         )
                     return
 
-            # Call the platform download method which will show the dialog (or fallback)
             def process_twitter_download():
                 try:
                     logger.info(f"[TWITTER_HANDLER] Calling download callback for: {url}")
-                    # Platform download methods expect URL string
                     download_callback(url)
                     logger.info("[TWITTER_HANDLER] Download callback executed")
                 except Exception as e:
@@ -104,7 +98,6 @@ class TwitterHandler(BaseHandler):
                             e, "Processing Twitter download", "Twitter"
                         )
 
-            # Schedule on main thread
             schedule_on_main_thread(root, process_twitter_download, immediate=True)
             logger.info("[TWITTER_HANDLER] Twitter download scheduled")
 

@@ -1,5 +1,3 @@
-"""Multi-select dropdown component with checkbox support."""
-
 from collections.abc import Callable
 from typing import Any
 
@@ -40,7 +38,6 @@ class MultiSelectDropdown(ctk.CTkFrame):
 
     def _create_widgets(self):
         """Create the dropdown widgets."""
-        # Main button
         self.main_button = ctk.CTkButton(
             self,
             text=self.placeholder,
@@ -52,7 +49,6 @@ class MultiSelectDropdown(ctk.CTkFrame):
         )
         self.main_button.pack(fill="x")
 
-        # Dropdown arrow
         self.arrow_label = ctk.CTkLabel(self.main_button, text="▼", font=("Roboto", 12))
         self.arrow_label.place(relx=0.95, rely=0.5, anchor="e")
 
@@ -61,7 +57,6 @@ class MultiSelectDropdown(ctk.CTkFrame):
         if self.is_open:
             self._close_dropdown()
         else:
-            # Use after to prevent UI blocking
             self.after(10, self._open_dropdown)
 
     def _open_dropdown(self):
@@ -70,29 +65,24 @@ class MultiSelectDropdown(ctk.CTkFrame):
             return
 
         try:
-            # Create dropdown window
             self.dropdown_window = ctk.CTkToplevel(self.winfo_toplevel())
             self.dropdown_window.overrideredirect(True)  # Remove window decorations
             self.dropdown_window.attributes("-topmost", True)
             self.dropdown_window.transient(self.winfo_toplevel())
 
-            # Position dropdown below main button
             x = self.main_button.winfo_rootx()
             y = self.main_button.winfo_rooty() + self.main_button.winfo_height()
             self.dropdown_window.geometry(f"{self.width}x300+{x}+{y}")
 
-            # Create scrollable frame for options
             scrollable_frame = ctk.CTkScrollableFrame(
                 self.dropdown_window, width=self.width - 10, height=280
             )
             scrollable_frame.pack(fill="both", expand=True, padx=5, pady=5)
 
-            # Create option checkboxes
             self.checkboxes = {}
             for i, option in enumerate(self.options):
                 self._create_option_item(scrollable_frame, option, i)
 
-            # Select all / Deselect all buttons
             button_frame = ctk.CTkFrame(scrollable_frame, fg_color="transparent")
             button_frame.pack(fill="x", pady=(10, 5))
 
@@ -116,17 +106,14 @@ class MultiSelectDropdown(ctk.CTkFrame):
             )
             deselect_all_btn.pack(side="left")
 
-            # Bind click outside to close - only bind to dropdown window
             self.dropdown_window.bind("<Button-1>", self._handle_outside_click)
             self.dropdown_window.bind("<FocusOut>", self._handle_focus_out)
             self.dropdown_window.bind("<Escape>", lambda _e: self._close_dropdown())
 
-            # Focus the dropdown window
             self.dropdown_window.focus_set()
             self.is_open = True
 
         except Exception:
-            # If anything goes wrong, ensure we clean up
             if hasattr(self, "dropdown_window") and self.dropdown_window:
                 import contextlib
 
@@ -141,13 +128,11 @@ class MultiSelectDropdown(ctk.CTkFrame):
             option_frame = ctk.CTkFrame(parent, fg_color="transparent")
             option_frame.pack(fill="x", pady=2, padx=5)
 
-            # Get option details
             option_id = option.get("id", str(index))
             display_text = option.get("display", option_id)
             subtitle = option.get("subtitle", "")
             is_auto = option.get("is_auto", False)
 
-            # Checkbox
             var = ctk.BooleanVar(value=option_id in self.selected_options)
             checkbox = ctk.CTkCheckBox(
                 option_frame,
@@ -158,16 +143,13 @@ class MultiSelectDropdown(ctk.CTkFrame):
             )
             checkbox.pack(side="left", padx=(0, 10))
 
-            # Store reference to clean up later
             if not hasattr(self, "_checkbox_vars"):
                 self._checkbox_vars = {}
             self._checkbox_vars[option_id] = var
 
-            # Option details
             details_frame = ctk.CTkFrame(option_frame, fg_color="transparent")
             details_frame.pack(side="left", fill="x", expand=True)
 
-            # Main text
             main_text = display_text
             if is_auto:
                 main_text += " (Auto)"
@@ -180,7 +162,6 @@ class MultiSelectDropdown(ctk.CTkFrame):
             )
             text_label.pack(anchor="w")
 
-            # Subtitle text if available
             if subtitle:
                 subtitle_label = ctk.CTkLabel(
                     details_frame,
@@ -195,7 +176,6 @@ class MultiSelectDropdown(ctk.CTkFrame):
 
         except Exception as e:
             logger.error(f"Error creating option item: {e}", exc_info=True)
-            # Don't let one broken option break the whole dropdown
 
     def _handle_option_change(self, option_id: str, is_selected: bool):
         """Handle option selection change."""
@@ -249,7 +229,6 @@ class MultiSelectDropdown(ctk.CTkFrame):
                 self.dropdown_window.destroy()
             self.dropdown_window = None
 
-        # Clean up references
         self.checkboxes.clear()
         if hasattr(self, "_checkbox_vars"):
             self._checkbox_vars.clear()
@@ -258,7 +237,6 @@ class MultiSelectDropdown(ctk.CTkFrame):
     def _handle_outside_click(self, event):
         """Handle clicks outside the dropdown."""
         if self.is_open and self.dropdown_window:
-            # Check if click is outside dropdown window
             widget = event.widget
             while widget:
                 if widget == self.dropdown_window:
@@ -270,21 +248,18 @@ class MultiSelectDropdown(ctk.CTkFrame):
     def _handle_focus_out(self, event):
         """Handle focus out event to close dropdown."""
         if self.is_open and self.dropdown_window:
-            # Small delay to allow checkbox clicks to process
             self.after(100, self._check_focus_and_close)
 
     def _check_focus_and_close(self):
         """Check if dropdown still has focus and close if not."""
         if self.is_open and self.dropdown_window:
             try:
-                # Check if dropdown window still has focus
                 focused_widget = self.focus_get()
                 if focused_widget != self.dropdown_window and not self._is_descendant(
                     focused_widget, self.dropdown_window
                 ):
                     self._close_dropdown()
             except Exception:
-                # If we can't check focus, close it
                 self._close_dropdown()
 
     def _is_descendant(self, widget, parent):
@@ -329,7 +304,6 @@ class SubtitleMultiSelect(MultiSelectDropdown):
     ):
         super().__init__(master, placeholder=placeholder, width=width, height=height, **kwargs)
 
-        # Group options by auto/manual
         self.auto_options: list[dict[str, Any]] = []
         self.manual_options: list[dict[str, Any]] = []
 
@@ -339,7 +313,6 @@ class SubtitleMultiSelect(MultiSelectDropdown):
         self.auto_options = []
         self.manual_options = []
 
-        # Group subtitles
         for subtitle in subtitles:
             option = {
                 "id": subtitle["language_code"],
@@ -353,12 +326,10 @@ class SubtitleMultiSelect(MultiSelectDropdown):
             else:
                 self.manual_options.append(option)
 
-        # Add manual subtitles first, then auto-generated
         if self.manual_options:
             options.extend(self.manual_options)
 
         if self.auto_options:
-            # Add separator if we have both types
             if self.manual_options:
                 options.append(
                     {
@@ -377,7 +348,6 @@ class SubtitleMultiSelect(MultiSelectDropdown):
     def _create_option_item(self, parent, option: dict[str, Any], index: int):
         """Override to handle separator items."""
         if option.get("is_separator"):
-            # Create separator line
             separator_label = ctk.CTkLabel(
                 parent, text=option["display"], font=("Roboto", 8), text_color="gray"
             )
@@ -390,7 +360,6 @@ class SubtitleMultiSelect(MultiSelectDropdown):
         """Get selected subtitles as list of language codes and types."""
         selected = []
         for option_id in self.selected_options:
-            # Find the option to determine if it's auto or manual
             for option in self.options:
                 if option["id"] == option_id and not option.get("is_separator"):
                     selected.append(

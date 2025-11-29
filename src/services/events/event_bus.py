@@ -1,5 +1,3 @@
-"""Thread-safe event bus using Observer pattern with queue-based dispatch."""
-
 import queue
 import threading
 from collections.abc import Callable
@@ -11,7 +9,6 @@ from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Type variable for event enums
 EventType = TypeVar("EventType", bound=Enum)
 
 
@@ -38,7 +35,6 @@ class EventBus(Generic[EventType]):
 
         logger.info(f"[EVENT_BUS] Initialized with root: {root is not None}")
 
-        # Start processing immediately if root is provided
         if self._root:
             logger.info("[EVENT_BUS] Root provided, starting event processing")
             self._start_processing()
@@ -96,7 +92,6 @@ class EventBus(Generic[EventType]):
             return
 
         try:
-            # Process all queued events
             events_processed = 0
             queue_size = self._event_queue.qsize()
 
@@ -118,7 +113,6 @@ class EventBus(Generic[EventType]):
         except Exception as e:
             logger.error(f"[EVENT_BUS] Error processing events: {e}", exc_info=True)
         finally:
-            # Schedule next processing cycle
             if self._processing:
                 self._root.after(50, self._process_events)
             else:
@@ -159,7 +153,6 @@ class EventBus(Generic[EventType]):
             for event in self._event_enum:
                 self._listeners[event].clear()
 
-        # Clear queue
         while not self._event_queue.empty():
             try:
                 self._event_queue.get_nowait()
@@ -169,7 +162,6 @@ class EventBus(Generic[EventType]):
         logger.info("[EVENT_BUS] Cleared all listeners and queued events")
 
 
-# Backward compatibility: DownloadEventBus as type alias
 class DownloadEventBus(EventBus[DownloadEvent]):
     """Thread-safe event bus for download events - backward compatibility wrapper."""
 

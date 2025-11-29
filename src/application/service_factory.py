@@ -1,5 +1,3 @@
-"""Service factory for creating platform-specific downloaders."""
-
 from src.core.config import AppConfig, get_config
 from src.core.enums import ServiceType
 from src.core.interfaces import IErrorNotifier, IFileService
@@ -15,8 +13,6 @@ logger = get_logger(__name__)
 
 
 class ServiceFactory:
-    """Factory for creating platform-specific services."""
-
     def __init__(
         self,
         cookie_manager,
@@ -25,15 +21,6 @@ class ServiceFactory:
         file_service: IFileService | None = None,
         config: AppConfig = get_config(),
     ):
-        """Initialize service factory with cookie manager and error handler.
-
-        Args:
-            cookie_manager: Cookie manager for authentication
-            error_handler: Optional error handler for user notifications
-            instagram_auth_manager: Optional Instagram authentication manager
-            file_service: Optional file service for file operations
-            config: AppConfig instance (defaults to get_config() if None)
-        """
         self.cookie_manager = cookie_manager
         self.error_handler = error_handler
         self.instagram_auth_manager = instagram_auth_manager
@@ -42,18 +29,9 @@ class ServiceFactory:
         logger.info("[SERVICE_FACTORY] Initialized")
 
     def get_cookie_manager(self):
-        """Get the cookie manager."""
         return self.cookie_manager
 
     def detect_service_type(self, url: str) -> ServiceType:
-        """Detect service type from URL.
-
-        Args:
-            url: URL to detect service type from
-
-        Returns:
-            ServiceType enum value
-        """
         url_lower = url.lower()
 
         service_map = {
@@ -61,7 +39,7 @@ class ServiceFactory:
             ServiceType.SOUNDCLOUD: ["soundcloud.com"],
             ServiceType.TWITTER: ["twitter.com", "x.com"],
             ServiceType.INSTAGRAM: ["instagram.com"],
-            ServiceType.PINTEREST: ["pinterest.com"],
+            ServiceType.PINTEREST: ["pinterest.com", "pin.it"],
         }
 
         for service_type, patterns in service_map.items():
@@ -76,18 +54,9 @@ class ServiceFactory:
                 f"Unknown service type for URL: {url}",
                 url,
             )
-        return ServiceType.YOUTUBE
+        return ServiceType.GENERIC
 
     def get_downloader(self, url: str):
-        """Get appropriate downloader for URL.
-
-        Args:
-            url: URL to get downloader for
-
-        Returns:
-            Downloader instance or None
-        """
-
         service_type = self.detect_service_type(url)
         logger.info(f"[SERVICE_FACTORY] Getting downloader for service: {service_type}")
 
@@ -140,8 +109,6 @@ class ServiceFactory:
         return None
 
     def _get_instagram_downloader(self):
-        """Get Instagram downloader, using shared instance if authenticated."""
-        # Early return if shared instance available
         if not self.instagram_auth_manager:
             logger.warning("[SERVICE_FACTORY] Instagram auth manager not available")
             return InstagramDownloader(
@@ -169,6 +136,4 @@ class ServiceFactory:
         )
 
     def get_service(self, service_type: str):
-        """Get service for platform type."""
-        # This is a stub - actual services are created by handlers
         logger.debug(f"[SERVICE_FACTORY] Getting service for: {service_type}")

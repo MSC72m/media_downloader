@@ -1,5 +1,3 @@
-"""Cookie generator service using Playwright for automatic cookie generation."""
-
 import asyncio
 import contextlib
 import json
@@ -19,15 +17,7 @@ logger = get_logger(__name__)
 
 
 class CookieGenerator:
-    """Generates YouTube cookies using Playwright headless browser."""
-
     def __init__(self, storage_dir: Path | None = None, config: AppConfig = get_config()):
-        """Initialize cookie generator.
-
-        Args:
-            storage_dir: Directory to store cookies (uses config if not provided)
-            config: AppConfig instance (defaults to get_config() if None)
-        """
         self.config = config
         self.storage_dir = storage_dir or self.config.cookies.storage_dir
         self.storage_dir.mkdir(parents=True, exist_ok=True)

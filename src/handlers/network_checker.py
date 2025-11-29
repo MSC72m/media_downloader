@@ -1,5 +1,3 @@
-"""Concrete implementation of network checker."""
-
 from src.core.enums import ServiceType
 from src.core.interfaces import IErrorNotifier
 from src.services.network.checker import (

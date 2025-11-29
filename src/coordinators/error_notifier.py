@@ -1,5 +1,3 @@
-"""Centralized error notifier for consistent error display across all coordinators."""
-
 from src.core.enums.message_level import MessageLevel
 from src.core.interfaces import IErrorNotifier, IMessageQueue
 from src.services.events.queue import Message
@@ -90,10 +88,8 @@ class ErrorNotifier(IErrorNotifier):
             context: Additional context about where the error occurred
             service: Service name where error occurred (e.g., 'YouTube', 'Twitter')
         """
-        # Extract error context using utility function
         error_context = extract_error_context(exception, service=service, operation=context)
 
-        # Format user-friendly message
         message = format_user_friendly_error(error_context)
 
         title = f"{service} Error" if service else "Error"
@@ -115,7 +111,6 @@ class ErrorNotifier(IErrorNotifier):
             error_message: Error message
             url: URL where error occurred (optional)
         """
-        # Create error context dictionary
         error_context = {
             "error_type": "ServiceError",
             "error_message": error_message,
@@ -124,7 +119,6 @@ class ErrorNotifier(IErrorNotifier):
             "url": url,
         }
 
-        # Format user-friendly message
         message = format_user_friendly_error(error_context)
 
         title = (

@@ -1,5 +1,3 @@
-"""Pinterest downloader service implementation."""
-
 import json
 import os
 import re

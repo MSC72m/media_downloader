@@ -1,5 +1,3 @@
-"""Link detection and URL handling."""
-
 from .base_handler import BaseHandler
 from .link_detector import (
     DetectionResult,

@@ -1,5 +1,3 @@
-"""Network connectivity services following SOLID principles."""
-
 import http.client
 import socket
 import time
@@ -17,8 +15,6 @@ logger = get_logger(__name__)
 
 
 class ConnectionResult(BaseModel):
-    """Result of a connection check."""
-
     is_connected: bool = Field(description="Whether the connection was successful")
     error_message: str = Field(default="", description="Error message if connection failed")
     response_time: float = Field(default=0.0, description="Response time in seconds")
@@ -26,8 +22,6 @@ class ConnectionResult(BaseModel):
 
 
 class NetworkChecker(Protocol):
-    """Protocol for network checking services."""
-
     def check_connectivity(self) -> ConnectionResult: ...
     def check_service(self, service: ServiceType) -> ConnectionResult: ...
     def check_all_services(self) -> dict[ServiceType, ConnectionResult]: ...
@@ -546,7 +540,6 @@ class NetworkService:
         return result.is_connected
 
 
-# For backward compatibility
 def check_internet_connection() -> tuple[bool, str]:
     """Legacy function for backward compatibility."""
     service = NetworkService()

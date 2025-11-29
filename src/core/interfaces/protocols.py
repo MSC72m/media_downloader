@@ -1,5 +1,3 @@
-"""Protocol definitions for structural typing."""
-
 from collections.abc import Callable
 from typing import Any, Protocol, runtime_checkable
 

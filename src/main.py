@@ -1,3 +1,4 @@
+import contextlib
 import queue
 import sys
 from pathlib import Path
@@ -10,7 +11,6 @@ sys.path.append(str(Path(__file__).parent.parent))
 logger = get_logger(__name__)
 
 
-# Only import GUI modules after confirming tkinter is available
 ensure_gui_available()
 from tkinter import Menu  # noqa: E402
 
@@ -26,17 +26,8 @@ from src.ui.components.theme_switcher import ThemeSwitcher  # noqa: E402
 from src.ui.components.url_entry import URLEntryFrame  # noqa: E402
 from src.ui.utils.theme_manager import get_theme_manager  # noqa: E402
 
-# Theme will be initialized by ThemeManager after root window is created
-# This ensures proper initialization order for dark/light mode
-
 
 def _check_playwright_installation():
-    """Check if Playwright is installed and show critical error if not.
-
-    Returns:
-        True if Playwright is installed or user chose to continue
-        Does NOT return if user chose to exit (calls os._exit instead)
-    """
     try:
         import playwright  # noqa: F401
 
@@ -98,8 +89,6 @@ def _check_playwright_installation():
             logger.info("[MAIN_APP] User chose to exit and install Playwright")
             exit_clicked["value"] = True
 
-            # Print clear instructions to terminal FIRST
-            # We dont want this to have structured logging!
             print("\n" + "=" * 70)
             print("  PLAYWRIGHT INSTALLATION REQUIRED")
             print("=" * 70)
@@ -152,62 +141,49 @@ def _check_playwright_installation():
 
 
 class MediaDownloaderApp(ctk.CTk):
-    """Main application window - just UI setup and delegation."""
-
     def __init__(self):
         super().__init__()
 
-        # Load config for UI settings
         self.config = get_config()
 
         self.title(self.config.ui.app_title)
         self.geometry("1000x700")
 
-        # Thread-safe UI update queue
-        self.thread_queue = queue.Queue()
+        self.thread_queue = queue.Queue(maxsize=100)
         self.after(100, self._process_thread_queue)
 
         application_orchestrator = get_application_orchestrator()
         self.orchestrator = application_orchestrator(self)
 
-        # Initialize theme manager - must be after root window is created
-        # This ensures CTK is properly initialized before theme is applied
         self.theme_manager = get_theme_manager(self)
 
-        # Force initial theme application to ensure dark mode works
-        # This updates all existing widgets
         self.update()
 
-        # Note: MessageQueue will be created after status_bar is available
-        # See _create_ui() for message_queue registration
-
-        # Create UI
         self.main_frame = ctk.CTkFrame(self, fg_color="transparent")
         self._create_ui()
         self._setup_layout()
         self._setup_menu()
 
-        # Bind close handler for graceful shutdown
         self.protocol("WM_DELETE_WINDOW", self._on_closing)
 
-        # Register shutdown handler
         import atexit
 
         atexit.register(self._graceful_shutdown)
 
         logger.info("Media Downloader initialized")
 
-        # Start connectivity check after UI is fully initialized
-        # Use after() to ensure UI is ready to receive updates
         self.after(100, self.orchestrator.check_connectivity)
 
     def _process_thread_queue(self):
-        """Process callbacks queued from background threads."""
         try:
-            while not self.thread_queue.empty():
+            max_tasks_per_cycle = 10
+            tasks_processed = 0
+
+            while tasks_processed < max_tasks_per_cycle and not self.thread_queue.empty():
                 try:
                     func = self.thread_queue.get_nowait()
                     func()
+                    tasks_processed += 1
                 except queue.Empty:
                     break
                 except Exception as e:
@@ -215,40 +191,36 @@ class MediaDownloaderApp(ctk.CTk):
         except Exception as e:
             logger.error(f"[MAIN_APP] Error in event loop: {e}", exc_info=True)
         finally:
-            self.after(50, self._process_thread_queue)
+            self.after(33, self._process_thread_queue)
 
     def run_on_main_thread(self, func):
-        """Schedule a function to run on the main thread."""
-        self.thread_queue.put(func)
+        try:
+            if self.thread_queue.full():
+                with contextlib.suppress(queue.Empty):
+                    self.thread_queue.get_nowait()
+            self.thread_queue.put_nowait(func)
+        except queue.Full:
+            pass
 
     def _create_ui(self):
-        """Create all UI components."""
-        # Header bar - minimal modern design with left-aligned title
         self.header_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent", corner_radius=0)
-        # Two-column layout: [title] [theme_switcher]
-        self.header_frame.grid_columnconfigure(0, weight=1)  # Title column expands
-        self.header_frame.grid_columnconfigure(1, weight=0)  # Theme switcher - no expansion
+        self.header_frame.grid_columnconfigure(0, weight=1)
+        self.header_frame.grid_columnconfigure(1, weight=0)
 
-        # Title - left aligned, clean typography with very generous spacing
         app_title = self.config.ui.app_title
         self.title_label = ctk.CTkLabel(
             self.header_frame, text=app_title, font=("Roboto", 26, "bold")
         )
         self.title_label.grid(row=0, column=0, sticky="w", pady=8)
 
-        # Theme switcher - right aligned with proper spacing
         self.theme_switcher = ThemeSwitcher(self.header_frame, self.theme_manager)
         self.theme_switcher.grid(row=0, column=1, sticky="e", pady=8, padx=(20, 0))
 
-        # Get coordinator for direct wiring
         coord = self.orchestrator.event_coordinator
 
-        # URL Entry - wire directly to link detector
         def on_add_url(url: str, name: str) -> None:
-            # Try to detect platform-specific handler first
             handler_found = self.orchestrator.link_detector.detect_and_handle(url, coord)
 
-            # If no handler found, treat as generic download
             if not handler_found:
                 logger.info(f"[MAIN_APP] No handler found for {url}, treating as generic download")
                 coord.platform_download("generic", url, name)
@@ -263,10 +235,8 @@ class MediaDownloaderApp(ctk.CTk):
             theme_manager=self.theme_manager,
         )
 
-        # Options Bar
         self.options_bar = OptionsBar(self.main_frame, theme_manager=self.theme_manager)
 
-        # Download List
         self.download_list = DownloadListView(
             self.main_frame,
             on_selection_change=lambda sel: self.action_buttons.update_button_states(
@@ -276,7 +246,6 @@ class MediaDownloaderApp(ctk.CTk):
             theme_manager=self.theme_manager,
         )
 
-        # Action Buttons - wire directly to coordinator
         logger.info("[MAIN_APP] Creating ActionButtonBar")
 
         def on_remove() -> None:
@@ -287,7 +256,6 @@ class MediaDownloaderApp(ctk.CTk):
 
         def on_download() -> None:
             downloads = coord.downloads.get_downloads()
-            # Filter for pending downloads if needed, but start_downloads usually handles status check
             coord.downloads.start_downloads(downloads, coord.downloads_folder)
 
         def on_manage_files() -> None:
@@ -303,11 +271,9 @@ class MediaDownloaderApp(ctk.CTk):
         )
         logger.info("[MAIN_APP] ActionButtonBar created successfully")
 
-        # Status Bar
         self.status_bar = StatusBar(self.main_frame, theme_manager=self.theme_manager)
         logger.info("[MAIN_APP] StatusBar created")
 
-        # Pass UI components to orchestrator
         logger.info("[MAIN_APP] Passing UI components to orchestrator")
         self.orchestrator.set_ui_components(
             url_entry=self.url_entry,
@@ -319,17 +285,14 @@ class MediaDownloaderApp(ctk.CTk):
         logger.info("[MAIN_APP] UI components passed to orchestrator successfully")
 
     def _setup_layout(self):
-        """Configure the main layout."""
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        # Clean balanced spacing
         self.main_frame.grid(row=0, column=0, sticky="nsew", padx=30, pady=(20, 25))
         self.main_frame.grid_columnconfigure(0, weight=1)
         self.main_frame.grid_rowconfigure(3, weight=1)
         self.main_frame.grid_rowconfigure(5, weight=0)
 
-        # Arrange widgets with balanced spacing
         self.header_frame.grid(row=0, column=0, sticky="ew", pady=(0, 35))
         self.url_entry.grid(row=1, column=0, sticky="ew", pady=(0, 25))
         self.download_list.grid(row=3, column=0, sticky="nsew", pady=(0, 15))
@@ -337,8 +300,6 @@ class MediaDownloaderApp(ctk.CTk):
         self.status_bar.grid(row=5, column=0, sticky="ew", pady=(0, 0))
 
     def _setup_menu(self):
-        """Set up application menu."""
-
         menubar = Menu(self)
         self.configure(menu=menubar)
 
@@ -350,18 +311,15 @@ class MediaDownloaderApp(ctk.CTk):
         menubar.add_cascade(label="Tools", menu=tools_menu)
 
     def _graceful_shutdown(self):
-        """Graceful shutdown - persist settings and cleanup."""
         try:
             logger.info("[MAIN_APP] Graceful shutdown - persisting settings")
 
-            # Persist theme if it has changed
             if hasattr(self, "theme_manager"):
                 try:
                     self.theme_manager._persist_theme()
                 except Exception as e:
                     logger.error(f"[MAIN_APP] Failed to persist theme: {e}", exc_info=True)
 
-            # Cleanup orchestrator
             if hasattr(self, "orchestrator"):
                 try:
                     self.orchestrator.cleanup()
@@ -376,11 +334,9 @@ class MediaDownloaderApp(ctk.CTk):
             logger.error(f"[MAIN_APP] Error during graceful shutdown: {e}", exc_info=True)
 
     def _on_closing(self):
-        """Handle application closing."""
         logger.info("[MAIN_APP] Application closing - cleaning up")
         self._graceful_shutdown()
 
-        # Destroy the window
         try:
             self.destroy()
             logger.info("[MAIN_APP] Application closed")
@@ -389,10 +345,8 @@ class MediaDownloaderApp(ctk.CTk):
 
 
 if __name__ == "__main__":
-    # Will return True if Playwright is installed or user chose to continue
     try:
         _check_playwright_installation()
-        # Only create app if we should continue
         logger.info("[MAIN_APP] Starting Media Downloader application")
         app = MediaDownloaderApp()
         app.mainloop()

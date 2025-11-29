@@ -1,5 +1,3 @@
-"""Instagram downloader service implementation."""
-
 import os
 import time
 from collections.abc import Callable
@@ -205,55 +203,43 @@ class InstagramDownloader(BaseDownloader):
             save_dir = os.path.dirname(save_path) if os.path.dirname(save_path) else "."
             self.file_service.ensure_directory(save_dir)
 
+            base_name = os.path.basename(save_path)
+            media_success = False
+
             if post.is_video:
-                # Download video
                 video_url = post.video_url
-                filename = self.file_service.sanitize_filename(os.path.basename(save_path) + ".mp4")
+                filename = self.file_service.sanitize_filename(f"{base_name}.mp4")
                 full_path = os.path.join(save_dir, filename)
-
                 result = file_service.download_file(video_url, full_path, progress_callback)
-                return result.success
-            # Download image(s) - handle both single images and carousels
-            success = False
-
-            # Check if it's a sidecar (carousel) post
-            if post.typename == "GraphSidecar":
+                media_success = result.success
+            elif post.typename == "GraphSidecar":
                 for i, node in enumerate(post.get_sidecar_nodes()):
                     try:
-                        # Get URL based on media type
-                        if node.is_video:
-                            media_url = node.video_url
-                            ext = ".mp4"
-                        else:
-                            media_url = node.display_url
-                            ext = ".jpg"
-
-                        # Generate filename
-                        if i > 0:
-                            filename = self.file_service.sanitize_filename(
-                                f"{os.path.basename(save_path)}_{i}{ext}"
-                            )
-                        else:
-                            filename = self.file_service.sanitize_filename(
-                                f"{os.path.basename(save_path)}{ext}"
-                            )
-
+                        ext = ".mp4" if node.is_video else ".jpg"
+                        media_url = node.video_url if node.is_video else node.display_url
+                        suffix = f"_{i}" if i > 0 else ""
+                        filename = self.file_service.sanitize_filename(f"{base_name}{suffix}{ext}")
                         full_path = os.path.join(save_dir, filename)
                         result = file_service.download_file(media_url, full_path, progress_callback)
                         if result.success:
-                            success = True
+                            media_success = True
                     except Exception as e:
                         logger.error(f"Error downloading sidecar item {i}: {e!s}")
                         continue
             else:
-                # Single image post
                 image_url = post.url
-                filename = self.file_service.sanitize_filename(f"{os.path.basename(save_path)}.jpg")
+                filename = self.file_service.sanitize_filename(f"{base_name}.jpg")
                 full_path = os.path.join(save_dir, filename)
                 result = file_service.download_file(image_url, full_path, progress_callback)
-                success = result.success
+                media_success = result.success
 
-            return success
+            caption = post.caption
+            if caption:
+                caption_filename = self.file_service.sanitize_filename(f"{base_name}_caption.txt")
+                caption_path = os.path.join(save_dir, caption_filename)
+                self.file_service.save_text_file(caption, caption_path)
+
+            return media_success
 
         except Exception as e:
             logger.error(f"Error downloading Instagram post: {e!s}", exc_info=True)

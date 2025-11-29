@@ -1,5 +1,3 @@
-"""YouTube metadata service implementation."""
-
 import re
 from urllib.parse import parse_qs, urlparse
 
@@ -63,7 +61,6 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                     )
                 return YouTubeMetadata(error=error_msg)
 
-            # Extract video information using yt-dlp library
             info = self.info_extractor.extract_info(url, cookie_path, browser)
             if not info:
                 error_msg = "Failed to fetch video information"
@@ -73,16 +70,13 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                     )
                 return YouTubeMetadata(error=error_msg)
 
-            # Parse the info dict
             parsed_info = self.metadata_parser.parse_info(info)
 
-            # Extract subtitle information (may enhance parsed_info)
             subtitle_data = self.subtitle_extractor.extract_subtitles(url, cookie_path, browser)
             if subtitle_data:
                 parsed_info["subtitles"] = subtitle_data.get("subtitles", {})
                 parsed_info["automatic_captions"] = subtitle_data.get("automatic_captions", {})
 
-            # Extract formatted data
             available_qualities = self.metadata_parser.extract_qualities(parsed_info)
             available_formats = self.metadata_parser.extract_formats(parsed_info)
             available_subtitles = self.metadata_parser.extract_subtitles(parsed_info)

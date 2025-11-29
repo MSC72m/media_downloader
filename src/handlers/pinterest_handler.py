@@ -1,5 +1,3 @@
-"""Pinterest link handler implementation."""
-
 import re
 from collections.abc import Callable
 from typing import Any
@@ -57,7 +55,6 @@ class PinterestHandler(BaseHandler):
     def process_download(self, url: str, options: dict[str, Any]) -> bool:
         """Process Pinterest download."""
         logger.info(f"[PINTEREST_HANDLER] Processing Pinterest download: {url}")
-        # Actual Pinterest download logic would go here
         return True
 
     def get_ui_callback(self) -> Callable:
@@ -69,7 +66,6 @@ class PinterestHandler(BaseHandler):
             logger.info(f"[PINTEREST_HANDLER] Pinterest callback called with URL: {url}")
             logger.info(f"[PINTEREST_HANDLER] UI context: {ui_context}")
 
-            # Get root using type-safe helper
             root = get_root(ui_context)
 
             logger.info(f"[PINTEREST_HANDLER] Root: {root}")
@@ -86,11 +82,9 @@ class PinterestHandler(BaseHandler):
                         )
                     return
 
-            # Call the platform download method which will show the dialog (or fallback)
             def process_pinterest_download():
                 try:
                     logger.info(f"[PINTEREST_HANDLER] Calling download callback for: {url}")
-                    # Platform download methods expect URL string
                     download_callback(url)
                     logger.info("[PINTEREST_HANDLER] Download callback executed")
                 except Exception as e:
@@ -104,7 +98,6 @@ class PinterestHandler(BaseHandler):
                             e, "Processing Pinterest download", "Pinterest"
                         )
 
-            # Schedule on main thread
             schedule_on_main_thread(root, process_pinterest_download, immediate=True)
             logger.info("[PINTEREST_HANDLER] Pinterest download scheduled")
 
@@ -123,7 +116,6 @@ class PinterestHandler(BaseHandler):
 
     def _extract_pin_id(self, url: str) -> str | None:
         """Extract pin ID from Pinterest URL."""
-        # Match pin ID in various URL formats
         patterns = [
             r"/pin/(\d+)",
             r"pin\.it/([\w]+)",

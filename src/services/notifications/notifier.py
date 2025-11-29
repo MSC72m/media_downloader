@@ -1,5 +1,3 @@
-"""Notifier service implementation."""
-
 from typing import Any
 
 from src.core.enums.message_level import MessageLevel

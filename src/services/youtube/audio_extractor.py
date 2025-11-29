@@ -1,5 +1,3 @@
-"""Audio extraction utility for YouTube downloads."""
-
 import os
 import subprocess
 
@@ -11,19 +9,11 @@ logger = get_logger(__name__)
 
 
 class AudioExtractor:
-    """Utility class for extracting audio from video files using FFmpeg."""
-
     def __init__(
         self,
         config: AppConfig = get_config(),
         error_handler: IErrorNotifier | None = None,
     ):
-        """Initialize audio extractor.
-
-        Args:
-            config: Application configuration
-            error_handler: Optional error handler for user notifications
-        """
         self.config = config
         self.error_handler = error_handler
 

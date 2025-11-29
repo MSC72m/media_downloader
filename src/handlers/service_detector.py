@@ -1,5 +1,3 @@
-"""Concrete implementation of service detector."""
-
 from urllib.parse import urlparse
 
 from src.core.enums import ServiceType
@@ -38,11 +36,9 @@ class ServiceDetector:
         try:
             domain = urlparse(url).netloc.lower()
 
-            # Check for exact matches first
             if domain in self._domain_to_service:
                 return self._domain_to_service[domain]
 
-            # Check for partial matches
             for domain_pattern, service_type in self._domain_to_service.items():
                 if domain_pattern in domain:
                     return service_type

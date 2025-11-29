@@ -1,5 +1,3 @@
-"""YouTube metadata parser and formatter."""
-
 import re
 from typing import Any
 
@@ -10,7 +8,6 @@ from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# YouTube URL patterns for validation
 _YOUTUBE_URL_PATTERN = re.compile(
     r"(?:youtube\.com/(?:watch\?v=|embed/|v/)|youtu\.be/)([a-zA-Z0-9_-]{11})",
     re.IGNORECASE,
@@ -50,7 +47,6 @@ class YouTubeMetadataParser(IParser):
         Returns:
             List containing a single parsed metadata dict
         """
-        # Handle both direct info dict and wrapped format
         info = data if isinstance(data, dict) and "title" in data else data.get("info", data)
 
         parsed = self.parse_info(info)
@@ -124,7 +120,6 @@ class YouTubeMetadataParser(IParser):
         Returns user-friendly format names from config, not internal values.
         Internal values are mapped in the dialog.
         """
-        # Return user-friendly format names from config
         return self.config.ui.format_options
 
     def extract_subtitles(self, info: dict[str, Any]) -> list[dict[str, Any]]:
@@ -138,7 +133,6 @@ class YouTubeMetadataParser(IParser):
         auto_subs = info.get("automatic_captions", {}) or {}
         video_id = info.get("id", "")
 
-        # Delegate to subtitle parser using generic interface
         data = {
             "subtitles": manual_subs,
             "automatic_captions": auto_subs,

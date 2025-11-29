@@ -1,233 +1,288 @@
 # Media Downloader
 
-A powerful, user-friendly application for downloading media content from popular social platforms.
+Cross-platform desktop application for downloading media content from social media platforms.
 
-## Table of Contents
-
-- [Overview](#overview)
-- [Key Features](#key-features)
-- [Supported Platforms](#supported-platforms)
-- [Installation](#installation)
-  - [Windows Installation](#windows-installation)
-  - [Linux Installation](#linux-installation)
-- [Usage Guide](#usage-guide)
-- [Advanced Features](#advanced-features)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
-- [License](#license)
-- [Disclaimer](#disclaimer)
-
-## Overview
-
-The Media Downloader is a sophisticated, cross-platform application designed to streamline the process of downloading media content from various Media Downloader platforms. Built with Python and featuring a modern, intuitive GUI, this toolkit empowers users to easily archive and manage their favorite online content.
-
-## Key Features
-
-- **Multi-Platform Support**: Seamlessly download content from major Media Downloader sites.
-- **Customizable Downloads**: Choose video quality, audio-only options, and more.
-- **Bulk Processing**: Queue multiple downloads for efficient batch processing.
-- **User Authentication**: Securely log in to platforms like Instagram for expanded access.
-- **Flexible Save Options**: Customize where and how your media is saved.
-- **Progress Tracking**: Real-time updates on download status and progress.
-- **Error Handling**: Robust error management with clear user feedback.
+[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)]()
 
 ## Supported Platforms
 
-- [![YouTube](https://img.shields.io/badge/YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://img.shields.io/badge/YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white)
-- [![Instagram](https://img.shields.io/badge/Instagram-E4405F?style=for-the-badge&logo=instagram&logoColor=white)](https://img.shields.io/badge/Instagram-E4405F?style=for-the-badge&logo=instagram&logoColor=white)
-- [![Twitter](https://img.shields.io/badge/Twitter-1DA1F2?style=for-the-badge&logo=twitter&logoColor=white)](https://img.shields.io/badge/Twitter-1DA1F2?style=for-the-badge&logo=twitter&logoColor=white)
-- [![Pinterest](https://img.shields.io/badge/Pinterest-%23E60023.svg?&style=for-the-badge&logo=Pinterest&logoColor=white)](https://img.shields.io/badge/Pinterest-%23E60023.svg?&style=for-the-badge&logo=Pinterest&logoColor=white)
+[![YouTube](https://img.shields.io/badge/YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://youtube.com)
+[![Instagram](https://img.shields.io/badge/Instagram-E4405F?style=for-the-badge&logo=instagram&logoColor=white)](https://instagram.com)
+[![Twitter](https://img.shields.io/badge/Twitter-1DA1F2?style=for-the-badge&logo=twitter&logoColor=white)](https://twitter.com)
+[![Pinterest](https://img.shields.io/badge/Pinterest-%23E60023.svg?&style=for-the-badge&logo=Pinterest&logoColor=white)](https://pinterest.com)
+[![SoundCloud](https://img.shields.io/badge/SoundCloud-FF5500?style=for-the-badge&logo=soundcloud&logoColor=white)](https://soundcloud.com)
+
+### Platform Capabilities
+
+| Platform | Content Types | Features |
+|----------|--------------|----------|
+| **YouTube** | Videos, Playlists, Shorts, Music | Quality selection (144p-8K), audio extraction, subtitle support, auto-cookie generation for age-restricted content |
+| **Instagram** | Posts, Reels, Stories, TV | Authentication required, caption preservation, carousel handling |
+| **Twitter/X** | Tweets | Image and video extraction from tweets |
+| **Pinterest** | Pins, Boards | High-quality image retrieval, automated file naming |
+| **SoundCloud** | Tracks, Sets | Downloads at best available quality, free tracks only (premium/Go+ tracks not supported) |
+
+## Features
+
+- Multi-platform support for YouTube, Instagram, Twitter, Pinterest, and SoundCloud
+- Bulk download queue with concurrent processing
+- Video quality selection (144p to 8K) and audio-only extraction
+- Real-time theme switching between dark/light modes with 14 color themes
+- Automatic YouTube cookie generation using Playwright for age-restricted content
+- Live progress tracking with status indicators and speed metrics
+- Network connectivity monitoring and validation
+- Configurable retry mechanisms and error handling
+- YAML/JSON configuration files with customizable settings
+
+## Requirements
+
+- Python 3.10 or higher
+- Playwright (for YouTube cookie generation)
+- Internet connection
 
 ## Installation
 
-### Windows Installation
+### Option 1: Using uv (Recommended)
 
-1. **Verify Python installation**
-Open Command Prompt and run:
 ```bash
-   python --version
+# Clone the repository
+git clone https://github.com/MSC72m/media_downloader.git
+cd media_downloader
+
+# Install uv if not already installed
+# On macOS/Linux:
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# On Windows:
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# Install dependencies and run
+uv sync
+uv run playwright install chromium
+uv run -m src.main
 ```
-Ensure you have Python 3.6 or higher installed.
 
-2. **Install Git (if not already installed)**
+### Option 2: Using pip
 
-Download Git from git-scm.com
-Follow the installation wizard
-
-3. **Clone the repository**
 ```bash
-   git clone https://github.com/MSC72m/media_downloader.git
-   cd media_downloader
+# Clone the repository
+git clone https://github.com/MSC72m/media_downloader.git
+cd media_downloader
+
+# Create virtual environment
+python -m venv venv
+
+# Activate virtual environment
+# On Windows:
+venv\Scripts\activate
+# On Linux/macOS:
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Install Playwright browser
+playwright install chromium
 ```
 
-4. **Set up a virtual environment (recommended)**
+### Launch Application
+
 ```bash
-   python -m venv venv
-   venv\Scripts\activate
+# With uv:
+uv run -m src.main
+
+# With pip:
+python -m src.main
 ```
 
-5. **Install dependencies**
+## Creating Desktop Shortcuts
+
+### Windows
+
+1. Create a batch file `media_downloader.bat` in the project directory:
+
+```batch
+@echo off
+cd /d "C:\path\to\media_downloader"
+call venv\Scripts\activate
+python -m src.main
+pause
+```
+
+Replace `C:\path\to\media_downloader` with your actual installation path.
+
+2. Create a shortcut:
+   - Right-click the batch file → "Create shortcut"
+   - Move shortcut to Desktop or Start Menu
+   - Optional: Right-click shortcut → Properties → Change icon
+
+### Linux
+
+Create a `.desktop` file in `~/.local/share/applications/`:
+
 ```bash
-   pip install -r requirements.txt
+vim ~/.local/share/applications/media_downloader.desktop
 ```
-6. **Launch the application**
+
+Add the following content (adjust paths as needed):
+
+```ini
+[Desktop Entry]
+Name=Media Downloader
+Exec=/path/to/venv/bin/python /path/to/media_downloader/src/main.py
+Icon=/path/to/media_downloader/icon.png
+Type=Application
+Categories=Utility;
+Terminal=false
+```
+
+Make it executable:
+
 ```bash
-   python -m src.main
+chmod +x ~/.local/share/applications/media_downloader.desktop
 ```
 
-7. **Quick Launch Setup (Windows)**
+## Usage
 
-Create a batch file
-Create a new file named media_downloader.bat with the following content:
-```bash
-   @echo off
-   cd "C:\path\to\media_downloader"
-   call venv\Scripts\activate
-   python -m src.main
-```
-Replace C:\path\to\media_downloader with your actual installation path.
+### Basic Workflow
 
-8. **Create a shortcut**
-```text
-   Right-click the batch file and select "Create shortcut"
-   Move the shortcut to your desired location (Desktop, Start Menu, etc.)
-   Optional: Right-click the shortcut, select "Properties", and set an icon
-```
+1. **Launch the application** using one of the methods above
+2. **Paste URL** into the input field at the top
+3. **Configure options** (for YouTube: quality, format, subtitles, etc.)
+4. **Add to queue** or download immediately
+5. **Monitor progress** in the download list with real-time status updates
 
-### Linux Installation
+### Adding Downloads
 
-Follow these steps to install the Media Downloader Toolkit on Linux:
+- Paste any supported platform URL into the input field
+- Click "Add" button
+- For YouTube: A dialog will appear with quality and format options
+- For other platforms: Downloads are added directly to the queue
 
-1. **Verify Python installation**
-   Open a terminal and run:
-   ```bash
-   python3 --version
-   ```
-Ensure you have Python 3.6 or higher installed.
+### Managing Queue
 
-2. **Install Git (if not already installed)**
-   For Ubuntu/Debian:
-   ```bash
-      sudo apt-get update
-      sudo apt-get install git
-      ```
-   For Fedora:
-   ```bash
-     sudo dnf install git
-   ```
-3. **Clone the repository**
-   ```bash
-      git clone https://github.com/MSC72m/media_downloader.git
-      cd media_downloader
-   ```
+- **Remove Selected**: Select items in the download list (click and drag to select multiple) and click "Remove Selected"
+- **Clear All**: Removes all items from the queue
+- **Download All**: Starts processing all queued downloads
 
-4. **Set up a virtual environment (recommended)**
-   ```bash
-      python3 -m venv venv
-      source venv/bin/activate
-   ```
-5. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-6. **Launch the application**
-   ```bash
-   python -m src.main
-   ```
-7. **Create a desktop shortcut (optional)**
-    Create a .desktop file in ~/.local/share/applications/:
-   ```bash
-   vim ~/.local/share/applications/media_downloader.desktop
-   ```
-   Add the following content (adjust paths as needed):
-   (change ``` /path/to/venv``` and ```/path/to/media_downloader/src/main.py``` ```/path/to/media_downloader/icon.png```  to your actual paths to make this work)
-   ```bash
-   [Desktop Entry]
-   Name= media_downloader
-   Exec=/path/to/venv/bin/python /path/to/downloader/main.py
-   Icon=/path/to/media_downloader/icon.png
-   Type=Application
-   Categories=Utility;
-   ```
+### Platform-Specific Instructions
 
-## Usage Guide
+#### YouTube
 
-### Adding Content:
+- Quality selection: Choose from 144p to 8K (availability depends on source)
+- Format options: Video+Audio, Audio Only, or Video Only
+- Playlist support: Enable "Download Playlist" option
+- Subtitles: Select languages and download subtitles
+- Auto-cookies: Automatically generated for age-restricted content (requires Playwright)
 
-- Paste the media URL into the input field.
-- Click "Add" and provide a custom name if desired.
-- (Downloading instagram media requires being logged in with the Instagram Login button)
+#### Instagram
 
-### Configuring Options:
+- **Authentication required**: First Instagram URL will prompt authentication window
+- After successful authentication, session is saved and reused for subsequent downloads
+- Supports posts, reels, stories, and TV content
+- Captions are preserved when available
 
-- YouTube: Select quality, enable playlist download, or choose audio-only.
-- Instagram: Use the "Instagram Login" for authenticated access.
-- Set download path
+#### Twitter/X
 
-### Managing Queue:
+- Paste tweet URL containing images or videos
+- Media is automatically extracted and added to queue
+- Note: Spaces are not currently supported
 
-- Remove items with "Remove Selected" (you need to select all the string of each link manually with our mouse) or clear all with "Clear All".
-- Initiate downloads with "Download All".
+#### Pinterest
 
-### Customizing Save Location:
+- Paste pin or board URL
+- High-quality images are retrieved automatically
 
-- Access the file browser via "Manage Files".
-- Navigate and set your preferred download directory.
+#### SoundCloud
 
-### Monitoring Downloads:
+- Paste track or set URL
+- Downloads at best available quality automatically (no format/quality selection)
+- Only free tracks are supported (premium/Go+ subscription tracks cannot be downloaded)
 
-- Track overall progress via the status label and progress bar.
-- Check individual download statuses in the download list.
+### Theme Customization
 
-## Advanced Features
+The theme switcher is located in the header:
 
-### YouTube Enhancements
+- **Appearance toggle**: Switch between Dark and Light modes
+- **Color theme dropdown**: Select from 14 color themes (Blue, Green, Purple, Orange, Teal, Pink, Indigo, Amber, Red, Cyan, Emerald, Rose, Violet, Slate)
+- Changes apply instantly without restart
+- Preferences are saved automatically to config file
 
-- Quality selection (360p to 1080p)
-- Playlist support
-- Audio extraction capability
+### File Management
 
-### Instagram Capabilities
+- Click "Manage Files" button to open file browser dialog
+- Navigate and select download directory
+- Selected path is saved and used for all downloads
 
-- Support for posts, reels, and carousels
-- Caption preservation
+### Network Status
 
-### Twitter Integration
+- Access via Tools → Network Status menu
+- Shows current connectivity status
+- Displays detailed network information and diagnostics
 
-- Download images and videos from tweets
+## Configuration
 
-### Pinterest Functionality
+Configuration files are automatically created in `~/.media_downloader/` on first run. The application supports both YAML and JSON formats:
 
-- High-quality image retrieval from pins and boards
-- Automated file naming based on pin content
+- `config.yaml` (recommended)
+- `config.json`
+
+### Configuration Options
+
+- **Paths**: Download directory, config directory
+- **Downloads**: Concurrent download limits, retry counts, timeouts
+- **Network**: Timeouts, user agents, service domains
+- **YouTube**: Default quality, supported qualities, subtitle languages
+- **Theme**: Appearance mode, color theme, persistence
+- **Platform-specific**: Instagram, Twitter, Pinterest, SoundCloud settings
+
+Edit the config file directly or use the application's UI to change settings. Changes take effect on next launch (some settings may require restart).
 
 ## Troubleshooting
 
-| Issue                   | Solution                                             |
-|-------------------------|------------------------------------------------------|
-| Network Errors          | Check internet connection and retry                  |
-| Unsupported URL         | Verify the URL is from a supported platform          |
-| Authentication Failures | Ensure correct login credentials for Instagram       |
-| Download Errors         | Consult application logs for detailed error messages |
+### Playwright Not Installed
 
-## Contributing
+If you see an error about Playwright not being installed:
 
-We welcome contributions! To contribute:
+```bash
+# With uv:
+uv run playwright install chromium
 
-1. Fork the repository.
-2. Create a feature branch: `git checkout -b feature/NewFeature`
-3. Commit changes: `git commit -m 'Add NewFeature'`
-4. Push to the branch: `git push origin feature/NewFeature`
-5. Submit a pull request.
+# With pip:
+playwright install chromium
+```
+
+### Network Errors
+
+- Check internet connection
+- Verify URL is from a supported platform
+- Check network status via Tools → Network Status
+
+### Authentication Failures (Instagram)
+
+- Authentication window appears automatically when adding first Instagram URL
+- Check credentials are correct
+- Wait for authentication to complete before adding more URLs
+- Session is saved after successful authentication
+
+### Download Errors
+
+- Check application logs for detailed error messages
+- Verify URL is valid and accessible
+- Ensure sufficient disk space in download directory
+- For YouTube: Wait for cookie generation to complete if prompted
 
 ## License
 
-This project is licensed under the MIT License. See LICENSE for details.
+MIT License - See [LICENSE](LICENSE) file for details.
 
 ## Disclaimer
-```text
-    The Media Downloader Toolkit is intended for personal use only.
-    Users are responsible for adhering to the terms of service of the respective platforms and all applicable copyright laws.
-    The developers assume no liability for misuse of this software.
-    Your Instagram account may be banned if you use this tool for unauthorized purposes or too much usage it is always recommended to use it with caution and create a new account for testing purposes.'
-```
+
+This software is for personal use only. Users are responsible for:
+
+- Adhering to platform terms of service
+- Complying with applicable copyright laws
+- Using the software responsibly
+
+The developers assume no liability for misuse of this software.

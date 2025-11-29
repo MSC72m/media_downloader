@@ -1,5 +1,3 @@
-"""Error handling helper utilities for consistent error formatting and classification."""
-
 import re
 from enum import Enum
 
@@ -84,17 +82,14 @@ def format_user_friendly_error(error_context: dict) -> str:
     operation = error_context.get("operation", "")
     url = error_context.get("url", "")
 
-    # Handle checkpoint/challenge errors specially
     if "instagram" in service.lower() and (
         "checkpoint" in error_msg.lower() or "challenge" in error_msg.lower()
     ):
         return _format_checkpoint_error(error_msg)
 
-    # Truncate long URLs in error messages
     if url:
         url = _truncate_url(url, max_length=80)
 
-    # Truncate very long error messages (e.g., challenge URLs)
     if len(error_msg) > 200:
         error_msg = _truncate_url(error_msg, max_length=200)
 
@@ -124,7 +119,6 @@ def classify_error_type(error_message: str) -> ErrorType:
     """
     error_lower = error_message.lower()
 
-    # Use compiled regex patterns for efficient matching instead of string 'in' checks
     network_pattern = re.compile(
         r"(connection|network|timeout|dns|socket|refused|unreachable)", re.IGNORECASE
     )

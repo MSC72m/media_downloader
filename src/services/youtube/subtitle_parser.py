@@ -1,5 +1,3 @@
-"""YouTube subtitle parser implementation."""
-
 import re
 from itertools import chain
 from typing import Any
@@ -10,16 +8,11 @@ from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Pre-compile regex patterns once at module level for efficiency
-# Pattern to match lang=XX parameter (actual subtitle language)
 _LANG_PARAM_PATTERN = re.compile(r'[?&]lang=([^&"\']+?)(?:[&"\']|$)', re.IGNORECASE)
-# Pattern to match tlang=XX parameter (translation option)
 _TLANG_PARAM_PATTERN = re.compile(r'[?&]tlang=([^&"\']+?)(?:[&"\']|$)', re.IGNORECASE)
 
 
 class YouTubeSubtitleParser(IParser):
-    """YouTube-specific implementation of subtitle parser."""
-
     def __init__(self, config: AppConfig = get_config()):
         self.config = config
 

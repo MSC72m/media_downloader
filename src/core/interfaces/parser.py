@@ -1,5 +1,3 @@
-"""Interface for parsing and validating media content."""
-
 from typing import Any, Protocol, runtime_checkable
 
 

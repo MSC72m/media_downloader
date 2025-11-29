@@ -1,5 +1,3 @@
-"""Thread-safe utilities for GUI operations."""
-
 import threading
 from collections.abc import Callable
 from functools import wraps
@@ -26,7 +24,6 @@ class ThreadSafeDialogMixin:
         """Thread-safe version of after() method."""
         if self.is_main_thread():
             return self.after(delay_ms, lambda: self._safe_execute(func, *args, **kwargs))
-        # Schedule on main thread
         self.after(
             0,
             lambda: self.after(delay_ms, lambda: self._safe_execute(func, *args, **kwargs)),
@@ -99,9 +96,7 @@ def thread_safe_dialog(method):
     @wraps(method)
     def wrapper(self, *args, **kwargs):
         if hasattr(self, "safe_after"):
-            # Use safe_after for thread-safe execution
             return self.safe_after(0, lambda: method(self, *args, **kwargs))
-        # Fallback to direct execution
         return method(self, *args, **kwargs)
 
     return wrapper

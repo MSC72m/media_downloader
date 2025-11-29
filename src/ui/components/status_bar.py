@@ -1,7 +1,9 @@
+from __future__ import annotations
+
+import contextlib
 import queue
 import re
 import time
-from typing import Optional
 
 import customtkinter as ctk
 
@@ -14,9 +16,6 @@ logger = get_logger(__name__)
 
 
 class StatusBar(ctk.CTkFrame):
-    """Status bar showing download progress and information - thread-safe via queue."""
-
-    # Compiled regex patterns for efficient matching (more efficient than string 'in' checks)
     _SUCCESS_MESSAGE_PATTERN = re.compile(r"Download completed", re.IGNORECASE)
     _CONNECTION_CONFIRMED_PATTERN = re.compile(r"Connection confirmed", re.IGNORECASE)
 
@@ -24,42 +23,34 @@ class StatusBar(ctk.CTkFrame):
         self,
         master,
         config: AppConfig = get_config(),
-        theme_manager: Optional["ThemeManager"] = None,
+        theme_manager: ThemeManager | None = None,
     ):
         super().__init__(master, fg_color="transparent")
 
-        # Get root window for scheduling
         self._root_window = self._get_root_window()
-        self._update_queue = queue.Queue()
-        self._message_queue = queue.Queue()  # Queue for pending messages
+        self._update_queue = queue.Queue(maxsize=50)
+        self._message_queue = queue.Queue(maxsize=20)
         self._running = True
         self._current_message: str | None = None
         self._message_timeout: float | None = None
-        self._is_error_message: bool = False  # Track if current message is an error
+        self._is_error_message: bool = False
         self._config = config
 
-        # Subscribe to theme manager - injected with default
         self._theme_manager = theme_manager or get_theme_manager(self._root_window)
         self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
-        # Don't apply theme colors here - widgets aren't created yet
-        # Will be applied after widgets are created
 
-        # Configure grid
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=0)
 
-        # Create center frame for alignment
         self.center_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.center_frame.grid(row=0, column=0, sticky="nsew")
         self.center_frame.grid_columnconfigure(0, weight=1)
 
-        # Status label - clean typography
         self.status_label = ctk.CTkLabel(
             self.center_frame, text="Initializing...", font=("Roboto", 12)
         )
         self.status_label.grid(row=0, column=0, pady=(0, 2))
 
-        # Progress bar - prominent and clean
         self.progress_bar = ctk.CTkProgressBar(
             self.center_frame,
             height=22,
@@ -69,34 +60,31 @@ class StatusBar(ctk.CTkFrame):
         self.progress_bar.grid(row=1, column=0, sticky="ew", pady=(0, 0), padx=0)
         self.progress_bar.set(0)
 
-        # Apply initial theme colors now that widgets are created
         self._apply_theme_colors()
 
-        # Start processing updates from queue
         self._process_queue()
-        # Start processing messages with timeout
         self._process_messages()
 
     def _get_root_window(self):
-        """Get the root Tk window for scheduling."""
         try:
-            # Try to get the actual root window
             return self.winfo_toplevel()
         except Exception as e:
             logger.error(f"[STATUS_BAR] Error getting root window: {e}")
             return self
 
     def _process_queue(self):
-        """Process queued UI updates on main thread."""
         if not self._running:
             return
 
         try:
-            # Process all pending updates
-            while not self._update_queue.empty():
+            max_updates_per_cycle = 3
+            updates_processed = 0
+
+            while updates_processed < max_updates_per_cycle and not self._update_queue.empty():
                 try:
                     update_func = self._update_queue.get_nowait()
                     update_func()
+                    updates_processed += 1
                 except queue.Empty:
                     break
                 except Exception as e:
@@ -104,59 +92,47 @@ class StatusBar(ctk.CTkFrame):
         except Exception as e:
             logger.error(f"[STATUS_BAR] Error in _process_queue: {e}", exc_info=True)
 
-        # Schedule next queue check - reduced interval for faster updates
         if self._running and self._root_window:
             try:
-                self._root_window.after(10, self._process_queue)
+                self._root_window.after(33, self._process_queue)
             except Exception as e:
                 logger.error(f"[STATUS_BAR] Error scheduling next queue check: {e}")
 
     def _queue_update(self, update_func):
-        """Queue an update to be processed on main thread."""
         try:
-            self._update_queue.put(update_func)
+            if self._update_queue.full():
+                with contextlib.suppress(queue.Empty):
+                    self._update_queue.get_nowait()
+            self._update_queue.put_nowait(update_func)
+        except queue.Full:
+            pass
         except Exception as e:
             logger.error(f"[STATUS_BAR] Error queuing update: {e}", exc_info=True)
 
     def show_message(self, message: str):
-        """Show status message - thread-safe via queue with timeout."""
         self._add_message(message)
 
     def show_error(self, message: str):
-        """Show error message - thread-safe via queue with longer timeout."""
         error_text = f"Error: {message}"
         self._add_message(error_text, is_error=True)
 
     def show_warning(self, message: str):
-        """Show warning message - thread-safe via queue with timeout."""
         warning_text = f"Warning: {message}"
         self._add_message(warning_text)
 
     def _add_message(self, message: str, is_error: bool = False) -> None:
-        """Add message to queue and show immediately if no current message.
-
-        Args:
-            message: Message text to display
-            is_error: Whether this is an error message (uses longer timeout)
-        """
-
         def _update():
             try:
-                # Check if this is a success message that should interrupt current message
-                # Use compiled regex patterns for efficient matching
                 is_success_message = bool(self._SUCCESS_MESSAGE_PATTERN.search(message))
                 is_connection_confirmed = bool(self._CONNECTION_CONFIRMED_PATTERN.search(message))
 
-                # Track if connection confirmed was shown (to prevent immediate "Ready")
                 if is_connection_confirmed:
                     self._connection_confirmed_shown = True
 
-                # If no current message, show immediately
                 if not self._current_message:
                     self._current_message = message
                     self._is_error_message = is_error
                     current_time = time.time()
-                    # Use longer timeout for error messages
                     timeout_seconds = (
                         self._config.ui.error_message_timeout_seconds
                         if is_error
@@ -166,7 +142,6 @@ class StatusBar(ctk.CTkFrame):
                     self.status_label.configure(text=message)
                     return
 
-                # For success messages, interrupt current message to show success
                 if is_success_message:
                     self._current_message = message
                     self._is_error_message = is_error
@@ -176,7 +151,6 @@ class StatusBar(ctk.CTkFrame):
                     self.status_label.configure(text=message)
                     return
 
-                # Add to queue for later (will show after current message times out)
                 self._message_queue.put((message, is_error))
             except Exception as e:
                 logger.error(f"[STATUS_BAR] Error adding message: {e}", exc_info=True)
@@ -184,11 +158,6 @@ class StatusBar(ctk.CTkFrame):
         self._queue_update(_update)
 
     def _check_message_timeout(self, current_time: float) -> None:
-        """Check if current message has timed out.
-
-        Args:
-            current_time: Current timestamp
-        """
         if (
             self._current_message
             and self._message_timeout
@@ -199,11 +168,6 @@ class StatusBar(ctk.CTkFrame):
             self._is_error_message = False
 
     def _get_next_message(self, current_time: float) -> None:
-        """Get next message from queue.
-
-        Args:
-            current_time: Current timestamp
-        """
         if self._current_message or self._message_queue.empty():
             return
 
@@ -227,14 +191,12 @@ class StatusBar(ctk.CTkFrame):
             pass
 
     def _show_ready_if_no_message(self) -> None:
-        """Show 'Ready' status if no current message."""
         if not self._current_message:
             self.status_label.configure(text="Ready")
             if hasattr(self, "_connection_confirmed_shown"):
                 self._connection_confirmed_shown = False
 
     def _process_messages(self):
-        """Process message queue with timeout handling."""
         if not self._running:
             return
 
@@ -254,17 +216,11 @@ class StatusBar(ctk.CTkFrame):
                 logger.error(f"[STATUS_BAR] Error scheduling message check: {e}")
 
     def update_progress(self, progress: float):
-        """Update progress display - thread-safe via queue.
-
-        For completion (100%), processes immediately to avoid delays.
-        """
-
         def _update():
             try:
                 self.progress_bar.set(progress / 100)
                 if progress >= 100:
                     self.status_label.configure(text="Download Complete")
-                    # Clear any pending messages to show completion immediately
                     self._current_message = None
                     self._message_timeout = None
                 else:
@@ -272,12 +228,9 @@ class StatusBar(ctk.CTkFrame):
             except Exception as e:
                 logger.error(f"[STATUS_BAR] Error updating progress: {e}", exc_info=True)
 
-        # For completion, process immediately; otherwise queue normally
         if progress >= 100:
-            # Force immediate processing for completion
             try:
                 _update()
-                # Also trigger queue processing to clear any pending updates
                 if self._running and self._root_window:
                     self._root_window.after_idle(self._process_queue)
             except Exception as e:
@@ -286,8 +239,6 @@ class StatusBar(ctk.CTkFrame):
             self._queue_update(_update)
 
     def reset(self):
-        """Reset status bar to initial state - thread-safe via queue."""
-
         def _update():
             try:
                 self.progress_bar.set(0)
@@ -298,27 +249,22 @@ class StatusBar(ctk.CTkFrame):
         self._queue_update(_update)
 
     def _on_theme_changed(self, appearance, color):
-        """Handle theme change event."""
         self._apply_theme_colors()
 
     def _apply_theme_colors(self):
-        """Apply theme colors to components."""
         if not hasattr(self, "progress_bar"):
-            return  # Widgets not created yet
+            return
 
         self._theme_manager.get_colors()
         theme_json = self._theme_manager.get_theme_json()
 
-        # Apply custom colors to progress bar
         button_config = theme_json.get("CTkButton", {})
         if button_config:
-            # Progress bar uses button colors for its progress indicator
             progress_color = button_config.get("fg_color")
             if progress_color:
                 self.progress_bar.configure(progress_color=progress_color)
 
     def destroy(self):
-        """Clean up resources."""
         self._running = False
         if self._theme_manager:
             self._theme_manager.unsubscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
