@@ -103,20 +103,19 @@ class DownloadCoordinator:
                         e, "Refreshing download list", "Download Coordinator"
                     )
 
-        if enable_buttons:
-            buttons_callback = self._get_ui_callback("set_action_buttons_enabled")
-            if buttons_callback:
-                try:
-                    buttons_callback(True)
-                except Exception as e:
-                    logger.error(
-                        f"[DOWNLOAD_COORDINATOR] Error enabling buttons: {e}",
-                        exc_info=True,
+        buttons_callback = self._get_ui_callback("set_action_buttons_enabled")
+        if buttons_callback:
+            try:
+                buttons_callback(enable_buttons)
+            except Exception as e:
+                logger.error(
+                    f"[DOWNLOAD_COORDINATOR] Error setting button state: {e}",
+                    exc_info=True,
+                )
+                if self.error_handler:
+                    self.error_handler.handle_exception(
+                        e, "Setting action buttons state", "Download Coordinator"
                     )
-                    if self.error_handler:
-                        self.error_handler.handle_exception(
-                            e, "Enabling action buttons", "Download Coordinator"
-                        )
 
     def _cleanup_old_progress_tracking(self, downloads: list[Download]) -> None:
         """Clean up progress tracking for downloads that are no longer active."""
