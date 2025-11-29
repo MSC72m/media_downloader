@@ -271,7 +271,10 @@ mock_ctk.CTkInputDialog = MockTkWidget2
 mock_ctk.CTkToplevel = MockTkWidget2
 mock_ctk.CTkScrollframe = MockTkWidget2
 
-mock_pydantic = type("MockModule", (), {"BaseModel": MockBaseModel, "Field": MockField})()
+
+# Note: We don't mock pydantic anymore - we use the real pydantic in our code
+# The MockBaseModel and MockField are kept for backward compatibility
+# but pydantic is not mocked in sys.modules since we need the real pydantic
 
 mock_yt_dlp = type(
     "MockModule",
@@ -290,7 +293,8 @@ sys.modules["tkinter.filedialog"] = MockFiledialog()
 sys.modules["customtkinter"] = mock_ctk
 sys.modules["yt_dlp"] = mock_yt_dlp
 sys.modules["yt_dlp.utils"] = mock_yt_dlp.utils
-sys.modules["pydantic"] = mock_pydantic
+# Don't mock pydantic - we use the real pydantic in our code
+# sys.modules["pydantic"] = mock_pydantic
 
 # Mock other external dependencies
 sys.modules["requests"] = Mock()
@@ -318,10 +322,7 @@ def mock_customtkinter():
     return mock_ctk
 
 
-@pytest.fixture(scope="session")
-def mock_pydantic():
-    """Provide mock pydantic for all tests."""
-    return mock_pydantic
+# Removed mock_pydantic fixture - we use real pydantic now
 
 
 @pytest.fixture(scope="session")
