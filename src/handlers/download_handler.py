@@ -1,6 +1,7 @@
 import threading
 import time
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
@@ -241,57 +242,82 @@ class DownloadHandler(IDownloadHandler):
         progress_callback,
         completion_callback,
     ) -> None:
-        """Start downloads sequentially (one at a time) in queue order."""
+        """Start downloads with ThreadPoolExecutor and configurable concurrency."""
+        if not downloads:
+            logger.warning("[DOWNLOAD_HANDLER] No downloads provided")
+            self._invoke_completion_callback(completion_callback, False, "No downloads to process")
+            return
 
-        def process_downloads_sequentially():
+        validated_dir = self._validate_download_directory(download_dir, completion_callback)
+        if not validated_dir:
+            return
+
+        max_workers = self.config.downloads.max_concurrent_downloads
+        active_downloads = threading.Semaphore(max_workers)
+
+        logger.info(
+            f"[DOWNLOAD_HANDLER] Starting {len(downloads)} downloads with {max_workers} concurrent workers"
+        )
+
+        def process_downloads_concurrently():
             try:
-                for idx, download in enumerate(downloads):
-                    if not download.url or not download.url.strip():
-                        logger.error(f"[DOWNLOAD_HANDLER] Invalid URL for: {download.name}")
-                        continue
+                with ThreadPoolExecutor(
+                    max_workers=max_workers, thread_name_prefix="DownloadWorker"
+                ) as executor:
+                    futures = {}
 
-                    logger.info(
-                        f"[DOWNLOAD_HANDLER] Processing download {idx + 1}/{len(downloads)}: {download.name}"
-                    )
+                    for download in downloads:
+                        if not download.url or not download.url.strip():
+                            logger.error(f"[DOWNLOAD_HANDLER] Invalid URL for: {download.name}")
+                            continue
 
-                    if download.status != DownloadStatus.DOWNLOADING:
-                        download.status = DownloadStatus.DOWNLOADING
-                        logger.info(
-                            f"[DOWNLOAD_HANDLER] Set download status to DOWNLOADING for: {download.name}"
-                        )
+                        def wrapper(d: Download):
+                            with active_downloads:
+                                if d.status != DownloadStatus.DOWNLOADING:
+                                    d.status = DownloadStatus.DOWNLOADING
+                                    logger.info(f"[DOWNLOAD_HANDLER] Starting download: {d.name}")
 
-                    try:
-                        self._download_worker(
-                            download, download_dir, progress_callback, completion_callback
-                        )
-                    except Exception as e:
-                        logger.error(
-                            f"[DOWNLOAD_HANDLER] Error in download worker for {download.name}: {e}",
-                            exc_info=True,
-                        )
-                        self._handle_download_failure(
-                            download, completion_callback, f"Download error: {e!s}"
-                        )
+                                try:
+                                    self._download_worker(
+                                        d, validated_dir, progress_callback, completion_callback
+                                    )
+                                except Exception as e:
+                                    logger.error(
+                                        f"[DOWNLOAD_HANDLER] Error in download worker for {d.name}: {e}",
+                                        exc_info=True,
+                                    )
+                                    self._handle_download_failure(
+                                        d, completion_callback, f"Download error: {e!s}"
+                                    )
 
-                    logger.info(
-                        f"[DOWNLOAD_HANDLER] Download {idx + 1}/{len(downloads)} ({download.name}) finished with status: {download.status}"
-                    )
+                        future = executor.submit(wrapper, download)
+                        futures[future] = download
 
-                logger.info("[DOWNLOAD_HANDLER] All downloads processed sequentially")
+                    for future in as_completed(futures):
+                        try:
+                            future.result()
+                        except Exception as e:
+                            logger.error(f"[DOWNLOAD_HANDLER] Download worker failed: {e}")
+
+                logger.info("[DOWNLOAD_HANDLER] All downloads completed")
+
             except Exception as e:
                 logger.error(
-                    f"[DOWNLOAD_HANDLER] Error in sequential download processor: {e}",
+                    f"[DOWNLOAD_HANDLER] Error in concurrent download processor: {e}",
                     exc_info=True,
                 )
                 if self.error_handler:
                     self.error_handler.handle_exception(
-                        e, "Sequential download processing", "Download Handler"
+                        e, "Concurrent download processing", "Download Handler"
                     )
 
+            if completion_callback:
+                completion_callback(True, None)
+
         thread = threading.Thread(
-            target=process_downloads_sequentially,
+            target=process_downloads_concurrently,
             daemon=True,
-            name="SequentialDownloadProcessor",
+            name="ConcurrentDownloadProcessor",
         )
         thread.start()
 
@@ -418,19 +444,6 @@ class DownloadHandler(IDownloadHandler):
 
         if self.error_handler:
             self.error_handler.handle_exception(error, "Download operation", "Download Handler")
-            return
-
-        if self.message_queue:
-            try:
-                self.message_queue.add_message(
-                    Message(
-                        text=f"Download failed: {error!s}",
-                        level=MessageLevel.ERROR,
-                        title="Download Error",
-                    )
-                )
-            except Exception as msg_error:
-                logger.error(f"[DOWNLOAD_HANDLER] Failed to show error message: {msg_error}")
 
     def is_available(self) -> bool:
         """Check if handler is available."""
@@ -452,7 +465,8 @@ class DownloadHandler(IDownloadHandler):
             "instagram": ServiceType.INSTAGRAM,
             "pinterest": ServiceType.PINTEREST,
             "soundcloud": ServiceType.SOUNDCLOUD,
-            "google": ServiceType.GOOGLE,
+            "tiktok": ServiceType.TIKTOK,
+            "radiojavan": ServiceType.RADIOJAVAN,
         }
 
         # Check service domains first

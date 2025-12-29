@@ -4,7 +4,9 @@ from src.core.interfaces import IErrorNotifier, IFileService
 from src.services.instagram import InstagramAuthManager
 from src.services.instagram.downloader import InstagramDownloader
 from src.services.pinterest.downloader import PinterestDownloader
+from src.services.radiojavan.downloader import RadioJavanDownloader
 from src.services.soundcloud.downloader import SoundCloudDownloader
+from src.services.tiktok.downloader import TikTokDownloader
 from src.services.twitter.downloader import TwitterDownloader
 from src.services.youtube.downloader import YouTubeDownloader
 from src.utils.logger import get_logger
@@ -40,6 +42,8 @@ class ServiceFactory:
             ServiceType.TWITTER: ["twitter.com", "x.com"],
             ServiceType.INSTAGRAM: ["instagram.com"],
             ServiceType.PINTEREST: ["pinterest.com", "pin.it"],
+            ServiceType.TIKTOK: ["tiktok.com", "vm.tiktok.com"],
+            ServiceType.RADIOJAVAN: ["play.radiojavan.com", "radiojavan.com", "rj.app"],
         }
 
         for service_type, patterns in service_map.items():
@@ -79,6 +83,16 @@ class ServiceFactory:
             ),
             ServiceType.INSTAGRAM: self._get_instagram_downloader,
             ServiceType.PINTEREST: lambda: PinterestDownloader(
+                error_handler=self.error_handler,
+                file_service=self.file_service,
+                config=self.config,
+            ),
+            ServiceType.TIKTOK: lambda: TikTokDownloader(
+                error_handler=self.error_handler,
+                file_service=self.file_service,
+                config=self.config,
+            ),
+            ServiceType.RADIOJAVAN: lambda: RadioJavanDownloader(
                 error_handler=self.error_handler,
                 file_service=self.file_service,
                 config=self.config,

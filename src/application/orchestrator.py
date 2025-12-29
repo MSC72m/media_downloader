@@ -137,7 +137,9 @@ class ApplicationOrchestrator:
             from src.handlers import (
                 instagram_handler,  # noqa: F401
                 pinterest_handler,  # noqa: F401
+                radiojavan_handler,  # noqa: F401
                 soundcloud_handler,  # noqa: F401
+                tiktok_handler,  # noqa: F401
                 twitter_handler,  # noqa: F401
                 youtube_handler,  # noqa: F401
             )

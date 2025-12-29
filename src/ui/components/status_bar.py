@@ -262,6 +262,16 @@ class StatusBar(ctk.CTkFrame):
         if button_config:
             progress_color = button_config.get("fg_color")
             if progress_color:
+                # Handle progress_color - extract first element if it's a list or tuple
+                if isinstance(progress_color, (list, tuple)) and len(progress_color) > 0:
+                    progress_color = (
+                        progress_color[0]
+                        if isinstance(progress_color[0], str)
+                        else str(progress_color[0])
+                    )
+                elif not isinstance(progress_color, str):
+                    progress_color = str(progress_color)
+
                 self.progress_bar.configure(progress_color=progress_color)
 
     def destroy(self):

@@ -1,5 +1,6 @@
 import tkinter as tk
 
+import contextlib
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -69,8 +70,6 @@ class WindowCenterMixin:
             raise TypeError("WindowCenterMixin must be used with Tk or Toplevel windows")
 
         # Update window geometry to get accurate dimensions
-        import contextlib
-
         with contextlib.suppress(Exception):
             # Handle CustomTkinter dimension event bug
             self.update_idletasks()

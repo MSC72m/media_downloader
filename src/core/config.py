@@ -64,7 +64,7 @@ class PathConfig(BaseModel):
 class DownloadConfig(BaseModel):
     """Download-related configuration."""
 
-    max_concurrent_downloads: int = Field(default=3, description="Maximum concurrent downloads")
+    max_concurrent_downloads: int = Field(default=1, description="Maximum concurrent downloads")
     retry_count: int = Field(default=3, description="Number of retries for failed downloads")
     retry_delay: float = Field(default=3.0, description="Delay between retries in seconds")
     socket_timeout: int = Field(default=15, description="Socket timeout in seconds")
@@ -99,6 +99,8 @@ class NetworkConfig(BaseModel):
             "instagram": ["instagram.com", "www.instagram.com", "m.instagram.com"],
             "pinterest": ["pinterest.com", "www.pinterest.com"],
             "soundcloud": ["soundcloud.com", "www.soundcloud.com"],
+            "tiktok": ["tiktok.com", "vm.tiktok.com", "www.tiktok.com"],
+            "radiojavan": ["play.radiojavan.com", "radiojavan.com", "rj.app"],
         },
         description="Service domain mappings",
     )
@@ -175,6 +177,28 @@ class NotificationTemplatesConfig(BaseModel):
             }
         },
         description="SoundCloud notification templates",
+    )
+
+    radiojavan: dict[str, dict[str, Any]] = Field(
+        default_factory=lambda: {
+            "service_unavailable": {
+                "text": "Radio Javan service is temporarily unavailable. Please try again later.",
+                "title": "Radio Javan Service Unavailable",
+                "level": "ERROR",
+            }
+        },
+        description="Radio Javan notification templates",
+    )
+
+    tiktok: dict[str, dict[str, Any]] = Field(
+        default_factory=lambda: {
+            "service_unavailable": {
+                "text": "TikTok service is temporarily unavailable. Please try again later.",
+                "title": "TikTok Service Unavailable",
+                "level": "ERROR",
+            }
+        },
+        description="TikTok notification templates",
     )
 
 
@@ -418,289 +442,297 @@ class SoundCloudConfig(BaseModel):
     )
 
 
+class RadioJavanConfig(BaseModel):
+    """Radio Javan-specific configuration."""
+
+    default_timeout: int = Field(default=30, description="Default request timeout in seconds")
+    max_retries: int = Field(default=3, description="Maximum number of retries")
+    url_patterns: list[str] = Field(
+        default_factory=lambda: [
+            r"^https?://(?:www\.)?play\.radiojavan\.com/(?:mp3|mp4)/[\w-]+",
+            r"^https?://(?:www\.)?radiojavan\.com/artist/[\w-]+/songs",
+            r"^https?://rj\.app/[\w-]+",
+            r"^https?://(?:www\.)?radiojavan\.com/(?:mp3|mp4)/[\w-]+",
+        ],
+        description="Radio Javan URL validation patterns",
+    )
+
+    # These config options map to real API and CDN patterns
+    api_base_url: str = Field(
+        default="https://www.radiojavan.com/api2", description="Radio Javan API base URL"
+    )
+    cdn_hosts: list[str] = Field(
+        default_factory=lambda: [
+            "rj1.media",
+            "rj2.media",
+            "rj3.media",
+            "rjmedia.app",
+            "rj.app",
+        ],
+        description="Available CDN hosts",
+    )
+    media_type_paths: dict[str, str] = Field(
+        default_factory=lambda: {
+            "mp3": "/mp3/{media_name}",
+            "mp4": "/mp4/{media_name}",
+        },
+        description="Media type URL path patterns",
+    )
+
+
+class TikTokConfig(BaseModel):
+    """TikTok-specific configuration."""
+
+    default_timeout: int = Field(default=10, description="Default request timeout in seconds")
+    max_retries: int = Field(default=3, description="Maximum number of retries")
+    url_patterns: list[str] = Field(
+        default_factory=lambda: [
+            r"^https?://(?:www\.)?tiktok\.com/[@\w]+/video/[\d]+",
+            r"^https?://(?:vm\.)?tiktok\.com/[\w-]+",
+            r"^https?://(?:www\.)?tiktok\.com/t/[\w-]+",
+        ],
+        description="TikTok URL validation patterns",
+    )
+
+
 class ThemeConfig(BaseModel):
-    """Theme-related configuration with color schemes."""
+    """Theme configuration for the application UI."""
 
-    appearance_mode: AppearanceMode = Field(
-        default=AppearanceMode.DARK, description="Appearance mode (dark/light)"
-    )
-    color_theme: ColorTheme = Field(default=ColorTheme.BLUE, description="Color theme selection")
-    theme_persistence: bool = Field(
-        default=True, description="Whether to persist theme preference to config file"
-    )
+    appearance_mode: str = Field(default="dark", description="Appearance mode (light/dark/system)")
+    color_theme: str = Field(default="blue", description="Color theme (blue/green/red/purple)")
+    theme_persistence: bool = Field(default=True, description="Whether to persist theme changes")
 
-    @field_serializer("appearance_mode", "color_theme", mode="plain")
-    def serialize_enums(self, value):
-        """Serialize enum values to strings to avoid Pydantic warnings."""
-        return value.value if hasattr(value, "value") else value
+    @field_validator("appearance_mode", mode="before")
+    @classmethod
+    def validate_appearance_mode(cls, v):
+        """Validate appearance mode value."""
+        if isinstance(v, AppearanceMode):
+            return v.value
+        return v
 
-    def __init__(self, **data):
-        """Initialize with enum conversion."""
-        if "appearance_mode" in data and isinstance(data["appearance_mode"], str):
-            data["appearance_mode"] = AppearanceMode(data["appearance_mode"])
-        if "appearance_mode" not in data:
-            data["appearance_mode"] = AppearanceMode.DARK
-
-        if "color_theme" in data and isinstance(data["color_theme"], str):
-            data["color_theme"] = ColorTheme(data["color_theme"])
-        if "color_theme" not in data:
-            data["color_theme"] = ColorTheme.BLUE
-
-        super().__init__(**data)
+    @field_validator("color_theme", mode="before")
+    @classmethod
+    def validate_color_theme(cls, v):
+        """Validate color theme value."""
+        if isinstance(v, ColorTheme):
+            return v.value
+        return v
 
     @property
     def appearance_mode_enum(self) -> AppearanceMode:
         """Get appearance mode as enum."""
-        if isinstance(self.appearance_mode, str):
-            return AppearanceMode(self.appearance_mode)
-        return self.appearance_mode
+        return AppearanceMode(self.appearance_mode)
 
     @property
     def color_theme_enum(self) -> ColorTheme:
         """Get color theme as enum."""
-        if isinstance(self.color_theme, str):
-            return ColorTheme(self.color_theme)
-        return self.color_theme
+        return ColorTheme(self.color_theme)
 
     @staticmethod
-    @cache
     def get_color_schemes() -> dict[str, dict[str, Any]]:
-        """Get all color schemes for themes (cached for performance)."""
+        """Get all color schemes for themes."""
         return {
-            # Dark themes - with refined visible borders
-            "dark_blue": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#505050", "#606060"],
-                "button_color": "#1f538d",
-                "button_hover_color": "#14375e",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            "dark_green": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#505050", "#606060"],
-                "button_color": "#2d8659",
-                "button_hover_color": "#1f5c3f",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            "dark_purple": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#505050", "#606060"],
-                "button_color": "#7b2cbf",
-                "button_hover_color": "#5a1f8f",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            "dark_orange": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#505050", "#606060"],
-                "button_color": "#d97706",
-                "button_hover_color": "#92400e",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            "dark_teal": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#505050", "#606060"],
-                "button_color": "#0d9488",
-                "button_hover_color": "#0f766e",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            "dark_pink": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#505050", "#606060"],
-                "button_color": "#db2777",
-                "button_hover_color": "#be185d",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            "dark_indigo": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#505050", "#606060"],
-                "button_color": "#4f46e5",
-                "button_hover_color": "#4338ca",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            "dark_amber": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#505050", "#606060"],
-                "button_color": "#f59e0b",
-                "button_hover_color": "#d97706",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            # Light themes - with refined visible borders
             "light_blue": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#909090", "#a0a0a0"],
-                "button_color": "#3b82f6",
-                "button_hover_color": "#2563eb",
-                "text_color": ["#000000", "#000000"],
+                "fg_color": ["#CCE6FF", "#FFFFFF"],
+                "text_color": ["#1A1A1A", "#666666"],
+                "button_color": ["#007BFF", "#0056b3"],
+                "button_hover_color": ["#0056b3", "#003d82"],
+                "border_color": ["#007BFF", "#0056b3"],
+            },
+            "dark_blue": {
+                "fg_color": ["#1A2332", "#243447"],
+                "text_color": ["#FFFFFF", "#CCCCCC"],
+                "button_color": ["#007BFF", "#0056b3"],
+                "button_hover_color": ["#0056b3", "#003d82"],
+                "border_color": ["#007BFF", "#0056b3"],
             },
             "light_green": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#909090", "#a0a0a0"],
-                "button_color": "#10b981",
-                "button_hover_color": "#059669",
-                "text_color": ["#000000", "#000000"],
+                "fg_color": ["#D4EDDA", "#FFFFFF"],
+                "text_color": ["#1A1A1A", "#666666"],
+                "button_color": ["#28A745", "#1E7E34"],
+                "button_hover_color": ["#1E7E34", "#155724"],
+                "border_color": ["#28A745", "#1E7E34"],
+            },
+            "dark_green": {
+                "fg_color": ["#1A2E1A", "#243424"],
+                "text_color": ["#FFFFFF", "#CCCCCC"],
+                "button_color": ["#28A745", "#1E7E34"],
+                "button_hover_color": ["#1E7E34", "#155724"],
+                "border_color": ["#28A745", "#1E7E34"],
+            },
+            "light_red": {
+                "fg_color": ["#F8D7DA", "#FFFFFF"],
+                "text_color": ["#1A1A1A", "#666666"],
+                "button_color": ["#DC3545", "#C82333"],
+                "button_hover_color": ["#C82333", "#A71E2A"],
+                "border_color": ["#DC3545", "#C82333"],
+            },
+            "dark_red": {
+                "fg_color": ["#2E1A1A", "#342424"],
+                "text_color": ["#FFFFFF", "#CCCCCC"],
+                "button_color": ["#DC3545", "#C82333"],
+                "button_hover_color": ["#C82333", "#A71E2A"],
+                "border_color": ["#DC3545", "#C82333"],
             },
             "light_purple": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#909090", "#a0a0a0"],
-                "button_color": "#8b5cf6",
-                "button_hover_color": "#7c3aed",
-                "text_color": ["#000000", "#000000"],
+                "fg_color": ["#E6D7FF", "#FFFFFF"],
+                "text_color": ["#1A1A1A", "#666666"],
+                "button_color": ["#6F42C1", "#5A32A3"],
+                "button_hover_color": ["#5A32A3", "#4A2790"],
+                "border_color": ["#6F42C1", "#5A32A3"],
+            },
+            "dark_purple": {
+                "fg_color": ["#2E1A3A", "#342447"],
+                "text_color": ["#FFFFFF", "#CCCCCC"],
+                "button_color": ["#6F42C1", "#5A32A3"],
+                "button_hover_color": ["#5A32A3", "#4A2790"],
+                "border_color": ["#6F42C1", "#5A32A3"],
             },
             "light_orange": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#909090", "#a0a0a0"],
-                "button_color": "#f97316",
-                "button_hover_color": "#ea580c",
-                "text_color": ["#000000", "#000000"],
+                "fg_color": ["#FFF3E0", "#FFFFFF"],
+                "text_color": ["#1A1A1A", "#666666"],
+                "button_color": ["#FF9800", "#F57C00"],
+                "button_hover_color": ["#F57C00", "#E65100"],
+                "border_color": ["#FF9800", "#F57C00"],
+            },
+            "dark_orange": {
+                "fg_color": ["#3A2A1A", "#473424"],
+                "text_color": ["#FFFFFF", "#CCCCCC"],
+                "button_color": ["#FF9800", "#F57C00"],
+                "button_hover_color": ["#F57C00", "#E65100"],
+                "border_color": ["#FF9800", "#F57C00"],
             },
             "light_teal": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#909090", "#a0a0a0"],
-                "button_color": "#14b8a6",
-                "button_hover_color": "#0d9488",
-                "text_color": ["#000000", "#000000"],
+                "fg_color": ["#E0F2F1", "#FFFFFF"],
+                "text_color": ["#1A1A1A", "#666666"],
+                "button_color": ["#009688", "#00796B"],
+                "button_hover_color": ["#00796B", "#00695C"],
+                "border_color": ["#009688", "#00796B"],
+            },
+            "dark_teal": {
+                "fg_color": ["#1A2E2E", "#243434"],
+                "text_color": ["#FFFFFF", "#CCCCCC"],
+                "button_color": ["#009688", "#00796B"],
+                "button_hover_color": ["#00796B", "#00695C"],
+                "border_color": ["#009688", "#00796B"],
             },
             "light_pink": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#909090", "#a0a0a0"],
-                "button_color": "#ec4899",
-                "button_hover_color": "#db2777",
-                "text_color": ["#000000", "#000000"],
+                "fg_color": ["#FCE4EC", "#FFFFFF"],
+                "text_color": ["#1A1A1A", "#666666"],
+                "button_color": ["#E91E63", "#C2185B"],
+                "button_hover_color": ["#C2185B", "#880E4F"],
+                "border_color": ["#E91E63", "#C2185B"],
+            },
+            "dark_pink": {
+                "fg_color": ["#3A1A2E", "#472434"],
+                "text_color": ["#FFFFFF", "#CCCCCC"],
+                "button_color": ["#E91E63", "#C2185B"],
+                "button_hover_color": ["#C2185B", "#880E4F"],
+                "border_color": ["#E91E63", "#C2185B"],
             },
             "light_indigo": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#909090", "#a0a0a0"],
-                "button_color": "#6366f1",
-                "button_hover_color": "#4f46e5",
-                "text_color": ["#000000", "#000000"],
+                "fg_color": ["#E8EAF6", "#FFFFFF"],
+                "text_color": ["#1A1A1A", "#666666"],
+                "button_color": ["#3F51B5", "#303F9F"],
+                "button_hover_color": ["#303F9F", "#283593"],
+                "border_color": ["#3F51B5", "#303F9F"],
+            },
+            "dark_indigo": {
+                "fg_color": ["#1A1E3A", "#242447"],
+                "text_color": ["#FFFFFF", "#CCCCCC"],
+                "button_color": ["#3F51B5", "#303F9F"],
+                "button_hover_color": ["#303F9F", "#283593"],
+                "border_color": ["#3F51B5", "#303F9F"],
             },
             "light_amber": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#909090", "#a0a0a0"],
-                "button_color": "#fbbf24",
-                "button_hover_color": "#f59e0b",
-                "text_color": ["#000000", "#000000"],
+                "fg_color": ["#FFF8E1", "#FFFFFF"],
+                "text_color": ["#1A1A1A", "#666666"],
+                "button_color": ["#FFC107", "#FFA000"],
+                "button_hover_color": ["#FFA000", "#FF6F00"],
+                "border_color": ["#FFC107", "#FFA000"],
             },
-            # Additional dark themes - with better visible borders
-            "dark_red": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#4a4a4a", "#5a5a5a"],
-                "button_color": "#dc2626",
-                "button_hover_color": "#b91c1c",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            "dark_cyan": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#4a4a4a", "#5a5a5a"],
-                "button_color": "#06b6d4",
-                "button_hover_color": "#0891b2",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            "dark_emerald": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#4a4a4a", "#5a5a5a"],
-                "button_color": "#10b981",
-                "button_hover_color": "#059669",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            "dark_rose": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#4a4a4a", "#5a5a5a"],
-                "button_color": "#f43f5e",
-                "button_hover_color": "#e11d48",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            "dark_violet": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#4a4a4a", "#5a5a5a"],
-                "button_color": "#8b5cf6",
-                "button_hover_color": "#7c3aed",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            "dark_slate": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#4a4a4a", "#5a5a5a"],
-                "button_color": "#64748b",
-                "button_hover_color": "#475569",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            # Additional light themes - with visible borders
-            "light_red": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#909090", "#a0a0a0"],
-                "button_color": "#ef4444",
-                "button_hover_color": "#dc2626",
-                "text_color": ["#000000", "#000000"],
+            "dark_amber": {
+                "fg_color": ["#3A2E1A", "#473424"],
+                "text_color": ["#FFFFFF", "#CCCCCC"],
+                "button_color": ["#FFC107", "#FFA000"],
+                "button_hover_color": ["#FFA000", "#FF6F00"],
+                "border_color": ["#FFC107", "#FFA000"],
             },
             "light_cyan": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#909090", "#a0a0a0"],
-                "button_color": "#06b6d4",
-                "button_hover_color": "#0891b2",
-                "text_color": ["#000000", "#000000"],
+                "fg_color": ["#E0F7FA", "#FFFFFF"],
+                "text_color": ["#1A1A1A", "#666666"],
+                "button_color": ["#00BCD4", "#00ACC1"],
+                "button_hover_color": ["#00ACC1", "#0097A7"],
+                "border_color": ["#00BCD4", "#00ACC1"],
+            },
+            "dark_cyan": {
+                "fg_color": ["#1A2E3A", "#243447"],
+                "text_color": ["#FFFFFF", "#CCCCCC"],
+                "button_color": ["#00BCD4", "#00ACC1"],
+                "button_hover_color": ["#00ACC1", "#0097A7"],
+                "border_color": ["#00BCD4", "#00ACC1"],
             },
             "light_emerald": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#909090", "#a0a0a0"],
-                "button_color": "#10b981",
-                "button_hover_color": "#059669",
-                "text_color": ["#000000", "#000000"],
+                "fg_color": ["#E8F5E8", "#FFFFFF"],
+                "text_color": ["#1A1A1A", "#666666"],
+                "button_color": ["#4CAF50", "#388E3C"],
+                "button_hover_color": ["#388E3C", "#2E7D32"],
+                "border_color": ["#4CAF50", "#388E3C"],
+            },
+            "dark_emerald": {
+                "fg_color": ["#1A3A1A", "#243424"],
+                "text_color": ["#FFFFFF", "#CCCCCC"],
+                "button_color": ["#4CAF50", "#388E3C"],
+                "button_hover_color": ["#388E3C", "#2E7D32"],
+                "border_color": ["#4CAF50", "#388E3C"],
             },
             "light_rose": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#909090", "#a0a0a0"],
-                "button_color": "#f43f5e",
-                "button_hover_color": "#e11d48",
-                "text_color": ["#000000", "#000000"],
+                "fg_color": ["#FFF1F2", "#FFFFFF"],
+                "text_color": ["#1A1A1A", "#666666"],
+                "button_color": ["#F43F5E", "#E11D48"],
+                "button_hover_color": ["#E11D48", "#BE123C"],
+                "border_color": ["#F43F5E", "#E11D48"],
+            },
+            "dark_rose": {
+                "fg_color": ["#3A1A1F", "#472424"],
+                "text_color": ["#FFFFFF", "#CCCCCC"],
+                "button_color": ["#F43F5E", "#E11D48"],
+                "button_hover_color": ["#E11D48", "#BE123C"],
+                "border_color": ["#F43F5E", "#E11D48"],
             },
             "light_violet": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#909090", "#a0a0a0"],
-                "button_color": "#8b5cf6",
-                "button_hover_color": "#7c3aed",
-                "text_color": ["#000000", "#000000"],
+                "fg_color": ["#F3E8FF", "#FFFFFF"],
+                "text_color": ["#1A1A1A", "#666666"],
+                "button_color": ["#8B5CF6", "#7C3AED"],
+                "button_hover_color": ["#7C3AED", "#6D28D9"],
+                "border_color": ["#8B5CF6", "#7C3AED"],
+            },
+            "dark_violet": {
+                "fg_color": ["#2E1A3A", "#342447"],
+                "text_color": ["#FFFFFF", "#CCCCCC"],
+                "button_color": ["#8B5CF6", "#7C3AED"],
+                "button_hover_color": ["#7C3AED", "#6D28D9"],
+                "border_color": ["#8B5CF6", "#7C3AED"],
             },
             "light_slate": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#909090", "#a0a0a0"],
-                "button_color": "#64748b",
-                "button_hover_color": "#475569",
-                "text_color": ["#000000", "#000000"],
+                "fg_color": ["#F8FAFC", "#FFFFFF"],
+                "text_color": ["#1A1A1A", "#666666"],
+                "button_color": ["#64748B", "#475569"],
+                "button_hover_color": ["#475569", "#334155"],
+                "border_color": ["#64748B", "#475569"],
+            },
+            "dark_slate": {
+                "fg_color": ["#1A1F2E", "#242434"],
+                "text_color": ["#FFFFFF", "#CCCCCC"],
+                "button_color": ["#64748B", "#475569"],
+                "button_hover_color": ["#475569", "#334155"],
+                "border_color": ["#64748B", "#475569"],
             },
         }
 
     @staticmethod
-    @cache
     def get_theme_json(appearance: AppearanceMode, color: ColorTheme) -> dict[str, Any]:
-        """Get CTK theme JSON structure for appearance and color combination (cached)."""
+        """Get CTK theme JSON structure for appearance and color combination."""
         schemes = ThemeConfig.get_color_schemes()
         key = f"{appearance.value}_{color.value}"
         scheme = schemes.get(key, schemes[f"{appearance.value}_blue"])
@@ -763,6 +795,14 @@ class ThemeConfig(BaseModel):
             },
         }
 
+    def serialize_enums(self) -> dict[str, Any]:
+        """Serialize enum values for JSON storage."""
+        return {
+            "appearance_mode": self.appearance_mode,
+            "color_theme": self.color_theme,
+            "theme_persistence": self.theme_persistence,
+        }
+
 
 class UIConfig(BaseModel):
     """UI-related configuration."""
@@ -799,6 +839,14 @@ class UIConfig(BaseModel):
     subtitle_batch_size: int = Field(
         default=5,
         description="Number of subtitles to load per batch in UI to prevent freezing",
+    )
+    thumbnail_cache_max_mb: int = Field(
+        default=100,
+        description="Maximum thumbnail cache size in megabytes",
+    )
+    thumbnail_cache_max_age_days: int = Field(
+        default=30,
+        description="Maximum age of cached thumbnails in days",
     )
     theme: ThemeConfig = Field(default_factory=ThemeConfig, description="Theme configuration")
 
@@ -837,6 +885,8 @@ class AppConfig(BaseSettings):
     instagram: InstagramConfig = Field(default_factory=InstagramConfig)
     pinterest: PinterestConfig = Field(default_factory=PinterestConfig)
     soundcloud: SoundCloudConfig = Field(default_factory=SoundCloudConfig)
+    radiojavan: RadioJavanConfig = Field(default_factory=RadioJavanConfig)
+    tiktok: TikTokConfig = Field(default_factory=TikTokConfig)
     ui: UIConfig = Field(default_factory=UIConfig)
 
     @classmethod

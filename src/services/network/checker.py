@@ -93,23 +93,19 @@ class HTTPNetworkChecker(BaseNetworkChecker):
         }
 
     SERVICE_URLS: ClassVar[dict[ServiceType, str]] = {
-        ServiceType.GOOGLE: "www.google.com",
         ServiceType.YOUTUBE: "www.youtube.com",
         ServiceType.INSTAGRAM: "www.instagram.com",
-        ServiceType.TWITTER: "x.com",  # Updated to current Twitter domain
+        ServiceType.TWITTER: "x.com",
         ServiceType.PINTEREST: "www.pinterest.com",
     }
 
     def check_connectivity(self) -> ConnectionResult:
-        """Check basic internet connectivity using Google DNS."""
+        """Check basic internet connectivity using YouTube DNS."""
         start_time = time.time()
 
         try:
-            # Check basic DNS connectivity
             socket.create_connection(("8.8.8.8", 53), timeout=self.timeout)
-
-            # Check HTTP connectivity to Google
-            return self.check_service(ServiceType.GOOGLE)
+            return self.check_service(ServiceType.YOUTUBE)
 
         except OSError as e:
             response_time = time.time() - start_time

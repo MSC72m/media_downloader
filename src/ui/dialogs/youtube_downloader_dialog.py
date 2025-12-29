@@ -1,10 +1,14 @@
-import re
-import threading
-import time
 from collections.abc import Callable
 from typing import Any
 
 import customtkinter as ctk
+
+import PIL.Image
+import PIL.ImageTk
+import io
+import re
+import threading
+import time
 
 from src.core.config import AppConfig, get_config
 from src.core.enums.message_level import MessageLevel
@@ -490,8 +494,8 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         if self.video_metadata.available_subtitles:
             subtitle_options = [
                 {
-                    "id": sub["language_code"],  # Use language code as ID
-                    "display": sub["language_name"],  # Use language name for display
+                    "id": sub["language_code"],
+                    "display": sub["language_name"],
                     "language_code": sub["language_code"],
                     "language_name": sub["language_name"],
                     "is_auto": sub["is_auto_generated"],
@@ -504,6 +508,9 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             self.subtitle_frame.pack(fill="x", pady=(0, 20), after=self.format_frame)
         else:
             self.subtitle_frame.pack_forget()
+
+        if self.video_metadata.thumbnail_url:
+            self._add_thumbnail_preview()
 
         self._on_format_change()
 
@@ -858,6 +865,45 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             root.run_on_main_thread(update_func)
         else:
             self.after(0, update_func)
+
+    def _add_thumbnail_preview(self, thumbnail_url: str) -> None:
+        """Add thumbnail preview to dialog.
+
+        Args:
+            thumbnail_url: URL of the thumbnail image
+        """
+        if not thumbnail_url:
+            return
+
+        logger.debug(f"[YOUTUBE_DIALOG] Adding thumbnail preview from: {thumbnail_url}")
+
+        try:
+            import requests
+
+            response = requests.get(thumbnail_url, timeout=10)
+            response.raise_for_status()
+
+            image = PIL.Image.open(io.BytesIO(response.content))
+            image.thumbnail((320, 180))
+
+            photo = PIL.ImageTk.PhotoImage(image)
+
+            thumbnail_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
+            thumbnail_frame.pack(fill="x", pady=(0, 20))
+
+            thumbnail_label = ctk.CTkLabel(
+                thumbnail_frame,
+                image=photo,
+                text="",
+            )
+            thumbnail_label.image = photo
+            thumbnail_label.pack()
+            self._thumbnail_photo = photo
+
+            logger.debug("[YOUTUBE_DIALOG] Thumbnail preview added successfully")
+
+        except Exception as e:
+            logger.warning(f"[YOUTUBE_DIALOG] Failed to load thumbnail: {e}")
 
     def _show_error(self, message: str):
         """Show error message temporarily."""

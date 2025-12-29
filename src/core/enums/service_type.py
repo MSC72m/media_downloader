@@ -1,4 +1,4 @@
-from .compat import StrEnum
+from src.core.enums.compat import StrEnum
 
 
 class ServiceType(StrEnum):
@@ -7,5 +7,6 @@ class ServiceType(StrEnum):
     INSTAGRAM = "instagram"
     PINTEREST = "pinterest"
     SOUNDCLOUD = "soundcloud"
-    GOOGLE = "google"
+    TIKTOK = "tiktok"
+    RADIOJAVAN = "radiojavan"
     GENERIC = "generic"

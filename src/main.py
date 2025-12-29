@@ -23,6 +23,7 @@ from src.ui.components.main_action_buttons import ActionButtonBar  # noqa: E402
 from src.ui.components.options_bar import OptionsBar  # noqa: E402
 from src.ui.components.status_bar import StatusBar  # noqa: E402
 from src.ui.components.theme_switcher import ThemeSwitcher  # noqa: E402
+from src.ui.components.concurrent_downloads_selector import ConcurrentDownloadsSelector  # noqa: E402
 from src.ui.components.url_entry import URLEntryFrame  # noqa: E402
 from src.ui.utils.theme_manager import get_theme_manager  # noqa: E402
 
@@ -206,6 +207,7 @@ class MediaDownloaderApp(ctk.CTk):
         self.header_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent", corner_radius=0)
         self.header_frame.grid_columnconfigure(0, weight=1)
         self.header_frame.grid_columnconfigure(1, weight=0)
+        self.header_frame.grid_columnconfigure(2, weight=0)
 
         app_title = self.config.ui.app_title
         self.title_label = ctk.CTkLabel(
@@ -213,8 +215,14 @@ class MediaDownloaderApp(ctk.CTk):
         )
         self.title_label.grid(row=0, column=0, sticky="w", pady=8)
 
-        self.theme_switcher = ThemeSwitcher(self.header_frame, self.theme_manager)
-        self.theme_switcher.grid(row=0, column=1, sticky="e", pady=8, padx=(20, 0))
+        controls_frame = ctk.CTkFrame(self.header_frame, fg_color="transparent")
+        controls_frame.grid(row=0, column=1, sticky="e", pady=8)
+
+        self.theme_switcher = ThemeSwitcher(controls_frame, self.theme_manager)
+        self.theme_switcher.grid(row=0, column=0, sticky="e", pady=8, padx=(20, 0))
+
+        self.concurrent_selector = ConcurrentDownloadsSelector(controls_frame)
+        self.concurrent_selector.grid(row=0, column=1, sticky="e", pady=8, padx=(10, 0))
 
         coord = self.orchestrator.event_coordinator
 

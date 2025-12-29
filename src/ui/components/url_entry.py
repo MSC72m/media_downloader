@@ -62,10 +62,34 @@ class URLEntryFrame(ctk.CTkFrame):
 
         entry_config = theme_json.get("CTkEntry", {})
         if entry_config:
+            fg_color = entry_config.get("fg_color")
+            border_color = entry_config.get("border_color")
+            text_color = entry_config.get("text_color")
+
+            # Handle fg_color - extract first element if it's a list or tuple
+            if isinstance(fg_color, (list, tuple)) and len(fg_color) > 0:
+                fg_color = fg_color[0] if isinstance(fg_color[0], str) else str(fg_color[0])
+            elif not isinstance(fg_color, str):
+                fg_color = str(fg_color)
+
+            # Handle border_color - extract first element if it's a list or tuple
+            if isinstance(border_color, (list, tuple)) and len(border_color) > 0:
+                border_color = (
+                    border_color[0] if isinstance(border_color[0], str) else str(border_color[0])
+                )
+            elif not isinstance(border_color, str):
+                border_color = str(border_color)
+
+            # Handle text_color - extract first element if it's a list or tuple
+            if isinstance(text_color, (list, tuple)) and len(text_color) > 0:
+                text_color = text_color[0] if isinstance(text_color[0], str) else str(text_color[0])
+            elif not isinstance(text_color, str):
+                text_color = str(text_color)
+
             self.url_entry.configure(
-                fg_color=entry_config.get("fg_color"),
-                border_color=entry_config.get("border_color"),
-                text_color=entry_config.get("text_color"),
+                fg_color=fg_color,
+                border_color=border_color,
+                text_color=text_color,
             )
 
         button_config = theme_json.get("CTkButton", {})
@@ -74,19 +98,27 @@ class URLEntryFrame(ctk.CTkFrame):
             hover_color = button_config.get("hover_color")
             text_color = button_config.get("text_color")
 
-            if isinstance(button_color, tuple):
+            # Handle button_color - extract first element if it's a list or tuple
+            if isinstance(button_color, (list, tuple)) and len(button_color) > 0:
                 button_color = (
                     button_color[0] if isinstance(button_color[0], str) else str(button_color[0])
                 )
             elif not isinstance(button_color, str):
                 button_color = str(button_color)
 
-            if isinstance(hover_color, tuple):
+            # Handle hover_color - extract first element if it's a list or tuple
+            if isinstance(hover_color, (list, tuple)) and len(hover_color) > 0:
                 hover_color = (
                     hover_color[0] if isinstance(hover_color[0], str) else str(hover_color[0])
                 )
             elif not isinstance(hover_color, str):
                 hover_color = str(hover_color)
+
+            # Handle text_color - extract first element if it's a list or tuple
+            if isinstance(text_color, (list, tuple)) and len(text_color) > 0:
+                text_color = text_color[0] if isinstance(text_color[0], str) else str(text_color[0])
+            elif not isinstance(text_color, str):
+                text_color = str(text_color)
 
             self.add_button.configure(
                 fg_color=button_color,
