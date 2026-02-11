@@ -58,6 +58,7 @@ class RadioJavanDownloader(BaseDownloader):
         self.default_timeout = config.radiojavan.default_timeout
         self.max_retries = config.radiojavan.max_retries
         self._api_base = str(config.radiojavan.api_base_url).rstrip("/")
+        self._site_base = self._api_base.removesuffix("/api2")
         self._headers = {"User-Agent": self.config.network.user_agent}
 
     def _validate_download_inputs(self, url: str, save_path: str) -> bool:
@@ -134,27 +135,11 @@ class RadioJavanDownloader(BaseDownloader):
     def _candidate_hosts(self, media_name: str, media_type: str) -> list[str]:
         """Get candidate hosts using Radio Javan API first, then static fallbacks."""
         hosts: list[str] = []
-        endpoint_map = {
-            "mp3": "mp3s/mp3_host",
-            "mp4": "videos/video_host",
-        }
-        endpoint = endpoint_map.get(media_type)
 
-        if endpoint:
-            try:
-                response = requests.post(
-                    f"{self._api_base}/{endpoint}",
-                    params={"id": media_name},
-                    headers=self._headers,
-                    timeout=self.default_timeout,
-                )
-                response.raise_for_status()
-                payload = response.json()
-                host = payload.get("host")
-                if isinstance(host, str) and host.strip():
-                    hosts.append(self._normalize_host(host))
-            except Exception as e:
-                logger.warning(f"[RADIOJAVAN_DOWNLOADER] Host API lookup failed: {e}")
+        for endpoint in self._host_lookup_endpoints(media_type):
+            host = self._fetch_host_from_endpoint(endpoint, media_name)
+            if host:
+                hosts.append(self._normalize_host(host))
 
         configured_hosts = [self._normalize_host(h) for h in self.config.radiojavan.cdn_hosts]
         fallback_hosts = [self._normalize_host(h) for h in self.CDN_HOSTS]
@@ -169,6 +154,73 @@ class RadioJavanDownloader(BaseDownloader):
             seen.add(host)
             unique_hosts.append(host)
         return unique_hosts
+
+    def _host_lookup_endpoints(self, media_type: str) -> list[str]:
+        """Build host lookup endpoints for current media type."""
+        endpoint_map = {
+            "mp3": "mp3s/mp3_host",
+            "mp4": "videos/video_host",
+        }
+        endpoint = endpoint_map.get(media_type)
+        if not endpoint:
+            return []
+
+        # RadioJavan host endpoints are typically under the site root.
+        # Keep api2 endpoint as fallback for compatibility.
+        return [
+            f"{self._site_base}/{endpoint}",
+            f"{self._api_base}/{endpoint}",
+        ]
+
+    def _fetch_host_from_endpoint(self, endpoint: str, media_name: str) -> str | None:
+        """Fetch CDN host from a RadioJavan host endpoint."""
+        try:
+            response = requests.post(
+                endpoint,
+                params={"id": media_name},
+                headers=self._headers,
+                timeout=self.default_timeout,
+            )
+            response.raise_for_status()
+
+            if response.headers.get("cf-mitigated") == "challenge":
+                logger.warning(
+                    "[RADIOJAVAN_DOWNLOADER] Cloudflare challenge blocked host lookup: %s",
+                    endpoint,
+                )
+                return None
+
+            payload = self._parse_host_payload(response.text)
+            host = payload.get("host")
+            if isinstance(host, str) and host.strip():
+                return host
+
+            logger.debug(
+                "[RADIOJAVAN_DOWNLOADER] Host field missing in endpoint response: %s",
+                endpoint,
+            )
+            return None
+        except Exception as e:
+            logger.warning(f"[RADIOJAVAN_DOWNLOADER] Host API lookup failed ({endpoint}): {e}")
+            return None
+
+    @staticmethod
+    def _parse_host_payload(text: str) -> dict[str, str]:
+        """Parse host JSON payload from RadioJavan endpoint response."""
+        import json
+
+        try:
+            parsed = json.loads(text)
+            if isinstance(parsed, dict):
+                return {str(k): str(v) for k, v in parsed.items() if isinstance(k, str)}
+        except Exception:
+            pass
+
+        host_match = re.search(r'"host"\s*:\s*"([^"]+)"', text)
+        if host_match:
+            return {"host": host_match.group(1)}
+
+        return {}
 
     def _candidate_paths(self, media_type: str) -> list[str]:
         """Get URL path candidates for media type."""
