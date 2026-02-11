@@ -469,6 +469,50 @@ class RadioJavanConfig(BaseModel):
 
     default_timeout: int = Field(default=30, description="Default request timeout in seconds")
     max_retries: int = Field(default=3, description="Maximum number of retries")
+    session_enabled: bool = Field(
+        default=True,
+        description="Enable browser-backed session caching for Cloudflare-protected endpoints",
+    )
+    session_storage_dir: Path = Field(
+        default_factory=lambda: Path.home() / ".media_downloader",
+        description="Directory to store RadioJavan session state and cookies",
+    )
+    session_state_file_name: str = Field(
+        default="radiojavan_session_state.json",
+        description="State filename for RadioJavan session manager",
+    )
+    session_data_file_name: str = Field(
+        default="radiojavan_session.json",
+        description="Session payload filename for RadioJavan manager",
+    )
+    session_ttl_hours: int = Field(
+        default=4,
+        description="How long a RadioJavan browser session stays valid before refresh",
+    )
+    session_refresh_margin_minutes: int = Field(
+        default=20,
+        description="Refresh session this many minutes before TTL expiry",
+    )
+    session_headless: bool = Field(
+        default=True,
+        description="Use headless browser for RadioJavan session generation",
+    )
+    session_generation_timeout_seconds: int = Field(
+        default=45,
+        description="Timeout per browser navigation during session generation",
+    )
+    session_wait_after_load_seconds: float = Field(
+        default=6.0,
+        description="Wait window after page loads to allow challenge completion",
+    )
+    session_bootstrap_url: str = Field(
+        default="https://www.radiojavan.com/",
+        description="Initial page to open for browser-backed session extraction",
+    )
+    session_validation_url: str = Field(
+        default="https://www.radiojavan.com/mp3s/mp3_host?id=shadmehr-asteni",
+        description="Endpoint used to validate that stored session can pass challenge",
+    )
     url_patterns: list[str] = Field(
         default_factory=lambda: [
             r"^https?://(?:www\.)?play\.radiojavan\.com/(?:mp3|mp4|song)/[\w-]+",

@@ -1,12 +1,16 @@
+from __future__ import annotations
+
 import os
 import re
 from collections.abc import Callable
 from typing import ClassVar
+from urllib.parse import quote
 
 import requests
 
 from src.core.config import get_config
 from src.core.interfaces import BaseDownloader, IErrorNotifier, IFileService
+from src.services.cookies import RadioJavanSessionManager
 from src.services.network.downloader import download_file
 
 from ...utils.logger import get_logger
@@ -45,12 +49,14 @@ class RadioJavanDownloader(BaseDownloader):
     ]
 
     MIN_FILE_SIZE = 1024
+    PLAY_SEARCH_BASE: ClassVar[str] = "https://play.radiojavan.com/search"
 
     def __init__(
         self,
         error_handler: IErrorNotifier | None = None,
         file_service: IFileService | None = None,
         config=None,
+        session_manager: RadioJavanSessionManager | None = None,
     ):
         if config is None:
             config = get_config()
@@ -59,7 +65,37 @@ class RadioJavanDownloader(BaseDownloader):
         self.max_retries = config.radiojavan.max_retries
         self._api_base = str(config.radiojavan.api_base_url).rstrip("/")
         self._site_base = self._api_base.removesuffix("/api2")
-        self._headers = {"User-Agent": self.config.network.user_agent}
+        self._base_headers = {"User-Agent": self.config.network.user_agent}
+        self._session_manager = session_manager or RadioJavanSessionManager(config=self.config)
+
+    def _request_context(
+        self,
+        force_refresh: bool = False,
+    ) -> tuple[dict[str, str], requests.cookies.RequestsCookieJar | None]:
+        """Build headers/cookies context for requests calls."""
+        default_headers = dict(self._base_headers)
+        if not self.config.radiojavan.session_enabled:
+            return default_headers, None
+
+        context = self._session_manager.get_request_context(force_refresh=force_refresh)
+        if not context:
+            return default_headers, None
+
+        session_headers, session_cookies = context
+        merged_headers = {**default_headers, **session_headers}
+        return merged_headers, session_cookies
+
+    @staticmethod
+    def _is_challenge_response(
+        text: str,
+        cf_mitigated: str | None,
+        status_code: int,
+    ) -> bool:
+        return RadioJavanSessionManager.is_challenge_response(
+            text=text,
+            cf_mitigated=cf_mitigated,
+            status_code=status_code,
+        )
 
     def _validate_download_inputs(self, url: str, save_path: str) -> bool:
         """Validate download inputs.
@@ -132,6 +168,24 @@ class RadioJavanDownloader(BaseDownloader):
             return cleaned
         return f"https://{cleaned}"
 
+    @staticmethod
+    def _normalize_slug(value: str) -> str:
+        return re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+
+    @staticmethod
+    def _requires_session_for_url(url: str) -> bool:
+        lowered = url.lower()
+        return "radiojavan.com" in lowered or "rj.app" in lowered
+
+    def _request_context_for_url(
+        self,
+        url: str,
+        force_refresh: bool = False,
+    ) -> tuple[dict[str, str], requests.cookies.RequestsCookieJar | None]:
+        if not self._requires_session_for_url(url):
+            return dict(self._base_headers), None
+        return self._request_context(force_refresh=force_refresh)
+
     def _candidate_hosts(self, media_name: str, media_type: str) -> list[str]:
         """Get candidate hosts using Radio Javan API first, then static fallbacks."""
         hosts: list[str] = []
@@ -174,21 +228,52 @@ class RadioJavanDownloader(BaseDownloader):
 
     def _fetch_host_from_endpoint(self, endpoint: str, media_name: str) -> str | None:
         """Fetch CDN host from a RadioJavan host endpoint."""
-        try:
-            response = requests.post(
-                endpoint,
-                params={"id": media_name},
-                headers=self._headers,
-                timeout=self.default_timeout,
-            )
-            response.raise_for_status()
-
-            if response.headers.get("cf-mitigated") == "challenge":
+        for attempt in range(2):
+            force_refresh = attempt == 1
+            headers, cookies = self._request_context(force_refresh=force_refresh)
+            try:
+                response = requests.post(
+                    endpoint,
+                    params={"id": media_name},
+                    headers=headers,
+                    cookies=cookies,
+                    timeout=self.default_timeout,
+                )
+                response.raise_for_status()
+            except Exception as e:
+                if force_refresh:
+                    logger.warning(
+                        "[RADIOJAVAN_DOWNLOADER] Host API lookup failed after refresh (%s): %s",
+                        endpoint,
+                        e,
+                    )
+                    return None
                 logger.warning(
-                    "[RADIOJAVAN_DOWNLOADER] Cloudflare challenge blocked host lookup: %s",
+                    "[RADIOJAVAN_DOWNLOADER] Host API lookup failed (%s), retrying with "
+                    "refreshed session: %s",
+                    endpoint,
+                    e,
+                )
+                continue
+
+            if self._is_challenge_response(
+                text=response.text,
+                cf_mitigated=response.headers.get("cf-mitigated"),
+                status_code=response.status_code,
+            ):
+                if force_refresh:
+                    logger.warning(
+                        "[RADIOJAVAN_DOWNLOADER] Challenge still present after session refresh: %s",
+                        endpoint,
+                    )
+                    return None
+                logger.warning(
+                    "[RADIOJAVAN_DOWNLOADER] Challenge detected for host lookup, refreshing "
+                    "session and retrying: %s",
                     endpoint,
                 )
-                return None
+                self._session_manager.invalidate_and_refresh()
+                continue
 
             payload = self._parse_host_payload(response.text)
             host = payload.get("host")
@@ -200,9 +285,8 @@ class RadioJavanDownloader(BaseDownloader):
                 endpoint,
             )
             return None
-        except Exception as e:
-            logger.warning(f"[RADIOJAVAN_DOWNLOADER] Host API lookup failed ({endpoint}): {e}")
-            return None
+
+        return None
 
     @staticmethod
     def _parse_host_payload(text: str) -> dict[str, str]:
@@ -226,6 +310,134 @@ class RadioJavanDownloader(BaseDownloader):
         """Get URL path candidates for media type."""
         return self.MP3_PATHS if media_type == "mp3" else self.MP4_PATHS
 
+    @classmethod
+    def _search_query_candidates(cls, media_name: str) -> list[str]:
+        words = [token for token in cls._normalize_slug(media_name).split("-") if token]
+        if not words:
+            return []
+
+        candidates = [
+            " ".join(words),
+            " ".join(words[:2]),
+            words[0],
+        ]
+
+        deduped: list[str] = []
+        seen: set[str] = set()
+        for candidate in candidates:
+            cleaned = candidate.strip()
+            if not cleaned or cleaned in seen:
+                continue
+            seen.add(cleaned)
+            deduped.append(cleaned)
+        return deduped
+
+    @staticmethod
+    def _extract_media_entries_from_play_html(
+        html: str,
+        media_type: str,
+    ) -> list[tuple[str, str]]:
+        match media_type:
+            case "mp3":
+                extension = "mp3"
+            case "mp4":
+                extension = "mp4"
+            case _:
+                return []
+
+        normalized_html = html.replace('\\"', '"').replace("\\/", "/")
+        pattern = re.compile(
+            rf'"link":"(https://[^"]+?\.{extension})".{{0,4000}}?"permlink":"([^"]+)"',
+            re.S,
+        )
+        entries: list[tuple[str, str]] = []
+        for link, permlink in pattern.findall(normalized_html):
+            entries.append((permlink, link))
+        return entries
+
+    @classmethod
+    def _select_best_media_link(
+        cls,
+        media_name: str,
+        entries: list[tuple[str, str]],
+    ) -> str | None:
+        if not entries:
+            return None
+
+        target = cls._normalize_slug(media_name)
+        exact_match = next(
+            (link for permlink, link in entries if cls._normalize_slug(permlink) == target),
+            None,
+        )
+        if exact_match:
+            return exact_match
+
+        partial_match = next(
+            (
+                link
+                for permlink, link in entries
+                if target in cls._normalize_slug(permlink)
+                or cls._normalize_slug(permlink) in target
+            ),
+            None,
+        )
+        if partial_match:
+            return partial_match
+
+        return None
+
+    def _resolve_direct_media_url_from_play(
+        self,
+        media_name: str,
+        media_type: str,
+    ) -> str | None:
+        headers = {
+            **self._base_headers,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+        }
+
+        for query in self._search_query_candidates(media_name):
+            search_url = f"{self.PLAY_SEARCH_BASE}/{quote(query)}"
+            try:
+                response = requests.get(
+                    search_url,
+                    headers=headers,
+                    timeout=self.default_timeout,
+                    allow_redirects=True,
+                )
+                response.raise_for_status()
+            except requests.RequestException as e:
+                logger.debug(
+                    "[RADIOJAVAN_DOWNLOADER] Play search lookup failed (%s): %s",
+                    search_url,
+                    e,
+                )
+                continue
+
+            cf_mitigated = response.headers.get("cf-mitigated")
+            if cf_mitigated == "challenge":
+                continue
+            if response.status_code == 403 and self._is_challenge_response(
+                text=response.text,
+                cf_mitigated=cf_mitigated,
+                status_code=response.status_code,
+            ):
+                continue
+
+            entries = self._extract_media_entries_from_play_html(response.text, media_type)
+            direct_link = self._select_best_media_link(media_name, entries)
+            if not direct_link:
+                continue
+
+            logger.info(
+                "[RADIOJAVAN_DOWNLOADER] Resolved direct %s URL via play search: %s",
+                media_type,
+                direct_link,
+            )
+            return direct_link
+        return None
+
     def _construct_download_url(self, url: str) -> str | None:
         """Construct direct download URL from Radio Javan URL.
 
@@ -243,6 +455,10 @@ class RadioJavanDownloader(BaseDownloader):
         if not media_type:
             logger.warning(f"[RADIOJAVAN_DOWNLOADER] Could not detect media type: {url}")
             return None
+
+        direct_link = self._resolve_direct_media_url_from_play(media_name, media_type)
+        if direct_link:
+            return direct_link
 
         hosts = self._candidate_hosts(media_name, media_type)
         paths = self._candidate_paths(media_type)
@@ -267,7 +483,7 @@ class RadioJavanDownloader(BaseDownloader):
         logger.warning(f"[RADIOJAVAN_DOWNLOADER] Could not construct valid URL for: {url}")
         return None
 
-    def _validate_url(self, url: str) -> bool:
+    def _validate_url(self, url: str) -> bool:  # noqa: PLR0911, PLR0912
         """Validate if URL returns a valid file.
 
         Args:
@@ -276,47 +492,82 @@ class RadioJavanDownloader(BaseDownloader):
         Returns:
             True if valid file, False otherwise
         """
-        try:
-            logger.debug(f"[RADIOJAVAN_DOWNLOADER] Validating URL: {url}")
-            response = requests.head(
-                url,
-                timeout=self.default_timeout,
-                allow_redirects=True,
-                headers=self._headers,
-            )
-            response.raise_for_status()
-            content_type = response.headers.get("content-type", "").lower()
-            if not any(token in content_type for token in ("audio", "video", "octet-stream")):
+        for attempt in range(2):
+            force_refresh = attempt == 1
+            headers, cookies = self._request_context_for_url(url, force_refresh=force_refresh)
+            try:
+                logger.debug(f"[RADIOJAVAN_DOWNLOADER] Validating URL via HEAD: {url}")
+                response = requests.head(
+                    url,
+                    timeout=self.default_timeout,
+                    allow_redirects=True,
+                    headers=headers,
+                    cookies=cookies,
+                )
+                response.raise_for_status()
+
+                if self._is_challenge_response(
+                    text=response.text,
+                    cf_mitigated=response.headers.get("cf-mitigated"),
+                    status_code=response.status_code,
+                ):
+                    if not self._requires_session_for_url(url):
+                        return False
+                    if force_refresh:
+                        return False
+                    self._session_manager.invalidate_and_refresh()
+                    continue
+
+                content_type = response.headers.get("content-type", "").lower()
+                if not any(token in content_type for token in ("audio", "video", "octet-stream")):
+                    return False
+
+                content_length = response.headers.get("content-length", "0")
+                file_size = int(content_length) if content_length.isdigit() else 0
+                if file_size and file_size < self.MIN_FILE_SIZE:
+                    logger.warning(f"[RADIOJAVAN_DOWNLOADER] File too small: {file_size} bytes")
+                    return False
+
+                logger.debug(f"[RADIOJAVAN_DOWNLOADER] URL valid: {file_size} bytes")
+                return True
+            except requests.RequestException:
+                continue
+
+        for attempt in range(2):
+            force_refresh = attempt == 1
+            headers, cookies = self._request_context_for_url(url, force_refresh=force_refresh)
+            try:
+                response = requests.get(
+                    url,
+                    timeout=self.default_timeout,
+                    allow_redirects=True,
+                    headers={**headers, "Range": "bytes=0-1"},
+                    cookies=cookies,
+                    stream=True,
+                )
+                response.raise_for_status()
+
+                if self._is_challenge_response(
+                    text=response.text,
+                    cf_mitigated=response.headers.get("cf-mitigated"),
+                    status_code=response.status_code,
+                ):
+                    if not self._requires_session_for_url(url):
+                        return False
+                    if force_refresh:
+                        return False
+                    self._session_manager.invalidate_and_refresh()
+                    continue
+
+                content_type = response.headers.get("content-type", "").lower()
+                return any(token in content_type for token in ("audio", "video", "octet-stream"))
+            except requests.RequestException as e:
+                logger.debug(f"[RADIOJAVAN_DOWNLOADER] URL validation failed: {e}")
+            except Exception as e:
+                logger.error(f"[RADIOJAVAN_DOWNLOADER] Error validating URL: {e}")
                 return False
 
-            content_length = response.headers.get("content-length", "0")
-            file_size = int(content_length) if content_length.isdigit() else 0
-            if file_size and file_size < self.MIN_FILE_SIZE:
-                logger.warning(f"[RADIOJAVAN_DOWNLOADER] File too small: {file_size} bytes")
-                return False
-
-            logger.debug(f"[RADIOJAVAN_DOWNLOADER] URL valid: {file_size} bytes")
-            return True
-        except requests.RequestException:
-            pass
-
-        try:
-            response = requests.get(
-                url,
-                timeout=self.default_timeout,
-                allow_redirects=True,
-                headers={**self._headers, "Range": "bytes=0-1"},
-                stream=True,
-            )
-            response.raise_for_status()
-            content_type = response.headers.get("content-type", "").lower()
-            return any(token in content_type for token in ("audio", "video", "octet-stream"))
-        except requests.RequestException as e:
-            logger.debug(f"[RADIOJAVAN_DOWNLOADER] URL validation failed: {e}")
-            return False
-        except Exception as e:
-            logger.error(f"[RADIOJAVAN_DOWNLOADER] Error validating URL: {e}")
-            return False
+        return False
 
     def download(
         self,
@@ -348,9 +599,32 @@ class RadioJavanDownloader(BaseDownloader):
                 self.error_handler.handle_service_failure("Radio Javan", "download", error_msg, url)
             return False
 
+        headers, cookies = self._request_context_for_url(download_url, force_refresh=False)
+        if download_file(
+            url=download_url,
+            save_path=save_path,
+            progress_callback=progress_callback,
+            config=self.config,
+            headers=headers,
+            cookies=cookies,
+        ):
+            return True
+
+        if not self.config.radiojavan.session_enabled:
+            return False
+        if not self._requires_session_for_url(download_url):
+            return False
+
+        logger.warning(
+            "[RADIOJAVAN_DOWNLOADER] Download failed, retrying once with refreshed session"
+        )
+        self._session_manager.invalidate_and_refresh()
+        headers, cookies = self._request_context_for_url(download_url, force_refresh=True)
         return download_file(
             url=download_url,
             save_path=save_path,
             progress_callback=progress_callback,
             config=self.config,
+            headers=headers,
+            cookies=cookies,
         )

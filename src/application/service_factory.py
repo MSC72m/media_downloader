@@ -1,6 +1,7 @@
 from src.core.config import AppConfig, get_config
 from src.core.enums import ServiceType
 from src.core.interfaces import IErrorNotifier, IFileService
+from src.services.cookies import RadioJavanSessionManager
 from src.services.instagram import InstagramAuthManager
 from src.services.instagram.downloader import InstagramDownloader
 from src.services.pinterest.downloader import PinterestDownloader
@@ -31,6 +32,7 @@ class ServiceFactory:
         self.instagram_auth_manager = instagram_auth_manager
         self.file_service = file_service
         self.config = config
+        self.radiojavan_session_manager = RadioJavanSessionManager(config=self.config)
         logger.info("[SERVICE_FACTORY] Initialized")
 
     def get_cookie_handler(self):
@@ -102,6 +104,7 @@ class ServiceFactory:
                 error_handler=self.error_handler,
                 file_service=self.file_service,
                 config=self.config,
+                session_manager=self.radiojavan_session_manager,
             ),
             ServiceType.SPOTIFY: lambda: SpotifyDownloader(
                 error_handler=self.error_handler,

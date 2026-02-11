@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import time
 from collections.abc import Callable
@@ -16,6 +18,8 @@ def download_file(
     progress_callback: Callable[[float, float], None] | None = None,
     chunk_size: int | None = None,
     config=None,
+    headers: dict[str, str] | None = None,
+    cookies: requests.cookies.RequestsCookieJar | dict[str, str] | None = None,
 ) -> bool:
     """Download a file from URL.
 
@@ -38,9 +42,16 @@ def download_file(
     temp_file = f"{save_path}.part"
 
     try:
-        headers = {"User-Agent": config.network.user_agent}
+        request_headers = {"User-Agent": config.network.user_agent}
+        if headers:
+            request_headers.update(headers)
+
         response = session.get(
-            url, stream=True, headers=headers, timeout=config.network.default_timeout
+            url,
+            stream=True,
+            headers=request_headers,
+            cookies=cookies,
+            timeout=config.network.default_timeout,
         )
         response.raise_for_status()
 
@@ -79,3 +90,5 @@ def download_file(
         if os.path.exists(temp_file):
             os.remove(temp_file)
         return False
+    finally:
+        session.close()
