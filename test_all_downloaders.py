@@ -45,8 +45,8 @@ YOUTUBE_URLS = [
 ]
 
 TWITTER_URLS = [
-    "https://x.com/NASA/status/1486437248879259651",  # NASA tweet with media
-    "https://twitter.com/SpaceX/status/1604964582933white",  # May not resolve
+    "https://x.com/Interior/status/463440424141459456",  # Stable tweet with image media
+    "https://x.com/jack/status/20",  # Historical tweet (text-only)
 ]
 
 PINTEREST_URLS = [
@@ -60,7 +60,7 @@ SPOTIFY_URLS = [
 ]
 
 SOUNDCLOUD_URLS = [
-    "https://soundcloud.com/octobersveryown/drake-one-dance",
+    "https://soundcloud.com/forss/flickermood",
 ]
 
 RADIOJAVAN_URLS = [
@@ -246,15 +246,15 @@ class DownloaderTestSuite:
 
         # Test scraping
         def test_scrape(u):
-            tweet_ids = TwitterDownloader._extract_tweet_ids(u)
-            if not tweet_ids:
-                raise RuntimeError("No tweet IDs extracted")
-            # Try to scrape data via vxtwitter
-            data = downloader._scrape_tweet_data(tweet_ids[0])
+            tweet_refs = TwitterDownloader._extract_tweet_references(u)
+            if not tweet_refs:
+                raise RuntimeError("No tweet references extracted")
+            username, tweet_id = tweet_refs[0]
+            data = downloader._scrape_tweet_data(tweet_id, username)
             if not data:
                 raise RuntimeError("Failed to scrape tweet data")
             return {
-                "tweet_ids": tweet_ids,
+                "tweet_refs": tweet_refs,
                 "has_media": bool(data.get("media")),
                 "has_text": bool(data.get("text")),
                 "media_count": len(data.get("media", [])),
@@ -538,7 +538,8 @@ class DownloaderTestSuite:
         from src.services.cookies.cookie_generator import CookieGenerator
 
         # Test Netscape file validation
-        def test_netscape_validation(_u):
+        def test_netscape_validation(url_input):
+            del url_input
             generator = CookieGenerator(storage_dir=Path(self.tmp_dir) / "cookies")
             # Create a sample Netscape file
             cookie_dir = Path(self.tmp_dir) / "cookies"
@@ -557,13 +558,14 @@ class DownloaderTestSuite:
         self._run_test("Cookies", "netscape_validation", "N/A", test_netscape_validation)
 
         # Test cookie file on disk
-        def test_existing_cookies(_u):
+        def test_existing_cookies(url_input):
+            del url_input
             cookie_path = Path.home() / ".media_downloader" / "cookies.txt"
             if not cookie_path.exists():
                 raise RuntimeError(f"No cookie file at {cookie_path}")
             size = cookie_path.stat().st_size
             lines = cookie_path.read_text().strip().split("\n")
-            data_lines = [l for l in lines if l.strip() and not l.startswith("#")]
+            data_lines = [line for line in lines if line.strip() and not line.startswith("#")]
             return {
                 "path": str(cookie_path),
                 "size_bytes": size,
@@ -593,7 +595,8 @@ class DownloaderTestSuite:
 
         for svc in services:
 
-            def test_conn(_u, service=svc):
+            def test_conn(url_input, service=svc):
+                del url_input
                 connected, error_msg = check_site_connection(service)
                 if not connected:
                     raise RuntimeError(f"Connection failed: {error_msg}")
@@ -622,10 +625,7 @@ class DownloaderTestSuite:
             "tiktok": self.test_tiktok,
         }
 
-        if services:
-            selected = {k: v for k, v in all_tests.items() if k in services}
-        else:
-            selected = all_tests
+        selected = {k: v for k, v in all_tests.items() if k in services} if services else all_tests
 
         for name, test_fn in selected.items():
             try:
