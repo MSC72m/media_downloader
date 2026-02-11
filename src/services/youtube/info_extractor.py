@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 from typing import Any, cast
 
@@ -233,6 +234,11 @@ class YouTubeInfoExtractor:
             "nocheckcertificate": True,
             "socket_timeout": 15,
         }
+
+        # Enable EJS support when Node.js is available to improve YouTube signature handling.
+        if shutil.which("node"):
+            opts["js_runtimes"] = {"node": {}}
+            opts["remote_components"] = "ejs:github"
 
         # Auth source
         if cookie_path:

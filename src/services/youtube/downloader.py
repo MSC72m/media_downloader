@@ -2,6 +2,7 @@
 
 import copy
 import os
+import shutil
 import time
 from collections.abc import Callable
 from typing import Any
@@ -78,6 +79,10 @@ class YouTubeDownloader(BaseDownloader):
             "writethumbnail": self.download_thumbnail,
             "embedmetadata": self.embed_metadata,
         }
+
+        if shutil.which("node"):
+            options["js_runtimes"] = {"node": {}}
+            options["remote_components"] = "ejs:github"
 
         # Add speed limit if specified
         if self.speed_limit:
