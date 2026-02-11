@@ -1,13 +1,12 @@
 import os
-import time
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any
 
 import yt_dlp
 
-from src.core.config import AppConfig, get_config
+from src.core.config import get_config
 from src.core.interfaces import BaseDownloader, IErrorNotifier, IFileService
+
 from ...utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -118,7 +117,7 @@ class TikTokDownloader(BaseDownloader):
         self,
         url: str,
         save_path: str,
-        progress_callback: Callable[[float, float], None] = None,
+        progress_callback: Callable[[float, float], None] | None = None,
     ) -> bool:
         """Download a TikTok video.
 

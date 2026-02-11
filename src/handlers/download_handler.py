@@ -9,7 +9,6 @@ from urllib.parse import urlparse
 from src.core.config import AppConfig, get_config
 from src.core.enums import ServiceType
 from src.core.enums.download_status import DownloadStatus
-from src.core.enums.message_level import MessageLevel
 from src.core.interfaces import (
     IAutoCookieManager,
     ICookieHandler,
@@ -22,7 +21,6 @@ from src.core.interfaces import (
     IUIState,
 )
 from src.core.models import Download, DownloadOptions
-from src.services.events.queue import Message
 from src.services.notifications.notifier import NotifierService
 from src.utils.logger import get_logger
 
@@ -400,6 +398,17 @@ class DownloadHandler(IDownloadHandler):
                 self.error_handler.handle_exception(
                     e, "Invoking completion callback", "Download Handler"
                 )
+
+    def cancel_download(self, download: Download) -> None:
+        """Cancel a specific download.
+
+        Args:
+            download: The download to cancel
+        """
+        if download.status in {DownloadStatus.PENDING, DownloadStatus.DOWNLOADING}:
+            download.status = DownloadStatus.FAILED
+            download.error_message = "Cancelled by user"
+            logger.info(f"[DOWNLOAD_HANDLER] Cancelled download: {download.name}")
 
     def has_active_downloads(self) -> bool:
         """Check if there are active downloads."""

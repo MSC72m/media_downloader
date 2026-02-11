@@ -18,12 +18,14 @@ import customtkinter as ctk  # noqa: E402
 
 from src.core import get_application_orchestrator  # noqa: E402
 from src.core.config import get_config  # noqa: E402
+from src.ui.components.concurrent_downloads_selector import (  # noqa: E402
+    ConcurrentDownloadsSelector,
+)
 from src.ui.components.download_list import DownloadListView  # noqa: E402
 from src.ui.components.main_action_buttons import ActionButtonBar  # noqa: E402
 from src.ui.components.options_bar import OptionsBar  # noqa: E402
 from src.ui.components.status_bar import StatusBar  # noqa: E402
 from src.ui.components.theme_switcher import ThemeSwitcher  # noqa: E402
-from src.ui.components.concurrent_downloads_selector import ConcurrentDownloadsSelector  # noqa: E402
 from src.ui.components.url_entry import URLEntryFrame  # noqa: E402
 from src.ui.utils.theme_manager import get_theme_manager  # noqa: E402
 

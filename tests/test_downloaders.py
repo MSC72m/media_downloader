@@ -8,6 +8,7 @@ from src.application.service_factory import ServiceFactory
 from src.core.enums import ServiceType
 from src.core.interfaces import IErrorNotifier, IFileService
 from src.services.pinterest.downloader import PinterestDownloader
+from src.services.spotify.downloader import SpotifyDownloader
 from src.services.youtube.downloader import YouTubeDownloader
 
 
@@ -95,7 +96,9 @@ class TestPinterestDownloader:
         mock_check.return_value = (True, None)
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.content = b"<html><meta property='og:image' content='https://example.com/image.jpg'/></html>"
+        mock_response.content = (
+            b"<html><meta property='og:image' content='https://example.com/image.jpg'/></html>"
+        )
         mock_get.return_value = mock_response
 
         downloader = PinterestDownloader(
@@ -133,9 +136,11 @@ class TestYouTubeDownloaderFormatFallback:
             error_handler=MockErrorNotifier(), file_service=MockFileService()
         )
 
-        with patch("os.path.exists", return_value=True), patch(
-            "os.path.getsize", return_value=1000
-        ), patch("os.makedirs"):
+        with (
+            patch("os.path.exists", return_value=True),
+            patch("os.path.getsize", return_value=1000),
+            patch("os.makedirs"),
+        ):
             result = downloader.download("https://youtube.com/watch?v=test", "/tmp/test.mp4")
 
         assert mock_ydl.extract_info.call_count >= 1
@@ -183,9 +188,11 @@ class TestYouTubeDownloaderFormatFallback:
             error_handler=MockErrorNotifier(), file_service=MockFileService()
         )
 
-        with patch("os.path.exists", return_value=True), patch(
-            "os.path.getsize", return_value=1000
-        ), patch("os.makedirs"):
+        with (
+            patch("os.path.exists", return_value=True),
+            patch("os.path.getsize", return_value=1000),
+            patch("os.makedirs"),
+        ):
             result = downloader.download("https://youtube.com/watch?v=test", "/tmp/test.mp4")
 
         assert mock_ydl.extract_info.call_count >= 2
@@ -219,7 +226,9 @@ class TestDownloadStateManagement:
         buttons_callback = Mock()
         coordinator.set_ui_callbacks({"set_action_buttons_enabled": buttons_callback})
 
-        download1 = Download(url="https://test.com/1", name="test1", status=DownloadStatus.COMPLETED)
+        download1 = Download(
+            url="https://test.com/1", name="test1", status=DownloadStatus.COMPLETED
+        )
         coordinator._on_completed_event(download1)
 
         buttons_callback.assert_called_with(False)
@@ -248,7 +257,9 @@ class TestDownloadStateManagement:
         buttons_callback = Mock()
         coordinator.set_ui_callbacks({"set_action_buttons_enabled": buttons_callback})
 
-        download1 = Download(url="https://test.com/1", name="test1", status=DownloadStatus.COMPLETED)
+        download1 = Download(
+            url="https://test.com/1", name="test1", status=DownloadStatus.COMPLETED
+        )
         coordinator._on_completed_event(download1)
 
         buttons_callback.assert_called_with(True)
@@ -282,3 +293,216 @@ class TestDownloadStateManagement:
         coordinator._on_failed_event(download1, "Test error")
 
         buttons_callback.assert_called_with(False)
+
+
+class TestServiceFactorySpotifyDetection:
+    """Test Spotify URL detection in service factory."""
+
+    def test_detect_spotify_track_url(self):
+        """Test detection of Spotify track URLs."""
+        factory = ServiceFactory(cookie_manager=Mock())
+        service_type = factory.detect_service_type(
+            "https://open.spotify.com/track/4iV5W9uYEdYUVa79Axb7Rh"
+        )
+        assert service_type == ServiceType.SPOTIFY
+
+    def test_detect_spotify_album_url(self):
+        """Test detection of Spotify album URLs."""
+        factory = ServiceFactory(cookie_manager=Mock())
+        service_type = factory.detect_service_type(
+            "https://open.spotify.com/album/1DFixLWuPkv3KT3TnV35m3"
+        )
+        assert service_type == ServiceType.SPOTIFY
+
+    def test_detect_spotify_playlist_url(self):
+        """Test detection of Spotify playlist URLs."""
+        factory = ServiceFactory(cookie_manager=Mock())
+        service_type = factory.detect_service_type(
+            "https://open.spotify.com/playlist/37i9dQZF1DX0XUsuxWHRQd"
+        )
+        assert service_type == ServiceType.SPOTIFY
+
+    def test_detect_spotify_artist_url(self):
+        """Test detection of Spotify artist URLs."""
+        factory = ServiceFactory(cookie_manager=Mock())
+        service_type = factory.detect_service_type(
+            "https://open.spotify.com/artist/0TnOYISbd1XYRBk9myaseg"
+        )
+        assert service_type == ServiceType.SPOTIFY
+
+    def test_detect_spotify_uri(self):
+        """Test detection of Spotify URI format."""
+        factory = ServiceFactory(cookie_manager=Mock())
+        service_type = factory.detect_service_type("spotify:track:4iV5W9uYEdYUVa79Axb7Rh")
+        assert service_type == ServiceType.GENERIC
+
+    def test_detect_spotify_short_url(self):
+        """Test detection of Spotify short URLs."""
+        factory = ServiceFactory(cookie_manager=Mock())
+        service_type = factory.detect_service_type("https://spotify.link/abc123")
+        assert service_type == ServiceType.SPOTIFY
+
+    def test_get_spotify_downloader(self):
+        """Test getting Spotify downloader for Spotify URLs."""
+        factory = ServiceFactory(
+            cookie_manager=Mock(),
+            error_handler=MockErrorNotifier(),
+            file_service=MockFileService(),
+        )
+        downloader = factory.get_downloader("https://open.spotify.com/track/4iV5W9uYEdYUVa79Axb7Rh")
+        assert isinstance(downloader, SpotifyDownloader)
+
+    def test_spotify_not_fallback_to_youtube(self):
+        """Test that Spotify URLs don't fallback to YouTube."""
+        factory = ServiceFactory(cookie_manager=Mock())
+        service_type = factory.detect_service_type(
+            "https://open.spotify.com/track/4iV5W9uYEdYUVa79Axb7Rh"
+        )
+        assert service_type != ServiceType.YOUTUBE
+        assert service_type == ServiceType.SPOTIFY
+
+
+class TestSpotifyDownloader:
+    """Test Spotify downloader functionality."""
+
+    @patch("src.services.spotify.downloader.requests.get")
+    def test_spotify_downloader_metadata_extraction(self, mock_get):
+        """Test Spotify downloader metadata extraction."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "thumbnail_url": "https://example.com/image.jpg",
+            "title": "Test Artist - Test Track",
+            "type": "rich",
+            "html": "",
+        }
+        mock_get.return_value = mock_response
+
+        downloader = SpotifyDownloader(
+            error_handler=MockErrorNotifier(), file_service=MockFileService()
+        )
+        metadata = downloader._extract_spotify_metadata(
+            "https://open.spotify.com/track/4iV5W9uYEdYUVa79Axb7Rh"
+        )
+
+        assert metadata is not None
+        assert metadata["title"] == "Test Artist - Test Track"
+        assert metadata["thumbnail"] == "https://example.com/image.jpg"
+
+    @patch("src.services.spotify.downloader.requests.get")
+    def test_spotify_downloader_url_type_detection(self, mock_get):
+        """Test Spotify downloader URL type detection."""
+        downloader = SpotifyDownloader(
+            error_handler=MockErrorNotifier(), file_service=MockFileService()
+        )
+
+        assert downloader._detect_url_type("https://open.spotify.com/track/abc123") == "track"
+        assert downloader._detect_url_type("https://open.spotify.com/album/abc123") == "album"
+        assert downloader._detect_url_type("https://open.spotify.com/playlist/abc123") == "playlist"
+        assert downloader._detect_url_type("https://open.spotify.com/artist/abc123") == "artist"
+
+    def test_spotify_downloader_artist_track_parsing(self):
+        """Test Spotify downloader artist-track parsing."""
+        downloader = SpotifyDownloader(
+            error_handler=MockErrorNotifier(), file_service=MockFileService()
+        )
+
+        artist, track = downloader._parse_artist_track("Artist - Track Name")
+        assert artist == "Artist"
+        assert track == "Track Name"
+
+        artist, track = downloader._parse_artist_track("Track Name by Artist")
+        assert artist == "Artist"
+        assert track == "Track Name"
+
+        artist, track = downloader._parse_artist_track("Artist Track Name")
+        assert artist == ""
+        assert track == "Artist Track Name"
+
+    @patch("src.services.spotify.downloader.yt_dlp.YoutubeDL")
+    @patch("src.services.spotify.downloader.requests.get")
+    def test_spotify_downloader_youtube_search(self, mock_get, mock_ydl_class):
+        """Test Spotify downloader YouTube search."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "thumbnail_url": "https://example.com/image.jpg",
+            "title": "Test Artist - Test Track",
+            "type": "rich",
+        }
+        mock_get.return_value = mock_response
+
+        mock_ydl = MagicMock()
+        mock_ydl.extract_info.return_value = {
+            "entries": [
+                {
+                    "id": "video1",
+                    "title": "Test Artist - Test Track (Official)",
+                    "duration": 240,
+                    "url": "https://youtube.com/watch?v=video1",
+                }
+            ]
+        }
+        mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+        mock_ydl_class.return_value.__exit__.return_value = None
+
+        downloader = SpotifyDownloader(
+            error_handler=MockErrorNotifier(), file_service=MockFileService()
+        )
+        results = downloader._search_youtube("Test Artist", "Test Track")
+
+        assert len(results) > 0
+        assert results[0]["id"] == "video1"
+
+    def test_spotify_downloader_similarity_calculation(self):
+        """Test Spotify downloader similarity calculation."""
+        downloader = SpotifyDownloader(
+            error_handler=MockErrorNotifier(), file_service=MockFileService()
+        )
+
+        similarity = downloader._calculate_similarity(
+            "Test Artist - Test Track", "Test Artist - Test Track (Official)"
+        )
+        assert similarity > 0.8
+
+        similarity = downloader._calculate_similarity(
+            "Test Artist - Test Track", "Completely Different Title"
+        )
+        assert similarity < 0.5
+
+    @patch("src.services.spotify.downloader.requests.get")
+    @patch("src.services.spotify.downloader.yt_dlp.YoutubeDL")
+    def test_spotify_downloader_get_metadata_track(self, mock_ydl_class, mock_get):
+        """Test Spotify downloader get_metadata for track."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "thumbnail_url": "https://example.com/image.jpg",
+            "title": "Test Artist - Test Track",
+            "type": "rich",
+        }
+        mock_get.return_value = mock_response
+
+        mock_ydl = MagicMock()
+        mock_ydl.extract_info.return_value = {
+            "entries": [
+                {
+                    "id": "video1",
+                    "title": "Test Artist - Test Track (Official)",
+                    "duration": 240,
+                    "url": "https://youtube.com/watch?v=video1",
+                }
+            ]
+        }
+        mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+        mock_ydl_class.return_value.__exit__.return_value = None
+
+        downloader = SpotifyDownloader(
+            error_handler=MockErrorNotifier(), file_service=MockFileService()
+        )
+        metadata = downloader.get_metadata("https://open.spotify.com/track/4iV5W9uYEdYUVa79Axb7Rh")
+
+        assert metadata is not None
+        assert metadata["title"] == "Test Artist - Test Track"
+        assert metadata["thumbnail"] == "https://example.com/image.jpg"
+        assert metadata["type"] == "track"

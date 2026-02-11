@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from src.core.config import AppConfig, get_config
+import customtkinter as ctk
+
+from src.core.config import get_config
 from src.core.enums.concurrent_option import ConcurrentOption
+from src.core.enums.theme_event import ThemeEvent
 from src.ui.utils.theme_manager import ThemeManager, get_theme_manager
 from src.utils.logger import get_logger
-
-import customtkinter as ctk
 
 logger = get_logger(__name__)
 
@@ -45,6 +46,8 @@ class ConcurrentDownloadsSelector(ctk.CTkFrame):
 
         self._make_combobox_readonly()
         self._apply_theme_colors()
+
+        self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
 
     def _make_combobox_readonly(self):
         def prevent_edit(event):
@@ -108,6 +111,9 @@ class ConcurrentDownloadsSelector(ctk.CTkFrame):
             if isinstance(text_color, tuple):
                 text_color = text_color[0] if isinstance(text_color[0], str) else text_color
             self.label.configure(text_color=text_color)
+
+    def _on_theme_changed(self, appearance, color):
+        self._apply_theme_colors()
 
     def _on_change(self, value: str) -> None:
         try:

@@ -184,5 +184,5 @@ class YouTubeSubtitleParser(IParser):
         Returns full language name from config if available,
         otherwise returns the language code itself (not uppercase).
         """
-        base_code = lang_code.split("-")[0].lower()
+        base_code = lang_code.split("-", 1)[0].lower()
         return self.config.youtube.supported_languages.get(base_code, lang_code)

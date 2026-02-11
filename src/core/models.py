@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
@@ -16,18 +16,34 @@ if TYPE_CHECKING:
 
 
 class CookieState(BaseModel):
-    generated_at: datetime = Field(default_factory=datetime.now)
-    expires_at: datetime = Field(default_factory=lambda: datetime.now() + timedelta(hours=8))
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    expires_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc) + timedelta(hours=8)
+    )
     is_valid: bool = Field(default=False)
     is_generating: bool = Field(default=False)
     cookie_path: str | None = None
     error_message: str | None = None
 
     def is_expired(self) -> bool:
-        return datetime.now() >= self.expires_at
+        now = datetime.now(timezone.utc)
+        expires_at = self.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        return now >= expires_at
 
     def should_regenerate(self) -> bool:
-        if not self.is_valid or not self.cookie_path:
+        from pathlib import Path
+
+        # If no cookie path, check if file exists from config
+        if not self.cookie_path:
+            config = get_config()
+            cookie_file = config.cookies.storage_dir / config.cookies.netscape_file_name
+            # No cookie file exists -> regenerate; cookie file exists but path not set -> OK
+            return not cookie_file.exists()
+
+        # Check if the actual cookie file exists
+        if not Path(self.cookie_path).exists():
             return True
 
         if self.is_expired():
@@ -35,7 +51,11 @@ class CookieState(BaseModel):
 
         config = get_config()
         if self.generated_at:
-            age_hours = (datetime.now() - self.generated_at).total_seconds() / 3600
+            now = datetime.now(timezone.utc)
+            generated_at = self.generated_at
+            if generated_at.tzinfo is None:
+                generated_at = generated_at.replace(tzinfo=timezone.utc)
+            age_hours = (now - generated_at).total_seconds() / 3600
             if age_hours >= config.cookies.cookie_expiry_hours:
                 return True
 

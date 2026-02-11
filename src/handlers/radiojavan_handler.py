@@ -2,8 +2,6 @@ import re
 from collections.abc import Callable
 from typing import Any
 
-import requests
-
 from src.core.config import AppConfig, get_config
 from src.core.interfaces import IErrorNotifier, IMessageQueue
 from src.services.detection.base_handler import BaseHandler
@@ -101,7 +99,7 @@ class RadioJavanHandler(BaseHandler):
 
     def _detect_radiojavan_type(self, url: str) -> str:
         """Detect if URL is song, video, artist page, etc."""
-        if "/mp3/" in url:
+        if "/mp3/" in url or "/song/" in url:
             return "mp3"
         if "/mp4/" in url:
             return "mp4"
@@ -113,13 +111,16 @@ class RadioJavanHandler(BaseHandler):
 
     def _extract_media_id(self, url: str) -> str | None:
         """Extract media ID from Radio Javan URL."""
+        from urllib.parse import unquote
+
         patterns = [
-            r"/mp3/([\w-]+)",
-            r"/mp4/([\w-]+)",
-            r"rj\.app/([\w-]+)",
+            r"/mp3/([\w%-]+)",
+            r"/mp4/([\w%-]+)",
+            r"/song/([\w%-]+)",
+            r"rj\.app/([\w%-]+)",
         ]
         for pattern in patterns:
             match = re.search(pattern, url)
             if match:
-                return match.group(1)
+                return unquote(match.group(1))
         return None

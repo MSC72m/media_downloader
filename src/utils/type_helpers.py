@@ -66,7 +66,7 @@ def get_platform_callback(ui_context: Any, platform: str) -> Callable[[str], Non
 
     Args:
         ui_context: UI context object
-        platform: Platform name (youtube, twitter, instagram, pinterest, generic)
+        platform: Platform name (youtube, twitter, instagram, pinterest, spotify, tiktok, radiojavan, generic)
 
     Returns:
         Callback function if available, None otherwise
@@ -80,6 +80,9 @@ def get_platform_callback(ui_context: Any, platform: str) -> Callable[[str], Non
         "twitter": ctx.twitter_download,
         "instagram": ctx.instagram_download,
         "pinterest": ctx.pinterest_download,
+        "spotify": ctx.spotify_download,
+        "tiktok": ctx.tiktok_download,
+        "radiojavan": ctx.radiojavan_download,
         "generic": ctx.generic_download,
     }
 

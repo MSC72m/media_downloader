@@ -1,6 +1,6 @@
 import asyncio
 import json
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import Lock
 
@@ -35,49 +35,14 @@ class CookieManager:
         logger.info("[COOKIE_MANAGER] Initializing cookie manager")
 
         with self._lock:
-            # Load existing state
             self._state = self._load_state()
-
-            # Check if we need to regenerate
-            needs_regeneration = self._state.should_regenerate()
-
-            # Also validate the actual file if it exists
-            if not needs_regeneration and self._state.cookie_path:
-                cookie_path = Path(self._state.cookie_path)
-                if cookie_path.exists():
-                    # File exists, but validate it
-                    if not self.generator.validate_netscape_file(str(cookie_path)):
-                        logger.warning(
-                            "[COOKIE_MANAGER] Cookie file exists but is invalid, marking for regeneration"
-                        )
-                        needs_regeneration = True
-                        self._state.is_valid = False
-                        self._state.error_message = "Cookie file validation failed"
-                    # Also check if cookie age exceeds configured expiry
-                    elif self._state.generated_at:
-                        age_hours = (
-                            datetime.now() - self._state.generated_at
-                        ).total_seconds() / 3600
-                        if age_hours >= self.config.cookies.cookie_expiry_hours:
-                            logger.warning(
-                                f"[COOKIE_MANAGER] Cookie age ({age_hours:.1f}h) exceeds configured expiry ({self.config.cookies.cookie_expiry_hours}h), marking for regeneration"
-                            )
-                            needs_regeneration = True
-                            self._state.is_valid = False
-                            self._state.error_message = (
-                                f"Cookie age ({age_hours:.1f}h) exceeds expiry time"
-                            )
-
-            if needs_regeneration:
+            if self._needs_regeneration(self._state):
                 logger.info("[COOKIE_MANAGER] Cookies need regeneration")
-                # Run async generation in sync context
-                try:
-                    loop = asyncio.get_event_loop()
-                except RuntimeError:
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-
+                loop = self._get_event_loop()
                 self._state = loop.run_until_complete(self._regenerate_cookies())
+            elif not self.state_file.exists():
+                logger.info("[COOKIE_MANAGER] Using existing valid cookies")
+                self._save_state(self._state)
             else:
                 logger.info("[COOKIE_MANAGER] Using existing valid cookies")
 
@@ -92,11 +57,8 @@ class CookieManager:
         """
         logger.info("[COOKIE_MANAGER] Initializing cookie manager (async)")
 
-        # Load existing state
         self._state = self._load_state()
-
-        # Check if we need to regenerate
-        if self._state.should_regenerate():
+        if self._needs_regeneration(self._state):
             logger.info("[COOKIE_MANAGER] Cookies need regeneration")
             self._state = await self._regenerate_cookies()
         else:
@@ -104,6 +66,27 @@ class CookieManager:
 
         self._initialization_complete = True
         return self._state
+
+    def _needs_regeneration(self, state: CookieState) -> bool:
+        """Determine whether cookies must be regenerated."""
+        if not state.is_valid:
+            return True
+
+        if state.is_expired() or state.should_regenerate():
+            return True
+
+        if not state.cookie_path:
+            return True
+
+        cookie_path = Path(state.cookie_path)
+        if not cookie_path.exists():
+            return True
+
+        if not self.generator.validate_netscape_file(str(cookie_path)):
+            logger.warning("[COOKIE_MANAGER] Existing cookie file is invalid, forcing regeneration")
+            return True
+
+        return False
 
     def get_cookies(self) -> str | None:
         """Get path to cookie file for use with yt-dlp.
@@ -391,6 +374,21 @@ class CookieManager:
         """
         if not self.state_file.exists():
             logger.info("[COOKIE_MANAGER] No existing state file found")
+            # Check if cookies file exists - if so, create state with valid cookies
+            cookie_file = self.storage_dir / self.config.cookies.netscape_file_name
+            if cookie_file.exists():
+                logger.info(f"[COOKIE_MANAGER] Found existing cookie file: {cookie_file}")
+                # Create a state that reflects the existing cookie file
+                return CookieState(
+                    is_valid=True,
+                    is_generating=False,
+                    cookie_path=str(cookie_file),
+                    generated_at=datetime.fromtimestamp(
+                        cookie_file.stat().st_mtime, tz=timezone.utc
+                    ),
+                    expires_at=datetime.fromtimestamp(cookie_file.stat().st_mtime, tz=timezone.utc)
+                    + timedelta(hours=self.config.cookies.cookie_expiry_hours),
+                )
             return CookieState(is_valid=False, is_generating=False)
 
         try:

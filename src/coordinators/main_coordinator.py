@@ -124,7 +124,7 @@ class EventCoordinator:
         """Dispatch platform-specific download dialog.
 
         Args:
-            platform: Platform type (youtube, twitter, instagram, pinterest, generic)
+            platform: Platform type (youtube, twitter, instagram, pinterest, soundcloud, spotify, tiktok, radiojavan, generic)
             url: URL to download
             name: Optional name for generic downloads
         """
@@ -141,6 +141,9 @@ class EventCoordinator:
             "instagram": self.platform_dialogs.show_instagram_dialog,
             "pinterest": self.platform_dialogs.show_pinterest_dialog,
             "soundcloud": self.platform_dialogs.show_soundcloud_dialog,
+            "spotify": self.platform_dialogs.show_spotify_dialog,
+            "tiktok": self.platform_dialogs.show_tiktok_dialog,
+            "radiojavan": self.platform_dialogs.show_radiojavan_dialog,
             "generic": self.platform_dialogs.generic_download,
         }
 
@@ -261,7 +264,7 @@ class EventCoordinator:
         """Dynamic dispatch for platform_download methods.
 
         Handles calls like youtube_download, twitter_download, etc.
-        by routing to platform_download with the appropriate platform name.
+        by routing to platform_download with appropriate platform name.
         """
         platform_methods = {
             "youtube_download": "youtube",
@@ -269,13 +272,16 @@ class EventCoordinator:
             "instagram_download": "instagram",
             "pinterest_download": "pinterest",
             "soundcloud_download": "soundcloud",
+            "spotify_download": "spotify",
+            "tiktok_download": "tiktok",
+            "radiojavan_download": "radiojavan",
         }
 
         if name in platform_methods:
             platform = platform_methods[name]
             # YouTube handler creates dialogs itself, just needs add_download callback
             if platform == "youtube":
-                return lambda download: self.downloads.add_download(download)
+                return self.downloads.add_download
             return lambda url, **kwargs: self.platform_download(platform, url, kwargs.get("name"))
 
         if name == "generic_download":

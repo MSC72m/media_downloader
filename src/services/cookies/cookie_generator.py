@@ -1,12 +1,11 @@
 import asyncio
 import contextlib
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import Lock
-from typing import Any
 
-from playwright.async_api import async_playwright
+from playwright.async_api import Browser, BrowserContext, Page, Playwright, async_playwright
 
 from src.core.config import AppConfig, get_config
 from src.core.models import CookieState
@@ -22,8 +21,8 @@ class CookieGenerator:
         self.storage_dir = storage_dir or self.config.cookies.storage_dir
         self.storage_dir.mkdir(parents=True, exist_ok=True)
         self.cookie_file = self.storage_dir / self.config.cookies.cookie_file_name
-        self._playwright = None
-        self._browser = None
+        self._playwright: Playwright | None = None
+        self._browser: Browser | None = None
 
         # Thread-safe state management for real-time access
         self._state: CookieState | None = None
@@ -60,12 +59,11 @@ class CookieGenerator:
             is_generating=False,
             is_valid=False,
             error_message=error_msg,
-            _generator=self,
         )
         self._update_state(state)
         return state
 
-    async def _launch_browser(self, playwright: Any) -> Any | None:
+    async def _launch_browser(self, playwright: Playwright) -> Browser | None:
         """Launch Chromium browser.
 
         Args:
@@ -87,7 +85,7 @@ class CookieGenerator:
             logger.error(f"[COOKIE_GENERATOR] {error_msg}")
             return None
 
-    async def _create_browser_context(self, browser: Any) -> tuple[Any, Any] | None:
+    async def _create_browser_context(self, browser: Browser) -> tuple[BrowserContext, Page] | None:
         """Create browser context and page.
 
         Args:
@@ -135,7 +133,7 @@ class CookieGenerator:
             logger.error(f"[COOKIE_GENERATOR] {error_msg}")
             return None
 
-    async def _navigate_and_interact(self, page: Any) -> bool:
+    async def _navigate_and_interact(self, page: Page) -> bool:
         """Navigate to YouTube and perform interactions.
 
         Args:
@@ -266,7 +264,9 @@ class CookieGenerator:
 
         return None
 
-    async def _process_cookies(self, context: Any, browser: Any, state: CookieState) -> CookieState:
+    async def _process_cookies(
+        self, context: BrowserContext, browser: Browser, state: CookieState
+    ) -> CookieState:
         """Process and save cookies from browser context.
 
         Args:
@@ -303,8 +303,10 @@ class CookieGenerator:
 
         await browser.close()
 
-        state.generated_at = datetime.now()
-        state.expires_at = datetime.now() + timedelta(hours=self.config.cookies.cookie_expiry_hours)
+        state.generated_at = datetime.now(timezone.utc)
+        state.expires_at = datetime.now(timezone.utc) + timedelta(
+            hours=self.config.cookies.cookie_expiry_hours
+        )
         state.is_valid = True
         state.is_generating = False
         state.cookie_path = netscape_path
@@ -329,7 +331,6 @@ class CookieGenerator:
         state = CookieState(
             is_generating=True,
             is_valid=False,
-            _generator=self,
         )
         self._update_state(state)
 

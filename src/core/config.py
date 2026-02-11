@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import yaml
-from pydantic import BaseModel, Field, field_serializer, field_validator
+from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from src.core.enums.appearance_mode import AppearanceMode
@@ -94,15 +94,16 @@ class NetworkConfig(BaseModel):
     )
     service_domains: dict[str, list[str]] = Field(
         default_factory=lambda: {
-            "youtube": ["youtube.com", "youtu.be", "www.youtube.com"],
-            "twitter": ["twitter.com", "x.com", "api.x.com", "mobile.x.com"],
-            "instagram": ["instagram.com", "www.instagram.com", "m.instagram.com"],
-            "pinterest": ["pinterest.com", "www.pinterest.com"],
+            "youtube": ["youtube.com", "youtu.be", "www.youtube.com", "music.youtube.com"],
+            "twitter": ["twitter.com", "x.com", "www.twitter.com", "www.x.com"],
+            "instagram": ["instagram.com", "www.instagram.com"],
+            "pinterest": ["pinterest.com", "www.pinterest.com", "pin.it"],
             "soundcloud": ["soundcloud.com", "www.soundcloud.com"],
-            "tiktok": ["tiktok.com", "vm.tiktok.com", "www.tiktok.com"],
+            "tiktok": ["tiktok.com", "www.tiktok.com", "vm.tiktok.com"],
             "radiojavan": ["play.radiojavan.com", "radiojavan.com", "rj.app"],
+            "spotify": ["open.spotify.com", "spotify.com", "spotify.link"],
         },
-        description="Service domain mappings",
+        description="Service domain mappings (deprecated - use services.service_types)",
     )
 
 
@@ -199,6 +200,27 @@ class NotificationTemplatesConfig(BaseModel):
             }
         },
         description="TikTok notification templates",
+    )
+
+    spotify: dict[str, dict[str, Any]] = Field(
+        default_factory=lambda: {
+            "no_match_found": {
+                "text": "Could not find a matching video on YouTube. Try searching manually.",
+                "title": "No YouTube Match Found",
+                "level": "WARNING",
+            },
+            "metadata_extraction_failed": {
+                "text": "Failed to extract Spotify metadata. Check URL and try again.",
+                "title": "Metadata Extraction Failed",
+                "level": "ERROR",
+            },
+            "playlist_processing": {
+                "text": "Processing {count} tracks from playlist...",
+                "title": "Processing Playlist",
+                "level": "INFO",
+            },
+        },
+        description="Spotify notification templates",
     )
 
 
@@ -449,10 +471,10 @@ class RadioJavanConfig(BaseModel):
     max_retries: int = Field(default=3, description="Maximum number of retries")
     url_patterns: list[str] = Field(
         default_factory=lambda: [
-            r"^https?://(?:www\.)?play\.radiojavan\.com/(?:mp3|mp4)/[\w-]+",
+            r"^https?://(?:www\.)?play\.radiojavan\.com/(?:mp3|mp4|song)/[\w-]+",
             r"^https?://(?:www\.)?radiojavan\.com/artist/[\w-]+/songs",
             r"^https?://rj\.app/[\w-]+",
-            r"^https?://(?:www\.)?radiojavan\.com/(?:mp3|mp4)/[\w-]+",
+            r"^https?://(?:www\.)?radiojavan\.com/(?:mp3|mp4|song)/[\w-]+",
         ],
         description="Radio Javan URL validation patterns",
     )
@@ -493,6 +515,228 @@ class TikTokConfig(BaseModel):
         ],
         description="TikTok URL validation patterns",
     )
+
+
+class SpotifyConfig(BaseModel):
+    """Spotify-specific configuration."""
+
+    default_timeout: int = Field(default=10, description="Default request timeout in seconds")
+    oembed_timeout: int = Field(default=10, description="OEmbed API timeout in seconds")
+    max_search_results: int = Field(default=5, description="Maximum YouTube search results")
+    min_similarity_threshold: float = Field(
+        default=0.5, description="Minimum similarity score (0-1)"
+    )
+    youtube_search_format: str = Field(
+        default="ytsearch{max}:{artist} - {track}", description="YouTube search query format"
+    )
+    default_audio_quality: str = Field(default="best", description="Default audio quality")
+    url_patterns: list[str] = Field(
+        default_factory=lambda: [
+            r"^https?://(?:open\.)?spotify\.com/track/[\w-]+",
+            r"^https?://(?:open\.)?spotify\.com/album/[\w-]+",
+            r"^https?://(?:open\.)?spotify\.com/playlist/[\w-]+",
+            r"^https?://(?:open\.)?spotify\.com/artist/[\w-]+",
+            r"^spotify:(track|album|playlist|artist|episode|show):[\w-]+$",
+            r"^https?://(?:spotify\.link|song\.link|album\.link|playlist\.link)/[\w-]+",
+        ],
+        description="Spotify URL validation patterns",
+    )
+
+
+class ServiceConfig(BaseModel):
+    """Centralized service configuration for agnostic service handling.
+
+    This configuration:
+    - Centralizes all service data (URL patterns, domains, handler/downloader paths)
+    - Enables dynamic service registration and detection
+    - Follows Open/Closed Principle (adding services only requires config update)
+    """
+
+    youtube: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "service_type": "youtube",
+            "url_patterns": [
+                r"^https?://(?:www\.)?youtube\.com/watch\?v=[\w-]+",
+                r"^https?://(?:www\.)?youtube\.com/playlist\?list=[\w-]+",
+                r"^https?://(?:www\.)?youtu\.be/[\w-]+",
+                r"^https?://(?:www\.)?youtube\.com/embed/[\w-]+",
+                r"^https?://(?:www\.)?youtube\.com/v/[\w-]+",
+                r"^https?://(?:www\.)?youtube\.com/shorts/[\w-]+",
+                r"^https?://music\.youtube\.com/watch\?v=[\w-]+",
+                r"^https?://music\.youtube\.com/playlist\?list=[\w-]+",
+            ],
+            "domains": ["youtube.com", "youtu.be", "www.youtube.com"],
+            "downloader_module": "src.services.youtube.downloader",
+            "downloader_class": "YouTubeDownloader",
+            "handler_module": "src.handlers.youtube_handler",
+            "handler_class": "YouTubeHandler",
+        },
+        description="YouTube service configuration",
+    )
+
+    twitter: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "service_type": "twitter",
+            "url_patterns": [
+                r"^https?://(?:www\.)?twitter\.com/[\w]+/status/[\d]+",
+                r"^https?://(?:www\.)?x\.com/[\w]+/status/[\d]+",
+                r"^https?://(?:www\.)?twitter\.com/i/spaces/[\w]+",
+                r"^https?://(?:www\.)?x\.com/i/spaces/[\w]+",
+                r"^https?://(?:mobile\.)?twitter\.com/[\w]+/status/[\d]+",
+                r"^https?://(?:mobile\.)?x\.com/[\w]+/status/[\d]+",
+            ],
+            "domains": ["twitter.com", "x.com", "api.x.com", "mobile.x.com"],
+            "downloader_module": "src.services.twitter.downloader",
+            "downloader_class": "TwitterDownloader",
+            "handler_module": "src.handlers.twitter_handler",
+            "handler_class": "TwitterHandler",
+        },
+        description="Twitter/X service configuration",
+    )
+
+    instagram: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "service_type": "instagram",
+            "url_patterns": [
+                r"^https?://(?:www\.)?instagram\.com/p/[\w-]+",
+                r"^https?://(?:www\.)?instagram\.com/reel/[\w-]+",
+                r"^https?://(?:www\.)?instagram\.com/stories/[\w-]+",
+                r"^https?://(?:www\.)?instagram\.com/tv/[\w-]+",
+                r"^https?://(?:www\.)?instagram\.com/[\w]+/p/[\w-]+",
+                r"^https?://(?:www\.)?instagram\.com/[\w]+/reel/[\w-]+",
+            ],
+            "domains": ["instagram.com", "www.instagram.com", "m.instagram.com"],
+            "downloader_module": "src.services.instagram.downloader",
+            "downloader_class": "InstagramDownloader",
+            "handler_module": "src.handlers.instagram_handler",
+            "handler_class": "InstagramHandler",
+        },
+        description="Instagram service configuration",
+    )
+
+    pinterest: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "service_type": "pinterest",
+            "url_patterns": [
+                r"^https?://(?:www\.)?pinterest\.com/pin/[\d]+",
+                r"^https?://(?:www\.)?pinterest\.com/[\w]+/[\w-]+/[\d]+",
+                r"^https?://(?:www\.)?pin\.it/[\w-]+",
+                r"^https?://(?:www\.)?pinterest\.com\.au/pin/[\d]+",
+                r"^https?://(?:www\.)?pinterest\.ca/pin/[\d]+",
+                r"^https?://(?:www\.)?pinterest\.co\.uk/pin/[\d]+",
+                r"^https?://(?:www\.)?pinterest\.de/pin/[\d]+",
+                r"^https?://(?:www\.)?pinterest\.fr/pin/[\d]+",
+            ],
+            "domains": ["pinterest.com", "www.pinterest.com"],
+            "downloader_module": "src.services.pinterest.downloader",
+            "downloader_class": "PinterestDownloader",
+            "handler_module": "src.handlers.pinterest_handler",
+            "handler_class": "PinterestHandler",
+        },
+        description="Pinterest service configuration",
+    )
+
+    soundcloud: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "service_type": "soundcloud",
+            "url_patterns": [
+                r"^https?://(?:www\.)?soundcloud\.com/[\w-]+/[\w-]+",
+                r"^https?://(?:www\.)?soundcloud\.com/[\w-]+/sets/[\w-]+",
+                r"^https?://(?:m\.)?soundcloud\.com/[\w-]+/[\w-]+",
+                r"^https?://(?:m\.)?soundcloud\.com/[\w-]+/sets/[\w-]+",
+                r"^https?://soundcloud\.app\.goo\.gl/[\w]+",
+            ],
+            "domains": ["soundcloud.com", "www.soundcloud.com"],
+            "downloader_module": "src.services.soundcloud.downloader",
+            "downloader_class": "SoundCloudDownloader",
+            "handler_module": "src.handlers.soundcloud_handler",
+            "handler_class": "SoundCloudHandler",
+        },
+        description="SoundCloud service configuration",
+    )
+
+    tiktok: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "service_type": "tiktok",
+            "url_patterns": [
+                r"^https?://(?:www\.)?tiktok\.com/[@\w]+/video/[\d]+",
+                r"^https?://(?:vm\.)?tiktok\.com/[\w-]+",
+                r"^https?://(?:www\.)?tiktok\.com/t/[\w-]+",
+            ],
+            "domains": ["tiktok.com", "vm.tiktok.com", "www.tiktok.com"],
+            "downloader_module": "src.services.tiktok.downloader",
+            "downloader_class": "TikTokDownloader",
+            "handler_module": "src.handlers.tiktok_handler",
+            "handler_class": "TikTokHandler",
+        },
+        description="TikTok service configuration",
+    )
+
+    radiojavan: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "service_type": "radiojavan",
+            "url_patterns": [
+                r"^https?://(?:www\.)?play\.radiojavan\.com/(?:mp3|mp4)/[\w-]+",
+                r"^https?://(?:www\.)?radiojavan\.com/artist/[\w-]+/songs",
+                r"^https?://rj\.app/[\w-]+",
+                r"^https?://(?:www\.)?radiojavan\.com/(?:mp3|mp4)/[\w-]+",
+            ],
+            "domains": ["play.radiojavan.com", "radiojavan.com", "rj.app"],
+            "downloader_module": "src.services.radiojavan.downloader",
+            "downloader_class": "RadioJavanDownloader",
+            "handler_module": "src.handlers.radiojavan_handler",
+            "handler_class": "RadioJavanHandler",
+        },
+        description="Radio Javan service configuration",
+    )
+
+    spotify: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "service_type": "spotify",
+            "url_patterns": [
+                r"^https?://(?:open\.)?spotify\.com/track/[\w-]+",
+                r"^https?://(?:open\.)?spotify\.com/album/[\w-]+",
+                r"^https?://(?:open\.)?spotify\.com/playlist/[\w-]+",
+                r"^https?://(?:open\.)?spotify\.com/artist/[\w-]+",
+                r"^spotify:(track|album|playlist|artist|episode|show):[\w-]+$",
+                r"^https?://(?:spotify\.link|song\.link|album\.link|playlist\.link)/[\w-]+",
+            ],
+            "domains": ["open.spotify.com", "spotify.com", "spotify.link"],
+            "downloader_module": "src.services.spotify.downloader",
+            "downloader_class": "SpotifyDownloader",
+            "handler_module": "src.handlers.spotify_handler",
+            "handler_class": "SpotifyHandler",
+        },
+        description="Spotify service configuration",
+    )
+
+    @property
+    def all_services(self) -> dict[str, dict[str, Any]]:
+        """Get all service configurations as a dictionary."""
+        return {
+            "youtube": self.youtube,
+            "twitter": self.twitter,
+            "instagram": self.instagram,
+            "pinterest": self.pinterest,
+            "soundcloud": self.soundcloud,
+            "tiktok": self.tiktok,
+            "radiojavan": self.radiojavan,
+            "spotify": self.spotify,
+        }
+
+    @property
+    def service_types(self) -> dict[str, str]:
+        """Map domain to service type."""
+        return {
+            **dict.fromkeys(self.youtube["domains"], "youtube"),
+            **dict.fromkeys(self.twitter["domains"], "twitter"),
+            **dict.fromkeys(self.instagram["domains"], "instagram"),
+            **dict.fromkeys(self.pinterest["domains"], "pinterest"),
+            **dict.fromkeys(self.soundcloud["domains"], "soundcloud"),
+            **dict.fromkeys(self.tiktok["domains"], "tiktok"),
+            **dict.fromkeys(self.radiojavan["domains"], "radiojavan"),
+            **dict.fromkeys(self.spotify["domains"], "spotify"),
+        }
 
 
 class ThemeConfig(BaseModel):
@@ -880,6 +1124,7 @@ class AppConfig(BaseSettings):
     downloads: DownloadConfig = Field(default_factory=DownloadConfig)
     network: NetworkConfig = Field(default_factory=NetworkConfig)
     notifications: NotificationTemplatesConfig = Field(default_factory=NotificationTemplatesConfig)
+    services: ServiceConfig = Field(default_factory=ServiceConfig)
     youtube: YouTubeConfig = Field(default_factory=YouTubeConfig)
     twitter: TwitterConfig = Field(default_factory=TwitterConfig)
     instagram: InstagramConfig = Field(default_factory=InstagramConfig)
@@ -887,6 +1132,7 @@ class AppConfig(BaseSettings):
     soundcloud: SoundCloudConfig = Field(default_factory=SoundCloudConfig)
     radiojavan: RadioJavanConfig = Field(default_factory=RadioJavanConfig)
     tiktok: TikTokConfig = Field(default_factory=TikTokConfig)
+    spotify: SpotifyConfig = Field(default_factory=SpotifyConfig)
     ui: UIConfig = Field(default_factory=UIConfig)
 
     @classmethod

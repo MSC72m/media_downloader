@@ -97,6 +97,10 @@ class HTTPNetworkChecker(BaseNetworkChecker):
         ServiceType.INSTAGRAM: "www.instagram.com",
         ServiceType.TWITTER: "x.com",
         ServiceType.PINTEREST: "www.pinterest.com",
+        ServiceType.SOUNDCLOUD: "soundcloud.com",
+        ServiceType.TIKTOK: "www.tiktok.com",
+        ServiceType.RADIOJAVAN: "www.radiojavan.com",
+        ServiceType.SPOTIFY: "open.spotify.com",
     }
 
     def check_connectivity(self) -> ConnectionResult:

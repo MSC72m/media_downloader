@@ -202,24 +202,27 @@ class PinterestDownloader(BaseDownloader):
     def _get_media_url(self, url: str) -> str | None:
         """Get media URL from Pinterest pin URL."""
         try:
-            oembed_result = self._try_oembed(url)
-            if oembed_result:
-                return oembed_result
-
+            media_url = self._try_oembed(url)
             headers = {"User-Agent": self.config.network.user_agent}
-            response = requests.get(
-                url, headers=headers, timeout=self.config.pinterest.default_timeout
-            )
-            if response.status_code != 200:
-                return None
+            if not media_url:
+                response = requests.get(
+                    url, headers=headers, timeout=self.config.pinterest.default_timeout
+                )
+                if response.status_code != 200:
+                    return None
 
-            soup = BeautifulSoup(response.content, "html.parser")
+                soup = BeautifulSoup(response.content, "html.parser")
+                media_url = self._extract_from_meta_tags(soup)
+                if not media_url:
+                    media_url = self._extract_from_structured_data(soup)
+                if not media_url:
+                    raw_matches = re.findall(
+                        r"https://i\.pinimg\.com/[^\"]+?\.(?:jpg|jpeg|png|webp)",
+                        response.text,
+                    )
+                    media_url = raw_matches[0] if raw_matches else None
 
-            meta_result = self._extract_from_meta_tags(soup)
-            if meta_result:
-                return meta_result
-
-            return self._extract_from_structured_data(soup)
+            return media_url
 
         except Exception as e:
             logger.error(f"Error getting Pinterest media URL: {e}", exc_info=True)

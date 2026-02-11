@@ -3,7 +3,7 @@ import hashlib
 import os
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import requests
 
@@ -12,6 +12,8 @@ from src.utils.logger import get_logger
 
 if TYPE_CHECKING:
     pass
+
+logger = get_logger(__name__)
 
 CACHE_LOCK = threading.Lock()
 
@@ -97,7 +99,7 @@ class ThumbnailCache:
         files_with_size.sort(key=lambda x: x[1])
         accumulated_size = 0
 
-        for file_path, mtime, size in files_with_size:
+        for file_path, _mtime, size in files_with_size:
             if accumulated_size >= target_size:
                 break
             try:

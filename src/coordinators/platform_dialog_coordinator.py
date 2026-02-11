@@ -11,6 +11,7 @@ from src.core.models import Download
 from src.services.instagram.auth_manager import InstagramAuthManager
 from src.services.instagram.downloader import InstagramDownloader
 from src.services.soundcloud.downloader import SoundCloudDownloader
+from src.services.spotify.downloader import SpotifyDownloader
 from src.ui.components.loading_dialog import LoadingDialog
 from src.ui.dialogs.login_dialog import LoginDialog
 from src.utils.error_helpers import extract_error_context
@@ -95,6 +96,28 @@ class PinterestDialogHandler(DialogHandler):
             self.error_handler.handle_exception(e, "Pinterest dialog", "Pinterest")
 
 
+class SpotifyDialogHandler(DialogHandler):
+    """Spotify dialog handler."""
+
+    def show_dialog(self, url: str, on_download_callback: Callable) -> None:
+        """Show Spotify download dialog."""
+        try:
+            downloader = SpotifyDownloader(error_handler=self.error_handler)
+            info = downloader.get_metadata(url)
+
+            track_name = info.get("title", os.path.basename(url) or "spotify_download")
+            download = Download(
+                url=url,
+                name=track_name,
+                service_type="spotify",
+            )
+            on_download_callback(download)
+            logger.info(f"[SPOTIFY_DIALOG] Download added: {track_name}")
+        except Exception as e:
+            logger.error(f"[SPOTIFY_DIALOG] Error: {e}", exc_info=True)
+            self.error_handler.handle_exception(e, "Spotify dialog", "Spotify")
+
+
 class SoundCloudDialogHandler(DialogHandler):
     """SoundCloud dialog handler with premium check."""
 
@@ -130,7 +153,6 @@ class SoundCloudDialogHandler(DialogHandler):
             )
             on_download_callback(download)
             logger.info(f"[SOUNDCLOUD_DIALOG] Download added: {track_name}")
-
         except Exception as e:
             error_str = str(e)
             if self._PREMIUM_KEYWORD_PATTERN.search(error_str):
@@ -140,6 +162,44 @@ class SoundCloudDialogHandler(DialogHandler):
 
             logger.error(f"[SOUNDCLOUD_DIALOG] Error: {e}", exc_info=True)
             self.error_handler.handle_exception(e, "SoundCloud dialog", "SoundCloud")
+
+
+class RadioJavanDialogHandler(DialogHandler):
+    """Radio Javan dialog handler."""
+
+    def show_dialog(self, url: str, on_download_callback: Callable) -> None:
+        """Show Radio Javan download dialog."""
+        try:
+            track_name = os.path.basename(url) or "radiojavan_download"
+            download = Download(
+                url=url,
+                name=track_name,
+                service_type="radiojavan",
+            )
+            on_download_callback(download)
+            logger.info(f"[RADIOJAVAN_DIALOG] Download added: {track_name}")
+        except Exception as e:
+            logger.error(f"[RADIOJAVAN_DIALOG] Error: {e}", exc_info=True)
+            self.error_handler.handle_exception(e, "Radio Javan dialog", "Radio Javan")
+
+
+class TikTokDialogHandler(DialogHandler):
+    """TikTok dialog handler."""
+
+    def show_dialog(self, url: str, on_download_callback: Callable) -> None:
+        """Show TikTok download dialog."""
+        try:
+            track_name = os.path.basename(url) or "tiktok_download"
+            download = Download(
+                url=url,
+                name=track_name,
+                service_type="tiktok",
+            )
+            on_download_callback(download)
+            logger.info(f"[TIKTOK_DIALOG] Download added: {track_name}")
+        except Exception as e:
+            logger.error(f"[TIKTOK_DIALOG] Error: {e}", exc_info=True)
+            self.error_handler.handle_exception(e, "TikTok dialog", "TikTok")
 
 
 class GenericDialogHandler(DialogHandler):
@@ -195,6 +255,9 @@ class PlatformDialogCoordinator:
             "instagram": InstagramDialogHandler(error_handler),
             "pinterest": PinterestDialogHandler(error_handler),
             "soundcloud": SoundCloudDialogHandler(error_handler),
+            "spotify": SpotifyDialogHandler(error_handler),
+            "radiojavan": RadioJavanDialogHandler(error_handler),
+            "tiktok": TikTokDialogHandler(error_handler),
             "generic": GenericDialogHandler(error_handler),
         }
 
@@ -226,6 +289,21 @@ class PlatformDialogCoordinator:
     def show_soundcloud_dialog(self, url: str, on_download_callback: Callable) -> None:
         """Show SoundCloud download dialog."""
         handler = self._dialog_handlers["soundcloud"]
+        handler.show_dialog(url, on_download_callback)
+
+    def show_spotify_dialog(self, url: str, on_download_callback: Callable) -> None:
+        """Show Spotify download dialog."""
+        handler = self._dialog_handlers["spotify"]
+        handler.show_dialog(url, on_download_callback)
+
+    def show_radiojavan_dialog(self, url: str, on_download_callback: Callable) -> None:
+        """Show Radio Javan download dialog."""
+        handler = self._dialog_handlers["radiojavan"]
+        handler.show_dialog(url, on_download_callback)
+
+    def show_tiktok_dialog(self, url: str, on_download_callback: Callable) -> None:
+        """Show TikTok download dialog."""
+        handler = self._dialog_handlers["tiktok"]
         handler.show_dialog(url, on_download_callback)
 
     def generic_download(self, url: str, name: str | None, on_download_callback: Callable) -> None:

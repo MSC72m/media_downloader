@@ -114,18 +114,44 @@ class TwitterDownloader(BaseDownloader):
 
     def _scrape_tweet_data(self, tweet_id: str) -> dict | None:
         """Scrape tweet data including media and text from VX Twitter API."""
+        endpoints = [
+            f"https://api.vxtwitter.com/Twitter/status/{tweet_id}",
+            f"https://api.vxtwitter.com/status/{tweet_id}",
+        ]
+
+        headers = {"User-Agent": self.config.network.user_agent}
         try:
-            response = requests.get(
-                f"https://api.vxtwitter.com/Twitter/status/{tweet_id}",
-                verify=True,
-                timeout=self.config.network.twitter_api_timeout,
+            for endpoint in endpoints:
+                response = requests.get(
+                    endpoint,
+                    headers=headers,
+                    verify=True,
+                    timeout=self.config.network.twitter_api_timeout,
+                )
+                response.raise_for_status()
+
+                content_type = response.headers.get("content-type", "")
+                match content_type:
+                    case value if "application/json" in value:
+                        data = response.json()
+                        return {
+                            "media": data.get("media_extended", []),
+                            "text": data.get("text", ""),
+                        }
+                    case value if "text/html" in value:
+                        if "Failed to scan your link" in response.text:
+                            logger.warning(
+                                "[TWITTER_DOWNLOADER] vxTwitter API is currently unavailable "
+                                "for this tweet (upstream API limitation)"
+                            )
+                        continue
+                    case _:
+                        continue
+
+            logger.warning(
+                "[TWITTER_DOWNLOADER] No usable JSON response from configured tweet API endpoints"
             )
-            response.raise_for_status()
-            data = response.json()
-            return {
-                "media": data.get("media_extended", []),
-                "text": data.get("text", ""),
-            }
+            return None
         except Exception as e:
             logger.error(f"Error scraping tweet data: {e!s}", exc_info=True)
             if self.error_handler:

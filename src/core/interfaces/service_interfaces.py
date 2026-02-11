@@ -13,6 +13,7 @@ from src.core.config import AppConfig, get_config
 
 if TYPE_CHECKING:
     from src.core.enums import ServiceType
+    from src.core.models import CookieState, Download
 
 
 @runtime_checkable
@@ -22,6 +23,28 @@ class IDownloadHandler(Protocol):
     def handle_download_error(self, error: Exception) -> None: ...
 
     def is_available(self) -> bool: ...
+
+    def add_download(self, download: Download) -> None: ...
+
+    def remove_downloads(self, indices: list[int]) -> None: ...
+
+    def clear_downloads(self) -> None: ...
+
+    def get_downloads(self) -> list[Download]: ...
+
+    def has_items(self) -> bool: ...
+
+    def start_downloads(
+        self,
+        downloads: list[Download],
+        download_dir: str | None = None,
+        progress_callback: Callable | None = None,
+        completion_callback: Callable | None = None,
+    ) -> None: ...
+
+    def cancel_download(self, download: Download) -> None: ...
+
+    def has_active_downloads(self) -> bool: ...
 
 
 @runtime_checkable
@@ -38,6 +61,15 @@ class IMetadataService(Protocol):
     def get_metadata(self, url: str) -> dict: ...
 
     def is_available(self) -> bool: ...
+
+    def fetch_metadata(
+        self,
+        url: str,
+        cookie_path: str | None = None,
+        browser: str | None = None,
+    ) -> Any: ...
+
+    def validate_url(self, url: str) -> bool: ...
 
 
 @runtime_checkable
@@ -98,14 +130,35 @@ class IServiceFactory(Protocol):
 
 
 @runtime_checkable
+class ICookieGenerator(Protocol):
+    def get_state(self) -> CookieState | None: ...
+
+
+@runtime_checkable
 class IAutoCookieManager(Protocol):
-    def initialize(self) -> Any: ...
+    """Protocol for the auto cookie manager.
+
+    Manages cookie TTL, triggers new cookie extraction,
+    cleans up and replaces stale cookies automatically.
+    """
+
+    generator: ICookieGenerator
+
+    def initialize(self) -> CookieState: ...
 
     def is_ready(self) -> bool: ...
 
     def is_generating(self) -> bool: ...
 
     def get_cookies(self) -> str | None: ...
+
+    def get_state(self) -> CookieState: ...
+
+    def refresh_if_needed(self) -> bool: ...
+
+    def invalidate_and_regenerate(self) -> bool: ...
+
+    def cleanup(self) -> None: ...
 
 
 @runtime_checkable

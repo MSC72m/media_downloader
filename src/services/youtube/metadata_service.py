@@ -1,6 +1,8 @@
 import re
 from urllib.parse import parse_qs, urlparse
 
+import requests
+
 from src.core.config import AppConfig, get_config
 from src.core.interfaces import (
     IErrorNotifier,
@@ -63,6 +65,13 @@ class YouTubeMetadataService(IYouTubeMetadataService):
 
             info = self.info_extractor.extract_info(url, cookie_path, browser)
             if not info:
+                oembed_fallback = self._fetch_oembed_metadata(url)
+                if oembed_fallback:
+                    logger.warning(
+                        "[METADATA_SERVICE] Falling back to YouTube oEmbed metadata due to yt-dlp extraction failure"
+                    )
+                    return oembed_fallback
+
                 error_msg = "Failed to fetch video information"
                 if self.error_handler:
                     self.error_handler.handle_service_failure(
@@ -149,22 +158,64 @@ class YouTubeMetadataService(IYouTubeMetadataService):
 
     def validate_url(self, url: str) -> bool:
         """Validate if URL is a valid YouTube URL."""
-        return any(re.match(pattern, url) for pattern in self.config.youtube.url_patterns)
+        if any(re.match(pattern, url) for pattern in self.config.youtube.url_patterns):
+            return True
+        return self.extract_video_id(url) is not None
 
     def extract_video_id(self, url: str) -> str | None:
         """Extract video ID from YouTube URL."""
         try:
             parsed_url = urlparse(url)
+            hostname = (parsed_url.hostname or "").lower()
 
-            if parsed_url.hostname in self.config.youtube.youtube_domains:
+            if hostname in {"www.youtube.com", "youtube.com", "music.youtube.com", "m.youtube.com"}:
                 if parsed_url.path == "/watch":
                     query = parse_qs(parsed_url.query)
                     return query.get("v", [None])[0]
                 if parsed_url.path.startswith("/embed/") or parsed_url.path.startswith("/v/"):
                     return parsed_url.path.split("/")[2]
-            elif parsed_url.hostname == "youtu.be":
+            if hostname == "youtu.be":
                 return parsed_url.path[1:]  # Remove leading slash
 
             return None
         except Exception:
+            return None
+
+    def _fetch_oembed_metadata(self, url: str) -> YouTubeMetadata | None:
+        """Fetch minimal metadata via YouTube oEmbed as a resilient fallback."""
+        video_id = self.extract_video_id(url)
+        if not video_id:
+            return None
+
+        canonical_url = f"https://www.youtube.com/watch?v={video_id}"
+        timeout = self.config.network.default_timeout
+        try:
+            response = requests.get(
+                "https://www.youtube.com/oembed",
+                params={"url": canonical_url, "format": "json"},
+                timeout=timeout,
+            )
+            if response.status_code != 200:
+                logger.warning(
+                    f"[METADATA_SERVICE] oEmbed fallback failed with status {response.status_code}"
+                )
+                return None
+
+            data = response.json()
+            return YouTubeMetadata(
+                title=str(data.get("title", "")),
+                duration="Unknown",
+                view_count="N/A",
+                upload_date="Unknown",
+                channel=str(data.get("author_name", "")),
+                description="",
+                thumbnail=str(data.get("thumbnail_url", "")),
+                available_qualities=list(self.config.youtube.video_qualities),
+                available_formats=["video", "audio"],
+                available_subtitles=[],
+                is_playlist=False,
+                playlist_count=0,
+            )
+        except Exception as exc:
+            logger.warning(f"[METADATA_SERVICE] oEmbed fallback error: {exc}")
             return None

@@ -6,6 +6,7 @@ from src.services.instagram.downloader import InstagramDownloader
 from src.services.pinterest.downloader import PinterestDownloader
 from src.services.radiojavan.downloader import RadioJavanDownloader
 from src.services.soundcloud.downloader import SoundCloudDownloader
+from src.services.spotify.downloader import SpotifyDownloader
 from src.services.tiktok.downloader import TikTokDownloader
 from src.services.twitter.downloader import TwitterDownloader
 from src.services.youtube.downloader import YouTubeDownloader
@@ -17,21 +18,26 @@ logger = get_logger(__name__)
 class ServiceFactory:
     def __init__(
         self,
-        cookie_manager,
+        cookie_handler=None,
+        auto_cookie_manager=None,
         error_handler: IErrorNotifier | None = None,
         instagram_auth_manager: InstagramAuthManager | None = None,
         file_service: IFileService | None = None,
         config: AppConfig = get_config(),
     ):
-        self.cookie_manager = cookie_manager
+        self.cookie_handler = cookie_handler
+        self.auto_cookie_manager = auto_cookie_manager
         self.error_handler = error_handler
         self.instagram_auth_manager = instagram_auth_manager
         self.file_service = file_service
         self.config = config
         logger.info("[SERVICE_FACTORY] Initialized")
 
-    def get_cookie_manager(self):
-        return self.cookie_manager
+    def get_cookie_handler(self):
+        return self.cookie_handler
+
+    def get_auto_cookie_manager(self):
+        return self.auto_cookie_manager
 
     def detect_service_type(self, url: str) -> ServiceType:
         url_lower = url.lower()
@@ -44,6 +50,7 @@ class ServiceFactory:
             ServiceType.PINTEREST: ["pinterest.com", "pin.it"],
             ServiceType.TIKTOK: ["tiktok.com", "vm.tiktok.com"],
             ServiceType.RADIOJAVAN: ["play.radiojavan.com", "radiojavan.com", "rj.app"],
+            ServiceType.SPOTIFY: ["open.spotify.com", "spotify.com", "spotify.link"],
         }
 
         for service_type, patterns in service_map.items():
@@ -71,10 +78,9 @@ class ServiceFactory:
                 config=self.config,
             ),
             ServiceType.YOUTUBE: lambda: YouTubeDownloader(
-                cookie_manager=self.cookie_manager,
+                cookie_handler=self.cookie_handler,
+                auto_cookie_manager=self.auto_cookie_manager,
                 error_handler=self.error_handler,
-                file_service=self.file_service,
-                config=self.config,
             ),
             ServiceType.TWITTER: lambda: TwitterDownloader(
                 error_handler=self.error_handler,
@@ -93,6 +99,11 @@ class ServiceFactory:
                 config=self.config,
             ),
             ServiceType.RADIOJAVAN: lambda: RadioJavanDownloader(
+                error_handler=self.error_handler,
+                file_service=self.file_service,
+                config=self.config,
+            ),
+            ServiceType.SPOTIFY: lambda: SpotifyDownloader(
                 error_handler=self.error_handler,
                 file_service=self.file_service,
                 config=self.config,

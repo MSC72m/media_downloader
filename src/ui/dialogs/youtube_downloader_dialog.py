@@ -1,14 +1,13 @@
-from collections.abc import Callable
-from typing import Any
-
-import customtkinter as ctk
-
-import PIL.Image
-import PIL.ImageTk
 import io
 import re
 import threading
 import time
+from collections.abc import Callable
+from typing import Any
+
+import customtkinter as ctk
+import PIL.Image
+import PIL.ImageTk
 
 from src.core.config import AppConfig, get_config
 from src.core.enums.message_level import MessageLevel
@@ -509,8 +508,8 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         else:
             self.subtitle_frame.pack_forget()
 
-        if self.video_metadata.thumbnail_url:
-            self._add_thumbnail_preview()
+        if self.video_metadata.thumbnail:
+            self._add_thumbnail_preview(self.video_metadata.thumbnail)
 
         self._on_format_change()
 
@@ -888,16 +887,25 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
             photo = PIL.ImageTk.PhotoImage(image)
 
-            thumbnail_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
-            thumbnail_frame.pack(fill="x", pady=(0, 20))
+            thumbnail_outer_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
+            thumbnail_outer_frame.pack(fill="x", pady=(0, 20))
+
+            thumbnail_container = ctk.CTkFrame(
+                thumbnail_outer_frame,
+                corner_radius=12,
+                fg_color=("#2b2b2b", "#3a3a3a"),
+                border_width=2,
+                border_color=("#4a4a4a", "#555555"),
+            )
+            thumbnail_container.pack(pady=10)
 
             thumbnail_label = ctk.CTkLabel(
-                thumbnail_frame,
+                thumbnail_container,
                 image=photo,
                 text="",
             )
+            thumbnail_label.pack(padx=10, pady=10)
             thumbnail_label.image = photo
-            thumbnail_label.pack()
             self._thumbnail_photo = photo
 
             logger.debug("[YOUTUBE_DIALOG] Thumbnail preview added successfully")

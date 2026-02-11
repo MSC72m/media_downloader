@@ -1,6 +1,6 @@
+import contextlib
 import tkinter as tk
 
-import contextlib
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)

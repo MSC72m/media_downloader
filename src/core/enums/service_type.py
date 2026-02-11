@@ -9,4 +9,5 @@ class ServiceType(StrEnum):
     SOUNDCLOUD = "soundcloud"
     TIKTOK = "tiktok"
     RADIOJAVAN = "radiojavan"
+    SPOTIFY = "spotify"
     GENERIC = "generic"

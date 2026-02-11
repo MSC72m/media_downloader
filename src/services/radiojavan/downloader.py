@@ -1,10 +1,10 @@
 import os
 from collections.abc import Callable
-from typing import Any
+from typing import ClassVar
 
 import requests
 
-from src.core.config import AppConfig, get_config
+from src.core.config import get_config
 from src.core.interfaces import BaseDownloader, IErrorNotifier, IFileService
 from src.services.network.downloader import download_file
 
@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 class RadioJavanDownloader(BaseDownloader):
     """Radio Javan downloader using API and URL validation."""
 
-    CDN_HOSTS = [
+    CDN_HOSTS: ClassVar[list[str]] = [
         "rj1.media",
         "rj2.media",
         "rj3.media",
@@ -24,13 +24,13 @@ class RadioJavanDownloader(BaseDownloader):
         "rj.app",
     ]
 
-    MP3_PATHS = [
+    MP3_PATHS: ClassVar[list[str]] = [
         "/media/mp3/{media_name}",
         "/mp3/{media_name}",
         "/mp3s/{media_name}",
     ]
 
-    MP4_PATHS = [
+    MP4_PATHS: ClassVar[list[str]] = [
         "/media/mp4/{media_name}",
         "/mp4/{media_name}",
         "/mp4s/{media_name}",
@@ -87,15 +87,17 @@ class RadioJavanDownloader(BaseDownloader):
             Media name or None
         """
         import re
+        from urllib.parse import unquote
 
         patterns = [
-            r"/mp3/([\w-]+)",
-            r"/mp4/([\w-]+)",
+            r"/mp3/([\w%-]+)",
+            r"/mp4/([\w%-]+)",
+            r"/song/([\w%-]+)",
         ]
         for pattern in patterns:
             match = re.search(pattern, url)
             if match:
-                return match.group(1)
+                return unquote(match.group(1))
         return None
 
     def _construct_download_url(self, url: str) -> str | None:
@@ -111,8 +113,7 @@ class RadioJavanDownloader(BaseDownloader):
         if not media_name:
             return None
 
-        is_mp3 = "/mp3/" in url.lower()
-        is_mp4 = "/mp4/" in url.lower()
+        is_mp3 = "/mp3/" in url.lower() or "/song/" in url.lower()
 
         paths = self.MP3_PATHS if is_mp3 else self.MP4_PATHS
 
@@ -161,7 +162,7 @@ class RadioJavanDownloader(BaseDownloader):
         self,
         url: str,
         save_path: str,
-        progress_callback: Callable[[float, float], None] = None,
+        progress_callback: Callable[[float, float], None] | None = None,
     ) -> bool:
         """Download a Radio Javan media file.
 

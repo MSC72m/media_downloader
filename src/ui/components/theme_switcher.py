@@ -98,29 +98,22 @@ class ThemeSwitcher(ctk.CTkFrame):
         except Exception:
             pass
 
+    @staticmethod
+    def _normalize_color(color):
+        """Extract a single color string from a theme color value (may be list/tuple)."""
+        if isinstance(color, list | tuple) and len(color) > 0:
+            return color[0] if isinstance(color[0], str) else str(color[0])
+        if not isinstance(color, str):
+            return str(color)
+        return color
+
     def _apply_theme_colors(self):
         theme_json = self._theme_manager.get_theme_json()
 
         button_config = theme_json.get("CTkButton", {})
         if button_config:
-            button_color = button_config.get("fg_color")
-            hover_color = button_config.get("hover_color")
-
-            # Handle button_color - extract first element if it's a list or tuple
-            if isinstance(button_color, (list, tuple)) and len(button_color) > 0:
-                button_color = (
-                    button_color[0] if isinstance(button_color[0], str) else str(button_color[0])
-                )
-            elif not isinstance(button_color, str):
-                button_color = str(button_color)
-
-            # Handle hover_color - extract first element if it's a list or tuple
-            if isinstance(hover_color, (list, tuple)) and len(hover_color) > 0:
-                hover_color = (
-                    hover_color[0] if isinstance(hover_color[0], str) else str(hover_color[0])
-                )
-            elif not isinstance(hover_color, str):
-                hover_color = str(hover_color)
+            button_color = self._normalize_color(button_config.get("fg_color"))
+            hover_color = self._normalize_color(button_config.get("hover_color"))
 
             self.appearance_switch.configure(
                 progress_color=button_color,
@@ -130,40 +123,10 @@ class ThemeSwitcher(ctk.CTkFrame):
 
         entry_config = theme_json.get("CTkEntry", {})
         if entry_config and button_config:
-            fg_color = entry_config.get("fg_color")
-            border_color = entry_config.get("border_color")
-            button_color = button_config.get("fg_color")
-            hover_color = button_config.get("hover_color")
-
-            # Handle fg_color - extract first element if it's a list or tuple
-            if isinstance(fg_color, (list, tuple)) and len(fg_color) > 0:
-                fg_color = fg_color[0] if isinstance(fg_color[0], str) else str(fg_color[0])
-            elif not isinstance(fg_color, str):
-                fg_color = str(fg_color)
-
-            # Handle border_color - extract first element if it's a list or tuple
-            if isinstance(border_color, (list, tuple)) and len(border_color) > 0:
-                border_color = (
-                    border_color[0] if isinstance(border_color[0], str) else str(border_color[0])
-                )
-            elif not isinstance(border_color, str):
-                border_color = str(border_color)
-
-            # Handle button_color - extract first element if it's a list or tuple
-            if isinstance(button_color, (list, tuple)) and len(button_color) > 0:
-                button_color = (
-                    button_color[0] if isinstance(button_color[0], str) else str(button_color[0])
-                )
-            elif not isinstance(button_color, str):
-                button_color = str(button_color)
-
-            # Handle hover_color - extract first element if it's a list or tuple
-            if isinstance(hover_color, (list, tuple)) and len(hover_color) > 0:
-                hover_color = (
-                    hover_color[0] if isinstance(hover_color[0], str) else str(hover_color[0])
-                )
-            elif not isinstance(hover_color, str):
-                hover_color = str(hover_color)
+            fg_color = self._normalize_color(entry_config.get("fg_color"))
+            border_color = self._normalize_color(entry_config.get("border_color"))
+            button_color = self._normalize_color(button_config.get("fg_color"))
+            hover_color = self._normalize_color(button_config.get("hover_color"))
 
             self.color_dropdown.configure(
                 fg_color=fg_color,
@@ -174,12 +137,7 @@ class ThemeSwitcher(ctk.CTkFrame):
 
         label_config = theme_json.get("CTkLabel", {})
         if label_config:
-            text_color = label_config.get("text_color")
-            # Handle text_color - extract first element if it's a list or tuple
-            if isinstance(text_color, (list, tuple)) and len(text_color) > 0:
-                text_color = text_color[0] if isinstance(text_color[0], str) else str(text_color[0])
-            elif not isinstance(text_color, str):
-                text_color = str(text_color)
+            text_color = self._normalize_color(label_config.get("text_color"))
             self.color_label.configure(text_color=text_color)
 
     def _on_appearance_toggle(self) -> None:
@@ -193,7 +151,7 @@ class ThemeSwitcher(ctk.CTkFrame):
         self.appearance_switch.configure(text="🌙 Dark" if is_dark else "☀️ Light")
 
     def _on_color_change(self, value: str) -> None:
-        color_name = value.split()[-1].lower()
+        color_name = value.rsplit(maxsplit=1)[-1].lower()
         try:
             color = ColorTheme(color_name)
             current_appearance = self._theme_manager.get_appearance()
