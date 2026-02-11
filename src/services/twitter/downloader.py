@@ -1,3 +1,4 @@
+import json
 import os
 import re
 from collections.abc import Callable
@@ -75,22 +76,17 @@ class TwitterDownloader(BaseDownloader):
             success = False
             for i, (username, tweet_id) in enumerate(tweet_refs):
                 tweet_data = self._scrape_tweet_data(tweet_id, username)
-                if tweet_data:
-                    save_name = f"{save_path}_{i}" if len(tweet_refs) > 1 else save_path
-                    media_success = self._download_media(
-                        tweet_data.get("media", []), save_name, progress_callback
-                    )
-                    text = tweet_data.get("text")
-                    if text:
-                        base_name = os.path.basename(save_name)
-                        save_dir = os.path.dirname(save_name) if os.path.dirname(save_name) else "."
-                        caption_filename = self.file_service.sanitize_filename(
-                            f"{base_name}_description.txt"
-                        )
-                        caption_path = os.path.join(save_dir, caption_filename)
-                        self.file_service.save_text_file(text, caption_path)
-                    if media_success:
-                        success = True
+                if not tweet_data:
+                    continue
+
+                save_name = f"{save_path}_{i}" if len(tweet_refs) > 1 else save_path
+                media_success = self._download_media(
+                    tweet_data.get("media", []), save_name, progress_callback
+                )
+                artifact_success = self._save_tweet_artifacts(save_name, tweet_data)
+
+                if media_success or artifact_success:
+                    success = True
 
             if not success:
                 error_msg = "Failed to download media from tweet"
@@ -182,6 +178,7 @@ class TwitterDownloader(BaseDownloader):
                         return {
                             "media": media,
                             "text": str(tweet_data.get("text", "")).strip(),
+                            "raw": tweet_data,
                         }
                     case value if "text/html" in value:
                         if "Failed to scan your link" in response.text:
@@ -202,6 +199,32 @@ class TwitterDownloader(BaseDownloader):
             if self.error_handler:
                 self.error_handler.handle_exception(e, f"Scraping tweet {tweet_id}", "Twitter")
             return None
+
+    def _save_tweet_artifacts(self, save_path: str, tweet_data: dict[str, Any]) -> bool:
+        """Persist scraped tweet text/JSON for reliability when media CDNs are blocked."""
+        base_name = os.path.basename(save_path)
+        save_dir = os.path.dirname(save_path) if os.path.dirname(save_path) else "."
+        saved_any = False
+
+        text = str(tweet_data.get("text", "")).strip()
+        if text:
+            caption_filename = self.file_service.sanitize_filename(f"{base_name}_description.txt")
+            caption_path = os.path.join(save_dir, caption_filename)
+            self.file_service.save_text_file(text, caption_path)
+            saved_any = True
+
+        raw_payload = tweet_data.get("raw")
+        if isinstance(raw_payload, dict):
+            json_filename = self.file_service.sanitize_filename(f"{base_name}_tweet.json")
+            json_path = os.path.join(save_dir, json_filename)
+            try:
+                with open(json_path, "w", encoding="utf-8") as f:
+                    json.dump(raw_payload, f, ensure_ascii=False, indent=2)
+                saved_any = True
+            except Exception as e:
+                logger.warning(f"[TWITTER_DOWNLOADER] Failed to save tweet JSON artifact: {e}")
+
+        return saved_any
 
     @staticmethod
     def _select_tweet_payload(data: dict[str, Any]) -> dict[str, Any] | None:

@@ -473,6 +473,8 @@ class RadioJavanConfig(BaseModel):
         default_factory=lambda: [
             r"^https?://(?:www\.)?play\.radiojavan\.com/(?:mp3|mp4|song)/[\w-]+",
             r"^https?://(?:www\.)?radiojavan\.com/artist/[\w-]+/songs",
+            r"^https?://(?:www\.)?radiojavan\.com/mp3s/mp3/[\w-]+",
+            r"^https?://(?:www\.)?radiojavan\.com/videos/video/[\w-]+",
             r"^https?://rj\.app/[\w-]+",
             r"^https?://(?:www\.)?radiojavan\.com/(?:mp3|mp4|song)/[\w-]+",
         ],
@@ -485,6 +487,7 @@ class RadioJavanConfig(BaseModel):
     )
     cdn_hosts: list[str] = Field(
         default_factory=lambda: [
+            "www.radiojavan.com",
             "rj1.media",
             "rj2.media",
             "rj3.media",
@@ -678,6 +681,8 @@ class ServiceConfig(BaseModel):
             "url_patterns": [
                 r"^https?://(?:www\.)?play\.radiojavan\.com/(?:mp3|mp4)/[\w-]+",
                 r"^https?://(?:www\.)?radiojavan\.com/artist/[\w-]+/songs",
+                r"^https?://(?:www\.)?radiojavan\.com/mp3s/mp3/[\w-]+",
+                r"^https?://(?:www\.)?radiojavan\.com/videos/video/[\w-]+",
                 r"^https?://rj\.app/[\w-]+",
                 r"^https?://(?:www\.)?radiojavan\.com/(?:mp3|mp4)/[\w-]+",
             ],

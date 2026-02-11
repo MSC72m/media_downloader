@@ -1,4 +1,5 @@
 import os
+import re
 from collections.abc import Callable
 from typing import ClassVar
 
@@ -17,20 +18,27 @@ class RadioJavanDownloader(BaseDownloader):
     """Radio Javan downloader using API and URL validation."""
 
     CDN_HOSTS: ClassVar[list[str]] = [
-        "rj1.media",
-        "rj2.media",
-        "rj3.media",
-        "rjmedia.app",
-        "rj.app",
+        "https://rj1.media",
+        "https://rj2.media",
+        "https://rj3.media",
+        "https://rjmedia.app",
+        "https://rj.app",
     ]
 
     MP3_PATHS: ClassVar[list[str]] = [
+        "/media/mp3/mp3-320/{media_name}.mp3",
+        "/media/mp3/mp3-256/{media_name}.mp3",
+        "/media/mp3/{media_name}.mp3",
         "/media/mp3/{media_name}",
         "/mp3/{media_name}",
         "/mp3s/{media_name}",
     ]
 
     MP4_PATHS: ClassVar[list[str]] = [
+        "/media/music_video/hd/{media_name}.mp4",
+        "/media/music_video/hq/{media_name}.mp4",
+        "/media/music_video/lq/{media_name}.mp4",
+        "/media/mp4/{media_name}.mp4",
         "/media/mp4/{media_name}",
         "/mp4/{media_name}",
         "/mp4s/{media_name}",
@@ -49,6 +57,8 @@ class RadioJavanDownloader(BaseDownloader):
         super().__init__(error_handler, file_service, config)
         self.default_timeout = config.radiojavan.default_timeout
         self.max_retries = config.radiojavan.max_retries
+        self._api_base = str(config.radiojavan.api_base_url).rstrip("/")
+        self._headers = {"User-Agent": self.config.network.user_agent}
 
     def _validate_download_inputs(self, url: str, save_path: str) -> bool:
         """Validate download inputs.
@@ -86,10 +96,11 @@ class RadioJavanDownloader(BaseDownloader):
         Returns:
             Media name or None
         """
-        import re
         from urllib.parse import unquote
 
         patterns = [
+            r"/mp3s/mp3/([\w%-]+)",
+            r"/videos/video/([\w%-]+)",
             r"/mp3/([\w%-]+)",
             r"/mp4/([\w%-]+)",
             r"/song/([\w%-]+)",
@@ -99,6 +110,69 @@ class RadioJavanDownloader(BaseDownloader):
             if match:
                 return unquote(match.group(1))
         return None
+
+    @staticmethod
+    def _detect_media_type(url: str) -> str | None:
+        """Detect whether URL points to mp3 or mp4 content."""
+        lowered = url.lower()
+        match lowered:
+            case value if any(token in value for token in ("/mp3s/mp3/", "/mp3/", "/song/")):
+                return "mp3"
+            case value if any(token in value for token in ("/videos/video/", "/mp4/")):
+                return "mp4"
+            case _:
+                return None
+
+    @staticmethod
+    def _normalize_host(host: str) -> str:
+        """Normalize host string into full https://base form."""
+        cleaned = host.strip().rstrip("/")
+        if cleaned.startswith(("http://", "https://")):
+            return cleaned
+        return f"https://{cleaned}"
+
+    def _candidate_hosts(self, media_name: str, media_type: str) -> list[str]:
+        """Get candidate hosts using Radio Javan API first, then static fallbacks."""
+        hosts: list[str] = []
+        endpoint_map = {
+            "mp3": "mp3s/mp3_host",
+            "mp4": "videos/video_host",
+        }
+        endpoint = endpoint_map.get(media_type)
+
+        if endpoint:
+            try:
+                response = requests.post(
+                    f"{self._api_base}/{endpoint}",
+                    params={"id": media_name},
+                    headers=self._headers,
+                    timeout=self.default_timeout,
+                )
+                response.raise_for_status()
+                payload = response.json()
+                host = payload.get("host")
+                if isinstance(host, str) and host.strip():
+                    hosts.append(self._normalize_host(host))
+            except Exception as e:
+                logger.warning(f"[RADIOJAVAN_DOWNLOADER] Host API lookup failed: {e}")
+
+        configured_hosts = [self._normalize_host(h) for h in self.config.radiojavan.cdn_hosts]
+        fallback_hosts = [self._normalize_host(h) for h in self.CDN_HOSTS]
+        hosts.extend(configured_hosts)
+        hosts.extend(fallback_hosts)
+
+        unique_hosts: list[str] = []
+        seen: set[str] = set()
+        for host in hosts:
+            if host in seen:
+                continue
+            seen.add(host)
+            unique_hosts.append(host)
+        return unique_hosts
+
+    def _candidate_paths(self, media_type: str) -> list[str]:
+        """Get URL path candidates for media type."""
+        return self.MP3_PATHS if media_type == "mp3" else self.MP4_PATHS
 
     def _construct_download_url(self, url: str) -> str | None:
         """Construct direct download URL from Radio Javan URL.
@@ -113,16 +187,30 @@ class RadioJavanDownloader(BaseDownloader):
         if not media_name:
             return None
 
-        is_mp3 = "/mp3/" in url.lower() or "/song/" in url.lower()
+        media_type = self._detect_media_type(url)
+        if not media_type:
+            logger.warning(f"[RADIOJAVAN_DOWNLOADER] Could not detect media type: {url}")
+            return None
 
-        paths = self.MP3_PATHS if is_mp3 else self.MP4_PATHS
+        hosts = self._candidate_hosts(media_name, media_type)
+        paths = self._candidate_paths(media_type)
 
-        for host in self.CDN_HOSTS:
+        first_candidate: str | None = None
+        for host in hosts:
             for path in paths:
-                download_url = f"https://{host}{path.format(media_name=media_name)}"
+                download_url = f"{host}{path.format(media_name=media_name)}"
+                if first_candidate is None:
+                    first_candidate = download_url
                 if self._validate_url(download_url):
                     logger.debug(f"[RADIOJAVAN_DOWNLOADER] Valid URL found: {download_url}")
                     return download_url
+
+        if first_candidate:
+            logger.warning(
+                "[RADIOJAVAN_DOWNLOADER] No candidate URL validated; returning best-effort URL: "
+                f"{first_candidate}"
+            )
+            return first_candidate
 
         logger.warning(f"[RADIOJAVAN_DOWNLOADER] Could not construct valid URL for: {url}")
         return None
@@ -138,19 +226,39 @@ class RadioJavanDownloader(BaseDownloader):
         """
         try:
             logger.debug(f"[RADIOJAVAN_DOWNLOADER] Validating URL: {url}")
-            response = requests.head(url, timeout=self.default_timeout, allow_redirects=True)
+            response = requests.head(
+                url,
+                timeout=self.default_timeout,
+                allow_redirects=True,
+                headers=self._headers,
+            )
             response.raise_for_status()
+            content_type = response.headers.get("content-type", "").lower()
+            if not any(token in content_type for token in ("audio", "video", "octet-stream")):
+                return False
 
             content_length = response.headers.get("content-length", "0")
             file_size = int(content_length) if content_length.isdigit() else 0
-
-            if file_size < self.MIN_FILE_SIZE:
+            if file_size and file_size < self.MIN_FILE_SIZE:
                 logger.warning(f"[RADIOJAVAN_DOWNLOADER] File too small: {file_size} bytes")
                 return False
 
             logger.debug(f"[RADIOJAVAN_DOWNLOADER] URL valid: {file_size} bytes")
             return True
+        except requests.RequestException:
+            pass
 
+        try:
+            response = requests.get(
+                url,
+                timeout=self.default_timeout,
+                allow_redirects=True,
+                headers={**self._headers, "Range": "bytes=0-1"},
+                stream=True,
+            )
+            response.raise_for_status()
+            content_type = response.headers.get("content-type", "").lower()
+            return any(token in content_type for token in ("audio", "video", "octet-stream"))
         except requests.RequestException as e:
             logger.debug(f"[RADIOJAVAN_DOWNLOADER] URL validation failed: {e}")
             return False

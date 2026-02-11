@@ -51,15 +51,19 @@ class SpotifyDownloader(BaseDownloader):
         Returns:
             URL type: 'track', 'album', 'playlist', 'artist', or 'unknown'
         """
-        if "/track/" in url or "spotify:track:" in url:
-            return "track"
-        if "/album/" in url or "spotify:album:" in url:
-            return "album"
-        if "/playlist/" in url or "spotify:playlist:" in url:
-            return "playlist"
-        if "/artist/" in url or "spotify:artist:" in url:
-            return "artist"
-        return "unknown"
+        lowered = url.lower()
+
+        match lowered:
+            case value if "/track/" in value or "spotify:track:" in value:
+                return "track"
+            case value if "/album/" in value or "spotify:album:" in value:
+                return "album"
+            case value if "/playlist/" in value or "spotify:playlist:" in value:
+                return "playlist"
+            case value if "/artist/" in value or "spotify:artist:" in value:
+                return "artist"
+            case _:
+                return "unknown"
 
     def _extract_spotify_id(self, url: str) -> str | None:
         """Extract Spotify content ID from URL.
@@ -378,27 +382,80 @@ class SpotifyDownloader(BaseDownloader):
         """
         return self._search_youtube(artist, track)
 
+    @staticmethod
+    def _extract_youtube_url(result: dict[str, Any]) -> str | None:
+        """Extract a playable YouTube URL from a search result entry."""
+        webpage_url = result.get("webpage_url")
+        if isinstance(webpage_url, str) and webpage_url:
+            return webpage_url
+
+        direct_url = result.get("url")
+        if isinstance(direct_url, str) and direct_url.startswith(("http://", "https://")):
+            return direct_url
+
+        video_id = result.get("id")
+        if isinstance(video_id, str) and video_id:
+            return f"https://www.youtube.com/watch?v={video_id}"
+
+        return None
+
     def download(
         self,
         url: str,
         save_path: str,
         progress_callback: Callable[[float, float], None] | None = None,
     ) -> bool:
-        """Download Spotify content by finding YouTube match.
+        """Download Spotify track by matching and downloading from YouTube."""
+        metadata = self._extract_spotify_metadata(url)
+        title = str(metadata.get("title", "")).strip()
 
-        This method is a placeholder - actual downloads are handled
-        via YouTubeDownloader after user selects from search results.
+        artist, track = self._parse_artist_track(title)
+        if not track:
+            track = title
+        if not track:
+            error_msg = "Could not determine Spotify track name"
+            logger.error(f"[SPOTIFY_DOWNLOADER] {error_msg}")
+            if self.error_handler:
+                self.error_handler.handle_service_failure("Spotify", "download", error_msg, url)
+            return False
 
-        Args:
-            url: Spotify URL
-            save_path: Path to save file
-            progress_callback: Progress callback
+        search_results = self._search_youtube(artist, track)
+        if not search_results:
+            error_msg = "No YouTube results found for Spotify track"
+            logger.error(f"[SPOTIFY_DOWNLOADER] {error_msg}: artist={artist!r}, track={track!r}")
+            if self.error_handler:
+                self.error_handler.handle_service_failure("Spotify", "download", error_msg, url)
+            return False
 
-        Returns:
-            False (use SpotifyDownloaderDialog for full workflow)
-        """
-        logger.warning(
-            "[SPOTIFY_DOWNLOADER] Direct download not supported. "
-            "Use SpotifyDownloaderDialog for full workflow."
+        match_key = f"{artist} {track}".strip()
+        best_match = (
+            self._select_best_match(match_key or track, search_results) or search_results[0]
         )
-        return False
+        youtube_url = self._extract_youtube_url(best_match)
+        if not youtube_url:
+            error_msg = "YouTube search did not return a playable URL"
+            logger.error(f"[SPOTIFY_DOWNLOADER] {error_msg}")
+            if self.error_handler:
+                self.error_handler.handle_service_failure("Spotify", "download", error_msg, url)
+            return False
+
+        logger.info(
+            "[SPOTIFY_DOWNLOADER] Matched Spotify track to YouTube URL: %s",
+            youtube_url,
+        )
+
+        try:
+            from src.services.youtube.downloader import YouTubeDownloader
+
+            yt_downloader = YouTubeDownloader(
+                quality="lowest",
+                audio_only=True,
+                download_thumbnail=False,
+                embed_metadata=True,
+            )
+            return yt_downloader.download(youtube_url, save_path, progress_callback)
+        except Exception as e:
+            logger.error(f"[SPOTIFY_DOWNLOADER] Download failed: {e}", exc_info=True)
+            if self.error_handler:
+                self.error_handler.handle_exception(e, "Spotify direct download", "Spotify")
+            return False

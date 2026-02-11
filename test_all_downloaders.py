@@ -71,6 +71,8 @@ TIKTOK_URLS = [
     "https://www.tiktok.com/@zachking/video/6768504823220512005",
 ]
 
+MIN_FILE_BYTES = 1024
+
 
 @dataclass
 class TestResult:
@@ -145,6 +147,46 @@ class DownloaderTestSuite:
         svc_dir = os.path.join(self.tmp_dir, service)
         os.makedirs(svc_dir, exist_ok=True)
         return os.path.join(svc_dir, name)
+
+    def _list_service_files(self, service: str) -> list[Path]:
+        """List regular files created for a service inside the temp test directory."""
+        svc_dir = Path(self.tmp_dir) / service
+        if not svc_dir.is_dir():
+            return []
+        return sorted([f for f in svc_dir.iterdir() if f.is_file()])
+
+    def _verify_download_outputs(
+        self,
+        service: str,
+        expected_exts: set[str],
+        min_size: int = MIN_FILE_BYTES,
+    ) -> dict[str, Any]:
+        """Verify downloaded outputs by extension and minimum file size."""
+        files = self._list_service_files(service)
+        if not files:
+            raise RuntimeError(f"No files were created for service: {service}")
+
+        normalized_exts = {ext.lower() for ext in expected_exts}
+        matching_files = [f for f in files if f.suffix.lower() in normalized_exts]
+        if not matching_files:
+            found_exts = sorted({f.suffix.lower() or "<no-ext>" for f in files})
+            raise RuntimeError(
+                f"No files with expected extensions {sorted(normalized_exts)}; found {found_exts}"
+            )
+
+        invalid_sizes = [
+            f"{f.name}={f.stat().st_size}" for f in matching_files if f.stat().st_size < min_size
+        ]
+        if invalid_sizes:
+            raise RuntimeError(
+                f"Downloaded files below minimum size ({min_size} bytes): {', '.join(invalid_sizes)}"
+            )
+
+        return {
+            "files": [f.name for f in files],
+            "matched_files": [f.name for f in matching_files],
+            "sizes": {f.name: f.stat().st_size for f in files},
+        }
 
     # ── YouTube ───────────────────────────────────────────────────────
 
@@ -222,11 +264,9 @@ class DownloaderTestSuite:
             ok = downloader.download(u, save_path)
             if not ok:
                 raise RuntimeError("Download returned False")
-
-            # Check that some file was created
-            svc_dir = os.path.join(self.tmp_dir, "youtube")
-            files = os.listdir(svc_dir) if os.path.isdir(svc_dir) else []
-            return {"files": files, "save_path": save_path}
+            result = self._verify_download_outputs("youtube", {".mp4", ".webm", ".mkv"})
+            result["save_path"] = save_path
+            return result
 
         self._run_test("YouTube", "download", url, do_download)
 
@@ -268,9 +308,37 @@ class DownloaderTestSuite:
             ok = downloader.download(u, save_path)
             if not ok:
                 raise RuntimeError("Download returned False")
-            svc_dir = os.path.join(self.tmp_dir, "twitter")
-            files = os.listdir(svc_dir) if os.path.isdir(svc_dir) else []
-            return {"files": files}
+
+            files = self._list_service_files("twitter")
+            if not files:
+                raise RuntimeError("No files created by Twitter downloader")
+
+            media_exts = {".jpg", ".jpeg", ".png", ".mp4", ".gif"}
+            artifact_exts = {".json", ".txt"}
+            media_files = [f for f in files if f.suffix.lower() in media_exts]
+            artifact_files = [f for f in files if f.suffix.lower() in artifact_exts]
+            if not media_files and not artifact_files:
+                found = sorted({f.suffix.lower() or "<no-ext>" for f in files})
+                raise RuntimeError(f"No media or artifact files created. Found extensions: {found}")
+
+            for media_file in media_files:
+                if media_file.stat().st_size < MIN_FILE_BYTES:
+                    raise RuntimeError(
+                        f"Twitter media file too small: {media_file.name} ({media_file.stat().st_size} bytes)"
+                    )
+
+            for artifact_file in artifact_files:
+                if artifact_file.stat().st_size < 10:
+                    raise RuntimeError(
+                        f"Twitter artifact file too small: {artifact_file.name} ({artifact_file.stat().st_size} bytes)"
+                    )
+
+            return {
+                "files": [f.name for f in files],
+                "media_files": [f.name for f in media_files],
+                "artifact_files": [f.name for f in artifact_files],
+                "sizes": {f.name: f.stat().st_size for f in files},
+            }
 
         self._run_test("Twitter", "download", url, test_download)
 
@@ -303,9 +371,7 @@ class DownloaderTestSuite:
             ok = downloader.download(u, save_path)
             if not ok:
                 raise RuntimeError("Download returned False")
-            svc_dir = os.path.join(self.tmp_dir, "pinterest")
-            files = os.listdir(svc_dir) if os.path.isdir(svc_dir) else []
-            return {"files": files}
+            return self._verify_download_outputs("pinterest", {".jpg", ".jpeg", ".png", ".mp4"})
 
         self._run_test("Pinterest", "download", url, test_download)
 
@@ -366,6 +432,16 @@ class DownloaderTestSuite:
 
         self._run_test("Spotify", "url_detection", url, test_type_detection)
 
+        # Test direct download
+        def test_download(u):
+            save_path = self._make_save_path("spotify", "spotify_track")
+            ok = downloader.download(u, save_path)
+            if not ok:
+                raise RuntimeError("Download returned False")
+            return self._verify_download_outputs("spotify", {".mp3", ".m4a", ".opus", ".webm"})
+
+        self._run_test("Spotify", "download", url, test_download)
+
     # ── SoundCloud ────────────────────────────────────────────────────
 
     def test_soundcloud(self):
@@ -405,9 +481,10 @@ class DownloaderTestSuite:
             ok = downloader.download(u, save_path)
             if not ok:
                 raise RuntimeError("Download returned False")
-            svc_dir = os.path.join(self.tmp_dir, "soundcloud")
-            files = os.listdir(svc_dir) if os.path.isdir(svc_dir) else []
-            return {"files": files}
+            return self._verify_download_outputs(
+                "soundcloud",
+                {".mp3", ".m4a", ".opus", ".wav", ".aac", ".flac"},
+            )
 
         self._run_test("SoundCloud", "download", url, test_download)
 
@@ -465,9 +542,7 @@ class DownloaderTestSuite:
             ok = downloader.download(u, save_path)
             if not ok:
                 raise RuntimeError("Download returned False")
-            svc_dir = os.path.join(self.tmp_dir, "tiktok")
-            files = os.listdir(svc_dir) if os.path.isdir(svc_dir) else []
-            return {"files": files}
+            return self._verify_download_outputs("tiktok", {".mp4", ".webm", ".mkv"})
 
         self._run_test("TikTok", "download", url, test_download)
 
