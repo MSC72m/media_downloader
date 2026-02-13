@@ -2,6 +2,7 @@ from src.core.enums.compat import StrEnum
 
 
 class ServiceType(StrEnum):
+    GOOGLE = "google"
     YOUTUBE = "youtube"
     TWITTER = "twitter"
     INSTAGRAM = "instagram"

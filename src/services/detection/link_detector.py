@@ -1,20 +1,13 @@
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
-from typing import Any, ClassVar
+from typing import Any, ClassVar, cast
 
 from src.utils.logger import get_logger
 
 from .base_handler import BaseHandler
+from .models import DetectionResult
 
 logger = get_logger(__name__)
-
-
-@dataclass
-class DetectionResult:
-    service_type: str
-    confidence: float
-    metadata: dict[str, Any] | None = None
 
 
 LinkHandlerInterface = BaseHandler
@@ -77,7 +70,7 @@ class LinkDetectionRegistry:
                 if cls._handler_factory:
                     handler = cls._handler_factory(handler_class)
                 else:
-                    handler = handler_class()
+                    handler = cast(Callable[[], BaseHandler], handler_class)()
 
                 logger.debug(f"[DETECTION] Created handler instance: {handler}")
                 result = handler.can_handle(url)
@@ -131,16 +124,14 @@ class LinkDetector:
     def detect_and_handle(self, url: str, ui_context: Any = None) -> bool:
         logger.info(f"[LINK_DETECTOR] Starting detect_and_handle for URL: {url}")
 
-        handler = self.registry.detect_handler(url)
-        if not handler:
+        if not (handler := self.registry.detect_handler(url)):
             logger.warning(f"[LINK_DETECTOR] No handler found for URL: {url}")
             return False
 
         logger.info(f"[LINK_DETECTOR] Detected handler: {handler.__class__.__name__}")
 
         try:
-            callback = handler.get_ui_callback()
-            if not callback:
+            if not (callback := handler.get_ui_callback()):
                 logger.warning(
                     f"[LINK_DETECTOR] No callback from handler: {handler.__class__.__name__}"
                 )
@@ -162,8 +153,7 @@ class LinkDetector:
             return False
 
     def get_url_info(self, url: str) -> DetectionResult | None:
-        handler = self.registry.detect_handler(url)
-        if handler:
+        if handler := self.registry.detect_handler(url):
             try:
                 return handler.can_handle(url)
             except Exception as e:

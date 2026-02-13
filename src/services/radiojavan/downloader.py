@@ -8,7 +8,6 @@ from typing import ClassVar
 from urllib.parse import quote, unquote
 
 import requests
-from requests.cookies import RequestsCookieJar
 
 from src.core.config import get_config
 from src.core.interfaces import BaseDownloader, IErrorNotifier, IFileService
@@ -69,18 +68,18 @@ class RadioJavanDownloader(BaseDownloader):
         self._site_base = self._api_base.removesuffix("/api2")
         self._base_headers = {"User-Agent": self.config.network.user_agent}
         self._session_manager = session_manager or RadioJavanSessionManager(config=self.config)
+        self._last_access_error: str | None = None
 
     def _request_context(
         self,
         force_refresh: bool = False,
-    ) -> tuple[dict[str, str], RequestsCookieJar | None]:
+    ) -> tuple[dict[str, str], dict[str, str] | None]:
         """Build headers/cookies context for requests calls."""
         default_headers = dict(self._base_headers)
         if not self.config.radiojavan.session_enabled:
             return default_headers, None
 
-        context = self._session_manager.get_request_context(force_refresh=force_refresh)
-        if not context:
+        if not (context := self._session_manager.get_request_context(force_refresh=force_refresh)):
             return default_headers, None
 
         session_headers, session_cookies = context
@@ -116,8 +115,7 @@ class RadioJavanDownloader(BaseDownloader):
                 self.error_handler.handle_service_failure("Radio Javan", "download", error_msg, "")
             return False
 
-        save_dir = os.path.dirname(save_path)
-        if save_dir and not os.path.exists(save_dir):
+        if (save_dir := os.path.dirname(save_path)) and not os.path.exists(save_dir):
             error_msg = f"Save directory does not exist: {save_dir}"
             logger.error(f"[RADIOJAVAN_DOWNLOADER] {error_msg}")
             if self.error_handler:
@@ -143,8 +141,7 @@ class RadioJavanDownloader(BaseDownloader):
             r"/song/([\w%-]+)",
         ]
         for pattern in patterns:
-            match = re.search(pattern, url)
-            if match:
+            if match := re.search(pattern, url):
                 return unquote(match.group(1))
         return None
 
@@ -163,8 +160,7 @@ class RadioJavanDownloader(BaseDownloader):
     @staticmethod
     def _normalize_host(host: str) -> str:
         """Normalize host string into full https://base form."""
-        cleaned = host.strip().rstrip("/")
-        if cleaned.startswith(("http://", "https://")):
+        if (cleaned := host.strip().rstrip("/")).startswith(("http://", "https://")):
             return cleaned
         return f"https://{cleaned}"
 
@@ -181,7 +177,7 @@ class RadioJavanDownloader(BaseDownloader):
         self,
         url: str,
         force_refresh: bool = False,
-    ) -> tuple[dict[str, str], RequestsCookieJar | None]:
+    ) -> tuple[dict[str, str], dict[str, str] | None]:
         if not self._requires_session_for_url(url):
             return dict(self._base_headers), None
         return self._request_context(force_refresh=force_refresh)
@@ -190,10 +186,12 @@ class RadioJavanDownloader(BaseDownloader):
         """Get candidate hosts using Radio Javan API first, then static fallbacks."""
         hosts: list[str] = []
 
-        for endpoint in self._host_lookup_endpoints(media_type):
-            host = self._fetch_host_from_endpoint(endpoint, media_name)
-            if host:
-                hosts.append(self._normalize_host(host))
+        api_hosts = [
+            self._normalize_host(host)
+            for endpoint in self._host_lookup_endpoints(media_type)
+            if (host := self._fetch_host_from_endpoint(endpoint, media_name))
+        ]
+        hosts.extend(api_hosts)
 
         configured_hosts = [self._normalize_host(h) for h in self.config.radiojavan.cdn_hosts]
         fallback_hosts = [self._normalize_host(h) for h in self.CDN_HOSTS]
@@ -215,8 +213,7 @@ class RadioJavanDownloader(BaseDownloader):
             "mp3": "mp3s/mp3_host",
             "mp4": "videos/video_host",
         }
-        endpoint = endpoint_map.get(media_type)
-        if not endpoint:
+        if not (endpoint := endpoint_map.get(media_type)):
             return []
 
         # RadioJavan host endpoints are typically under the site root.
@@ -228,8 +225,7 @@ class RadioJavanDownloader(BaseDownloader):
 
     def _fetch_host_from_endpoint(self, endpoint: str, media_name: str) -> str | None:
         """Fetch CDN host from a RadioJavan host endpoint."""
-        response = self._post_host_lookup(endpoint, media_name, force_refresh=False)
-        if response is None:
+        if not (response := self._post_host_lookup(endpoint, media_name, force_refresh=False)):
             return None
 
         if self._is_host_lookup_challenge(response):
@@ -239,8 +235,7 @@ class RadioJavanDownloader(BaseDownloader):
                 endpoint,
             )
             self._session_manager.invalidate_and_refresh()
-            response = self._post_host_lookup(endpoint, media_name, force_refresh=True)
-            if response is None:
+            if not (response := self._post_host_lookup(endpoint, media_name, force_refresh=True)):
                 return None
             if self._is_host_lookup_challenge(response):
                 logger.warning(
@@ -273,9 +268,7 @@ class RadioJavanDownloader(BaseDownloader):
             return {}
 
         normalized_content_type = (content_type or "").lower()
-        looks_like_json = "json" in normalized_content_type or text.lstrip().startswith("{")
-
-        if looks_like_json:
+        if "json" in normalized_content_type or text.lstrip().startswith("{"):
             try:
                 parsed = json.loads(text)
                 if isinstance(parsed, dict):
@@ -283,8 +276,7 @@ class RadioJavanDownloader(BaseDownloader):
             except Exception:
                 pass
 
-        host_match = re.search(r'"host"\s*:\s*"([^"]+)"', text)
-        if host_match:
+        if host_match := re.search(r'"host"\s*:\s*"([^"]+)"', text):
             return {"host": host_match.group(1)}
 
         return {}
@@ -304,8 +296,9 @@ class RadioJavanDownloader(BaseDownloader):
                 cookies=cookies,
                 timeout=self.default_timeout,
             )
-            status_code = response.status_code if isinstance(response.status_code, int) else 0
-            if status_code >= 400 and not self._is_host_lookup_challenge(response):
+            if (
+                status_code := response.status_code if isinstance(response.status_code, int) else 0
+            ) >= 400 and not self._is_host_lookup_challenge(response):
                 logger.warning(
                     "[RADIOJAVAN_DOWNLOADER] Host API lookup returned %s (%s, refresh=%s)",
                     status_code,
@@ -315,6 +308,15 @@ class RadioJavanDownloader(BaseDownloader):
                 return None
             return response
         except Exception as exc:
+            if RadioJavanSessionManager.is_transport_block_error(exc):
+                self._last_access_error = str(exc)
+                logger.warning(
+                    "[RADIOJAVAN_DOWNLOADER] Transport block during host lookup (%s, refresh=%s): %s",
+                    endpoint,
+                    force_refresh,
+                    exc,
+                )
+                return None
             logger.warning(
                 "[RADIOJAVAN_DOWNLOADER] Host API lookup failed (%s, refresh=%s): %s",
                 endpoint,
@@ -341,8 +343,7 @@ class RadioJavanDownloader(BaseDownloader):
 
     @classmethod
     def _search_query_candidates(cls, media_name: str) -> list[str]:
-        words = [token for token in cls._normalize_slug(media_name).split("-") if token]
-        if not words:
+        if not (words := [token for token in cls._normalize_slug(media_name).split("-") if token]):
             return []
 
         candidates = [
@@ -423,51 +424,70 @@ class RadioJavanDownloader(BaseDownloader):
         media_name: str,
         media_type: str,
     ) -> str | None:
-        headers = {
-            **self._base_headers,
+        base_headers = {
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.9",
         }
 
         for query in self._search_query_candidates(media_name):
             search_url = f"{self.PLAY_SEARCH_BASE}/{quote(query)}"
-            try:
-                response = requests.get(
+            should_retry_after_refresh = True
+            while True:
+                session_headers, session_cookies = self._request_context_for_url(
                     search_url,
-                    headers=headers,
-                    timeout=self.default_timeout,
-                    allow_redirects=True,
+                    force_refresh=not should_retry_after_refresh,
                 )
-                response.raise_for_status()
-            except requests.RequestException as e:
-                logger.debug(
-                    "[RADIOJAVAN_DOWNLOADER] Play search lookup failed (%s): %s",
-                    search_url,
-                    e,
+                headers = {**session_headers, **base_headers}
+                try:
+                    response = requests.get(
+                        search_url,
+                        headers=headers,
+                        cookies=session_cookies,
+                        timeout=self.default_timeout,
+                        allow_redirects=True,
+                    )
+                    response.raise_for_status()
+                except requests.RequestException as e:
+                    if RadioJavanSessionManager.is_transport_block_error(e):
+                        self._last_access_error = str(e)
+                        logger.warning(
+                            "[RADIOJAVAN_DOWNLOADER] Transport block during play search (%s): %s",
+                            search_url,
+                            e,
+                        )
+                    else:
+                        logger.debug(
+                            "[RADIOJAVAN_DOWNLOADER] Play search lookup failed (%s): %s",
+                            search_url,
+                            e,
+                        )
+                    break
+
+                cf_mitigated = response.headers.get("cf-mitigated")
+                if self._is_challenge_response(
+                    text=response.text,
+                    cf_mitigated=cf_mitigated if isinstance(cf_mitigated, str) else None,
+                    status_code=response.status_code,
+                ):
+                    if (
+                        not self._requires_session_for_url(search_url)
+                        or not should_retry_after_refresh
+                    ):
+                        break
+                    should_retry_after_refresh = False
+                    self._session_manager.invalidate_and_refresh()
+                    continue
+
+                entries = self._extract_media_entries_from_play_html(response.text, media_type)
+                if not (direct_link := self._select_best_media_link(media_name, entries)):
+                    break
+
+                logger.info(
+                    "[RADIOJAVAN_DOWNLOADER] Resolved direct %s URL via play search: %s",
+                    media_type,
+                    direct_link,
                 )
-                continue
-
-            cf_mitigated = response.headers.get("cf-mitigated")
-            if cf_mitigated == "challenge":
-                continue
-            if response.status_code == 403 and self._is_challenge_response(
-                text=response.text,
-                cf_mitigated=cf_mitigated,
-                status_code=response.status_code,
-            ):
-                continue
-
-            entries = self._extract_media_entries_from_play_html(response.text, media_type)
-            direct_link = self._select_best_media_link(media_name, entries)
-            if not direct_link:
-                continue
-
-            logger.info(
-                "[RADIOJAVAN_DOWNLOADER] Resolved direct %s URL via play search: %s",
-                media_type,
-                direct_link,
-            )
-            return direct_link
+                return direct_link
         return None
 
     def _construct_download_url(self, url: str) -> str | None:
@@ -479,17 +499,16 @@ class RadioJavanDownloader(BaseDownloader):
         Returns:
             Direct download URL or None if construction failed
         """
-        media_name = self._extract_media_name(url)
-        if not media_name:
+        self._last_access_error = None
+
+        if not (media_name := self._extract_media_name(url)):
             return None
 
-        media_type = self._detect_media_type(url)
-        if not media_type:
+        if not (media_type := self._detect_media_type(url)):
             logger.warning(f"[RADIOJAVAN_DOWNLOADER] Could not detect media type: {url}")
             return None
 
-        direct_link = self._resolve_direct_media_url_from_play(media_name, media_type)
-        if direct_link:
+        if direct_link := self._resolve_direct_media_url_from_play(media_name, media_type):
             return direct_link
 
         hosts = self._candidate_hosts(media_name, media_type)
@@ -506,6 +525,11 @@ class RadioJavanDownloader(BaseDownloader):
                     return download_url
 
         if first_candidate:
+            if self._last_access_error:
+                logger.warning(
+                    "[RADIOJAVAN_DOWNLOADER] Returning best-effort URL after transport errors: %s",
+                    self._last_access_error,
+                )
             logger.warning(
                 "[RADIOJAVAN_DOWNLOADER] No candidate URL validated; returning best-effort URL: "
                 f"{first_candidate}"
@@ -528,7 +552,7 @@ class RadioJavanDownloader(BaseDownloader):
 
     @staticmethod
     def _is_media_content_type(content_type: str) -> bool:
-        lowered = content_type.lower()
+        lowered = str(content_type).lower()
         return any(token in lowered for token in ("audio", "video", "octet-stream"))
 
     def _validate_with_head(self, url: str) -> bool:
@@ -564,8 +588,9 @@ class RadioJavanDownloader(BaseDownloader):
                 return False
 
             content_length = response.headers.get("content-length", "0")
-            file_size = int(content_length) if content_length.isdigit() else 0
-            if file_size and file_size < self.MIN_FILE_SIZE:
+            if (
+                file_size := int(content_length) if content_length.isdigit() else 0
+            ) and file_size < self.MIN_FILE_SIZE:
                 logger.warning(f"[RADIOJAVAN_DOWNLOADER] File too small: {file_size} bytes")
                 return False
 
@@ -628,12 +653,26 @@ class RadioJavanDownloader(BaseDownloader):
         logger.info(f"[RADIOJAVAN_DOWNLOADER] Starting download: {url}")
         logger.info(f"[RADIOJAVAN_DOWNLOADER] Save path: {save_path}")
 
-        download_url = self._construct_download_url(url)
-        if not download_url:
+        if not (download_url := self._construct_download_url(url)):
             error_msg = "Could not construct valid download URL"
             logger.error(f"[RADIOJAVAN_DOWNLOADER] {error_msg}")
             if self.error_handler:
                 self.error_handler.handle_service_failure("Radio Javan", "download", error_msg, url)
+            return False
+
+        if self._last_access_error:
+            blocked_msg = (
+                "RadioJavan access is blocked at the network/TLS layer in this environment. "
+                f"Details: {self._last_access_error}. Try a different network path (VPN/proxy)."
+            )
+            logger.error("[RADIOJAVAN_DOWNLOADER] %s", blocked_msg)
+            if self.error_handler:
+                self.error_handler.handle_service_failure(
+                    "Radio Javan",
+                    "network access",
+                    blocked_msg,
+                    url,
+                )
             return False
 
         headers, cookies = self._request_context_for_url(download_url, force_refresh=False)
@@ -647,9 +686,9 @@ class RadioJavanDownloader(BaseDownloader):
         ):
             return True
 
-        if not self.config.radiojavan.session_enabled:
-            return False
-        if not self._requires_session_for_url(download_url):
+        if not (
+            self.config.radiojavan.session_enabled and self._requires_session_for_url(download_url)
+        ):
             return False
 
         logger.warning(

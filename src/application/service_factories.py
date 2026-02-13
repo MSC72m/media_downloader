@@ -75,9 +75,7 @@ class ServiceFactoryRegistry:
             Downloader instance or None
         """
         config = self.container.get(AppConfig)
-        service_config = getattr(config.services, service_type, None)
-
-        if not service_config:
+        if not (service_config := getattr(config.services, service_type, None)):
             logger.error(f"No service configuration found for: {service_type}")
             return None
 
@@ -105,9 +103,7 @@ class ServiceFactoryRegistry:
             Handler instance or None
         """
         config = self.container.get(AppConfig)
-        service_config = getattr(config.services, service_type, None)
-
-        if not service_config:
+        if not (service_config := getattr(config.services, service_type, None)):
             logger.error(f"No service configuration found for: {service_type}")
             return None
 
@@ -185,8 +181,7 @@ class ServiceFactoryRegistry:
 
     def create_network_checker(self) -> INetworkChecker:
         """Create network checker or mock."""
-        checker = self.container.get_optional(NetworkChecker)
-        if checker:
+        if checker := self.container.get_optional(NetworkChecker):
             return checker
         return NetworkChecker(error_handler=self.container.get_optional(IErrorNotifier))
 
@@ -213,5 +208,5 @@ class MockINetworkChecker:
     def check_service_connection(self, service: ServiceType) -> tuple[bool, str]:
         return True, ""
 
-    def get_problem_services(self) -> list[str]:
+    def get_problem_services(self) -> list[ServiceType]:
         return []

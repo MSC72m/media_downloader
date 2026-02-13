@@ -205,8 +205,7 @@ class CookieGenerator:
         for href in hrefs:
             if not isinstance(href, str):
                 continue
-            full_url = f"https://www.youtube.com{href}"
-            if full_url not in urls:
+            if (full_url := f"https://www.youtube.com{href}") not in urls:
                 urls.append(full_url)
             if len(urls) >= limit:
                 break
@@ -373,8 +372,7 @@ class CookieGenerator:
             f"[COOKIE_GENERATOR] Retrieved {len(cookies)} total cookies ({len(youtube_cookies)} YouTube, {len(google_cookies)} Google)"
         )
 
-        error_msg = self._validate_cookies(cookies, youtube_cookies, google_cookies)
-        if error_msg:
+        if error_msg := self._validate_cookies(cookies, youtube_cookies, google_cookies):
             await browser.close()
             return self._create_error_state(error_msg)
 
@@ -385,8 +383,7 @@ class CookieGenerator:
             await browser.close()
             return self._create_error_state(f"Failed to save cookies: {save_error!s}")
 
-        netscape_path = self.convert_to_netscape_text()
-        if not netscape_path:
+        if not (netscape_path := self.convert_to_netscape_text()):
             logger.warning("[COOKIE_GENERATOR] Failed to convert cookies to Netscape format")
             return self._create_error_state("Failed to convert cookies to Netscape format")
 
@@ -427,12 +424,10 @@ class CookieGenerator:
             async with async_playwright() as p:
                 logger.info("[COOKIE_GENERATOR] Launching Chromium browser")
 
-                browser = await self._launch_browser(p)
-                if browser is None:
+                if (browser := await self._launch_browser(p)) is None:
                     return self._create_error_state("Failed to launch browser")
 
-                context_result = await self._create_browser_context(browser)
-                if context_result is None:
+                if (context_result := await self._create_browser_context(browser)) is None:
                     with contextlib.suppress(Exception):
                         await browser.close()
                     return self._create_error_state("Failed to create browser context")
@@ -479,8 +474,7 @@ class CookieGenerator:
                 skipped_count += 1
                 continue
 
-            expires = cookie.get("expires", -1)
-            if expires == -1 or expires is None:
+            if (expires := cookie.get("expires", -1)) == -1 or expires is None:
                 expires = 0
             elif expires > 0:
                 expires = int(expires)
@@ -510,8 +504,7 @@ class CookieGenerator:
         if not self.cookie_file.exists():
             raise OSError(f"Cookie file was not created: {self.cookie_file}")
 
-        file_size = self.cookie_file.stat().st_size
-        if file_size == 0:
+        if (file_size := self.cookie_file.stat().st_size) == 0:
             raise OSError(f"Cookie file is empty: {self.cookie_file}")
 
         logger.info(
@@ -581,8 +574,7 @@ class CookieGenerator:
                 return None
 
             # Verify file has content
-            file_size = netscape_file.stat().st_size
-            if file_size == 0:
+            if (file_size := netscape_file.stat().st_size) == 0:
                 logger.error(f"[COOKIE_GENERATOR] Netscape file is empty: {netscape_file}")
                 return None
 
@@ -621,8 +613,7 @@ class CookieGenerator:
 
                     expiration = parts[4]
                     try:
-                        exp_int = int(expiration)
-                        if exp_int >= 0:
+                        if int(expiration) >= 0:
                             valid_lines += 1
                     except ValueError:
                         continue
@@ -641,8 +632,7 @@ class CookieGenerator:
         """
         try:
             async with async_playwright() as p:
-                browser_type = p.chromium
-                if browser_type:
+                if p.chromium:
                     logger.info("[COOKIE_GENERATOR] Chromium is available")
                     return True
 

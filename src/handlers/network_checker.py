@@ -52,6 +52,6 @@ class NetworkChecker:
                 )
             return False, str(e)
 
-    def get_problem_services(self) -> list[str]:
+    def get_problem_services(self) -> list[ServiceType]:
         """Get list of services with connection issues."""
         return get_problem_services()

@@ -2,7 +2,7 @@ import os
 import re
 from collections.abc import Callable
 from glob import glob
-from typing import Any
+from typing import Any, cast
 
 import yt_dlp
 
@@ -137,8 +137,7 @@ class SoundCloudDownloader(BaseDownloader):
                 self.error_handler.handle_service_failure("SoundCloud", "download", error_msg, "")
             return False
 
-        save_dir = os.path.dirname(save_path)
-        if save_dir and not os.path.exists(save_dir):
+        if (save_dir := os.path.dirname(save_path)) and not os.path.exists(save_dir):
             error_msg = f"Save directory does not exist: {save_dir}"
             logger.error(f"[SOUNDCLOUD_DOWNLOADER] {error_msg}")
             if self.error_handler:
@@ -156,8 +155,7 @@ class SoundCloudDownloader(BaseDownloader):
             True if premium (should abort), False otherwise
         """
         try:
-            info = self.get_info(url)
-            if info and self._is_premium_track(info):
+            if (info := self.get_info(url)) and self._is_premium_track(info):
                 error_msg = (
                     "This track requires SoundCloud Go+ subscription and cannot be downloaded"
                 )
@@ -194,11 +192,9 @@ class SoundCloudDownloader(BaseDownloader):
             options["outtmpl"] = f"{save_path}.%(ext)s"
             options["progress_hooks"] = [progress_hook]
 
-            with yt_dlp.YoutubeDL(options) as ydl:
+            with yt_dlp.YoutubeDL(cast(Any, options)) as ydl:
                 logger.info("[SOUNDCLOUD_DOWNLOADER] Extracting info...")
-                info = ydl.extract_info(url, download=True)
-
-                if not info:
+                if not (info := ydl.extract_info(url, download=True)):
                     error_msg = "Failed to extract track information"
                     logger.error(f"[SOUNDCLOUD_DOWNLOADER] {error_msg}")
                     if self.error_handler:
@@ -272,8 +268,7 @@ class SoundCloudDownloader(BaseDownloader):
             if self._is_auxiliary_output_file(path):
                 continue
 
-            file_size = os.path.getsize(path)
-            if file_size <= 0:
+            if (file_size := os.path.getsize(path)) <= 0:
                 continue
 
             logger.info(
@@ -287,8 +282,7 @@ class SoundCloudDownloader(BaseDownloader):
 
     @staticmethod
     def _is_auxiliary_output_file(path: str) -> bool:
-        lowered = path.lower()
-        if lowered.endswith((".info.json", ".description")):
+        if (lowered := path.lower()).endswith((".info.json", ".description")):
             return True
         auxiliary_suffixes = {
             ".part",
@@ -456,9 +450,7 @@ class SoundCloudDownloader(BaseDownloader):
                     "extract_flat": False,
                 }
             ) as ydl:
-                info = ydl.extract_info(url, download=False)
-
-                if not info:
+                if not (info := ydl.extract_info(url, download=False)):
                     return None
 
                 return {

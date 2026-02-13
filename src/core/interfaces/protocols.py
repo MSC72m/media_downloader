@@ -3,11 +3,33 @@ from typing import Any, Protocol, runtime_checkable
 
 
 @runtime_checkable
+class DownloadsCoordinatorProtocol(Protocol):
+    """Protocol for download coordinator operations used by handlers."""
+
+    def add_download(self, download: Any) -> None: ...
+
+    def remove_downloads(self, indices: list[int]) -> None: ...
+
+    def get_downloads(self) -> list[Any]: ...
+
+
+@runtime_checkable
+class PlatformDialogsProtocol(Protocol):
+    """Protocol for platform dialog operations used by handlers."""
+
+    def authenticate_instagram(
+        self, parent_window: Any, callback: Callable[[Any], None] | None = None
+    ) -> None: ...
+
+
+@runtime_checkable
 class UIContextProtocol(Protocol):
     """Protocol for UI context objects."""
 
     container: Any
     root: Any
+    downloads: DownloadsCoordinatorProtocol
+    platform_dialogs: PlatformDialogsProtocol
 
     def youtube_download(self, url: str, **kwargs) -> None: ...
 
@@ -71,6 +93,8 @@ class TkRootProtocol(Protocol):
     def after(self, ms: int, func: Callable[[], Any]) -> str: ...
 
     def winfo_exists(self) -> bool: ...
+
+    def run_on_main_thread(self, func: Callable[[], Any]) -> None: ...
 
 
 @runtime_checkable

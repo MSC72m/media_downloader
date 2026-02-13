@@ -458,8 +458,7 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         self._add_metadata_display()
 
         metadata = self.spotify_metadata or {}
-        content_type = metadata.get("type", "unknown")
-        if content_type in ("album", "playlist"):
+        if (content_type := metadata.get("type", "unknown")) in ("album", "playlist"):
             self._add_playlist_section()
         elif content_type == "track":
             self._add_single_track_section()
@@ -656,8 +655,7 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         )
         checkbox.pack(fill="x")
 
-        best_match = track_data.get("best_match")
-        if best_match:
+        if best_match := track_data.get("best_match"):
             match_label = ctk.CTkLabel(
                 track_frame,
                 text=f"✓ Match found: {best_match.get('title', 'Unknown')[:40]}...",

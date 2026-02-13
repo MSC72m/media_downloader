@@ -17,6 +17,19 @@ if TYPE_CHECKING:
     pass
 
 logger = get_logger(__name__)
+_REQUEST_EXCEPTION = (
+    requests.exceptions.RequestException
+    if isinstance(getattr(requests, "exceptions", None), object)
+    and isinstance(getattr(requests.exceptions, "RequestException", None), type)
+    and issubclass(requests.exceptions.RequestException, BaseException)
+    else Exception
+)
+_TIMEOUT_EXCEPTION = (
+    requests.Timeout
+    if isinstance(getattr(requests, "Timeout", None), type)
+    and issubclass(requests.Timeout, BaseException)
+    else _REQUEST_EXCEPTION
+)
 
 
 class SpotifyDownloader(BaseDownloader):
@@ -54,6 +67,8 @@ class SpotifyDownloader(BaseDownloader):
             URL type: 'track', 'album', 'playlist', 'artist', or 'unknown'
         """
         lowered = url.lower()
+        if "spotify.com" not in lowered and "spotify:" not in lowered:
+            return "unknown"
 
         match lowered:
             case value if "/track/" in value or "spotify:track:" in value:
@@ -110,7 +125,7 @@ class SpotifyDownloader(BaseDownloader):
                         "original_url": url,
                         "id": self._extract_spotify_id(url),
                     }
-                except requests.Timeout:
+                except _TIMEOUT_EXCEPTION:
                     logger.warning(f"[SPOTIFY_DOWNLOADER] OEmbed timeout, attempt {attempt + 1}/3")
                     if attempt < 2:
                         continue
@@ -123,7 +138,7 @@ class SpotifyDownloader(BaseDownloader):
                 "original_url": url,
                 "id": self._extract_spotify_id(url),
             }
-        except requests.RequestException as e:
+        except _REQUEST_EXCEPTION as e:
             logger.error(f"[SPOTIFY_DOWNLOADER] OEmbed request failed: {e}")
             if self.error_handler:
                 self.error_handler.handle_service_failure(
@@ -163,12 +178,10 @@ class SpotifyDownloader(BaseDownloader):
         Returns:
             Tuple of (artist, track)
         """
-        dash_match = re.match(r"^([^·–-]+)[·–-]+(.+)$", title)
-        if dash_match:
+        if dash_match := re.match(r"^([^·–-]+)[·–-]+(.+)$", title):
             return dash_match.group(1).strip(), dash_match.group(2).strip()
 
-        by_match = re.match(r"^(.+)\s+by\s+(.+)$", title, re.IGNORECASE)
-        if by_match:
+        if by_match := re.match(r"^(.+)\s+by\s+(.+)$", title, re.IGNORECASE):
             return by_match.group(2).strip(), by_match.group(1).strip()
 
         return "", title
@@ -203,8 +216,7 @@ class SpotifyDownloader(BaseDownloader):
                     if not track_element or not hasattr(track_element, "get_text"):
                         continue
 
-                    track_name = track_element.get_text(strip=True)
-                    if not track_name:
+                    if not (track_name := track_element.get_text(strip=True)):
                         continue
 
                     tracks.append(
@@ -220,7 +232,7 @@ class SpotifyDownloader(BaseDownloader):
             logger.info(f"[SPOTIFY_DOWNLOADER] Scraped {len(tracks)} tracks")
             return tracks
 
-        except requests.RequestException as e:
+        except _REQUEST_EXCEPTION as e:
             logger.error(f"[SPOTIFY_DOWNLOADER] Playlist scrape failed: {e}")
             if self.error_handler:
                 self.error_handler.handle_service_failure(
@@ -363,8 +375,7 @@ class SpotifyDownloader(BaseDownloader):
         """
         metadata = self._extract_spotify_metadata(url)
 
-        content_type = metadata.get("type", "unknown")
-        if content_type in ("album", "playlist"):
+        if metadata.get("type", "unknown") in ("album", "playlist"):
             tracks = self._scrape_playlist_tracks(url)
             metadata["tracks"] = tracks
 
@@ -419,8 +430,7 @@ class SpotifyDownloader(BaseDownloader):
                 self.error_handler.handle_service_failure("Spotify", "download", error_msg, url)
             return False
 
-        search_results = self._search_youtube(artist, track)
-        if not search_results:
+        if not (search_results := self._search_youtube(artist, track)):
             error_msg = "No YouTube results found for Spotify track"
             logger.error(f"[SPOTIFY_DOWNLOADER] {error_msg}: artist={artist!r}, track={track!r}")
             if self.error_handler:
@@ -431,8 +441,7 @@ class SpotifyDownloader(BaseDownloader):
         best_match = (
             self._select_best_match(match_key or track, search_results) or search_results[0]
         )
-        youtube_url = self._extract_youtube_url(best_match)
-        if not youtube_url:
+        if not (youtube_url := self._extract_youtube_url(best_match)):
             error_msg = "YouTube search did not return a playable URL"
             logger.error(f"[SPOTIFY_DOWNLOADER] {error_msg}")
             if self.error_handler:

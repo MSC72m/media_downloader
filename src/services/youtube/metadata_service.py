@@ -75,10 +75,8 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                     )
                 return YouTubeMetadata(error=error_msg)
 
-            info = self.info_extractor.extract_info(url, cookie_path, browser)
-            if not info:
-                oembed_fallback = self._fetch_oembed_metadata(url)
-                if oembed_fallback:
+            if not (info := self.info_extractor.extract_info(url, cookie_path, browser)):
+                if oembed_fallback := self._fetch_oembed_metadata(url):
                     logger.warning(
                         "[METADATA_SERVICE] Falling back to YouTube oEmbed metadata due to yt-dlp extraction failure"
                     )
@@ -93,8 +91,9 @@ class YouTubeMetadataService(IYouTubeMetadataService):
 
             parsed_info = self.metadata_parser.parse_info(info)
 
-            subtitle_data = self.subtitle_extractor.extract_subtitles(url, cookie_path, browser)
-            if subtitle_data:
+            if subtitle_data := self.subtitle_extractor.extract_subtitles(
+                url, cookie_path, browser
+            ):
                 parsed_info["subtitles"] = subtitle_data.get("subtitles", {})
                 parsed_info["automatic_captions"] = subtitle_data.get("automatic_captions", {})
 
@@ -195,8 +194,7 @@ class YouTubeMetadataService(IYouTubeMetadataService):
 
     def _fetch_oembed_metadata(self, url: str) -> YouTubeMetadata | None:
         """Fetch minimal metadata via YouTube oEmbed as a resilient fallback."""
-        video_id = self.extract_video_id(url)
-        if not video_id:
+        if not (video_id := self.extract_video_id(url)):
             return None
 
         canonical_url = f"https://www.youtube.com/watch?v={video_id}"

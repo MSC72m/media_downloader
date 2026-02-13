@@ -1,4 +1,6 @@
+import atexit
 import contextlib
+import importlib.util
 import queue
 import sys
 from pathlib import Path
@@ -32,8 +34,8 @@ from src.ui.utils.theme_manager import get_theme_manager  # noqa: E402
 
 def _check_playwright_installation():
     try:
-        import playwright  # noqa: F401
-
+        if not importlib.util.find_spec("playwright"):
+            raise ImportError("playwright module not found")
         logger.info("[MAIN_APP] Playwright is installed")
     except ImportError as original_error:
         logger.error("[MAIN_APP] Playwright is NOT installed - showing critical error")
@@ -169,8 +171,6 @@ class MediaDownloaderApp(ctk.CTk):
 
         self.protocol("WM_DELETE_WINDOW", self._on_closing)
 
-        import atexit
-
         atexit.register(self._graceful_shutdown)
 
         logger.info("Media Downloader initialized")
@@ -229,9 +229,7 @@ class MediaDownloaderApp(ctk.CTk):
         coord = self.orchestrator.event_coordinator
 
         def on_add_url(url: str, name: str) -> None:
-            handler_found = self.orchestrator.link_detector.detect_and_handle(url, coord)
-
-            if not handler_found:
+            if not self.orchestrator.link_detector.detect_and_handle(url, coord):
                 logger.info(f"[MAIN_APP] No handler found for {url}, treating as generic download")
                 coord.platform_download("generic", url, name)
 

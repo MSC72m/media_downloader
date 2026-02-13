@@ -70,8 +70,7 @@ class ConcurrentDownloadsSelector(ctk.CTkFrame):
     def _apply_theme_colors(self):
         theme_json = self._theme_manager.get_theme_json()
 
-        button_config = theme_json.get("CTkButton", {})
-        if button_config:
+        if button_config := theme_json.get("CTkButton", {}):
             button_color = button_config.get("fg_color")
             hover_color = button_config.get("hover_color")
             border_color = button_config.get("button_border_color") or button_color
@@ -90,8 +89,7 @@ class ConcurrentDownloadsSelector(ctk.CTkFrame):
                 button_hover_color=hover_color,
             )
 
-        entry_config = theme_json.get("CTkEntry", {})
-        if entry_config:
+        if entry_config := theme_json.get("CTkEntry", {}):
             fg_color = entry_config.get("fg_color")
             border_color = entry_config.get("border_color")
 
@@ -105,8 +103,7 @@ class ConcurrentDownloadsSelector(ctk.CTkFrame):
                 border_color=border_color,
             )
 
-        label_config = theme_json.get("CTkLabel", {})
-        if label_config:
+        if label_config := theme_json.get("CTkLabel", {}):
             text_color = label_config.get("text_color")
             if isinstance(text_color, tuple):
                 text_color = text_color[0] if isinstance(text_color[0], str) else text_color

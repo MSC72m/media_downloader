@@ -110,8 +110,7 @@ class ThemeSwitcher(ctk.CTkFrame):
     def _apply_theme_colors(self):
         theme_json = self._theme_manager.get_theme_json()
 
-        button_config = theme_json.get("CTkButton", {})
-        if button_config:
+        if button_config := theme_json.get("CTkButton", {}):
             button_color = self._normalize_color(button_config.get("fg_color"))
             hover_color = self._normalize_color(button_config.get("hover_color"))
 
@@ -121,8 +120,7 @@ class ThemeSwitcher(ctk.CTkFrame):
                 button_hover_color=hover_color,
             )
 
-        entry_config = theme_json.get("CTkEntry", {})
-        if entry_config and button_config:
+        if (entry_config := theme_json.get("CTkEntry", {})) and button_config:
             fg_color = self._normalize_color(entry_config.get("fg_color"))
             border_color = self._normalize_color(entry_config.get("border_color"))
             button_color = self._normalize_color(button_config.get("fg_color"))
@@ -135,8 +133,7 @@ class ThemeSwitcher(ctk.CTkFrame):
                 button_hover_color=hover_color,
             )
 
-        label_config = theme_json.get("CTkLabel", {})
-        if label_config:
+        if label_config := theme_json.get("CTkLabel", {}):
             text_color = self._normalize_color(label_config.get("text_color"))
             self.color_label.configure(text_color=text_color)
 

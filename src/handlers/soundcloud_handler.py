@@ -70,17 +70,16 @@ class SoundCloudHandler(BaseHandler):
 
             logger.info(f"[SOUNDCLOUD_HANDLER] Root: {root}")
 
-            download_callback = get_platform_callback(ui_context, "soundcloud")
-            if not download_callback:
-                download_callback = get_platform_callback(ui_context, "generic")
-                if not download_callback:
-                    error_msg = "No download callback found"
-                    logger.error(f"[SOUNDCLOUD_HANDLER] {error_msg}")
-                    if self.error_handler:
-                        self.error_handler.handle_service_failure(
-                            "SoundCloud Handler", "callback", error_msg, url
-                        )
-                    return
+            if not (download_callback := get_platform_callback(ui_context, "soundcloud")) and not (
+                download_callback := get_platform_callback(ui_context, "generic")
+            ):
+                error_msg = "No download callback found"
+                logger.error(f"[SOUNDCLOUD_HANDLER] {error_msg}")
+                if self.error_handler:
+                    self.error_handler.handle_service_failure(
+                        "SoundCloud Handler", "callback", error_msg, url
+                    )
+                return
 
             def process_soundcloud_download():
                 try:

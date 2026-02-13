@@ -70,17 +70,16 @@ class TwitterHandler(BaseHandler):
 
             logger.info(f"[TWITTER_HANDLER] Root: {root}")
 
-            download_callback = get_platform_callback(ui_context, "twitter")
-            if not download_callback:
-                download_callback = get_platform_callback(ui_context, "generic")
-                if not download_callback:
-                    error_msg = "No download callback found"
-                    logger.error(f"[TWITTER_HANDLER] {error_msg}")
-                    if self.error_handler:
-                        self.error_handler.handle_service_failure(
-                            "Twitter Handler", "callback", error_msg, url
-                        )
-                    return
+            if not (download_callback := get_platform_callback(ui_context, "twitter")) and not (
+                download_callback := get_platform_callback(ui_context, "generic")
+            ):
+                error_msg = "No download callback found"
+                logger.error(f"[TWITTER_HANDLER] {error_msg}")
+                if self.error_handler:
+                    self.error_handler.handle_service_failure(
+                        "Twitter Handler", "callback", error_msg, url
+                    )
+                return
 
             def process_twitter_download():
                 try:

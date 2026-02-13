@@ -121,8 +121,7 @@ class ServiceFactory:
             ),
         }
 
-        downloader_factory = downloader_map.get(service_type)
-        if not downloader_factory:
+        if not (downloader_factory := downloader_map.get(service_type)):
             logger.error(f"[SERVICE_FACTORY] No factory for service type: {service_type}")
             return None
 
@@ -156,8 +155,7 @@ class ServiceFactory:
         logger.info(
             "[SERVICE_FACTORY] Checking Instagram auth manager for authenticated downloader"
         )
-        shared_downloader = self.instagram_auth_manager.get_downloader()
-        if shared_downloader:
+        if shared_downloader := self.instagram_auth_manager.get_downloader():
             logger.info("[SERVICE_FACTORY] Using shared authenticated Instagram downloader")
             return shared_downloader
 

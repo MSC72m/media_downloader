@@ -1,6 +1,6 @@
 import os
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 import yt_dlp
 
@@ -62,8 +62,7 @@ class TikTokDownloader(BaseDownloader):
                 self.error_handler.handle_service_failure("TikTok", "download", error_msg, "")
             return False
 
-        save_dir = os.path.dirname(save_path)
-        if save_dir and not os.path.exists(save_dir):
+        if (save_dir := os.path.dirname(save_path)) and not os.path.exists(save_dir):
             error_msg = f"Save directory does not exist: {save_dir}"
             logger.error(f"[TIKTOK_DOWNLOADER] {error_msg}")
             if self.error_handler:
@@ -91,11 +90,9 @@ class TikTokDownloader(BaseDownloader):
             options["outtmpl"] = f"{save_path}.%(ext)s"
             options["progress_hooks"] = [progress_hook]
 
-            with yt_dlp.YoutubeDL(options) as ydl:
+            with yt_dlp.YoutubeDL(cast(Any, options)) as ydl:
                 logger.info("[TIKTOK_DOWNLOADER] Extracting info...")
-                info = ydl.extract_info(url, download=True)
-
-                if not info:
+                if not (info := ydl.extract_info(url, download=True)):
                     error_msg = "Failed to extract video information"
                     logger.error(f"[TIKTOK_DOWNLOADER] {error_msg}")
                     if self.error_handler:

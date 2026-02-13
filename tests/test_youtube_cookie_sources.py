@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from src.services.cookies.youtube_cookie_sources import (
     BrowserProbeCandidate,
@@ -17,6 +18,15 @@ class _AutoCookieManagerStub:
 
     def get_cookies(self) -> str | None:
         return self._cookie_path
+
+    def get_cookie_info_for_ytdlp(self) -> dict[str, Any] | None: ...
+
+    def get_current_cookie_path(self) -> str | None: ...
+
+
+    def needs_regeneration(self, domain: str, max_age_hours: int) -> bool: ...
+
+    def get_cookie_file_path(self, domain: str) -> str | None: ...
 
 
 class _CookieHandlerStub:

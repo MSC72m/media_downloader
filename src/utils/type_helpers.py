@@ -55,13 +55,12 @@ def get_root(ui_context: Any) -> TkRootProtocol | None:
     Returns:
         TkRootProtocol if available, None otherwise
     """
-    ctx = get_ui_context(ui_context)
-    if ctx and hasattr(ctx, "root"):
+    if (ctx := get_ui_context(ui_context)) and hasattr(ctx, "root"):
         return ctx.root
     return None
 
 
-def get_platform_callback(ui_context: Any, platform: str) -> Callable[[str], None] | None:
+def get_platform_callback(ui_context: Any, platform: str) -> Callable[[Any], None] | None:
     """Get platform-specific download callback.
 
     Args:
@@ -71,11 +70,17 @@ def get_platform_callback(ui_context: Any, platform: str) -> Callable[[str], Non
     Returns:
         Callback function if available, None otherwise
     """
-    ctx = get_ui_context(ui_context)
-    if not ctx:
+    if not (ctx := get_ui_context(ui_context)):
         return None
 
-    callback_map = {
+    if (
+        platform in {"youtube", "spotify"}
+        and hasattr(ctx, "downloads")
+        and hasattr(ctx.downloads, "add_download")
+    ):
+        return ctx.downloads.add_download
+
+    callback_map: dict[str, Callable[..., None]] = {
         "youtube": ctx.youtube_download,
         "twitter": ctx.twitter_download,
         "instagram": ctx.instagram_download,

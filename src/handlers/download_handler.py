@@ -107,8 +107,9 @@ class DownloadHandler(IDownloadHandler):
             return
 
         # Validate and expand download directory
-        validated_dir = self._validate_download_directory(download_dir, completion_callback)
-        if not validated_dir:
+        if not (
+            validated_dir := self._validate_download_directory(download_dir, completion_callback)
+        ):
             return
 
         # Start downloads with concurrency control
@@ -142,8 +143,7 @@ class DownloadHandler(IDownloadHandler):
             if hasattr(download, "cookie_path"):
                 logger.info(f"[DOWNLOAD_HANDLER] cookie_path value: {download.cookie_path}")
 
-            downloader = self.service_factory.get_downloader(download.url)
-            if not downloader:
+            if not (downloader := self.service_factory.get_downloader(download.url)):
                 error_msg = f"No downloader available for URL: {download.url}"
                 if self.error_handler:
                     self.error_handler.handle_service_failure(
@@ -155,18 +155,21 @@ class DownloadHandler(IDownloadHandler):
                 self._handle_download_failure(download, completion_callback, error_msg)
                 return
 
-            if service_type == ServiceType.YOUTUBE:
-                cookie_manager = self.cookie_handler
-                if cookie_manager and hasattr(download, "cookie_path") and download.cookie_path:
-                    try:
-                        cookie_manager.set_cookie_file(download.cookie_path)
-                        logger.info("[DOWNLOAD_HANDLER] Successfully set cookies for download")
-                    except Exception as e:
-                        logger.error(f"[DOWNLOAD_HANDLER] Failed to set cookies: {e}")
-                        if self.error_handler:
-                            self.error_handler.handle_exception(
-                                e, "Setting cookies for download", "Download Handler"
-                            )
+            if (
+                service_type == ServiceType.YOUTUBE
+                and (cookie_manager := self.cookie_handler)
+                and hasattr(download, "cookie_path")
+                and download.cookie_path
+            ):
+                try:
+                    cookie_manager.set_cookie_file(download.cookie_path)
+                    logger.info("[DOWNLOAD_HANDLER] Successfully set cookies for download")
+                except Exception as e:
+                    logger.error(f"[DOWNLOAD_HANDLER] Failed to set cookies: {e}")
+                    if self.error_handler:
+                        self.error_handler.handle_exception(
+                            e, "Setting cookies for download", "Download Handler"
+                        )
 
             logger.info(f"[DOWNLOAD_HANDLER] Downloader obtained: {type(downloader).__name__}")
 
@@ -246,8 +249,9 @@ class DownloadHandler(IDownloadHandler):
             self._invoke_completion_callback(completion_callback, False, "No downloads to process")
             return
 
-        validated_dir = self._validate_download_directory(download_dir, completion_callback)
-        if not validated_dir:
+        if not (
+            validated_dir := self._validate_download_directory(download_dir, completion_callback)
+        ):
             return
 
         max_workers = self.config.downloads.max_concurrent_downloads
@@ -348,9 +352,7 @@ class DownloadHandler(IDownloadHandler):
             current_time = time.time()
             time_since_update = current_time - last_update_time[0]
 
-            should_update = time_since_update >= update_interval or progress >= 100 or progress == 0
-
-            if should_update:
+            if time_since_update >= update_interval or progress >= 100 or progress == 0:
                 last_update_time[0] = current_time
                 download.update_progress(progress, speed)
                 progress_callback(download, progress)
@@ -481,8 +483,7 @@ class DownloadHandler(IDownloadHandler):
         # Check service domains first
         for service_name, domains in self.config.network.service_domains.items():
             if any(domain in url_lower for domain in domains):
-                service_name_lower = service_name.lower()
-                if service_name_lower in service_map:
+                if (service_name_lower := service_name.lower()) in service_map:
                     return service_map[service_name_lower]
                 try:
                     return ServiceType(service_name_lower)

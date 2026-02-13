@@ -95,8 +95,7 @@ class YouTubeHandler(BaseHandler):
             """Callback for handling YouTube URLs."""
             logger.info(f"[YOUTUBE_HANDLER] YouTube callback called with URL: {url}")
 
-            download_callback = get_platform_callback(ui_context, "youtube")
-            if not download_callback:
+            if not (download_callback := get_platform_callback(ui_context, "youtube")):
                 error_msg = "No download callback found"
                 logger.error(f"[YOUTUBE_HANDLER] {error_msg}")
                 if self.error_handler:
@@ -112,8 +111,7 @@ class YouTubeHandler(BaseHandler):
 
             root = get_root(ui_context)
 
-            is_music = self._is_youtube_music(url)
-            if is_music:
+            if self._is_youtube_music(url):
                 logger.info("[YOUTUBE_HANDLER] YouTube Music URL detected - showing name dialog")
 
                 def show_music_name_dialog():
@@ -121,8 +119,9 @@ class YouTubeHandler(BaseHandler):
                         track_name = "YouTube Music"
                         if self.metadata_service:
                             try:
-                                metadata = self.metadata_service.fetch_metadata(url)
-                                if metadata and metadata.title:
+                                if (metadata := self.metadata_service.fetch_metadata(url)) and (
+                                    metadata.title
+                                ):
                                     track_name = metadata.title
                                     logger.info(
                                         f"[YOUTUBE_HANDLER] Music metadata fetched: {track_name}"
@@ -146,9 +145,7 @@ class YouTubeHandler(BaseHandler):
                             dialog._entry.delete(0, "end")
                             dialog._entry.insert(0, track_name)
 
-                        name = dialog.get_input()
-
-                        if not name:
+                        if not (name := dialog.get_input()):
                             logger.info(
                                 "[YOUTUBE_HANDLER] User cancelled YouTube Music name dialog"
                             )
@@ -261,8 +258,7 @@ class YouTubeHandler(BaseHandler):
             r"(?:youtu\.be\/)([0-9A-Za-z_-]{11})",
         ]
         for pattern in patterns:
-            match = re.search(pattern, url)
-            if match:
+            if match := re.search(pattern, url):
                 return match.group(1)
         return None
 
@@ -295,13 +291,13 @@ class YouTubeHandler(BaseHandler):
             logger.info("[YOUTUBE_HANDLER] Cookie manager reports cookies are generating")
             return True
 
-        state = self.auto_cookie_manager.get_state()
-        if state is not None and state.is_generating:
+        if (state := self.auto_cookie_manager.get_state()) is not None and state.is_generating:
             logger.info("[YOUTUBE_HANDLER] Cookie state reports cookies are generating")
             return True
 
-        generator_state = self.auto_cookie_manager.generator.get_state()
-        if generator_state and generator_state.is_generating:
+        if (
+            generator_state := self.auto_cookie_manager.generator.get_state()
+        ) and generator_state.is_generating:
             logger.info("[YOUTUBE_HANDLER] Cookie generator reports cookies are generating")
             return True
 
@@ -316,17 +312,14 @@ class YouTubeHandler(BaseHandler):
         logger.info("[YOUTUBE_HANDLER] Showing cookie generating message in status bar")
         message_text = "Generating YouTube cookies, please wait for few seconds and try again"
 
-        ctx = get_ui_context(ui_context)
-        if ctx:
-            downloads = getattr(ctx, "downloads", None)
-            if downloads:
-                status_callback = downloads._get_ui_callback("update_status")
-                if status_callback:
-                    status_callback(message_text, is_error=False)
-                    logger.info(
-                        "[YOUTUBE_HANDLER] Status bar updated with cookie generation message"
-                    )
-                    return
+        if (
+            (ctx := get_ui_context(ui_context))
+            and (downloads := getattr(ctx, "downloads", None))
+            and (status_callback := downloads._get_ui_callback("update_status"))
+        ):
+            status_callback(message_text, is_error=False)
+            logger.info("[YOUTUBE_HANDLER] Status bar updated with cookie generation message")
+            return
 
         if not self.message_queue:
             logger.warning(

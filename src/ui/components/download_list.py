@@ -72,8 +72,7 @@ class DownloadListView(ctk.CTkFrame):
 
     def update_item_progress(self, item: Download, progress: float):
         try:
-            line_num = self._item_line_mapping.get(item.name)
-            if not line_num:
+            if not (line_num := self._item_line_mapping.get(item.name)):
                 return
 
             item.progress = progress
@@ -82,8 +81,7 @@ class DownloadListView(ctk.CTkFrame):
             line_start = f"{line_num}.0"
             line_end = f"{line_num}.end"
 
-            current_line = self.list_view.get(line_start, line_end).strip()
-            if not current_line:
+            if not (current_line := self.list_view.get(line_start, line_end).strip()):
                 return
 
             parts = current_line.split(" | ", 2)

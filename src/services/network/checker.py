@@ -93,6 +93,7 @@ class HTTPNetworkChecker(BaseNetworkChecker):
         }
 
     SERVICE_URLS: ClassVar[dict[ServiceType, str]] = {
+        ServiceType.GOOGLE: "www.google.com",
         ServiceType.YOUTUBE: "www.youtube.com",
         ServiceType.INSTAGRAM: "www.instagram.com",
         ServiceType.TWITTER: "x.com",
@@ -255,18 +256,15 @@ class HTTPNetworkChecker(BaseNetworkChecker):
                 service_type=service,
             )
 
-        specialized_result = self._check_specialized_service(service, start_time)
-        if specialized_result:
+        if specialized_result := self._check_specialized_service(service, start_time):
             return specialized_result
 
         url = self.SERVICE_URLS[service]
 
-        dns_result = self._check_dns(url, service, start_time)
-        if dns_result:
+        if dns_result := self._check_dns(url, service, start_time):
             return dns_result
 
-        socket_result = self._check_socket(url, service, start_time)
-        if socket_result:
+        if socket_result := self._check_socket(url, service, start_time):
             return socket_result
 
         return self._check_http(url, service, start_time)
@@ -277,16 +275,14 @@ class HTTPNetworkChecker(BaseNetworkChecker):
         primary_url = self.SERVICE_URLS[ServiceType.TWITTER]
 
         # Try primary domain first
-        result = self._try_twitter_urls([primary_url], start_time, config)
-        if result.is_connected:
+        if (result := self._try_twitter_urls([primary_url], start_time, config)).is_connected:
             return result
 
         # Try fallback URLs if primary fails
-        fallback_urls = config.get("fallback_urls", [])
-        if fallback_urls:
-            result = self._try_twitter_urls(fallback_urls, start_time, config)
-            if result.is_connected:
-                return result
+        if (fallback_urls := config.get("fallback_urls", [])) and (
+            result := self._try_twitter_urls(fallback_urls, start_time, config)
+        ).is_connected:
+            return result
 
         # If all else fails, try a more lenient check
         return self._lenient_twitter_check(start_time)
@@ -430,16 +426,14 @@ class HTTPNetworkChecker(BaseNetworkChecker):
         primary_url = self.SERVICE_URLS[ServiceType.YOUTUBE]
 
         # Try primary domain first
-        result = self._try_youtube_urls([primary_url], start_time, config)
-        if result.is_connected:
+        if (result := self._try_youtube_urls([primary_url], start_time, config)).is_connected:
             return result
 
         # Try fallback URLs if primary fails
-        fallback_urls = config.get("fallback_urls", [])
-        if fallback_urls:
-            result = self._try_youtube_urls(fallback_urls, start_time, config)
-            if result.is_connected:
-                return result
+        if (fallback_urls := config.get("fallback_urls", [])) and (
+            result := self._try_youtube_urls(fallback_urls, start_time, config)
+        ).is_connected:
+            return result
 
         # If all else fails, try a more lenient check
         return self._lenient_youtube_check(start_time)
@@ -450,16 +444,14 @@ class HTTPNetworkChecker(BaseNetworkChecker):
         primary_url = self.SERVICE_URLS[ServiceType.INSTAGRAM]
 
         # Try primary domain first
-        result = self._try_instagram_urls([primary_url], start_time, config)
-        if result.is_connected:
+        if (result := self._try_instagram_urls([primary_url], start_time, config)).is_connected:
             return result
 
         # Try fallback URLs if primary fails
-        fallback_urls = config.get("fallback_urls", [])
-        if fallback_urls:
-            result = self._try_instagram_urls(fallback_urls, start_time, config)
-            if result.is_connected:
-                return result
+        if (fallback_urls := config.get("fallback_urls", [])) and (
+            result := self._try_instagram_urls(fallback_urls, start_time, config)
+        ).is_connected:
+            return result
 
         # If all else fails, try a more lenient check
         return self._lenient_instagram_check(start_time)

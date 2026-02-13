@@ -9,6 +9,7 @@ from src.core.config import AppConfig, get_config
 from src.core.interfaces import IAutoCookieManager, ICookieHandler, IErrorNotifier
 from src.services.cookies import YouTubeAuthConfig, YouTubeCookieSourceCoordinator
 from src.services.youtube.subtitle_parser import YouTubeSubtitleParser
+from src.services.ytdlp_logger import YTDLPLoggerBridge
 from src.utils.logger import get_logger
 
 from .error_handler import YouTubeErrorBucket, YouTubeErrorHandler
@@ -55,8 +56,7 @@ class YouTubeSubtitleExtractor:
             auth_strategies = subtitle_strategies
 
         for auth_strategy in auth_strategies:
-            subtitles = self._extract_for_strategy(url, auth_strategy)
-            if subtitles:
+            if subtitles := self._extract_for_strategy(url, auth_strategy):
                 return subtitles
 
             bucket = self.youtube_error_handler.classify_ytdlp_error(self._last_error_message or "")
@@ -83,8 +83,7 @@ class YouTubeSubtitleExtractor:
 
             try:
                 with yt_dlp.YoutubeDL(cast(Any, opts)) as ydl:
-                    info = ydl.extract_info(url, download=False)
-                    if not info:
+                    if not (info := ydl.extract_info(url, download=False)):
                         continue
 
                     subtitles = info.get("subtitles", {}) or {}
@@ -160,6 +159,7 @@ class YouTubeSubtitleExtractor:
             "ignoreerrors": True,
             "skip_download": True,
             "socket_timeout": 15,
+            "logger": YTDLPLoggerBridge("SUBTITLE_EXTRACTOR"),
         }
 
         if shutil.which("node"):

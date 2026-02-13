@@ -124,9 +124,7 @@ class StatusBar(ctk.CTkFrame):
         def _update():
             try:
                 is_success_message = bool(self._SUCCESS_MESSAGE_PATTERN.search(message))
-                is_connection_confirmed = bool(self._CONNECTION_CONFIRMED_PATTERN.search(message))
-
-                if is_connection_confirmed:
+                if self._CONNECTION_CONFIRMED_PATTERN.search(message):
                     self._connection_confirmed_shown = True
 
                 if not self._current_message:
@@ -258,21 +256,20 @@ class StatusBar(ctk.CTkFrame):
         self._theme_manager.get_colors()
         theme_json = self._theme_manager.get_theme_json()
 
-        button_config = theme_json.get("CTkButton", {})
-        if button_config:
-            progress_color = button_config.get("fg_color")
-            if progress_color:
-                # Handle progress_color - extract first element if it's a list or tuple
-                if isinstance(progress_color, list | tuple) and len(progress_color) > 0:
-                    progress_color = (
-                        progress_color[0]
-                        if isinstance(progress_color[0], str)
-                        else str(progress_color[0])
-                    )
-                elif not isinstance(progress_color, str):
-                    progress_color = str(progress_color)
+        if (button_config := theme_json.get("CTkButton", {})) and (
+            progress_color := button_config.get("fg_color")
+        ):
+            # Handle progress_color - extract first element if it's a list or tuple
+            if isinstance(progress_color, list | tuple) and len(progress_color) > 0:
+                progress_color = (
+                    progress_color[0]
+                    if isinstance(progress_color[0], str)
+                    else str(progress_color[0])
+                )
+            elif not isinstance(progress_color, str):
+                progress_color = str(progress_color)
 
-                self.progress_bar.configure(progress_color=progress_color)
+            self.progress_bar.configure(progress_color=progress_color)
 
     def destroy(self):
         self._running = False

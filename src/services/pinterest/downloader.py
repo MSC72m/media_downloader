@@ -67,8 +67,7 @@ class PinterestDownloader(BaseDownloader):
                     )
                 return False
 
-            media_url = self._get_media_url(url)
-            if not media_url:
+            if not (media_url := self._get_media_url(url)):
                 error_msg = "Could not retrieve media URL from Pinterest"
                 logger.error(error_msg)
                 if self.error_handler:
@@ -122,8 +121,7 @@ class PinterestDownloader(BaseDownloader):
         """Extract file extension from URL."""
         try:
             # Get the path from URL and extract extension
-            match = re.search(r"\.([a-zA-Z0-9]+)(?:\?|$)", url)
-            if match:
+            if match := re.search(r"\.([a-zA-Z0-9]+)(?:\?|$)", url):
                 ext = match.group(1).lower()
                 # Common image/video extensions
                 # Use set for O(1) membership check instead of O(n) list check
@@ -172,16 +170,20 @@ class PinterestDownloader(BaseDownloader):
             Image URL if found, None otherwise
         """
         og_image = soup.find("meta", property="og:image")
-        if isinstance(og_image, Tag):
-            content = og_image.get("content")
-            if content and isinstance(content, str):
-                return content
+        if (
+            isinstance(og_image, Tag)
+            and (content := og_image.get("content"))
+            and isinstance(content, str)
+        ):
+            return content
 
         pin_image = soup.find("meta", attrs={"name": "pinterest:image"})
-        if isinstance(pin_image, Tag):
-            content = pin_image.get("content")
-            if content and isinstance(content, str):
-                return content
+        if (
+            isinstance(pin_image, Tag)
+            and (content := pin_image.get("content"))
+            and isinstance(content, str)
+        ):
+            return content
         return None
 
     def _extract_from_structured_data(self, soup: BeautifulSoup) -> str | None:
@@ -227,8 +229,7 @@ class PinterestDownloader(BaseDownloader):
                     return None
 
                 soup = BeautifulSoup(response.content, "html.parser")
-                media_url = self._extract_from_meta_tags(soup)
-                if not media_url:
+                if not (media_url := self._extract_from_meta_tags(soup)):
                     media_url = self._extract_from_structured_data(soup)
                 if not media_url:
                     raw_matches = re.findall(

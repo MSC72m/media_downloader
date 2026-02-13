@@ -140,8 +140,7 @@ class ActionButtonBar(ctk.CTkFrame):
     def _apply_theme_colors(self):
         theme_json = self._theme_manager.get_theme_json()
 
-        button_config = theme_json.get("CTkButton", {})
-        if button_config:
+        if button_config := theme_json.get("CTkButton", {}):
             button_color = button_config.get("fg_color")
             hover_color = button_config.get("hover_color")
             text_color = button_config.get("text_color")

@@ -89,8 +89,7 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
 
     def on_item_double_click(self, event):
         """Handle double-click on file/directory."""
-        item = self.file_list.get_selected_item()
-        if not item:
+        if not (item := self.file_list.get_selected_item()):
             return
 
         # Handle parent directory
@@ -133,9 +132,7 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
     def create_folder(self):
         """Create a new folder."""
         dialog = CenteredInputDialog(title="Create Folder", text="Enter folder name:")
-        folder_name = dialog.get_input()
-
-        if folder_name:
+        if folder_name := dialog.get_input():
             new_folder_path = os.path.join(self.current_path, folder_name)
             try:
                 os.mkdir(new_folder_path)

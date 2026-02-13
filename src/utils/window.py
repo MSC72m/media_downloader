@@ -1,9 +1,21 @@
 import contextlib
 import tkinter as tk
+from typing import Protocol, runtime_checkable
 
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+@runtime_checkable
+class _LoadingDialogProtocol(Protocol):
+    def winfo_exists(self) -> bool: ...
+
+    def close(self) -> None: ...
+
+    def update_idletasks(self) -> None: ...
+
+    def destroy(self) -> None: ...
 
 
 def close_loading_dialog(dialog: object | None, error_path: bool = False) -> None:
@@ -15,7 +27,7 @@ def close_loading_dialog(dialog: object | None, error_path: bool = False) -> Non
     """
     path_suffix = " (error path)" if error_path else ""
 
-    if not dialog:
+    if not dialog or not isinstance(dialog, _LoadingDialogProtocol):
         logger.warning(f"[WINDOW_UTILS] No loading dialog to close{path_suffix}")
         return
 

@@ -16,7 +16,7 @@ class SubtitleChecklist(ctk.CTkFrame):
         self,
         master,
         placeholder: str = "No subtitles available",
-        on_change: Callable[[list[dict[str, str]]], None] | None = None,
+        on_change: Callable[[list[str]], None] | None = None,
         height: int = 120,
         config: AppConfig = get_config(),
         **kwargs,
@@ -26,13 +26,13 @@ class SubtitleChecklist(ctk.CTkFrame):
         self.placeholder = placeholder
         self.on_change = on_change
         self.height = height
-        self.config = config
+        self.app_config = config
         self.selected_options: list[str] = []
         self.options: list[dict[str, Any]] = []
         self.checkboxes: dict[str, ctk.CTkCheckBox] = {}
         self.option_vars: dict[str, ctk.BooleanVar] = {}
-        self._subtitle_generator: Iterator[dict[str, Any]] | None = None
-        self._batch_size: int = self.config.ui.subtitle_batch_size
+        self._subtitle_generator: Iterator[tuple[dict[str, Any], int]] | None = None
+        self._batch_size: int = self.app_config.ui.subtitle_batch_size
         self._current_index: int = 0
 
         self._create_widgets()
@@ -114,7 +114,7 @@ class SubtitleChecklist(ctk.CTkFrame):
 
     def _subtitle_batch_generator(
         self, subtitles: list[dict[str, Any]]
-    ) -> Iterator[dict[str, Any]]:
+    ) -> Iterator[tuple[dict[str, Any], int]]:
         """Generator that yields subtitles in batches with offset/indexing.
 
         Args:
@@ -222,8 +222,7 @@ class SubtitleChecklist(ctk.CTkFrame):
     def _update_status(self):
         """Update the status label."""
         try:
-            count = len(self.selected_options)
-            if count == 0:
+            if (count := len(self.selected_options)) == 0:
                 text = "0 selected"
             elif count == 1:
                 text = "1 selected"

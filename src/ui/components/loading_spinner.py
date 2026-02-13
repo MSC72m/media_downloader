@@ -22,7 +22,7 @@ class SmallLoadingSpinner(ctk.CTkToplevel, WindowCenterMixin):
 
         self._create_spinner()
 
-        self.place_forget()
+        self.withdraw()
 
     def _create_spinner(self):
         """Create the small spinner with message."""
@@ -159,18 +159,17 @@ class LoadingOverlay(ctk.CTkFrame):
         content_frame = ctk.CTkFrame(self, fg_color="transparent")
         content_frame.place(relx=0.5, rely=0.5, anchor="center")
 
-        self.spinner = SmallLoadingSpinner(content_frame, message=self.message, size=50)
-        self.spinner.pack()
+        self.spinner = SmallLoadingSpinner(self.winfo_toplevel(), message=self.message, size=50)
 
     def start(self):
         """Start the loading animation."""
         if self.spinner:
-            self.spinner.start()
+            self.spinner.show(self.winfo_toplevel())
 
     def stop(self):
         """Stop the loading animation."""
         if self.spinner:
-            self.spinner.stop()
+            self.spinner.hide()
 
     def set_message(self, message: str):
         """Update the loading message."""

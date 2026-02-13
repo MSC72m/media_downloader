@@ -1,5 +1,7 @@
+import contextlib
 import os
 import threading
+from collections.abc import Callable
 from functools import partial
 from typing import TYPE_CHECKING, Any
 
@@ -16,6 +18,16 @@ from src.core.interfaces import (
     INetworkChecker,
     IServiceFactory,
     IUIState,
+)
+from src.handlers import (
+    instagram_handler,
+    pinterest_handler,
+    radiojavan_handler,
+    soundcloud_handler,
+    spotify_handler,
+    tiktok_handler,
+    twitter_handler,
+    youtube_handler,
 )
 from src.handlers.service_detector import ServiceDetector
 from src.services.cookies import CookieManager as AutoCookieManager
@@ -113,7 +125,7 @@ class ApplicationOrchestrator:
     def _register_detectors(self) -> None:
         self.container.register_singleton(LinkDetector, LinkDetector)
 
-    def _create_handler_factory(self) -> callable:
+    def _create_handler_factory(self) -> Callable[[type], Any]:
         def handler_factory(handler_class: type) -> Any:
             try:
                 return self.container.create_with_injection(handler_class)
@@ -130,19 +142,24 @@ class ApplicationOrchestrator:
 
         return handler_factory
 
-    def _import_link_handlers(self) -> None:
-        import contextlib
+    def _run_on_main_thread(self, callback: Callable[[], None]) -> None:
+        runner = getattr(self.root, "run_on_main_thread", None)
+        if callable(runner):
+            runner(callback)
+            return
+        self.root.after(0, callback)
 
+    def _import_link_handlers(self) -> None:
         with contextlib.suppress(Exception):
-            from src.handlers import (
-                instagram_handler,  # noqa: F401
-                pinterest_handler,  # noqa: F401
-                radiojavan_handler,  # noqa: F401
-                soundcloud_handler,  # noqa: F401
-                spotify_handler,  # noqa: F401
-                tiktok_handler,  # noqa: F401
-                twitter_handler,  # noqa: F401
-                youtube_handler,  # noqa: F401
+            _ = (
+                instagram_handler,
+                pinterest_handler,
+                radiojavan_handler,
+                soundcloud_handler,
+                spotify_handler,
+                tiktok_handler,
+                twitter_handler,
+                youtube_handler,
             )
 
     def _initialize_cookies_background(self) -> None:
@@ -220,7 +237,7 @@ class ApplicationOrchestrator:
         callbacks = {}
 
         def safe_ui_update(func, *args, **kwargs):
-            self.root.run_on_main_thread(partial(func, *args, **kwargs))
+            self._run_on_main_thread(partial(func, *args, **kwargs))
 
         if "download_list" in components:
             dl_list = components["download_list"]
@@ -253,8 +270,7 @@ class ApplicationOrchestrator:
         return callbacks
 
     def check_connectivity(self) -> None:
-        status_bar = self.ui_components.get("status_bar")
-        if status_bar:
+        if status_bar := self.ui_components.get("status_bar"):
             status_bar.show_message("Checking network connection...")
 
         def check_in_background():
@@ -264,14 +280,14 @@ class ApplicationOrchestrator:
                 def update_ui():
                     self._handle_connectivity_result(is_connected, error_message)
 
-                self.root.run_on_main_thread(update_ui)
+                self._run_on_main_thread(update_ui)
             except Exception as e:
                 error_msg = str(e)
 
                 def update_ui_error():
                     self._handle_connectivity_result(False, error_msg)
 
-                self.root.run_on_main_thread(update_ui_error)
+                self._run_on_main_thread(update_ui_error)
 
         thread = threading.Thread(target=check_in_background, daemon=True)
         thread.start()
@@ -287,8 +303,7 @@ class ApplicationOrchestrator:
                 status_bar.show_warning(f"Network issue: {error_message or 'Connection failed'}")
             if self.container.has(IMessageQueue):
                 try:
-                    message_queue = self.container.get(IMessageQueue)
-                    if message_queue:
+                    if message_queue := self.container.get(IMessageQueue):
                         message_queue.add_message(
                             Message(
                                 text=error_message or "Network connection failed",
@@ -307,8 +322,10 @@ class ApplicationOrchestrator:
 
     def cleanup(self) -> None:
         try:
-            if hasattr(self.event_coordinator, "cleanup"):
-                self.event_coordinator.cleanup()
+            if hasattr(self.event_coordinator, "downloads") and hasattr(
+                self.event_coordinator.downloads, "cleanup"
+            ):
+                self.event_coordinator.downloads.cleanup()
 
             self.container.clear()
         except Exception:

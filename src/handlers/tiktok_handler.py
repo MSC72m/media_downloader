@@ -8,12 +8,8 @@ from src.services.detection.base_handler import BaseHandler
 from src.services.detection.link_detector import (
     auto_register_handler,
 )
+from src.utils import type_helpers
 from src.utils.logger import get_logger
-from src.utils.type_helpers import (
-    get_platform_callback,
-    get_root,
-    schedule_on_main_thread,
-)
 
 logger = get_logger(__name__)
 
@@ -62,19 +58,20 @@ class TikTokHandler(BaseHandler):
             """Callback for handling TikTok URLs."""
             logger.info(f"[TIKTOK_HANDLER] TikTok callback called with URL: {url}")
 
-            root = get_root(ui_context)
+            root = type_helpers.get_root(ui_context)
 
-            download_callback = get_platform_callback(ui_context, "tiktok")
-            if not download_callback:
-                download_callback = get_platform_callback(ui_context, "generic")
-                if not download_callback:
-                    error_msg = "No download callback found"
-                    logger.error(f"[TIKTOK_HANDLER] {error_msg}")
-                    if self.error_handler:
-                        self.error_handler.handle_service_failure(
-                            "TikTok Handler", "callback", error_msg, url
-                        )
-                    return
+            if not (
+                download_callback := type_helpers.get_platform_callback(ui_context, "tiktok")
+            ) and not (
+                download_callback := type_helpers.get_platform_callback(ui_context, "generic")
+            ):
+                error_msg = "No download callback found"
+                logger.error(f"[TIKTOK_HANDLER] {error_msg}")
+                if self.error_handler:
+                    self.error_handler.handle_service_failure(
+                        "TikTok Handler", "callback", error_msg, url
+                    )
+                return
 
             def process_tiktok_download():
                 try:
@@ -91,7 +88,7 @@ class TikTokHandler(BaseHandler):
                             e, "Processing TikTok download", "TikTok"
                         )
 
-            schedule_on_main_thread(root, process_tiktok_download, immediate=True)
+            type_helpers.schedule_on_main_thread(root, process_tiktok_download, immediate=True)
             logger.info("[TIKTOK_HANDLER] TikTok download scheduled")
 
         logger.info("[TIKTOK_HANDLER] Returning TikTok callback")
@@ -114,7 +111,6 @@ class TikTokHandler(BaseHandler):
             r"/v/([\w-]+)",
         ]
         for pattern in patterns:
-            match = re.search(pattern, url)
-            if match:
+            if match := re.search(pattern, url):
                 return match.group(1)
         return None

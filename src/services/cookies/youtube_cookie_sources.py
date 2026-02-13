@@ -12,6 +12,7 @@ from urllib.parse import parse_qs, urlparse
 import yt_dlp
 
 from src.core.config import AppConfig, get_config
+from src.services.ytdlp_logger import YTDLPLoggerBridge
 from src.utils.logger import get_logger
 
 if TYPE_CHECKING:
@@ -187,6 +188,7 @@ class _YouTubeProbeRunner:
             "socket_timeout": self.config.downloads.socket_timeout,
             "extract_flat": False,
             "extractor_args": {"youtube": {"player_client": ["web"]}},
+            "logger": YTDLPLoggerBridge("YOUTUBE_COOKIE_PROBE"),
         }
 
         if shutil.which("node"):
@@ -235,13 +237,11 @@ class BrowserCookieSource:
         self.force_reprobe = force_reprobe
 
     def resolve(self) -> list[YouTubeAuthConfig]:
-        candidates = self.coordinator.get_browser_candidates()
-        if not candidates:
+        if not (candidates := self.coordinator.get_browser_candidates()):
             logger.info("[YOUTUBE_COOKIE_COORDINATOR] No browser candidates available")
             return []
 
-        preferred_candidate = self._resolve_preferred_candidate(candidates)
-        if preferred_candidate:
+        if preferred_candidate := self._resolve_preferred_candidate(candidates):
             return [
                 YouTubeAuthConfig(
                     label=f"browser-cookies-{preferred_candidate.name}",
@@ -264,24 +264,23 @@ class BrowserCookieSource:
         self,
         candidates: list[BrowserProbeCandidate],
     ) -> BrowserProbeCandidate | None:
-        if self.preferred_browser:
-            selected = next((c for c in candidates if c.name == self.preferred_browser), None)
-            if selected:
-                return selected
-
-        if not self.force_reprobe and self.coordinator.state.is_cache_valid():
-            cached_name = self.coordinator.state.preferred_browser
-            if cached_name:
-                selected = next((c for c in candidates if c.name == cached_name), None)
-                if selected:
-                    return selected
-
-        selected = self.coordinator.probe_browsers(candidates)
-        if selected:
+        if self.preferred_browser and (
+            selected := next((c for c in candidates if c.name == self.preferred_browser), None)
+        ):
             return selected
 
-        cached_name = self.coordinator.state.preferred_browser
-        if not cached_name:
+        if (
+            not self.force_reprobe
+            and self.coordinator.state.is_cache_valid()
+            and (cached_name := self.coordinator.state.preferred_browser)
+            and (selected := next((c for c in candidates if c.name == cached_name), None))
+        ):
+            return selected
+
+        if selected := self.coordinator.probe_browsers(candidates):
+            return selected
+
+        if not (cached_name := self.coordinator.state.preferred_browser):
             return None
 
         return next((c for c in candidates if c.name == cached_name), None)
@@ -413,8 +412,7 @@ class YouTubeCookieSourceCoordinator:
 
         for source in ordered_sources:
             for strategy in source.resolve():
-                signature = _freeze_json_like(strategy.ytdlp_options)
-                if signature in seen_signatures:
+                if (signature := _freeze_json_like(strategy.ytdlp_options)) in seen_signatures:
                     continue
                 seen_signatures.add(signature)
                 strategies.append(strategy)
@@ -462,8 +460,7 @@ class YouTubeCookieSourceCoordinator:
         if self._is_browser_available("firefox"):
             candidates.append(BrowserProbeCandidate(name="firefox", ytdlp_browser="firefox"))
 
-        zen_profile = self._find_firefox_compatible_profile("zen")
-        if zen_profile:
+        if zen_profile := self._find_firefox_compatible_profile("zen"):
             candidates.append(
                 BrowserProbeCandidate(
                     name="zen",
@@ -478,8 +475,7 @@ class YouTubeCookieSourceCoordinator:
                 continue
             candidates.append(BrowserProbeCandidate(name=browser, ytdlp_browser=browser))
 
-        librewolf_profile = self._find_firefox_compatible_profile("librewolf")
-        if librewolf_profile:
+        if librewolf_profile := self._find_firefox_compatible_profile("librewolf"):
             candidates.append(
                 BrowserProbeCandidate(
                     name="librewolf",
@@ -648,13 +644,11 @@ class YouTubeCookieSourceCoordinator:
                 "commands": ["firefox"],
             },
         }
-        check = browser_checks.get(browser)
-        if not check:
+        if not (check := browser_checks.get(browser)):
             return False
 
         existing_paths = [Path(path).expanduser() for path in check["paths"] if path]
-        existing_paths = [path for path in existing_paths if path.exists()]
-        if not existing_paths:
+        if not (existing_paths := [path for path in existing_paths if path.exists()]):
             return False
 
         if browser == "firefox":
@@ -688,8 +682,7 @@ class YouTubeCookieSourceCoordinator:
             if not root.exists():
                 continue
 
-            profile = _find_profile_directory(root)
-            if profile:
+            if profile := _find_profile_directory(root):
                 return str(profile)
 
         return None
@@ -740,8 +733,7 @@ def _cookie_file_has_auth_signals(cookie_path: str) -> bool:
                 if len(parts) < 7:
                     continue
 
-                cookie_name = parts[5].strip().lower()
-                if cookie_name in auth_cookie_names:
+                if parts[5].strip().lower() in auth_cookie_names:
                     return True
     except Exception:
         return False
@@ -827,8 +819,7 @@ def _find_profile_directory(root: Path) -> Path | None:
 
     profile_dirs = [path for path in root.iterdir() if path.is_dir()] if root.is_dir() else []
 
-    profile_with_db = [path for path in profile_dirs if (path / "cookies.sqlite").exists()]
-    if profile_with_db:
+    if profile_with_db := [path for path in profile_dirs if (path / "cookies.sqlite").exists()]:
         return max(profile_with_db, key=lambda path: path.stat().st_mtime)
 
     if profile_dirs:
@@ -838,8 +829,7 @@ def _find_profile_directory(root: Path) -> Path | None:
 
 
 def _join_env(key: str, *parts: str) -> str | None:
-    value = os.environ.get(key)
-    if not value:
+    if not (value := os.environ.get(key)):
         return None
     return str(Path(value, *parts))
 

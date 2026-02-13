@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from enum import StrEnum
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
@@ -27,14 +28,11 @@ class CookieState(BaseModel):
 
     def is_expired(self) -> bool:
         now = datetime.now(timezone.utc)
-        expires_at = self.expires_at
-        if expires_at.tzinfo is None:
+        if (expires_at := self.expires_at).tzinfo is None:
             expires_at = expires_at.replace(tzinfo=timezone.utc)
         return now >= expires_at
 
     def should_regenerate(self) -> bool:
-        from pathlib import Path
-
         # If no cookie path, check if file exists from config
         if not self.cookie_path:
             config = get_config()
@@ -52,11 +50,9 @@ class CookieState(BaseModel):
         config = get_config()
         if self.generated_at:
             now = datetime.now(timezone.utc)
-            generated_at = self.generated_at
-            if generated_at.tzinfo is None:
+            if (generated_at := self.generated_at).tzinfo is None:
                 generated_at = generated_at.replace(tzinfo=timezone.utc)
-            age_hours = (now - generated_at).total_seconds() / 3600
-            if age_hours >= config.cookies.cookie_expiry_hours:
+            if (now - generated_at).total_seconds() / 3600 >= config.cookies.cookie_expiry_hours:
                 return True
 
         return False

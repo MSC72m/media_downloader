@@ -12,6 +12,7 @@ from src.core.interfaces import (
     IMessageQueue,
     INetworkChecker,
 )
+from src.services.detection.link_detector import LinkDetector
 from src.services.events.event_bus import DownloadEventBus
 from src.services.events.queue import Message
 from src.services.instagram import InstagramAuthManager
@@ -75,7 +76,7 @@ class EventCoordinator:
 
         # Link detector will be set by orchestrator after initialization
         # Don't create here to avoid duplicate instances
-        self.link_detector = None
+        self.link_detector: LinkDetector | None = None
 
         # Create focused coordinators with injected dependencies
         self.downloads = DownloadCoordinator(
@@ -147,8 +148,7 @@ class EventCoordinator:
             "generic": self.platform_dialogs.generic_download,
         }
 
-        dialog_method = platform_map.get(platform)
-        if not dialog_method:
+        if not (dialog_method := platform_map.get(platform)):
             logger.error(f"[EVENT_COORDINATOR] Unknown platform: {platform}")
             return
 
@@ -201,7 +201,7 @@ class EventCoordinator:
     def show_network_status(self) -> None:
         """Show network status dialog."""
         try:
-            NetworkStatusDialog(self.root, self.network_checker)
+            NetworkStatusDialog(self.root)
         except Exception as e:
             logger.error(f"[EVENT_COORDINATOR] Error showing network status: {e}")
             self.error_handler.show_error(

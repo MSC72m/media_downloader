@@ -64,8 +64,7 @@ class TwitterDownloader(BaseDownloader):
                     )
                 return False
 
-            tweet_refs = self._extract_tweet_references(url)
-            if not tweet_refs:
+            if not (tweet_refs := self._extract_tweet_references(url)):
                 error_msg = "No tweet IDs found in URL"
                 logger.error(error_msg)
                 if self.error_handler:
@@ -74,8 +73,7 @@ class TwitterDownloader(BaseDownloader):
 
             success = False
             for i, (username, tweet_id) in enumerate(tweet_refs):
-                tweet_data = self._scrape_tweet_data(tweet_id, username)
-                if not tweet_data:
+                if not (tweet_data := self._scrape_tweet_data(tweet_id, username)):
                     continue
 
                 save_name = f"{save_path}_{i}" if len(tweet_refs) > 1 else save_path
@@ -169,8 +167,7 @@ class TwitterDownloader(BaseDownloader):
                 match content_type:
                     case value if "application/json" in value:
                         data = response.json()
-                        tweet_data = self._select_tweet_payload(data)
-                        if not tweet_data:
+                        if not (tweet_data := self._select_tweet_payload(data)):
                             continue
 
                         media = self._normalize_media(tweet_data)
@@ -205,8 +202,7 @@ class TwitterDownloader(BaseDownloader):
         save_dir = os.path.dirname(save_path) if os.path.dirname(save_path) else "."
         saved_any = False
 
-        text = str(tweet_data.get("text", "")).strip()
-        if text:
+        if text := str(tweet_data.get("text", "")).strip():
             caption_filename = self.file_service.sanitize_filename(f"{base_name}_description.txt")
             caption_path = os.path.join(save_dir, caption_filename)
             self.file_service.save_text_file(text, caption_path)
@@ -246,8 +242,7 @@ class TwitterDownloader(BaseDownloader):
             url = variant.get("url")
             if not isinstance(url, str) or not url:
                 continue
-            content_type = str(variant.get("content_type", ""))
-            if content_type and "mp4" not in content_type:
+            if (content_type := str(variant.get("content_type", ""))) and "mp4" not in content_type:
                 continue
             bitrate = int(variant.get("bitrate") or 0)
             candidates.append((bitrate, url))
@@ -300,12 +295,11 @@ class TwitterDownloader(BaseDownloader):
             case _:
                 source_items = []
 
-        entries: list[dict[str, str]] = []
-        for item in source_items:
-            normalized = self._normalize_modern_media_item(item)
-            if normalized:
-                entries.append(normalized)
-        return entries
+        return [
+            normalized
+            for item in source_items
+            if (normalized := self._normalize_modern_media_item(item))
+        ]
 
     def _normalize_modern_media_item(self, item: Any) -> dict[str, str] | None:
         """Normalize a single media item from FixTweet payload."""
@@ -333,8 +327,7 @@ class TwitterDownloader(BaseDownloader):
 
         for i, item in enumerate(media):
             try:
-                url = item.get("url")
-                if not url:
+                if not (url := item.get("url")):
                     continue
 
                 match item.get("type"):
@@ -357,8 +350,13 @@ class TwitterDownloader(BaseDownloader):
                 full_path = os.path.join(os.path.dirname(save_path), filename)
 
                 file_service = self.file_service if self.file_service else FileService()
-                result = file_service.download_file(url, full_path, progress_callback)
-                if result.success and os.path.exists(full_path) and os.path.getsize(full_path) > 0:
+                if (
+                    (
+                        result := file_service.download_file(url, full_path, progress_callback)
+                    ).success
+                    and os.path.exists(full_path)
+                    and os.path.getsize(full_path) > 0
+                ):
                     success = True
                 elif result.success:
                     logger.warning(

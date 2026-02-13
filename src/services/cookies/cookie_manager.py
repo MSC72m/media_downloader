@@ -3,9 +3,10 @@ import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import Lock
-from typing import Any
+from typing import Any, cast
 
 from src.core.config import AppConfig, get_config
+from src.core.interfaces import IAutoCookieManager
 from src.core.models import CookieState
 from src.utils.logger import get_logger
 
@@ -115,12 +116,10 @@ class CookieManager:
                 logger.warning("[COOKIE_MANAGER] Cookie generation failed")
                 return None
 
-            cookie_path = self._ensure_cookie_file_exists()
-            if not cookie_path:
+            if not (cookie_path := self._ensure_cookie_file_exists()):
                 return None
 
-            cookie_path = self._validate_and_regenerate_if_needed(cookie_path)
-            if cookie_path:
+            if cookie_path := self._validate_and_regenerate_if_needed(cookie_path):
                 logger.info(f"[COOKIE_MANAGER] Returning validated cookie file: {cookie_path}")
                 return cookie_path
             return None
@@ -237,8 +236,7 @@ class CookieManager:
             True if generation is in progress
         """
         # Check generator state first for real-time updates
-        generator_state = self.generator.get_state()
-        if generator_state and generator_state.is_generating:
+        if (generator_state := self.generator.get_state()) and generator_state.is_generating:
             return True
 
         with self._lock:
@@ -259,17 +257,18 @@ class CookieManager:
 
     def _delete_old_cookie_files(self) -> None:
         """Delete old cookie files before regeneration."""
-        if self._state and self._state.cookie_path:
-            old_cookie_path = Path(self._state.cookie_path)
-            if old_cookie_path.exists():
-                try:
-                    old_cookie_path.unlink()
-                    logger.info(f"[COOKIE_MANAGER] Deleted expired cookie file: {old_cookie_path}")
-                except Exception as e:
-                    logger.warning(f"[COOKIE_MANAGER] Failed to delete old cookie file: {e}")
+        if (
+            self._state
+            and self._state.cookie_path
+            and (old_cookie_path := Path(self._state.cookie_path)).exists()
+        ):
+            try:
+                old_cookie_path.unlink()
+                logger.info(f"[COOKIE_MANAGER] Deleted expired cookie file: {old_cookie_path}")
+            except Exception as e:
+                logger.warning(f"[COOKIE_MANAGER] Failed to delete old cookie file: {e}")
 
-        json_cookie_file = self.storage_dir / self.config.cookies.cookie_file_name
-        if json_cookie_file.exists():
+        if (json_cookie_file := self.storage_dir / self.config.cookies.cookie_file_name).exists():
             try:
                 json_cookie_file.unlink()
                 logger.info(
@@ -292,8 +291,9 @@ class CookieManager:
         Returns:
             Netscape file path if conversion succeeds, None otherwise
         """
-        netscape_path = self.generator.convert_to_netscape_text()
-        if netscape_path and Path(netscape_path).exists():
+        if (netscape_path := self.generator.convert_to_netscape_text()) and Path(
+            netscape_path
+        ).exists():
             return netscape_path
         return None
 
@@ -324,8 +324,7 @@ class CookieManager:
         cookie_path = self._state.cookie_path if self._state else None
         if not cookie_path or not Path(cookie_path).exists():
             logger.warning(f"[COOKIE_MANAGER] Cookie file does not exist: {cookie_path}")
-            netscape_path = self._try_convert_netscape()
-            if netscape_path:
+            if netscape_path := self._try_convert_netscape():
                 return netscape_path
 
             logger.warning(
@@ -451,8 +450,9 @@ class CookieManager:
 
     def force_youtube_reprobe(self) -> list[dict[str, Any]]:
         """Force a browser reprobe and return resolved strategy metadata."""
+        auto_cookie_manager = cast(IAutoCookieManager, self)
         coordinator = YouTubeCookieSourceCoordinator(
-            auto_cookie_manager=self,
+            auto_cookie_manager=auto_cookie_manager,
             storage_dir=self.storage_dir,
             config=self.config,
         )
@@ -468,8 +468,9 @@ class CookieManager:
 
     def reset_youtube_probe_state(self) -> None:
         """Reset persisted YouTube browser probe state."""
+        auto_cookie_manager = cast(IAutoCookieManager, self)
         coordinator = YouTubeCookieSourceCoordinator(
-            auto_cookie_manager=self,
+            auto_cookie_manager=auto_cookie_manager,
             storage_dir=self.storage_dir,
             config=self.config,
         )
@@ -484,8 +485,7 @@ class CookieManager:
         if not self.state_file.exists():
             logger.info("[COOKIE_MANAGER] No existing state file found")
             # Check if cookies file exists - if so, create state with valid cookies
-            cookie_file = self.storage_dir / self.config.cookies.netscape_file_name
-            if cookie_file.exists():
+            if (cookie_file := self.storage_dir / self.config.cookies.netscape_file_name).exists():
                 logger.info(f"[COOKIE_MANAGER] Found existing cookie file: {cookie_file}")
                 # Create a state that reflects the existing cookie file
                 return CookieState(

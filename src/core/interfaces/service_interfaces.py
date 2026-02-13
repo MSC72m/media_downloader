@@ -80,7 +80,7 @@ class INetworkChecker(Protocol):
 
     def check_service_connection(self, service: ServiceType) -> tuple[bool, str]: ...
 
-    def get_problem_services(self) -> list[str]: ...
+    def get_problem_services(self) -> list[ServiceType]: ...
 
 
 @runtime_checkable
@@ -142,7 +142,8 @@ class IAutoCookieManager(Protocol):
     cleans up and replaces stale cookies automatically.
     """
 
-    generator: ICookieGenerator
+    @property
+    def generator(self) -> ICookieGenerator: ...
 
     def initialize(self) -> CookieState: ...
 

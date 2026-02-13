@@ -54,8 +54,7 @@ class NotifierService(INotifier):
         }
 
     def notify_user(self, notification_type: str, **kwargs: Any) -> None:
-        template_data = self._templates.get(notification_type)
-        if not template_data:
+        if not (template_data := self._templates.get(notification_type)):
             logger.warning(f"[NOTIFIER] Template not found: {notification_type}")
             return
 

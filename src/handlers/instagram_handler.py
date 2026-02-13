@@ -72,8 +72,7 @@ class InstagramHandler(BaseHandler):
             """Callback for handling Instagram URLs."""
             logger.info(f"[INSTAGRAM_HANDLER] Instagram callback called with URL: {url}")
 
-            download_callback = get_platform_callback(ui_context, "instagram")
-            if not download_callback:
+            if not (download_callback := get_platform_callback(ui_context, "instagram")):
                 error_msg = "No download callback found"
                 logger.error(f"[INSTAGRAM_HANDLER] {error_msg}")
                 if self.error_handler:
@@ -88,8 +87,7 @@ class InstagramHandler(BaseHandler):
 
             root = get_root(ui_context)
 
-            ctx = get_ui_context(ui_context)
-            if not ctx:
+            if not (ctx := get_ui_context(ui_context)):
                 logger.error("[INSTAGRAM_HANDLER] Could not get UI context")
                 if self.error_handler:
                     self.error_handler.handle_service_failure(
@@ -109,7 +107,7 @@ class InstagramHandler(BaseHandler):
                 service_type=ServiceType.INSTAGRAM,
             )
 
-            download_index_ref = {"index": None}
+            download_index_ref: dict[str, int | None] = {"index": None}
 
             def add_download_to_list():
                 try:
@@ -178,12 +176,14 @@ class InstagramHandler(BaseHandler):
                             f"[INSTAGRAM_HANDLER] Authentication failed or cancelled: {status}"
                         )
                         if download_index_ref["index"] is not None and hasattr(ctx, "downloads"):
+                            if (index := download_index_ref["index"]) is None:
+                                return
 
                             def remove_download():
                                 try:
-                                    ctx.downloads.remove_downloads([download_index_ref["index"]])
+                                    ctx.downloads.remove_downloads([index])
                                     logger.info(
-                                        f"[INSTAGRAM_HANDLER] Removed download at index {download_index_ref['index']} due to auth failure"
+                                        f"[INSTAGRAM_HANDLER] Removed download at index {index} due to auth failure"
                                     )
                                 except Exception as e:
                                     logger.error(
@@ -252,7 +252,6 @@ class InstagramHandler(BaseHandler):
             r"/tv/([\w-]+)",
         ]
         for pattern in patterns:
-            match = re.search(pattern, url)
-            if match:
+            if match := re.search(pattern, url):
                 return match.group(1)
         return None

@@ -69,8 +69,7 @@ class URLEntryFrame(ctk.CTkFrame):
     def _apply_theme_colors(self):
         theme_json = self._theme_manager.get_theme_json()
 
-        entry_config = theme_json.get("CTkEntry", {})
-        if entry_config:
+        if entry_config := theme_json.get("CTkEntry", {}):
             fg_color = self._normalize_color(entry_config.get("fg_color"))
             border_color = self._normalize_color(entry_config.get("border_color"))
             text_color = self._normalize_color(entry_config.get("text_color"))
@@ -81,8 +80,7 @@ class URLEntryFrame(ctk.CTkFrame):
                 text_color=text_color,
             )
 
-        button_config = theme_json.get("CTkButton", {})
-        if button_config:
+        if button_config := theme_json.get("CTkButton", {}):
             button_color = self._normalize_color(button_config.get("fg_color"))
             hover_color = self._normalize_color(button_config.get("hover_color"))
             text_color = self._normalize_color(button_config.get("text_color"))
@@ -97,8 +95,7 @@ class URLEntryFrame(ctk.CTkFrame):
         self._apply_theme_colors()
 
     def handle_add(self):
-        url = self.url_entry.get().strip()
-        if not url:
+        if not (url := self.url_entry.get().strip()):
             return
 
         if self.on_youtube_detected and _YOUTUBE_DOMAIN_PATTERN.search(url):
@@ -107,9 +104,7 @@ class URLEntryFrame(ctk.CTkFrame):
             return
 
         dialog = CenteredInputDialog(text="Enter a name for this link:", title="Link Name")
-        name = dialog.get_input()
-
-        if name:
+        if name := dialog.get_input():
             self.on_add(url, name)
             self.clear()
 

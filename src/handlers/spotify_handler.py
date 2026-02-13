@@ -8,6 +8,7 @@ from src.services.detection.base_handler import BaseHandler
 from src.services.detection.link_detector import (
     auto_register_handler,
 )
+from src.ui.dialogs.spotify_downloader_dialog import SpotifyDownloaderDialog
 from src.utils.error_helpers import extract_error_context
 from src.utils.logger import get_logger
 from src.utils.type_helpers import (
@@ -65,23 +66,20 @@ class SpotifyHandler(BaseHandler):
 
             root = get_root(ui_context)
 
-            download_callback = get_platform_callback(ui_context, "spotify")
-            if not download_callback:
-                download_callback = get_platform_callback(ui_context, "generic")
-                if not download_callback:
-                    error_msg = "No download callback found"
-                    logger.error(f"[SPOTIFY_HANDLER] {error_msg}")
-                    if self.error_handler:
-                        self.error_handler.handle_service_failure(
-                            "Spotify Handler", "callback", error_msg, url
-                        )
-                    return
+            if not (download_callback := get_platform_callback(ui_context, "spotify")) and not (
+                download_callback := get_platform_callback(ui_context, "generic")
+            ):
+                error_msg = "No download callback found"
+                logger.error(f"[SPOTIFY_HANDLER] {error_msg}")
+                if self.error_handler:
+                    self.error_handler.handle_service_failure(
+                        "Spotify Handler", "callback", error_msg, url
+                    )
+                return
 
             def create_spotify_dialog():
                 """Create Spotify downloader dialog."""
                 try:
-                    from src.ui.dialogs.spotify_downloader_dialog import SpotifyDownloaderDialog
-
                     logger.info("[SPOTIFY_HANDLER] Creating SpotifyDownloaderDialog")
 
                     SpotifyDownloaderDialog(
@@ -123,6 +121,10 @@ class SpotifyHandler(BaseHandler):
         Returns:
             Content type: 'track', 'album', 'playlist', 'artist', or 'unknown'
         """
+        lowered = url.lower()
+        if "spotify.com" not in lowered and "spotify:" not in lowered:
+            return "unknown"
+
         patterns = [
             (r"/track/", "track"),
             (r"/album/", "album"),
@@ -131,7 +133,7 @@ class SpotifyHandler(BaseHandler):
         ]
 
         for pattern, content_type in patterns:
-            if pattern in url:
+            if pattern in lowered:
                 return content_type
 
         return "unknown"

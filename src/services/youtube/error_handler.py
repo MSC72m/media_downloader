@@ -132,8 +132,7 @@ class YouTubeErrorHandler:
             ),
         }
 
-        strategy = fallback_strategies.get(attempt)
-        if not strategy:
+        if not (strategy := fallback_strategies.get(attempt)):
             self._log_format_failure(opts, url)
             return False
 

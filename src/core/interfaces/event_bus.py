@@ -4,16 +4,16 @@ from typing import Any, Generic, Protocol, TypeVar, runtime_checkable
 
 from src.core.enums.events import DownloadEvent
 
-EventType = TypeVar("EventType", bound=Enum)
+EventType_contra = TypeVar("EventType_contra", bound=Enum, contravariant=True)
 
 
 @runtime_checkable
-class IEventBus(Protocol, Generic[EventType]):
-    def publish(self, event: EventType, **kwargs: Any) -> None: ...
+class IEventBus(Protocol, Generic[EventType_contra]):
+    def publish(self, event: EventType_contra, **kwargs: Any) -> None: ...
 
-    def subscribe(self, event: EventType, callback: Callable[[Any], None]) -> None: ...
+    def subscribe(self, event: EventType_contra, callback: Callable[[Any], None]) -> None: ...
 
-    def unsubscribe(self, event: EventType, callback: Callable[[Any], None]) -> None: ...
+    def unsubscribe(self, event: EventType_contra, callback: Callable[[Any], None]) -> None: ...
 
 
 IDownloadEventBus = IEventBus[DownloadEvent]

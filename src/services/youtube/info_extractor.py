@@ -9,6 +9,7 @@ import yt_dlp
 from src.core.config import AppConfig, get_config
 from src.core.interfaces import IAutoCookieManager, ICookieHandler, IErrorNotifier
 from src.services.cookies import YouTubeAuthConfig, YouTubeCookieSourceCoordinator
+from src.services.ytdlp_logger import YTDLPLoggerBridge
 from src.utils.logger import get_logger
 
 from .error_handler import YouTubeErrorBucket, YouTubeErrorHandler
@@ -53,8 +54,7 @@ class YouTubeInfoExtractor:
         )
 
         for strategy in auth_strategies:
-            info = self._try_auth_strategy(url, strategy)
-            if info:
+            if info := self._try_auth_strategy(url, strategy):
                 return info
 
             bucket = self.youtube_error_handler.classify_ytdlp_error(self._last_error_message or "")
@@ -65,8 +65,7 @@ class YouTubeInfoExtractor:
                 )
                 break
 
-        fallback = self._fetch_oembed_fallback(url)
-        if fallback:
+        if fallback := self._fetch_oembed_fallback(url):
             logger.warning(
                 "[INFO_EXTRACTOR] Falling back to oEmbed metadata after yt-dlp extraction failure"
             )
@@ -104,9 +103,8 @@ class YouTubeInfoExtractor:
         logger.info(f"[INFO_EXTRACTOR] Trying extraction: {label}")
 
         try:
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                raw_info = ydl.extract_info(url, download=False)
-                if raw_info:
+            with yt_dlp.YoutubeDL(cast(Any, opts)) as ydl:
+                if raw_info := ydl.extract_info(url, download=False):
                     self._last_error_message = None
                     logger.info(f"[INFO_EXTRACTOR] Success with: {label}")
                     return cast(dict[str, Any], raw_info)
@@ -146,9 +144,8 @@ class YouTubeInfoExtractor:
         retry_label = f"{label}(no-client-override)"
 
         try:
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                raw_info = ydl.extract_info(url, download=False)
-                if raw_info:
+            with yt_dlp.YoutubeDL(cast(Any, opts)) as ydl:
+                if raw_info := ydl.extract_info(url, download=False):
                     logger.info(f"[INFO_EXTRACTOR] Success with: {retry_label}")
                     return cast(dict[str, Any], raw_info)
         except Exception as exc:
@@ -172,6 +169,7 @@ class YouTubeInfoExtractor:
             "ignoreconfig": True,
             "nocheckcertificate": True,
             "socket_timeout": 15,
+            "logger": YTDLPLoggerBridge("INFO_EXTRACTOR"),
         }
 
         if shutil.which("node"):

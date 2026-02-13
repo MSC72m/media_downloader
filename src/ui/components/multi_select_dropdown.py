@@ -1,3 +1,4 @@
+import contextlib
 from collections.abc import Callable
 from typing import Any
 
@@ -32,7 +33,7 @@ class MultiSelectDropdown(ctk.CTkFrame):
         self.selected_options: list[str] = []
         self.dropdown_window: ctk.CTkToplevel | None = None
         self.is_open = False
-        self.checkboxes: dict[str, ctk.CTkCheckBox] = {}
+        self.checkboxes: dict[str, ctk.BooleanVar] = {}
 
         self._create_widgets()
 
@@ -115,8 +116,6 @@ class MultiSelectDropdown(ctk.CTkFrame):
 
         except Exception:
             if hasattr(self, "dropdown_window") and self.dropdown_window:
-                import contextlib
-
                 with contextlib.suppress(Exception):
                     self.dropdown_window.destroy()
                 self.dropdown_window = None
@@ -223,8 +222,6 @@ class MultiSelectDropdown(ctk.CTkFrame):
     def _close_dropdown(self):
         """Close the dropdown menu."""
         if self.dropdown_window:
-            import contextlib
-
             with contextlib.suppress(Exception):
                 self.dropdown_window.destroy()
             self.dropdown_window = None
@@ -254,8 +251,9 @@ class MultiSelectDropdown(ctk.CTkFrame):
         """Check if dropdown still has focus and close if not."""
         if self.is_open and self.dropdown_window:
             try:
-                focused_widget = self.focus_get()
-                if focused_widget != self.dropdown_window and not self._is_descendant(
+                if (
+                    focused_widget := self.focus_get()
+                ) != self.dropdown_window and not self._is_descendant(
                     focused_widget, self.dropdown_window
                 ):
                     self._close_dropdown()

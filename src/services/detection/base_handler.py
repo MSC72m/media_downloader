@@ -1,16 +1,13 @@
 import re
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from src.core.config import AppConfig, get_config
 from src.core.interfaces import IMessageQueue, INotifier
 from src.services.notifications.notifier import NotifierService
 
-if TYPE_CHECKING:
-    from .link_detector import DetectionResult
-else:
-    DetectionResult = None
+from .models import DetectionResult
 
 
 class BaseHandler(ABC):
@@ -25,7 +22,7 @@ class BaseHandler(ABC):
 
     def __init__(
         self,
-        message_queue: IMessageQueue,
+        message_queue: IMessageQueue | None,
         config: AppConfig = get_config(),
         service_name: str = "",
     ):
@@ -79,8 +76,6 @@ class BaseHandler(ABC):
         Returns:
             DetectionResult with service_type, confidence, and metadata
         """
-        from .link_detector import DetectionResult
-
         patterns = self.get_patterns()
 
         for pattern in patterns:

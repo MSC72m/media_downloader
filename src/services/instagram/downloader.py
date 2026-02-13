@@ -202,8 +202,7 @@ class InstagramDownloader(BaseDownloader):
         Returns True if at least one media file was downloaded successfully.
         """
         if post.is_video:
-            video_url = post.video_url
-            if not video_url:
+            if not (video_url := post.video_url):
                 logger.error("[INSTAGRAM_DOWNLOADER] No video URL found")
                 return False
             filename = self.file_service.sanitize_filename(f"{base_name}.mp4")
@@ -243,8 +242,7 @@ class InstagramDownloader(BaseDownloader):
                 suffix = f"_{i}" if i > 0 else ""
                 filename = self.file_service.sanitize_filename(f"{base_name}{suffix}{ext}")
                 full_path = os.path.join(save_dir, filename)
-                result = file_service.download_file(media_url, full_path, progress_callback)
-                if result.success:
+                if file_service.download_file(media_url, full_path, progress_callback).success:
                     any_success = True
             except Exception as e:
                 logger.error(f"Error downloading sidecar item {i}: {e!s}")
@@ -273,8 +271,7 @@ class InstagramDownloader(BaseDownloader):
                 post, save_dir, base_name, file_service, progress_callback
             )
 
-            caption = post.caption
-            if caption:
+            if caption := post.caption:
                 caption_filename = self.file_service.sanitize_filename(f"{base_name}_caption.txt")
                 caption_path = os.path.join(save_dir, caption_filename)
                 self.file_service.save_text_file(caption, caption_path)

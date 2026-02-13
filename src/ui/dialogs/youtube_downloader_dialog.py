@@ -151,7 +151,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             logger.error(f"Failed to create loading overlay: {e}", exc_info=True)
             self.loading_overlay = None
 
-    def _fetch_metadata_with_timeout(self, cookie_path: str) -> tuple[Any, Exception | None]:
+    def _fetch_metadata_with_timeout(self, cookie_path: str | None) -> tuple[Any, Exception | None]:
         """Fetch metadata with timeout protection.
 
         Args:
@@ -160,15 +160,17 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         Returns:
             Tuple of (metadata_result, error)
         """
-        metadata_result = [None]
-        metadata_error = [None]
-        fetch_completed = [False]
+        metadata_result: list[Any | None] = [None]
+        metadata_error: list[Exception | None] = [None]
+        fetch_completed: list[bool] = [False]
+
+        service = self.metadata_service
+        if not service:
+            raise RuntimeError("No metadata service available")
 
         def fetch_with_timeout():
             try:
-                metadata_result[0] = self.metadata_service.fetch_metadata(
-                    self.url, cookie_path, None
-                )
+                metadata_result[0] = service.fetch_metadata(self.url, cookie_path, None)
                 fetch_completed[0] = True
             except Exception as e:
                 metadata_error[0] = e
@@ -208,8 +210,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         error_code_pattern = re.compile(r"(429|403)")
         timeout_pattern = re.compile(r"timeout", re.IGNORECASE)
 
-        code_match = error_code_pattern.search(error_msg)
-        if code_match:
+        if code_match := error_code_pattern.search(error_msg):
             code = code_match.group(1)
             return error_map.get(code, error_msg)
         if timeout_pattern.search(error_msg):
@@ -797,8 +798,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
     def _process_add_to_downloads(self):
         """Process add to downloads in a non-blocking way."""
         try:
-            name = self.name_entry.get().strip()
-            if not name:
+            if not (name := self.name_entry.get().strip()):
                 self._show_error("Please enter a name for this download")
                 return
 
@@ -856,8 +856,9 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
     def _schedule_ui_update(self, update_func: Callable) -> None:
         """Schedule UI update on main thread using centralized queue from MediaDownloaderApp."""
         root = self.winfo_toplevel()
-        if hasattr(root, "run_on_main_thread"):
-            root.run_on_main_thread(update_func)
+        run_on_main_thread = getattr(root, "run_on_main_thread", None)
+        if callable(run_on_main_thread):
+            run_on_main_thread(update_func)
         else:
             self.after(0, update_func)
 
@@ -903,7 +904,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                 text="",
             )
             thumbnail_label.pack(padx=10, pady=10)
-            thumbnail_label.image = ctk_image
             self._thumbnail_ctk_image = ctk_image
 
             logger.debug("[YOUTUBE_DIALOG] Thumbnail preview added successfully")

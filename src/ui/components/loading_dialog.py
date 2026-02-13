@@ -1,3 +1,5 @@
+import contextlib
+
 import customtkinter as ctk
 
 from ...utils.logger import get_logger
@@ -104,8 +106,6 @@ class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.is_running = False
 
         if self._animation_id:
-            import contextlib
-
             with contextlib.suppress(Exception):
                 self.after_cancel(self._animation_id)
             self._animation_id = None
@@ -121,8 +121,6 @@ class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.stop_animation()
 
         if self._timeout_id:
-            import contextlib
-
             with contextlib.suppress(Exception):
                 self.after_cancel(self._timeout_id)
             self._timeout_id = None

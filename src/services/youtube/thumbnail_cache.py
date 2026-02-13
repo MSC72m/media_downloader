@@ -38,8 +38,7 @@ class ThumbnailCache:
 
     def _get_max_cache_size(self) -> int:
         """Get maximum cache size from config or default."""
-        max_size_mb = getattr(self.config.ui, "thumbnail_cache_max_mb", None)
-        if max_size_mb is None:
+        if (max_size_mb := getattr(self.config.ui, "thumbnail_cache_max_mb", None)) is None:
             return self.DEFAULT_MAX_CACHE_SIZE
         return int(max_size_mb * 1024 * 1024)
 
@@ -67,8 +66,7 @@ class ThumbnailCache:
             for file_path in self.CACHE_DIR.iterdir():
                 if file_path.is_file():
                     try:
-                        file_age = current_time - file_path.stat().st_mtime
-                        if file_age > max_age_seconds:
+                        if current_time - file_path.stat().st_mtime > max_age_seconds:
                             file_path.unlink()
                     except Exception:
                         pass

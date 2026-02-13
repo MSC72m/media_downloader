@@ -89,12 +89,11 @@ class CookieHandler(ICookieHandler):
     def should_show_cookie_option(self, url: str) -> bool:
         """Check if cookie option should be shown for this URL."""
         service_type = self._service_detector.detect_service(url)
-        return service_type and service_type.value == "youtube"
+        return bool(service_type and service_type.value == "youtube")
 
     def get_cookie_info_for_ytdlp(self) -> dict | None:
         """Get cookie information for yt-dlp integration."""
-        cookie_path = self.get_current_cookie_path()
-        if not cookie_path:
+        if not (cookie_path := self.get_current_cookie_path()):
             return None
 
         return {"cookiefile": cookie_path}

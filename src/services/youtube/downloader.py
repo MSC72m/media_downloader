@@ -14,6 +14,7 @@ import yt_dlp
 from src.core.config import AppConfig, get_config
 from src.services.cookies import YouTubeCookieSourceCoordinator
 from src.services.network.checker import check_site_connection
+from src.services.ytdlp_logger import YTDLPLoggerBridge
 from src.utils.logger import get_logger
 
 from ...core.enums import ServiceType
@@ -100,6 +101,7 @@ class YouTubeDownloader(BaseDownloader):
             "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "writethumbnail": self.download_thumbnail,
             "embedmetadata": self.embed_metadata,
+            "logger": YTDLPLoggerBridge("YOUTUBE_DOWNLOADER"),
         }
 
         if shutil.which("node"):
@@ -175,29 +177,52 @@ class YouTubeDownloader(BaseDownloader):
             return ".mp3"
 
         if self.format == "video_only" or self.video_only:
-            opts["format"] = "bestvideo"
+            max_height = self._parse_quality_height(self.quality)
+            opts["format"] = self._video_only_selector(max_height=max_height)
             opts["outtmpl"] = {"default": output_template}
+            opts.pop("merge_output_format", None)
             return None
 
         # Default: video + audio
-        format_map = {"highest": "best", "lowest": "worst"}
-
-        if self.quality in format_map:
-            opts["format"] = format_map[self.quality]
-        elif self.quality.endswith("p"):
-            height = self.quality.replace("p", "")
-            if not height.isdigit():
-                logger.warning(f"Invalid quality format: {self.quality}, using best")
-                opts["format"] = "best"
-            else:
-                opts["format"] = f"bestvideo[height<={height}]+bestaudio/best"
-                logger.info(f"Using format selection for {self.quality}: {opts['format']}")
+        if self.quality == "lowest":
+            opts["format"] = "worst"
         else:
-            opts["format"] = "best"
+            max_height = self._parse_quality_height(self.quality)
+            opts["format"] = self._video_with_audio_selector(max_height=max_height)
+            logger.info(f"Using format selection for {self.quality}: {opts['format']}")
 
         opts["outtmpl"] = {"default": output_template}
         opts["merge_output_format"] = "mp4"
         return ".mp4"
+
+    @staticmethod
+    def _parse_quality_height(quality: str) -> int | None:
+        if quality in {"best", "highest"}:
+            return None
+
+        if quality.endswith("p") and quality[:-1].isdigit():
+            return int(quality[:-1])
+
+        alias_map = {
+            "4k": 2160,
+            "8k": 4320,
+        }
+        return alias_map.get(quality.strip().lower())
+
+    @staticmethod
+    def _video_with_audio_selector(max_height: int | None = None) -> str:
+        if max_height is None:
+            return "bestvideo*[vcodec!=none]+bestaudio[acodec!=none]/best"
+        return (
+            f"bestvideo*[height<={max_height}][vcodec!=none]+bestaudio[acodec!=none]"
+            f"/best[height<={max_height}]/best"
+        )
+
+    @staticmethod
+    def _video_only_selector(max_height: int | None = None) -> str:
+        if max_height is None:
+            return "bestvideo*[vcodec!=none]/bestvideo/best"
+        return f"bestvideo*[height<={max_height}][vcodec!=none]/bestvideo/best"
 
     def _attempt_download(
         self,
@@ -216,8 +241,7 @@ class YouTubeDownloader(BaseDownloader):
         for attempt in range(max_retries):
             try:
                 with yt_dlp.YoutubeDL(cast(Any, opts)) as ydl:
-                    info = ydl.extract_info(url, download=True)
-                    if not info:
+                    if not ydl.extract_info(url, download=True):
                         logger.error("No video information extracted from YouTube")
                         self._last_download_error_message = "No video information extracted"
                         break
@@ -263,8 +287,7 @@ class YouTubeDownloader(BaseDownloader):
             self._log_specific_error(error_msg)
             return False
 
-        bucket = self.youtube_error_handler.classify_ytdlp_error(error_msg)
-        if bucket in {
+        if (bucket := self.youtube_error_handler.classify_ytdlp_error(error_msg)) in {
             YouTubeErrorBucket.BROWSER_UNAVAILABLE,
             YouTubeErrorBucket.KEYCHAIN,
             YouTubeErrorBucket.LOGIN_REQUIRED,
@@ -336,8 +359,7 @@ class YouTubeDownloader(BaseDownloader):
             logger.error(f"Cannot download from YouTube: {error_msg}")
             return False
 
-        normalized_url = self._canonicalize_video_url(url)
-        if normalized_url != url:
+        if (normalized_url := self._canonicalize_video_url(url)) != url:
             logger.info("[YOUTUBE_DOWNLOADER] Normalized YouTube URL for download")
             url = normalized_url
 
@@ -386,8 +408,7 @@ class YouTubeDownloader(BaseDownloader):
                 bucket = self.youtube_error_handler.classify_ytdlp_error(
                     self._last_download_error_message or ""
                 )
-                should_continue = self._should_continue_auth_fallback(bucket)
-                if not should_continue:
+                if not self._should_continue_auth_fallback(bucket):
                     logger.warning(
                         "[YOUTUBE_DOWNLOADER] Stopping auth fallback chain after "
                         f"{label} due to error bucket: {bucket.value}"
@@ -433,8 +454,7 @@ class YouTubeDownloader(BaseDownloader):
             if self._is_auxiliary_output_file(output_path):
                 continue
 
-            file_size = os.path.getsize(output_path)
-            if file_size == 0:
+            if (file_size := os.path.getsize(output_path)) == 0:
                 logger.error(f"[VERIFICATION] Output file is empty: {output_path}")
                 continue
 
@@ -531,8 +551,7 @@ class YouTubeDownloader(BaseDownloader):
     @staticmethod
     def _is_auxiliary_output_file(path: str) -> bool:
         """Return True when file is likely not the primary media output."""
-        lowered = path.lower()
-        if lowered.endswith((".info.json", ".description")):
+        if (lowered := path.lower()).endswith((".info.json", ".description")):
             return True
 
         auxiliary_suffixes = {
@@ -580,8 +599,7 @@ class YouTubeDownloader(BaseDownloader):
             1: ("worst", "Best format failed, trying 'worst' as fallback"),
         }
 
-        strategy = fallback_strategies.get(attempt)
-        if not strategy:
+        if not (strategy := fallback_strategies.get(attempt)):
             self._log_format_failure(opts, url)
             return False
 
@@ -602,8 +620,7 @@ class YouTubeDownloader(BaseDownloader):
 
         try:
             with yt_dlp.YoutubeDL(cast(Any, relaxed_opts)) as ydl:
-                info = ydl.extract_info(url, download=True)
-                if not info:
+                if not ydl.extract_info(url, download=True):
                     self._last_download_error_message = "No video information extracted"
                     return False
                 self._last_download_error_message = None
@@ -639,14 +656,17 @@ class YouTubeDownloader(BaseDownloader):
     def _canonicalize_video_url(url: str) -> str:
         """Strip playlist context when a watch URL already contains a concrete video id."""
         parsed = urlparse(url)
-        host = (parsed.hostname or "").lower()
-        if host not in {"www.youtube.com", "youtube.com", "m.youtube.com", "music.youtube.com"}:
+        if (parsed.hostname or "").lower() not in {
+            "www.youtube.com",
+            "youtube.com",
+            "m.youtube.com",
+            "music.youtube.com",
+        }:
             return url
         if parsed.path != "/watch":
             return url
 
-        video_id = parse_qs(parsed.query).get("v", [None])[0]
-        if not video_id:
+        if not (video_id := parse_qs(parsed.query).get("v", [None])[0]):
             return url
         return f"https://www.youtube.com/watch?v={video_id}"
 
@@ -662,8 +682,11 @@ class YouTubeDownloader(BaseDownloader):
             list_opts = opts.copy()
             list_opts.pop("format", None)
             with yt_dlp.YoutubeDL(cast(Any, list_opts)) as ydl:
-                info = ydl.extract_info(url, download=False)
-                if info and isinstance(info, dict) and "formats" in info:
+                if (
+                    (info := ydl.extract_info(url, download=False))
+                    and isinstance(info, dict)
+                    and "formats" in info
+                ):
                     logger.info(f"Available formats for {url}:")
                     formats = info.get("formats", [])
                     if isinstance(formats, list):

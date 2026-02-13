@@ -12,7 +12,6 @@ from typing import Any
 
 import requests
 from playwright.async_api import Browser, BrowserContext, Page, Playwright, async_playwright
-from requests.cookies import RequestsCookieJar
 
 from src.core.config import AppConfig, get_config
 from src.utils.logger import get_logger
@@ -29,6 +28,13 @@ class RadioJavanSessionManager:
         "challenge-platform/h/b/orchestrate/chl_page",
         "attention required! | cloudflare",
         "just a moment...",
+    )
+    TRANSPORT_BLOCK_MARKERS = (
+        "err_connection_closed",
+        "unexpected_eof_while_reading",
+        "ssl_error_syscall",
+        "tls connect error",
+        "ssleoferror",
     )
     DEFAULT_RETRY_COOLDOWN_SECONDS = 180
 
@@ -65,7 +71,7 @@ class RadioJavanSessionManager:
     def get_request_context(
         self,
         force_refresh: bool = False,
-    ) -> tuple[dict[str, str], RequestsCookieJar] | None:
+    ) -> tuple[dict[str, str], dict[str, str]] | None:
         if not self.enabled:
             return None
 
@@ -86,8 +92,7 @@ class RadioJavanSessionManager:
             if not self._is_state_valid(self._state):
                 return None
 
-            session_data = self._load_session_data()
-            if not session_data:
+            if not (session_data := self._load_session_data()):
                 return None
 
             headers = self._session_headers(session_data)
@@ -141,8 +146,7 @@ class RadioJavanSessionManager:
 
         try:
             async with async_playwright() as playwright:
-                browser = await self._launch_browser(playwright)
-                if browser is None:
+                if (browser := await self._launch_browser(playwright)) is None:
                     state = self._failure_state("Failed to launch browser")
                     self._save_state(state)
                     return state
@@ -254,13 +258,19 @@ class RadioJavanSessionManager:
             )
             await asyncio.sleep(wait_seconds)
         except Exception as e:
-            logger.warning(
-                "[RADIOJAVAN_SESSION] Navigation failed during session extraction: %s", e
-            )
+            if self.is_transport_block_error(e):
+                logger.warning(
+                    "[RADIOJAVAN_SESSION] Transport-level block during browser navigation: %s",
+                    e,
+                )
+            else:
+                logger.warning(
+                    "[RADIOJAVAN_SESSION] Navigation failed during session extraction: %s",
+                    e,
+                )
 
         cookies = await context.cookies()
-        filtered = [cookie for cookie in cookies if self._is_radiojavan_cookie(cookie)]
-        if not filtered:
+        if not (filtered := [cookie for cookie in cookies if self._is_radiojavan_cookie(cookie)]):
             return None
 
         return {
@@ -292,7 +302,12 @@ class RadioJavanSessionManager:
                     timeout=self.config.radiojavan.default_timeout,
                     allow_redirects=True,
                 )
-            except Exception:
+            except Exception as exc:
+                if self.is_transport_block_error(exc):
+                    logger.warning(
+                        "[RADIOJAVAN_SESSION] Transport-level block while validating session: %s",
+                        exc,
+                    )
                 return False
 
             if self.is_challenge_response(
@@ -326,12 +341,17 @@ class RadioJavanSessionManager:
 
         # Cloudflare JSD snippets can be present on normal pages; only treat as
         # challenge when challenge-related identifiers coexist.
-        jsd_snippet = "cdn-cgi/challenge-platform/scripts/jsd/main.js"
-        if jsd_snippet in lowered:
+        if "cdn-cgi/challenge-platform/scripts/jsd/main.js" in lowered:
             required = ("_cf_chl_opt", "orchestrate/chl_page", "challenge-form")
             return any(marker in lowered for marker in required)
 
         return False
+
+    @classmethod
+    def is_transport_block_error(cls, error: Exception | str) -> bool:
+        """Detect low-level TLS/transport blocking before HTTP challenge pages."""
+        message = str(error).lower()
+        return any(marker in message for marker in cls.TRANSPORT_BLOCK_MARKERS)
 
     def _session_headers(self, session_data: dict[str, object]) -> dict[str, str]:
         raw_headers = session_data.get("headers")
@@ -349,12 +369,12 @@ class RadioJavanSessionManager:
     def _session_cookie_jar(
         self,
         session_data: dict[str, object],
-    ) -> RequestsCookieJar | None:
+    ) -> dict[str, str] | None:
         raw_cookies = session_data.get("cookies")
         if not isinstance(raw_cookies, list):
             return None
 
-        jar = RequestsCookieJar()
+        jar: dict[str, str] = {}
         for item in raw_cookies:
             if not isinstance(item, dict):
                 continue
@@ -362,14 +382,7 @@ class RadioJavanSessionManager:
             value = item.get("value")
             if not isinstance(name, str) or not isinstance(value, str):
                 continue
-            domain = item.get("domain")
-            path = item.get("path")
-            jar.set(
-                name,
-                value,
-                domain=domain if isinstance(domain, str) else None,
-                path=path if isinstance(path, str) else "/",
-            )
+            jar[name] = value
 
         if not jar:
             return None
@@ -386,8 +399,7 @@ class RadioJavanSessionManager:
         blocked = {"cookie", "host", "content-length", "content-type", "connection"}
         safe_headers: dict[str, str] = {}
         for key, value in headers.items():
-            lowered = key.lower()
-            if lowered in blocked or lowered.startswith(":"):
+            if (lowered := key.lower()) in blocked or lowered.startswith(":"):
                 continue
             safe_headers[key] = value
 
@@ -454,8 +466,9 @@ class RadioJavanSessionManager:
             return True
 
         expires_at = state.get("expires_at")
-        expires_dt = self._parse_datetime(expires_at) if isinstance(expires_at, str) else None
-        if expires_dt is None:
+        if (
+            expires_dt := self._parse_datetime(expires_at) if isinstance(expires_at, str) else None
+        ) is None:
             return True
 
         refresh_margin = timedelta(minutes=self.config.radiojavan.session_refresh_margin_minutes)
@@ -470,8 +483,7 @@ class RadioJavanSessionManager:
         next_retry_at = state.get("next_retry_at")
         if not isinstance(next_retry_at, str):
             return False
-        retry_dt = self._parse_datetime(next_retry_at)
-        if retry_dt is None:
+        if (retry_dt := self._parse_datetime(next_retry_at)) is None:
             return False
         return datetime.now(timezone.utc) < retry_dt
 
