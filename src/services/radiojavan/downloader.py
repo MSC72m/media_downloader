@@ -8,6 +8,7 @@ from typing import ClassVar
 from urllib.parse import quote, unquote
 
 import requests
+from requests.cookies import RequestsCookieJar
 
 from src.core.config import get_config
 from src.core.interfaces import BaseDownloader, IErrorNotifier, IFileService
@@ -72,7 +73,7 @@ class RadioJavanDownloader(BaseDownloader):
     def _request_context(
         self,
         force_refresh: bool = False,
-    ) -> tuple[dict[str, str], requests.cookies.RequestsCookieJar | None]:
+    ) -> tuple[dict[str, str], RequestsCookieJar | None]:
         """Build headers/cookies context for requests calls."""
         default_headers = dict(self._base_headers)
         if not self.config.radiojavan.session_enabled:
@@ -90,7 +91,7 @@ class RadioJavanDownloader(BaseDownloader):
     def _is_challenge_response(
         text: str,
         cf_mitigated: str | None,
-        status_code: int,
+        status_code: int | None,
     ) -> bool:
         return RadioJavanSessionManager.is_challenge_response(
             text=text,
@@ -180,7 +181,7 @@ class RadioJavanDownloader(BaseDownloader):
         self,
         url: str,
         force_refresh: bool = False,
-    ) -> tuple[dict[str, str], requests.cookies.RequestsCookieJar | None]:
+    ) -> tuple[dict[str, str], RequestsCookieJar | None]:
         if not self._requires_session_for_url(url):
             return dict(self._base_headers), None
         return self._request_context(force_refresh=force_refresh)

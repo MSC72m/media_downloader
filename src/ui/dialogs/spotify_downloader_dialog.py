@@ -3,7 +3,7 @@ import io
 import threading
 import traceback
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 import customtkinter as ctk
 import PIL.Image
@@ -38,7 +38,7 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         self,
         parent,
         url: str,
-        on_download: Callable | None = None,
+        on_download: Callable[[Download], None] | None = None,
         error_handler: IErrorNotifier | None = None,
         message_queue: IMessageQueue | None = None,
         config: AppConfig = get_config(),
@@ -54,10 +54,17 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.widgets_created = False
         self._metadata_handler_called = False
         self._metadata_ready = False
-        self.spotify_metadata = None
+        self.spotify_metadata: dict[str, Any] | None = None
         self.youtube_results: list[dict[str, Any]] = []
         self.selected_youtube_result: dict[str, Any] | None = None
         self.selected_track_index: int | None = None
+        self.scrollable_frame: ctk.CTkScrollableFrame | None = None
+        self.main_frame: ctk.CTkFrame | None = None
+        self.download_button: ctk.CTkButton | None = None
+        self._thumbnail_image: ctk.CTkImage | None = None
+        self.result_radio_var: ctk.StringVar | None = None
+        self.result_checkboxes: dict[int, ctk.BooleanVar] = {}
+        self.track_checkboxes: dict[int, ctk.BooleanVar] = {}
 
         self.title("Spotify Downloader")
         self.geometry("900x950")
@@ -190,7 +197,11 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         threading.Thread(target=fetch_worker, daemon=True).start()
 
-    def _load_youtube_result_for_single_track(self, metadata: dict, downloader):
+    def _load_youtube_result_for_single_track(
+        self,
+        metadata: dict[str, Any],
+        downloader: SpotifyDownloader,
+    ) -> None:
         """Load YouTube search results for single track."""
         artist, track = downloader._parse_artist_track(metadata["title"])
 
@@ -199,7 +210,11 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.youtube_results = results
         logger.info(f"Found {len(results)} YouTube results")
 
-    def _load_youtube_results_for_tracks(self, tracks: list[dict], downloader):
+    def _load_youtube_results_for_tracks(
+        self,
+        tracks: list[dict[str, Any]],
+        downloader: SpotifyDownloader,
+    ) -> None:
         """Load YouTube search results for all tracks in playlist/album."""
         logger.info(f"Searching YouTube for {len(tracks)} tracks")
 
@@ -318,7 +333,7 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
     def _show_main_interface(self) -> bool:
         """Show main interface (YouTube pattern)."""
-        if not hasattr(self, "main_frame"):
+        if not self.main_frame:
             logger.error("Main frame not found - widget creation may have failed")
             return False
 
@@ -442,7 +457,8 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         self._add_metadata_display()
 
-        content_type = self.spotify_metadata.get("type", "unknown")
+        metadata = self.spotify_metadata or {}
+        content_type = metadata.get("type", "unknown")
         if content_type in ("album", "playlist"):
             self._add_playlist_section()
         elif content_type == "track":
@@ -541,7 +557,8 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                 text="",
             )
             thumbnail_label.pack(padx=10, pady=10)
-            thumbnail_label.image = ctk_image
+            thumbnail_label_any = cast(Any, thumbnail_label)
+            thumbnail_label_any.image = ctk_image
             self._thumbnail_image = ctk_image
 
             logger.debug("[SPOTIFY_DIALOG] Thumbnail preview added successfully")
@@ -562,12 +579,12 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         section_label.pack(anchor="w", padx=10, pady=(10, 10))
 
         self.result_radio_var = ctk.StringVar()
-        self.result_checkboxes: dict[int, ctk.CTkCheckBox] = {}
+        self.result_checkboxes = {}
 
         for i, result in enumerate(self.youtube_results):
             self._add_search_result_item(section_frame, result, i)
 
-    def _add_search_result_item(self, parent_frame, result: dict, index: int):
+    def _add_search_result_item(self, parent_frame, result: dict[str, Any], index: int):
         """Add a single YouTube search result item (YouTube pattern)."""
         result_frame = ctk.CTkFrame(parent_frame, fg_color="transparent")
         result_frame.pack(fill="x", padx=10, pady=5)
@@ -590,6 +607,9 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
     def _add_playlist_section(self):
         """Add playlist/album track list section (YouTube pattern)."""
+        if not self.spotify_metadata:
+            return
+
         section_frame = ctk.CTkFrame(self.main_frame)
         section_frame.pack(fill="x", pady=(0, 20))
 
@@ -611,13 +631,13 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         track_list_frame = ctk.CTkScrollableFrame(section_frame, height=400)
         track_list_frame.pack(fill="both", expand=True, padx=10, pady=(5, 10))
 
-        self.track_checkboxes: dict[int, ctk.CTkCheckBox] = {}
+        self.track_checkboxes = {}
 
         for track_data in self.spotify_metadata.get("tracks", []):
             position = track_data.get("position", 0)
             self._add_track_item(track_list_frame, track_data, position)
 
-    def _add_track_item(self, parent_frame, track_data: dict, position: int):
+    def _add_track_item(self, parent_frame, track_data: dict[str, Any], position: int):
         """Add a single track item with YouTube match info (YouTube pattern)."""
         track_frame = ctk.CTkFrame(parent_frame, fg_color="transparent")
         track_frame.pack(fill="x", pady=5)
@@ -657,9 +677,9 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
     def _on_result_selected(self, index: int, selected: bool):
         """Handle YouTube search result selection (YouTube pattern)."""
         if selected:
-            for i, checkbox in self.result_checkboxes.items():
+            for i, var in self.result_checkboxes.items():
                 if i != index:
-                    checkbox.set(False)
+                    var.set(False)
 
             self.selected_youtube_result = self.youtube_results[index]
             logger.info(f"Selected YouTube result: {self.selected_youtube_result.get('title')}")
@@ -672,15 +692,15 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         ):
             self.selected_youtube_result = None
 
-            if self.selected_track_index is None:
+            if self.selected_track_index is None and self.download_button:
                 self.download_button.configure(state="disabled")
 
     def _on_track_selected(self, position: int, selected: bool):
         """Handle track selection (YouTube pattern)."""
         if selected:
-            for i, checkbox in self.track_checkboxes.items():
+            for i, var in self.track_checkboxes.items():
                 if i != position:
-                    checkbox.set(False)
+                    var.set(False)
 
             self.selected_track_index = position
             logger.info(f"Selected track at position: {position}")
@@ -690,25 +710,33 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         elif self.selected_track_index == position:
             self.selected_track_index = None
 
-            if not any(var.get() for var in self.track_checkboxes.values()):
+            if (
+                not any(var.get() for var in self.track_checkboxes.values())
+                and self.download_button
+            ):
                 self.download_button.configure(state="disabled")
 
     def _handle_download(self):
         """Handle download button click (YouTube pattern)."""
         try:
-            self.download_button.configure(state="disabled")
+            if self.download_button:
+                self.download_button.configure(state="disabled")
 
             self.after(10, self._process_download)
 
         except Exception as e:
             logger.error(f"Error in download button handler: {e}", exc_info=True)
             traceback.print_exc()
-            if hasattr(self, "download_button"):
+            if self.download_button:
                 self.download_button.configure(state="normal")
 
     def _process_download(self):
         """Process download in a non-blocking way (YouTube pattern)."""
         try:
+            if not self.spotify_metadata:
+                self._show_error("No metadata available")
+                return
+
             content_type = self.spotify_metadata.get("type", "unknown")
 
             if content_type == "track":
@@ -722,7 +750,7 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             logger.error(f"Error processing download: {e}", exc_info=True)
             traceback.print_exc()
         finally:
-            if self.winfo_exists() and hasattr(self, "download_button"):
+            if self.winfo_exists() and self.download_button:
                 self.download_button.configure(state="normal")
 
     def _process_single_track_download(self):
@@ -754,6 +782,10 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         """Process playlist/album download."""
         if self.selected_track_index is None:
             self._show_error("Please select at least one track to download")
+            return
+
+        if not self.spotify_metadata:
+            self._show_error("No metadata available")
             return
 
         tracks = self.spotify_metadata.get("tracks", [])
@@ -788,7 +820,12 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
     def _parse_track_name_for_file(self, track_title: str | None = None) -> tuple[str, str]:
         """Parse artist and track for filename."""
-        title = track_title or self.spotify_metadata.get("title", "Unknown Track")
+        metadata_title = (
+            self.spotify_metadata.get("title", "Unknown Track")
+            if self.spotify_metadata
+            else "Unknown Track"
+        )
+        title = track_title or metadata_title
 
         return SpotifyDownloader._parse_artist_track(title)
 
@@ -800,10 +837,12 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         error_label.pack(pady=5)
         self.after(4000, error_label.destroy)
 
-    def _schedule_ui_update(self, update_func: Callable) -> None:
+    def _schedule_ui_update(self, update_func: Callable[[], None]) -> None:
         """Schedule UI update on main thread (YouTube pattern)."""
         root = self.winfo_toplevel()
-        if hasattr(root, "run_on_main_thread"):
-            root.run_on_main_thread(update_func)
-        else:
-            self.after(0, update_func)
+        run_on_main_thread = getattr(root, "run_on_main_thread", None)
+        if callable(run_on_main_thread):
+            run_on_main_thread(update_func)
+            return
+
+        self.after(0, update_func)

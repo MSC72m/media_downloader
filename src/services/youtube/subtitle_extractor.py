@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any
+import shutil
+from typing import Any, cast
 
 import yt_dlp
 
@@ -81,7 +82,7 @@ class YouTubeSubtitleExtractor:
             )
 
             try:
-                with yt_dlp.YoutubeDL(opts) as ydl:  # type: ignore[arg-type]
+                with yt_dlp.YoutubeDL(cast(Any, opts)) as ydl:
                     info = ydl.extract_info(url, download=False)
                     if not info:
                         continue
@@ -160,6 +161,11 @@ class YouTubeSubtitleExtractor:
             "skip_download": True,
             "socket_timeout": 15,
         }
+
+        if shutil.which("node"):
+            opts["js_runtimes"] = {"node": {}}
+            opts["remote_components"] = "ejs:github"
+
         if client:
             opts["extractor_args"] = {"youtube": {"player_client": [client]}}
 

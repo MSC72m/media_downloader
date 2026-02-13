@@ -1191,7 +1191,7 @@ class AppConfig(BaseSettings):
     ui: UIConfig = Field(default_factory=UIConfig)
 
     @classmethod
-    def _load_config_file(cls) -> dict | None:
+    def _load_config_file(cls) -> dict[str, Any] | None:
         """Load configuration from a single YAML or JSON file.
 
         Priority order:

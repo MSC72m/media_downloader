@@ -3,13 +3,16 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import RLock
+from typing import Any
 
 import requests
 from playwright.async_api import Browser, BrowserContext, Page, Playwright, async_playwright
+from requests.cookies import RequestsCookieJar
 
 from src.core.config import AppConfig, get_config
 from src.utils.logger import get_logger
@@ -21,9 +24,11 @@ class RadioJavanSessionManager:
     """Centralized RadioJavan browser session storage with TTL refresh."""
 
     CHALLENGE_MARKERS = (
-        "cdn-cgi/challenge-platform",
         "window._cf_chl_opt",
-        "Just a moment...",
+        "/cdn-cgi/challenge-platform/h/",
+        "challenge-platform/h/b/orchestrate/chl_page",
+        "attention required! | cloudflare",
+        "just a moment...",
     )
     DEFAULT_RETRY_COOLDOWN_SECONDS = 180
 
@@ -60,7 +65,7 @@ class RadioJavanSessionManager:
     def get_request_context(
         self,
         force_refresh: bool = False,
-    ) -> tuple[dict[str, str], requests.cookies.RequestsCookieJar] | None:
+    ) -> tuple[dict[str, str], RequestsCookieJar] | None:
         if not self.enabled:
             return None
 
@@ -315,7 +320,18 @@ class RadioJavanSessionManager:
     def _looks_like_challenge_page(cls, text: str) -> bool:
         if not isinstance(text, str) or not text:
             return False
-        return any(marker in text for marker in cls.CHALLENGE_MARKERS)
+        lowered = text.lower()
+        if any(marker in lowered for marker in cls.CHALLENGE_MARKERS):
+            return True
+
+        # Cloudflare JSD snippets can be present on normal pages; only treat as
+        # challenge when challenge-related identifiers coexist.
+        jsd_snippet = "cdn-cgi/challenge-platform/scripts/jsd/main.js"
+        if jsd_snippet in lowered:
+            required = ("_cf_chl_opt", "orchestrate/chl_page", "challenge-form")
+            return any(marker in lowered for marker in required)
+
+        return False
 
     def _session_headers(self, session_data: dict[str, object]) -> dict[str, str]:
         raw_headers = session_data.get("headers")
@@ -333,12 +349,12 @@ class RadioJavanSessionManager:
     def _session_cookie_jar(
         self,
         session_data: dict[str, object],
-    ) -> requests.cookies.RequestsCookieJar | None:
+    ) -> RequestsCookieJar | None:
         raw_cookies = session_data.get("cookies")
         if not isinstance(raw_cookies, list):
             return None
 
-        jar = requests.cookies.RequestsCookieJar()
+        jar = RequestsCookieJar()
         for item in raw_cookies:
             if not isinstance(item, dict):
                 continue
@@ -359,7 +375,7 @@ class RadioJavanSessionManager:
             return None
         return jar
 
-    def _is_radiojavan_cookie(self, cookie: dict[str, object]) -> bool:
+    def _is_radiojavan_cookie(self, cookie: Mapping[str, Any]) -> bool:
         domain = cookie.get("domain")
         if not isinstance(domain, str):
             return False
@@ -407,46 +423,39 @@ class RadioJavanSessionManager:
         return state
 
     def _valid_state(self, session_data: dict[str, object]) -> dict[str, str | bool | int | None]:
-        cookie_count = (
-            len(session_data.get("cookies", []))
-            if isinstance(session_data.get("cookies"), list)
-            else 0
-        )
+        cookies_value = session_data.get("cookies")
+        cookie_count = len(cookies_value) if isinstance(cookies_value, list) else 0
+        generated_at = session_data.get("generated_at")
+        expires_at = session_data.get("expires_at")
         return {
             "is_valid": True,
             "is_generating": False,
-            "generated_at": session_data.get("generated_at")
-            if isinstance(session_data.get("generated_at"), str)
-            else None,
-            "expires_at": session_data.get("expires_at")
-            if isinstance(session_data.get("expires_at"), str)
-            else None,
+            "generated_at": generated_at if isinstance(generated_at, str) else None,
+            "expires_at": expires_at if isinstance(expires_at, str) else None,
             "next_retry_at": None,
             "cookie_count": cookie_count,
             "error_message": None,
         }
 
-    def _needs_refresh(  # noqa: PLR0911
+    def _needs_refresh(
         self,
         state: dict[str, str | bool | int | None] | None,
     ) -> bool:
         if not self.enabled:
             return False
+
         if not state:
             return True
+
         if not bool(state.get("is_valid")):
             return not self._is_retry_cooldown_active(state)
+
         if not self.session_file.exists():
             return True
 
         expires_at = state.get("expires_at")
-        if not isinstance(expires_at, str):
-            return True
-        try:
-            expires_dt = datetime.fromisoformat(expires_at)
-            if expires_dt.tzinfo is None:
-                expires_dt = expires_dt.replace(tzinfo=timezone.utc)
-        except Exception:
+        expires_dt = self._parse_datetime(expires_at) if isinstance(expires_at, str) else None
+        if expires_dt is None:
             return True
 
         refresh_margin = timedelta(minutes=self.config.radiojavan.session_refresh_margin_minutes)

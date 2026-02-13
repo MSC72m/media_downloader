@@ -6,7 +6,7 @@ import os
 import shutil
 import time
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 from urllib.parse import parse_qs, urlparse
 
 import yt_dlp
@@ -45,7 +45,7 @@ class YouTubeDownloader(BaseDownloader):
         cookie_handler: ICookieHandler | None = None,
         auto_cookie_manager: IAutoCookieManager | None = None,
         download_subtitles: bool = False,
-        selected_subtitles: list | None = None,
+        selected_subtitles: list[dict[str, Any]] | None = None,
         download_thumbnail: bool = True,
         embed_metadata: bool = True,
         speed_limit: int | None = None,
@@ -85,7 +85,7 @@ class YouTubeDownloader(BaseDownloader):
 
     def _get_simple_ytdl_options(self) -> dict[str, Any]:
         """Generate simple yt-dlp options without format specifications."""
-        options = {
+        options: dict[str, Any] = {
             "quiet": True,
             "no_warnings": True,
             "ignoreconfig": True,
@@ -199,7 +199,7 @@ class YouTubeDownloader(BaseDownloader):
         opts["merge_output_format"] = "mp4"
         return ".mp4"
 
-    def _attempt_download(  # noqa: PLR0911
+    def _attempt_download(
         self,
         url: str,
         opts: dict[str, Any],
@@ -211,56 +211,86 @@ class YouTubeDownloader(BaseDownloader):
         Returns True on success, False on failure.
         """
         self._last_download_error_message = None
+        download_succeeded = False
 
         for attempt in range(max_retries):
             try:
-                with yt_dlp.YoutubeDL(opts) as ydl:  # type: ignore
+                with yt_dlp.YoutubeDL(cast(Any, opts)) as ydl:
                     info = ydl.extract_info(url, download=True)
                     if not info:
                         logger.error("No video information extracted from YouTube")
                         self._last_download_error_message = "No video information extracted"
-                        return False
-                    return True
+                        break
 
-            except Exception as e:
-                error_msg = str(e)
-                self._last_download_error_message = error_msg
+                    download_succeeded = True
+                    break
 
-                if "DownloadError" not in str(type(e).__name__):
-                    logger.error(f"Error downloading from YouTube: {error_msg}")
-                    self._log_specific_error(error_msg)
-                    return False
-
-                bucket = self.youtube_error_handler.classify_ytdlp_error(error_msg)
-                if bucket in {
-                    YouTubeErrorBucket.BROWSER_UNAVAILABLE,
-                    YouTubeErrorBucket.KEYCHAIN,
-                    YouTubeErrorBucket.LOGIN_REQUIRED,
-                }:
-                    logger.warning(
-                        "[YOUTUBE_DOWNLOADER] Non-retryable auth/source error for current strategy "
-                        f"(bucket={bucket.value}): {error_msg[:220]}"
-                    )
-                    return False
-
-                logger.warning(
-                    f"YouTube download error (attempt {attempt + 1}/{max_retries}): {error_msg}"
-                )
-                error_type = self._classify_download_error(error_msg)
-
-                should_retry = self._dispatch_error(
-                    error_type, attempt, max_retries, retry_wait, error_msg, opts, url
-                )
-                if should_retry:
+            except Exception as exc:
+                if self._handle_download_exception(
+                    exc=exc,
+                    attempt=attempt,
+                    max_retries=max_retries,
+                    retry_wait=retry_wait,
+                    opts=opts,
+                    url=url,
+                ):
                     continue
+                break
 
-                if error_type not in ("rate_limit", "network", "format"):
-                    self._log_specific_error(error_msg)
-                return False
+        if download_succeeded:
+            return True
 
         logger.error("All download attempts failed")
         if self._is_format_error_message(self._last_download_error_message):
             return self._attempt_relaxed_format_download(url, opts)
+        return False
+
+    def _handle_download_exception(
+        self,
+        exc: Exception,
+        attempt: int,
+        max_retries: int,
+        retry_wait: int,
+        opts: dict[str, Any],
+        url: str,
+    ) -> bool:
+        """Handle one download exception. Returns True when caller should retry."""
+        error_msg = str(exc)
+        self._last_download_error_message = error_msg
+
+        if "DownloadError" not in str(type(exc).__name__):
+            logger.error(f"Error downloading from YouTube: {error_msg}")
+            self._log_specific_error(error_msg)
+            return False
+
+        bucket = self.youtube_error_handler.classify_ytdlp_error(error_msg)
+        if bucket in {
+            YouTubeErrorBucket.BROWSER_UNAVAILABLE,
+            YouTubeErrorBucket.KEYCHAIN,
+            YouTubeErrorBucket.LOGIN_REQUIRED,
+        }:
+            logger.warning(
+                "[YOUTUBE_DOWNLOADER] Non-retryable auth/source error for current strategy "
+                f"(bucket={bucket.value}): {error_msg[:220]}"
+            )
+            return False
+
+        logger.warning(f"YouTube download error (attempt {attempt + 1}/{max_retries}): {error_msg}")
+        error_type = self._classify_download_error(error_msg)
+        should_retry = self._dispatch_error(
+            error_type,
+            attempt,
+            max_retries,
+            retry_wait,
+            error_msg,
+            opts,
+            url,
+        )
+        if should_retry:
+            return True
+
+        if error_type not in ("rate_limit", "network", "format"):
+            self._log_specific_error(error_msg)
         return False
 
     def _dispatch_error(
@@ -408,8 +438,15 @@ class YouTubeDownloader(BaseDownloader):
                 logger.error(f"[VERIFICATION] Output file is empty: {output_path}")
                 continue
 
+            verified_path = self._normalize_extensionless_output(
+                output_template=output_template,
+                candidate_path=output_path,
+                preferred_path=preferred_path,
+                preferred_ext=preferred_ext,
+            )
+
             logger.info(
-                f"[VERIFICATION] Download verified successfully: {output_path} ({file_size} bytes)"
+                f"[VERIFICATION] Download verified successfully: {verified_path} ({file_size} bytes)"
             )
             return True
 
@@ -428,6 +465,32 @@ class YouTubeDownloader(BaseDownloader):
 
         logger.error("[VERIFICATION] No media output file found after download")
         return False
+
+    @staticmethod
+    def _normalize_extensionless_output(
+        output_template: str,
+        candidate_path: str,
+        preferred_path: str,
+        preferred_ext: str | None,
+    ) -> str:
+        if not preferred_ext:
+            return candidate_path
+        if candidate_path != output_template:
+            return candidate_path
+        if os.path.exists(preferred_path):
+            return preferred_path
+
+        try:
+            os.replace(output_template, preferred_path)
+            return preferred_path
+        except OSError as exc:
+            logger.warning(
+                "[VERIFICATION] Could not normalize extensionless output %s -> %s: %s",
+                output_template,
+                preferred_path,
+                exc,
+            )
+            return candidate_path
 
     def _classify_download_error(self, error_msg: str) -> str:
         """Classify the type of download error using pattern matching."""
@@ -507,7 +570,7 @@ class YouTubeDownloader(BaseDownloader):
         time.sleep(wait_time)
         return True
 
-    def _handle_format_error(self, attempt: int, opts: dict, url: str) -> bool:
+    def _handle_format_error(self, attempt: int, opts: dict[str, Any], url: str) -> bool:
         """Handle format error using fallback strategy."""
         fallback_strategies = {
             0: (
@@ -538,7 +601,7 @@ class YouTubeDownloader(BaseDownloader):
         )
 
         try:
-            with yt_dlp.YoutubeDL(relaxed_opts) as ydl:  # type: ignore
+            with yt_dlp.YoutubeDL(cast(Any, relaxed_opts)) as ydl:
                 info = ydl.extract_info(url, download=True)
                 if not info:
                     self._last_download_error_message = "No video information extracted"
@@ -587,7 +650,7 @@ class YouTubeDownloader(BaseDownloader):
             return url
         return f"https://www.youtube.com/watch?v={video_id}"
 
-    def _log_format_failure(self, opts: dict, url: str) -> None:
+    def _log_format_failure(self, opts: dict[str, Any], url: str) -> None:
         """Log detailed information about format failure."""
         logger.error("All format attempts failed. This may be due to:")
         logger.error("  1. Outdated yt-dlp version (run: pip install -U yt-dlp)")
@@ -598,7 +661,7 @@ class YouTubeDownloader(BaseDownloader):
             logger.info("Attempting to list available formats...")
             list_opts = opts.copy()
             list_opts.pop("format", None)
-            with yt_dlp.YoutubeDL(list_opts) as ydl:  # type: ignore
+            with yt_dlp.YoutubeDL(cast(Any, list_opts)) as ydl:
                 info = ydl.extract_info(url, download=False)
                 if info and isinstance(info, dict) and "formats" in info:
                     logger.info(f"Available formats for {url}:")

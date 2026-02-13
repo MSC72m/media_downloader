@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """Comprehensive real download test for RadioJavan and TikTok."""
 
+import json
 import os
 import sys
 import tempfile
-import json
 import time
-from pathlib import Path
 
 # Add src to path
 sys.path.insert(0, "/Users/msc8/code/media_downloader/src")
 
 import requests
+
 from src.core.config import get_config
-from src.core.interfaces import IErrorNotifier, IFileService
+from src.core.interfaces import IErrorNotifier, IFileService, IMessageQueue
+from src.services.network.downloader import download_file
 from src.services.radiojavan.downloader import RadioJavanDownloader
 from src.services.tiktok.downloader import TikTokDownloader
-from src.services.network.downloader import download_file
 
 
 class MockFileService(IFileService):
@@ -50,14 +50,11 @@ class MockErrorNotifier(IErrorNotifier):
         service: str,
         operation: str,
         error_message: str,
-        url: str,
-        exception: Exception | None = None,
+        url: str = "",
     ) -> None:
         pass
 
-    def handle_exception(
-        self, exception: Exception, context: str, service: str, url: str = ""
-    ) -> None:
+    def handle_exception(self, exception: Exception, context: str = "", service: str = "") -> None:
         pass
 
     def show_error(self, title: str, message: str) -> None:
@@ -69,8 +66,121 @@ class MockErrorNotifier(IErrorNotifier):
     def show_info(self, title: str, message: str) -> None:
         pass
 
-    def set_message_queue(self, message_queue) -> None:
+    def set_message_queue(self, message_queue: IMessageQueue) -> None:
         pass
+
+
+def _build_progress_callback(progress_updates: list[tuple[float, float]]):
+    def progress_callback(progress: float, speed: float) -> None:
+        progress_updates.append((progress, speed))
+        if len(progress_updates) % 5 == 0:
+            print(f"   Progress: {progress:.1f}% | Speed: {speed:.2f} MB/s")
+
+    return progress_callback
+
+
+def _attempt_radiojavan_download(
+    test_url: str,
+    downloader: RadioJavanDownloader,
+    config,
+) -> dict[str, str | int] | None:
+    target = _resolve_radiojavan_target(test_url, downloader)
+    if target is None:
+        return None
+    media_name, download_url = target
+
+    response = _fetch_radiojavan_head(download_url)
+    if response is None:
+        return None
+
+    file_size = _download_and_validate_radiojavan_audio(
+        download_url=download_url,
+        media_name=media_name,
+        config=config,
+    )
+    if file_size is None:
+        return None
+
+    return {
+        "service": "radiojavan",
+        "url": test_url,
+        "media_name": media_name,
+        "file_size": file_size,
+    }
+
+
+def _resolve_radiojavan_target(
+    test_url: str,
+    downloader: RadioJavanDownloader,
+) -> tuple[str, str] | None:
+    media_name = downloader._extract_media_name(test_url)
+    print(f"   Extracted media name: {media_name}")
+    if not media_name:
+        print("   ❌ Failed to extract media name")
+        return None
+
+    download_url = downloader._construct_download_url(test_url)
+    print(f"   Constructed download URL: {download_url}")
+    if not download_url:
+        print("   ❌ Failed to construct download URL")
+        return None
+
+    return media_name, download_url
+
+
+def _fetch_radiojavan_head(download_url: str) -> requests.Response | None:
+    try:
+        response = requests.head(download_url, timeout=10, allow_redirects=True)
+    except requests.RequestException as exc:
+        print(f"   ❌ Network error: {exc}")
+        return None
+    except Exception as exc:
+        print(f"   ❌ Unexpected error: {exc}")
+        return None
+
+    print(f"   URL Response Status: {response.status_code}")
+    if response.status_code != 200:
+        print(f"   ❌ HTTP Error: {response.status_code}")
+        return None
+
+    content_type = response.headers.get("content-type", "").lower()
+    content_length = response.headers.get("content-length", "0")
+    if "audio" not in content_type and "mp3" not in content_type:
+        print(f"   ⚠️  URL doesn't point to audio file ({content_type})")
+        return None
+
+    print(f"   ✅ Found accessible audio file ({content_length} bytes)")
+    return response
+
+
+def _download_and_validate_radiojavan_audio(
+    download_url: str,
+    media_name: str,
+    config,
+) -> int | None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        save_path = os.path.join(temp_dir, f"radiojavan_{media_name}")
+        try:
+            result = download_file(url=download_url, save_path=save_path, config=config)
+        except Exception as exc:
+            print(f"   ❌ Download error: {exc}")
+            return None
+
+        if not result or not os.path.exists(save_path):
+            print("   ❌ Download failed")
+            return None
+
+        file_size = os.path.getsize(save_path)
+        print(f"   ✅ Downloaded: {file_size} bytes")
+        with open(save_path, "rb") as handle:
+            header = handle.read(4)
+
+    if b"ID3" not in header and not header.startswith(b"\xff"):
+        print("   ⚠️  File may not be valid audio")
+        return None
+
+    print("   ✅ File appears to be valid audio!")
+    return file_size
 
 
 def test_radiojavan_downloads():
@@ -97,72 +207,11 @@ def test_radiojavan_downloads():
             error_handler=error_handler, file_service=file_service, config=config
         )
 
-        media_name = downloader._extract_media_name(test_url)
-        print(f"   Extracted media name: {media_name}")
-
-        if not media_name:
-            print("   ❌ Failed to extract media name")
-            continue
-
-        download_url = downloader._construct_download_url(test_url)
-        print(f"   Constructed download URL: {download_url}")
-
-        if not download_url:
-            print("   ❌ Failed to construct download URL")
-            continue
-
-        try:
-            response = requests.head(download_url, timeout=10, allow_redirects=True)
-            print(f"   URL Response Status: {response.status_code}")
-
-            if response.status_code == 200:
-                content_type = response.headers.get("content-type", "").lower()
-                content_length = response.headers.get("content-length", "0")
-
-                if "audio" in content_type or "mp3" in content_type:
-                    print(f"   ✅ Found accessible audio file ({content_length} bytes)")
-
-                    with tempfile.TemporaryDirectory() as temp_dir:
-                        save_path = os.path.join(temp_dir, f"radiojavan_{media_name}")
-
-                        try:
-                            result = download_file(
-                                url=download_url, save_path=save_path, config=config
-                            )
-
-                            if result and os.path.exists(save_path):
-                                file_size = os.path.getsize(save_path)
-                                print(f"   ✅ Downloaded: {file_size} bytes")
-
-                                # Verify it's actually an MP3 file
-                                with open(save_path, "rb") as f:
-                                    header = f.read(4)
-                                    if b"ID3" in header or header.startswith(b"ff"):
-                                        print("   ✅ File appears to be valid audio!")
-                                        successful_downloads.append(
-                                            {
-                                                "service": "radiojavan",
-                                                "url": test_url,
-                                                "media_name": media_name,
-                                                "file_size": file_size,
-                                            }
-                                        )
-                                    else:
-                                        print("   ⚠️  File may not be valid audio")
-                            else:
-                                print("   ❌ Download failed")
-
-                        except Exception as e:
-                            print(f"   ❌ Download error: {e}")
-                else:
-                    print(f"   ⚠️  URL doesn't point to audio file ({content_type})")
-            else:
-                print(f"   ❌ HTTP Error: {response.status_code}")
-
-        except requests.RequestException as e:
-            print(f"   ❌ Network error: {e}")
-        except Exception as e:
-            print(f"   ❌ Unexpected error: {e}")
+        result = _attempt_radiojavan_download(
+            test_url=test_url, downloader=downloader, config=config
+        )
+        if result:
+            successful_downloads.append(result)
 
     return successful_downloads
 
@@ -186,12 +235,8 @@ def test_tiktok_downloads():
     for i, test_url in enumerate(test_urls, 1):
         print(f"\n{i}. Testing TikTok URL: {test_url}")
 
-        progress_updates = []
-
-        def progress_callback(progress, speed):
-            progress_updates.append((progress, speed))
-            if len(progress_updates) % 5 == 0:  # Log every 5th update
-                print(f"   Progress: {progress:.1f}% | Speed: {speed:.2f} MB/s")
+        progress_updates: list[tuple[float, float]] = []
+        progress_callback = _build_progress_callback(progress_updates)
 
         downloader = TikTokDownloader(
             error_handler=error_handler, file_service=file_service, config=config
@@ -262,7 +307,7 @@ def test_file_validation():
             result = download_file(url=json_url, save_path=save_path, config=get_config())
 
             if result and os.path.exists(save_path):
-                with open(save_path, "r") as f:
+                with open(save_path) as f:
                     content = f.read()
 
                 try:
@@ -393,7 +438,7 @@ def main():
     print(f"📄 Report saved to: {report_file}")
 
     # Display summary
-    print(f"\n🎉 TEST SUMMARY")
+    print("\n🎉 TEST SUMMARY")
     print(
         f"✅ RadioJavan tests: {len(radiojavan_results)} run, {len([r for r in radiojavan_results if r.get('status') == 'success'])} successful"
     )
@@ -402,14 +447,14 @@ def main():
         f"✅ Validation tests: {len(validation_results)} run, {len([r for r in validation_results if r.get('status') == 'passed'])} passed"
     )
 
-    print(f"\n🚀 FINAL CONCLUSION:")
-    print(f"Both RadioJavan and TikTok downloading capabilities are PRODUCTION READY!")
-    print(f"✅ Network download infrastructure: WORKING")
-    print(f"✅ File creation and validation: WORKING")
-    print(f"✅ Progress tracking: WORKING")
-    print(f"✅ Content verification: WORKING")
-    print(f"✅ Error handling: WORKING")
-    print(f"\nNote: Real-world downloads depend on file availability and network access.")
+    print("\n🚀 FINAL CONCLUSION:")
+    print("Both RadioJavan and TikTok downloading capabilities are PRODUCTION READY!")
+    print("✅ Network download infrastructure: WORKING")
+    print("✅ File creation and validation: WORKING")
+    print("✅ Progress tracking: WORKING")
+    print("✅ Content verification: WORKING")
+    print("✅ Error handling: WORKING")
+    print("\nNote: Real-world downloads depend on file availability and network access.")
 
 
 if __name__ == "__main__":

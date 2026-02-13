@@ -55,7 +55,7 @@ class RadioJavanHandler(BaseHandler):
         logger.info(f"[RADIOJAVAN_HANDLER] Processing Radio Javan download: {url}")
         return True
 
-    def get_ui_callback(self) -> Callable:
+    def get_ui_callback(self) -> Callable[[str, Any], None]:
         """Get UI callback for Radio Javan URLs."""
         logger.info("[RADIOJAVAN_HANDLER] Getting UI callback")
 
