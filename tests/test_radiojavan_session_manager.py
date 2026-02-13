@@ -86,6 +86,40 @@ def test_get_request_context_from_saved_session(tmp_path: Path) -> None:
     assert cookie_jar.get("cf_clearance") == "abc"
 
 
+def test_retry_cooldown_skips_regeneration(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    config = get_config()
+    manager = RadioJavanSessionManager(storage_dir=tmp_path, config=config)
+    manager.state_file = tmp_path / "state.json"
+    manager.session_file = tmp_path / "session.json"
+
+    next_retry = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
+    _write_json(
+        manager.state_file,
+        {
+            "is_valid": False,
+            "is_generating": False,
+            "generated_at": None,
+            "expires_at": None,
+            "next_retry_at": next_retry,
+            "cookie_count": 0,
+            "error_message": "Previous failure",
+        },
+    )
+
+    generate_calls = {"count": 0}
+
+    def fake_generate() -> dict[str, str | bool | int | None]:
+        generate_calls["count"] += 1
+        return manager._invalid_state("should-not-run")
+
+    monkeypatch.setattr(manager, "_run_generate_session", fake_generate)
+
+    manager.initialize()
+    assert manager.get_request_context() is None
+    assert manager.get_request_context(force_refresh=True) is None
+    assert generate_calls["count"] == 0
+
+
 def test_downloader_retries_host_lookup_after_challenge(monkeypatch: pytest.MonkeyPatch) -> None:
     downloader = RadioJavanDownloader()
 

@@ -7,6 +7,7 @@ import shutil
 import time
 from collections.abc import Callable
 from typing import Any
+from urllib.parse import parse_qs, urlparse
 
 import yt_dlp
 
@@ -198,7 +199,7 @@ class YouTubeDownloader(BaseDownloader):
         opts["merge_output_format"] = "mp4"
         return ".mp4"
 
-    def _attempt_download(
+    def _attempt_download(  # noqa: PLR0911
         self,
         url: str,
         opts: dict[str, Any],
@@ -258,6 +259,8 @@ class YouTubeDownloader(BaseDownloader):
                 return False
 
         logger.error("All download attempts failed")
+        if self._is_format_error_message(self._last_download_error_message):
+            return self._attempt_relaxed_format_download(url, opts)
         return False
 
     def _dispatch_error(
@@ -302,6 +305,11 @@ class YouTubeDownloader(BaseDownloader):
         if not connected:
             logger.error(f"Cannot download from YouTube: {error_msg}")
             return False
+
+        normalized_url = self._canonicalize_video_url(url)
+        if normalized_url != url:
+            logger.info("[YOUTUBE_DOWNLOADER] Normalized YouTube URL for download")
+            url = normalized_url
 
         try:
             save_dir = os.path.dirname(save_path)
@@ -453,7 +461,7 @@ class YouTubeDownloader(BaseDownloader):
             case YouTubeErrorBucket.NETWORK:
                 return True
             case YouTubeErrorBucket.FORMAT:
-                return False
+                return True
             case YouTubeErrorBucket.OTHER:
                 return True
 
@@ -518,6 +526,66 @@ class YouTubeDownloader(BaseDownloader):
         logger.warning(message)
         opts["format"] = format_type
         return True
+
+    def _attempt_relaxed_format_download(self, url: str, opts: dict[str, Any]) -> bool:
+        """Try one final relaxed format selector before giving up."""
+        relaxed_opts = copy.deepcopy(opts)
+        relaxed_opts["format"] = self._relaxed_format_selector()
+
+        logger.warning(
+            "[YOUTUBE_DOWNLOADER] Retrying with relaxed selector after format failures: "
+            f"{relaxed_opts['format']}"
+        )
+
+        try:
+            with yt_dlp.YoutubeDL(relaxed_opts) as ydl:  # type: ignore
+                info = ydl.extract_info(url, download=True)
+                if not info:
+                    self._last_download_error_message = "No video information extracted"
+                    return False
+                self._last_download_error_message = None
+                return True
+        except Exception as exc:
+            self._last_download_error_message = str(exc)
+            logger.warning(
+                "[YOUTUBE_DOWNLOADER] Relaxed format retry failed: %s",
+                self._last_download_error_message,
+            )
+            return False
+
+    def _relaxed_format_selector(self) -> str:
+        if self.format == "audio" or self.audio_only:
+            return "bestaudio/best"
+        if self.format == "video_only" or self.video_only:
+            return "bestvideo/best"
+        return "bv*+ba/b"
+
+    @staticmethod
+    def _is_format_error_message(error_message: str | None) -> bool:
+        if not error_message:
+            return False
+        lowered = error_message.lower()
+        indicators = (
+            "requested format is not available",
+            "no video formats found",
+            "format is not available",
+        )
+        return any(indicator in lowered for indicator in indicators)
+
+    @staticmethod
+    def _canonicalize_video_url(url: str) -> str:
+        """Strip playlist context when a watch URL already contains a concrete video id."""
+        parsed = urlparse(url)
+        host = (parsed.hostname or "").lower()
+        if host not in {"www.youtube.com", "youtube.com", "m.youtube.com", "music.youtube.com"}:
+            return url
+        if parsed.path != "/watch":
+            return url
+
+        video_id = parse_qs(parsed.query).get("v", [None])[0]
+        if not video_id:
+            return url
+        return f"https://www.youtube.com/watch?v={video_id}"
 
     def _log_format_failure(self, opts: dict, url: str) -> None:
         """Log detailed information about format failure."""

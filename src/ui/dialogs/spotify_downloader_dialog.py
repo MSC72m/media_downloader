@@ -1,16 +1,20 @@
+import contextlib
+import io
 import threading
+import traceback
 from collections.abc import Callable
 from typing import Any
 
 import customtkinter as ctk
 import PIL.Image
-import PIL.ImageTk
+import requests
 
 from src.core.config import AppConfig, get_config
 from src.core.enums.message_level import MessageLevel
 from src.core.interfaces import IErrorNotifier, IMessageQueue
 from src.core.models import Download
 from src.services.events.queue import Message
+from src.services.spotify.downloader import SpotifyDownloader
 
 from ...utils.logger import get_logger
 from ...utils.window import WindowCenterMixin, close_loading_dialog
@@ -73,7 +77,6 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             self.center_window()
         except Exception as e:
             logger.warning(f"Could not center window: {e}")
-            import contextlib
 
             with contextlib.suppress(Exception):
                 self.geometry("900x950")
@@ -155,8 +158,6 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         def fetch_worker():
             try:
-                from src.services.spotify.downloader import SpotifyDownloader
-
                 downloader = SpotifyDownloader(
                     error_handler=self.error_handler,
                     config=self.config,
@@ -513,18 +514,17 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         logger.debug("[SPOTIFY_DIALOG] Adding thumbnail preview")
 
         try:
-            import io
-
-            import requests
-
             thumbnail_url = self.spotify_metadata["thumbnail"]
             response = requests.get(thumbnail_url, timeout=10)
             response.raise_for_status()
 
             image = PIL.Image.open(io.BytesIO(response.content))
             image.thumbnail((200, 200))
-
-            photo = PIL.ImageTk.PhotoImage(image)
+            ctk_image = ctk.CTkImage(
+                light_image=image,
+                dark_image=image,
+                size=image.size,
+            )
 
             thumbnail_container = ctk.CTkFrame(
                 parent_frame,
@@ -537,12 +537,12 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
             thumbnail_label = ctk.CTkLabel(
                 thumbnail_container,
-                image=photo,
+                image=ctk_image,
                 text="",
             )
             thumbnail_label.pack(padx=10, pady=10)
-            thumbnail_label.image = photo
-            self._thumbnail_photo = photo
+            thumbnail_label.image = ctk_image
+            self._thumbnail_image = ctk_image
 
             logger.debug("[SPOTIFY_DIALOG] Thumbnail preview added successfully")
 
@@ -702,8 +702,6 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         except Exception as e:
             logger.error(f"Error in download button handler: {e}", exc_info=True)
-            import traceback
-
             traceback.print_exc()
             if hasattr(self, "download_button"):
                 self.download_button.configure(state="normal")
@@ -722,8 +720,6 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         except Exception as e:
             logger.error(f"Error processing download: {e}", exc_info=True)
-            import traceback
-
             traceback.print_exc()
         finally:
             if self.winfo_exists() and hasattr(self, "download_button"):
@@ -793,8 +789,6 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
     def _parse_track_name_for_file(self, track_title: str | None = None) -> tuple[str, str]:
         """Parse artist and track for filename."""
         title = track_title or self.spotify_metadata.get("title", "Unknown Track")
-
-        from src.services.spotify.downloader import SpotifyDownloader
 
         return SpotifyDownloader._parse_artist_track(title)
 

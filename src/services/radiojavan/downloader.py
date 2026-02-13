@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 from collections.abc import Callable
 from typing import ClassVar
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 
 import requests
 
@@ -133,8 +134,6 @@ class RadioJavanDownloader(BaseDownloader):
         Returns:
             Media name or None
         """
-        from urllib.parse import unquote
-
         patterns = [
             r"/mp3s/mp3/([\w%-]+)",
             r"/videos/video/([\w%-]+)",
@@ -228,83 +227,112 @@ class RadioJavanDownloader(BaseDownloader):
 
     def _fetch_host_from_endpoint(self, endpoint: str, media_name: str) -> str | None:
         """Fetch CDN host from a RadioJavan host endpoint."""
-        for attempt in range(2):
-            force_refresh = attempt == 1
-            headers, cookies = self._request_context(force_refresh=force_refresh)
-            try:
-                response = requests.post(
-                    endpoint,
-                    params={"id": media_name},
-                    headers=headers,
-                    cookies=cookies,
-                    timeout=self.default_timeout,
-                )
-                response.raise_for_status()
-            except Exception as e:
-                if force_refresh:
-                    logger.warning(
-                        "[RADIOJAVAN_DOWNLOADER] Host API lookup failed after refresh (%s): %s",
-                        endpoint,
-                        e,
-                    )
-                    return None
-                logger.warning(
-                    "[RADIOJAVAN_DOWNLOADER] Host API lookup failed (%s), retrying with "
-                    "refreshed session: %s",
-                    endpoint,
-                    e,
-                )
-                continue
-
-            if self._is_challenge_response(
-                text=response.text,
-                cf_mitigated=response.headers.get("cf-mitigated"),
-                status_code=response.status_code,
-            ):
-                if force_refresh:
-                    logger.warning(
-                        "[RADIOJAVAN_DOWNLOADER] Challenge still present after session refresh: %s",
-                        endpoint,
-                    )
-                    return None
-                logger.warning(
-                    "[RADIOJAVAN_DOWNLOADER] Challenge detected for host lookup, refreshing "
-                    "session and retrying: %s",
-                    endpoint,
-                )
-                self._session_manager.invalidate_and_refresh()
-                continue
-
-            payload = self._parse_host_payload(response.text)
-            host = payload.get("host")
-            if isinstance(host, str) and host.strip():
-                return host
-
-            logger.debug(
-                "[RADIOJAVAN_DOWNLOADER] Host field missing in endpoint response: %s",
-                endpoint,
-            )
+        response = self._post_host_lookup(endpoint, media_name, force_refresh=False)
+        if response is None:
             return None
 
+        if self._is_host_lookup_challenge(response):
+            logger.warning(
+                "[RADIOJAVAN_DOWNLOADER] Challenge detected for host lookup, refreshing "
+                "session and retrying: %s",
+                endpoint,
+            )
+            self._session_manager.invalidate_and_refresh()
+            response = self._post_host_lookup(endpoint, media_name, force_refresh=True)
+            if response is None:
+                return None
+            if self._is_host_lookup_challenge(response):
+                logger.warning(
+                    "[RADIOJAVAN_DOWNLOADER] Challenge still present after session refresh: %s",
+                    endpoint,
+                )
+                return None
+
+        payload = self._parse_host_payload(
+            response.text,
+            content_type=response.headers.get("content-type"),
+        )
+        host = payload.get("host")
+        if isinstance(host, str) and host.strip():
+            return host
+
+        logger.debug(
+            "[RADIOJAVAN_DOWNLOADER] Host field missing in endpoint response: %s",
+            endpoint,
+        )
         return None
 
     @staticmethod
-    def _parse_host_payload(text: str) -> dict[str, str]:
+    def _parse_host_payload(
+        text: str,
+        content_type: str | None = None,
+    ) -> dict[str, str]:
         """Parse host JSON payload from RadioJavan endpoint response."""
-        import json
+        if not isinstance(text, str):
+            return {}
 
-        try:
-            parsed = json.loads(text)
-            if isinstance(parsed, dict):
-                return {str(k): str(v) for k, v in parsed.items() if isinstance(k, str)}
-        except Exception:
-            pass
+        normalized_content_type = (content_type or "").lower()
+        looks_like_json = "json" in normalized_content_type or text.lstrip().startswith("{")
+
+        if looks_like_json:
+            try:
+                parsed = json.loads(text)
+                if isinstance(parsed, dict):
+                    return {str(k): str(v) for k, v in parsed.items() if isinstance(k, str)}
+            except Exception:
+                pass
 
         host_match = re.search(r'"host"\s*:\s*"([^"]+)"', text)
         if host_match:
             return {"host": host_match.group(1)}
 
         return {}
+
+    def _post_host_lookup(
+        self,
+        endpoint: str,
+        media_name: str,
+        force_refresh: bool,
+    ) -> requests.Response | None:
+        headers, cookies = self._request_context(force_refresh=force_refresh)
+        try:
+            response = requests.post(
+                endpoint,
+                params={"id": media_name},
+                headers=headers,
+                cookies=cookies,
+                timeout=self.default_timeout,
+            )
+            status_code = response.status_code if isinstance(response.status_code, int) else 0
+            if status_code >= 400 and not self._is_host_lookup_challenge(response):
+                logger.warning(
+                    "[RADIOJAVAN_DOWNLOADER] Host API lookup returned %s (%s, refresh=%s)",
+                    status_code,
+                    endpoint,
+                    force_refresh,
+                )
+                return None
+            return response
+        except Exception as exc:
+            logger.warning(
+                "[RADIOJAVAN_DOWNLOADER] Host API lookup failed (%s, refresh=%s): %s",
+                endpoint,
+                force_refresh,
+                exc,
+            )
+            return None
+
+    def _is_host_lookup_challenge(self, response: requests.Response) -> bool:
+        text = response.text if isinstance(response.text, str) else ""
+        cf_mitigated = response.headers.get("cf-mitigated")
+        if not isinstance(cf_mitigated, str):
+            cf_mitigated = None
+        status_code = response.status_code if isinstance(response.status_code, int) else None
+        return self._is_challenge_response(
+            text=text,
+            cf_mitigated=cf_mitigated,
+            status_code=status_code,
+        )
 
     def _candidate_paths(self, media_type: str) -> list[str]:
         """Get URL path candidates for media type."""
@@ -337,6 +365,9 @@ class RadioJavanDownloader(BaseDownloader):
         html: str,
         media_type: str,
     ) -> list[tuple[str, str]]:
+        if not isinstance(html, str):
+            return []
+
         match media_type:
             case "mp3":
                 extension = "mp3"
@@ -483,7 +514,7 @@ class RadioJavanDownloader(BaseDownloader):
         logger.warning(f"[RADIOJAVAN_DOWNLOADER] Could not construct valid URL for: {url}")
         return None
 
-    def _validate_url(self, url: str) -> bool:  # noqa: PLR0911, PLR0912
+    def _validate_url(self, url: str) -> bool:
         """Validate if URL returns a valid file.
 
         Args:
@@ -492,9 +523,20 @@ class RadioJavanDownloader(BaseDownloader):
         Returns:
             True if valid file, False otherwise
         """
-        for attempt in range(2):
-            force_refresh = attempt == 1
-            headers, cookies = self._request_context_for_url(url, force_refresh=force_refresh)
+        return self._validate_with_head(url) or self._validate_with_range_get(url)
+
+    @staticmethod
+    def _is_media_content_type(content_type: str) -> bool:
+        lowered = content_type.lower()
+        return any(token in lowered for token in ("audio", "video", "octet-stream"))
+
+    def _validate_with_head(self, url: str) -> bool:
+        should_retry_after_refresh = True
+        while True:
+            headers, cookies = self._request_context_for_url(
+                url,
+                force_refresh=not should_retry_after_refresh,
+            )
             try:
                 logger.debug(f"[RADIOJAVAN_DOWNLOADER] Validating URL via HEAD: {url}")
                 response = requests.head(
@@ -505,37 +547,37 @@ class RadioJavanDownloader(BaseDownloader):
                     cookies=cookies,
                 )
                 response.raise_for_status()
+            except requests.RequestException as exc:
+                logger.debug("[RADIOJAVAN_DOWNLOADER] HEAD validation failed (%s): %s", url, exc)
+                return False
 
-                if self._is_challenge_response(
-                    text=response.text,
-                    cf_mitigated=response.headers.get("cf-mitigated"),
-                    status_code=response.status_code,
-                ):
-                    if not self._requires_session_for_url(url):
-                        return False
-                    if force_refresh:
-                        return False
-                    self._session_manager.invalidate_and_refresh()
-                    continue
-
-                content_type = response.headers.get("content-type", "").lower()
-                if not any(token in content_type for token in ("audio", "video", "octet-stream")):
+            if self._is_host_lookup_challenge(response):
+                if not self._requires_session_for_url(url) or not should_retry_after_refresh:
                     return False
-
-                content_length = response.headers.get("content-length", "0")
-                file_size = int(content_length) if content_length.isdigit() else 0
-                if file_size and file_size < self.MIN_FILE_SIZE:
-                    logger.warning(f"[RADIOJAVAN_DOWNLOADER] File too small: {file_size} bytes")
-                    return False
-
-                logger.debug(f"[RADIOJAVAN_DOWNLOADER] URL valid: {file_size} bytes")
-                return True
-            except requests.RequestException:
+                should_retry_after_refresh = False
+                self._session_manager.invalidate_and_refresh()
                 continue
 
-        for attempt in range(2):
-            force_refresh = attempt == 1
-            headers, cookies = self._request_context_for_url(url, force_refresh=force_refresh)
+            content_type = response.headers.get("content-type", "")
+            if not self._is_media_content_type(content_type):
+                return False
+
+            content_length = response.headers.get("content-length", "0")
+            file_size = int(content_length) if content_length.isdigit() else 0
+            if file_size and file_size < self.MIN_FILE_SIZE:
+                logger.warning(f"[RADIOJAVAN_DOWNLOADER] File too small: {file_size} bytes")
+                return False
+
+            logger.debug(f"[RADIOJAVAN_DOWNLOADER] URL valid: {file_size} bytes")
+            return True
+
+    def _validate_with_range_get(self, url: str) -> bool:
+        should_retry_after_refresh = True
+        while True:
+            headers, cookies = self._request_context_for_url(
+                url,
+                force_refresh=not should_retry_after_refresh,
+            )
             try:
                 response = requests.get(
                     url,
@@ -546,28 +588,22 @@ class RadioJavanDownloader(BaseDownloader):
                     stream=True,
                 )
                 response.raise_for_status()
-
-                if self._is_challenge_response(
-                    text=response.text,
-                    cf_mitigated=response.headers.get("cf-mitigated"),
-                    status_code=response.status_code,
-                ):
-                    if not self._requires_session_for_url(url):
-                        return False
-                    if force_refresh:
-                        return False
-                    self._session_manager.invalidate_and_refresh()
-                    continue
-
-                content_type = response.headers.get("content-type", "").lower()
-                return any(token in content_type for token in ("audio", "video", "octet-stream"))
-            except requests.RequestException as e:
-                logger.debug(f"[RADIOJAVAN_DOWNLOADER] URL validation failed: {e}")
-            except Exception as e:
-                logger.error(f"[RADIOJAVAN_DOWNLOADER] Error validating URL: {e}")
+            except requests.RequestException as exc:
+                logger.debug("[RADIOJAVAN_DOWNLOADER] Range validation failed (%s): %s", url, exc)
+                return False
+            except Exception as exc:
+                logger.error("[RADIOJAVAN_DOWNLOADER] Error validating URL: %s", exc)
                 return False
 
-        return False
+            if self._is_host_lookup_challenge(response):
+                if not self._requires_session_for_url(url) or not should_retry_after_refresh:
+                    return False
+                should_retry_after_refresh = False
+                self._session_manager.invalidate_and_refresh()
+                continue
+
+            content_type = response.headers.get("content-type", "")
+            return self._is_media_content_type(content_type)
 
     def download(
         self,

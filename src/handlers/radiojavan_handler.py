@@ -1,6 +1,7 @@
 import re
 from collections.abc import Callable
 from typing import Any
+from urllib.parse import unquote
 
 from src.core.config import AppConfig, get_config
 from src.core.interfaces import IErrorNotifier, IMessageQueue
@@ -111,8 +112,6 @@ class RadioJavanHandler(BaseHandler):
 
     def _extract_media_id(self, url: str) -> str | None:
         """Extract media ID from Radio Javan URL."""
-        from urllib.parse import unquote
-
         patterns = [
             r"/mp3/([\w%-]+)",
             r"/mp4/([\w%-]+)",

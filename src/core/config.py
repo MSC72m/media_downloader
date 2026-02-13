@@ -505,6 +505,12 @@ class RadioJavanConfig(BaseModel):
         default=6.0,
         description="Wait window after page loads to allow challenge completion",
     )
+    session_retry_cooldown_seconds: int = Field(
+        default=180,
+        description=(
+            "Cooldown after failed session generation before attempting a new browser session"
+        ),
+    )
     session_bootstrap_url: str = Field(
         default="https://www.radiojavan.com/",
         description="Initial page to open for browser-backed session extraction",

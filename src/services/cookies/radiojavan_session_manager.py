@@ -25,6 +25,7 @@ class RadioJavanSessionManager:
         "window._cf_chl_opt",
         "Just a moment...",
     )
+    DEFAULT_RETRY_COOLDOWN_SECONDS = 180
 
     def __init__(
         self,
@@ -67,6 +68,13 @@ class RadioJavanSessionManager:
             if not self._initialized:
                 self.initialize()
 
+            if force_refresh and self._is_retry_cooldown_active(self._state):
+                logger.debug(
+                    "[RADIOJAVAN_SESSION] Refresh requested during retry cooldown; "
+                    "using current invalid state"
+                )
+                return None
+
             if force_refresh or self._needs_refresh(self._state):
                 self._state = self._refresh_session_locked()
 
@@ -90,16 +98,22 @@ class RadioJavanSessionManager:
 
     def invalidate_and_refresh(self) -> bool:
         with self._lock:
+            if self._is_retry_cooldown_active(self._state):
+                return False
+
             self._state = self._invalid_state("Session invalidated after challenge response")
             self._save_state(self._state)
-            self._state = self._refresh_session_locked()
+            self._state = self._run_generate_session()
             return self._is_state_valid(self._state)
 
     def _refresh_session_locked(self) -> dict[str, str | bool | int | None]:
         if not self.enabled:
-            state = self._invalid_state("RadioJavan session manager disabled")
+            state = self._failure_state("RadioJavan session manager disabled")
             self._save_state(state)
             return state
+
+        if self._is_retry_cooldown_active(self._state):
+            return self._state or self._failure_state("Session refresh cooldown is active")
 
         return self._run_generate_session()
 
@@ -124,7 +138,7 @@ class RadioJavanSessionManager:
             async with async_playwright() as playwright:
                 browser = await self._launch_browser(playwright)
                 if browser is None:
-                    state = self._invalid_state("Failed to launch browser")
+                    state = self._failure_state("Failed to launch browser")
                     self._save_state(state)
                     return state
 
@@ -132,7 +146,7 @@ class RadioJavanSessionManager:
                 if not context or not page:
                     with contextlib.suppress(Exception):
                         await browser.close()
-                    state = self._invalid_state("Failed to create browser context")
+                    state = self._failure_state("Failed to create browser context")
                     self._save_state(state)
                     return state
 
@@ -141,12 +155,12 @@ class RadioJavanSessionManager:
                     await browser.close()
 
                 if not session_data:
-                    state = self._invalid_state("Could not collect valid RadioJavan session")
+                    state = self._failure_state("Could not collect valid RadioJavan session")
                     self._save_state(state)
                     return state
 
                 if not self._validate_session_data(session_data):
-                    state = self._invalid_state(
+                    state = self._failure_state(
                         "Collected session still triggers Cloudflare challenge"
                     )
                     self._save_state(state)
@@ -157,7 +171,7 @@ class RadioJavanSessionManager:
                 self._save_state(state)
                 return state
         except ImportError as e:
-            state = self._invalid_state(
+            state = self._failure_state(
                 "Playwright missing for RadioJavan session generation. "
                 "Install with: pip install playwright && playwright install chromium"
             )
@@ -165,7 +179,7 @@ class RadioJavanSessionManager:
             self._save_state(state)
             return state
         except Exception as e:
-            state = self._invalid_state(f"Session generation failed: {e!s}")
+            state = self._failure_state(f"Session generation failed: {e!s}")
             logger.error("[RADIOJAVAN_SESSION] %s", state["error_message"], exc_info=True)
             self._save_state(state)
             return state
@@ -299,7 +313,7 @@ class RadioJavanSessionManager:
 
     @classmethod
     def _looks_like_challenge_page(cls, text: str) -> bool:
-        if not text:
+        if not isinstance(text, str) or not text:
             return False
         return any(marker in text for marker in cls.CHALLENGE_MARKERS)
 
@@ -380,9 +394,17 @@ class RadioJavanSessionManager:
             "is_generating": False,
             "generated_at": None,
             "expires_at": None,
+            "next_retry_at": None,
             "cookie_count": 0,
             "error_message": error_message,
         }
+
+    def _failure_state(self, error_message: str) -> dict[str, str | bool | int | None]:
+        state = self._invalid_state(error_message)
+        state["next_retry_at"] = (
+            datetime.now(timezone.utc) + timedelta(seconds=self._retry_cooldown_seconds())
+        ).isoformat()
+        return state
 
     def _valid_state(self, session_data: dict[str, object]) -> dict[str, str | bool | int | None]:
         cookie_count = (
@@ -399,15 +421,21 @@ class RadioJavanSessionManager:
             "expires_at": session_data.get("expires_at")
             if isinstance(session_data.get("expires_at"), str)
             else None,
+            "next_retry_at": None,
             "cookie_count": cookie_count,
             "error_message": None,
         }
 
-    def _needs_refresh(self, state: dict[str, str | bool | int | None] | None) -> bool:
+    def _needs_refresh(  # noqa: PLR0911
+        self,
+        state: dict[str, str | bool | int | None] | None,
+    ) -> bool:
         if not self.enabled:
             return False
-        if not state or not bool(state.get("is_valid")):
+        if not state:
             return True
+        if not bool(state.get("is_valid")):
+            return not self._is_retry_cooldown_active(state)
         if not self.session_file.exists():
             return True
 
@@ -423,6 +451,40 @@ class RadioJavanSessionManager:
 
         refresh_margin = timedelta(minutes=self.config.radiojavan.session_refresh_margin_minutes)
         return datetime.now(timezone.utc) >= (expires_dt - refresh_margin)
+
+    def _is_retry_cooldown_active(
+        self,
+        state: dict[str, str | bool | int | None] | None,
+    ) -> bool:
+        if not state:
+            return False
+        next_retry_at = state.get("next_retry_at")
+        if not isinstance(next_retry_at, str):
+            return False
+        retry_dt = self._parse_datetime(next_retry_at)
+        if retry_dt is None:
+            return False
+        return datetime.now(timezone.utc) < retry_dt
+
+    def _retry_cooldown_seconds(self) -> int:
+        configured = getattr(
+            self.config.radiojavan,
+            "session_retry_cooldown_seconds",
+            self.DEFAULT_RETRY_COOLDOWN_SECONDS,
+        )
+        if not isinstance(configured, int) or configured < 0:
+            return self.DEFAULT_RETRY_COOLDOWN_SECONDS
+        return configured
+
+    @staticmethod
+    def _parse_datetime(value: str) -> datetime | None:
+        try:
+            parsed = datetime.fromisoformat(value)
+        except Exception:
+            return None
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed
 
     def _is_state_valid(self, state: dict[str, str | bool | int | None] | None) -> bool:
         return bool(state and state.get("is_valid") and self.session_file.exists())
@@ -444,6 +506,9 @@ class RadioJavanSessionManager:
             if isinstance(raw.get("generated_at"), str)
             else None,
             "expires_at": raw.get("expires_at") if isinstance(raw.get("expires_at"), str) else None,
+            "next_retry_at": raw.get("next_retry_at")
+            if isinstance(raw.get("next_retry_at"), str)
+            else None,
             "cookie_count": int(raw.get("cookie_count", 0)),
             "error_message": raw.get("error_message")
             if isinstance(raw.get("error_message"), str)
