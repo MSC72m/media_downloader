@@ -2,9 +2,33 @@
 
 This document is the single source of truth for AI/code agents in this repository.
 It is tailored for this codebase and must be followed unless the user explicitly overrides a rule.
+`agents/CHECKLIST.md` is an execution checklist derived from this document and must not introduce conflicting rules.
 
 This repository is a Python desktop application (CustomTkinter/Tkinter), not Android/Kotlin.
 Any Android/Kotlin guidance is out of scope and must be ignored.
+
+## 0. Core Rules (MUST/MUST NOT)
+- MUST follow this file as canonical policy.
+- MUST ask clarification questions before coding when requirements are ambiguous.
+- MUST use Trivial Task Fast Path only when all eligibility conditions are met.
+- MUST create a task spec for non-trivial work before broad implementation.
+- MUST map implementation tasks to explicit acceptance checks.
+- MUST reuse existing architecture and avoid duplicate/parallel implementations.
+- MUST keep business logic out of UI when service/coordinator layers fit.
+- MUST fix root causes rather than symptom-only patches.
+- MUST run required quality gates before claiming completion, or report blockers explicitly.
+- MUST NOT commit secrets or log sensitive auth/cookie/header values.
+- MUST NOT weaken tests or broad-suppress lint/type errors just to pass gates.
+
+### 0.1 Normative Keywords
+- **MUST / MUST NOT:** mandatory requirements.
+- **SHOULD / SHOULD NOT:** strong defaults; deviations require explicit rationale.
+- **MAY:** optional guidance.
+
+### 0.2 Rule Precedence
+- Section `0` is the operational priority layer for fast decision-making.
+- Detailed sections below provide implementation context and examples.
+- If detailed guidance appears to conflict, follow Section `0` and document rationale.
 
 ## 1. Mission and Priority Order
 1. Correctness
@@ -16,6 +40,23 @@ Any Android/Kotlin guidance is out of scope and must be ignored.
 If two goals conflict, the higher item wins.
 
 ## 2. Agent Operating Protocol (Mandatory)
+### 2.1 Operating Modes
+- **Standard Path (default):** use for all non-trivial work.
+- **Trivial Task Fast Path:** allowed only when all are true:
+  - small, local change (typically <= 30 LOC)
+  - no architecture/data-contract change
+  - no security/privacy/destructive-operation risk
+  - no cross-module behavior change
+- **Non-trivial work:** anything that does not satisfy every fast-path condition above.
+
+### 2.2 Trivial Task Fast Path Minimums
+- Restate objective and assumptions in 1-2 lines.
+- Keep edits minimal and local.
+- Run at least one relevant validation command.
+- Report what changed and how it was validated.
+- Do not introduce new abstractions/patterns/spec ceremony.
+
+### 2.3 Core Protocol Behaviors
 - Restate the goal, constraints, and success criteria before implementing.
 - If requirements are unclear or contradictory, ask clarifying questions before coding.
 - Do not guess high-impact behavior.
@@ -76,6 +117,13 @@ Do not implement major changes without a usable spec.
   - code to match spec, or
   - spec to match approved requirement changes
 - Do not silently drift spec and implementation.
+
+### 4.5 Spec Storage and Commit Policy
+- Default working location: `docs/specs/local/<YYYY-MM-DD>-<slug>.md`.
+- `docs/specs/local/` is for active specs and is gitignored by default.
+- Use `docs/specs/TEMPLATE.md` to start new specs.
+- If a spec should be versioned, move/copy it to `docs/specs/committed/`.
+- Spec versioning is optional by default and decided by engineer preference per task.
 
 ## 5. Decision Support Protocol (Mandatory)
 When multiple valid options exist:
@@ -149,31 +197,16 @@ Do not move business logic into UI classes when service/coordinator layers alrea
 - Over-engineering is a defect.
 
 ## 9.2 SOLID (Pragmatic, Not Dogmatic)
-- Single Responsibility: one reason to change per module.
-- Open/Closed: extend behavior via composition/strategy, not branch explosion.
-- Liskov: substitutes must preserve expected behavior/contracts.
-- Interface Segregation: prefer small consumer-focused protocols.
-- Dependency Inversion: depend on abstractions at boundaries.
+- Use SOLID as a decision check, not a refactor mandate.
+- See Appendix A for the repository-specific SOLID quick reference.
 
 ## 9.3 GRASP (Practical)
-- Information Expert: place logic where relevant data exists.
-- Creator: instantiate where lifecycle knowledge naturally belongs.
-- Controller: coordinators/handlers orchestrate; UI remains thin.
-- Low Coupling + High Cohesion: reduce incidental dependencies.
-- Polymorphism over type-switch cascades when behavior varies by service.
+- Use GRASP for ownership/boundary decisions (`handler`/`service`/`coordinator`/`ui`).
+- See Appendix A for the repository-specific GRASP quick reference.
 
 ## 9.4 Pattern Catalog (Use Intentionally)
-Use when there is clear pressure:
-- Strategy: service/platform behavior variants.
-- Factory/Abstract Factory: constructing platform-specific handlers/services.
-- Adapter: wrapping third-party APIs (`yt-dlp`, `requests`, browser-cookie sources).
-- Facade: simplifying complex subsystems to stable higher-level APIs.
-- State Machine: explicit workflow transitions for auth/download flows.
-
-Avoid pattern usage when:
-- A plain function/module is enough.
-- It increases indirection without lowering coupling.
-- It hides behavior and complicates debugging.
+- Use patterns only under real pressure (complexity, variability, lifecycle boundaries).
+- See Appendix A for the pattern quick reference.
 
 ## 9.5 Standard Library First Policy
 Prefer Python stdlib before adding dependencies for trivial needs.
@@ -232,7 +265,8 @@ Avoid:
 - Avoid inline imports inside classes/functions unless there is a concrete reason.
 
 ## 14. Error Handling and Resilience
-- No catch-and-ignore.
+- No silent catch-and-ignore in production paths.
+- Narrow exceptions are allowed for cleanup/test seams only when explicitly commented with rationale.
 - Handle expected failure classes explicitly.
 - Distinguish retryable vs non-retryable errors.
 - Use bounded retries with backoff and cancellation.
@@ -295,15 +329,15 @@ Required local quality gates before claiming completion:
 - `npx basedpyright tests --outputjson` (for strict editor/LSP parity)
 - `uv run pytest -q`
 
+Source-of-truth note:
+- The explicit command list above is the policy source.
+- `./scripts/quality_gate.sh` is experimental convenience only.
+- If script behavior diverges, follow the explicit command list above.
+
 Rules:
 - No `noqa`/ignore suppression as a default strategy.
 - Fix root causes first.
 - Use narrow and justified suppressions only when technically unavoidable.
-
-### 17.2 Suppression Policy
-- Avoid blanket ignores (`noqa`, broad pyright disables, global skips).
-- If suppression is unavoidable, keep it local, minimal, and explained inline.
-- Suppression without explanation is not allowed.
 
 ### 17.1 Common LSP Fix Patterns Used Here
 - Protocol mock errors:
@@ -314,6 +348,11 @@ Rules:
   - Example: patch `src.services.spotify.downloader.BeautifulSoup`, not `bs4.BeautifulSoup`.
 - Optional field access:
   - Guard `None` explicitly before `len` or indexing.
+
+### 17.2 Suppression Policy
+- Avoid blanket ignores (`noqa`, broad pyright disables, global skips).
+- If suppression is unavoidable, keep it local, minimal, and explained inline.
+- Suppression without explanation is not allowed.
 
 ## 18. GUI (CustomTkinter/Tkinter) Best Practices
 - Keep UI responsive:
@@ -442,13 +481,3 @@ if browser in ["chrome", "firefox", "zen", "edge", "brave"]:
 - Keep code simple (KISS) while preserving solid engineering rigor.
 - Escalate ambiguity early with clear options and tradeoffs.
 - Be pragmatic: optimize for reliable outcomes, not process theater.
-
-## 27. GOF Pattern Opportunity Protocol
-- Do not force pattern usage.
-- When a GOF pattern is a good fit, present it as an option, not a mandate.
-- Provide:
-  - pattern name
-  - specific problem it solves here
-  - why simpler alternatives may be insufficient
-  - tradeoffs (complexity, indirection, testability, onboarding cost)
-- Proceed with pattern adoption only after engineer acceptance for significant refactors.
