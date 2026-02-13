@@ -12,18 +12,19 @@ import time
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
+import pytest
+
 # Add src to path and import directly to avoid conftest mocking issues
 sys.path.insert(0, '/Users/msc8/code/media_downloader/src')
 
 import requests
 from src.core.config import get_config
-from src.core.interfaces import IErrorNotifier, IFileService
 from src.services.radiojavan.downloader import RadioJavanDownloader
 from src.services.tiktok.downloader import TikTokDownloader
 from src.services.network.downloader import download_file
 
 
-class MockFileService(IFileService):
+class MockFileService:
     """Mock file service for testing."""
 
     def ensure_directory(self, path: str) -> bool:
@@ -46,26 +47,37 @@ class MockFileService(IFileService):
         return f"{directory}/{base_name}{extension}"
 
 
-class MockErrorNotifier(IErrorNotifier):
+class MockErrorNotifier:
     """Mock error notifier for testing."""
 
-    def handle_service_failure(self, service: str, operation: str, error_message: str, url: str, exception: Exception | None = None) -> None:
-        pass
+    def handle_service_failure(
+        self,
+        service: str,
+        operation: str,
+        error_message: str,
+        url: str = "",
+    ) -> None:
+        _ = (service, operation, error_message, url)
 
-    def handle_exception(self, exception: Exception, context: str, service: str, url: str = "") -> None:
-        pass
+    def handle_exception(
+        self,
+        exception: Exception,
+        context: str = "",
+        service: str = "",
+    ) -> None:
+        _ = (exception, context, service)
 
     def show_error(self, title: str, message: str) -> None:
-        pass
+        _ = (title, message)
 
     def show_warning(self, title: str, message: str) -> None:
-        pass
+        _ = (title, message)
 
     def show_info(self, title: str, message: str) -> None:
-        pass
+        _ = (title, message)
 
     def set_message_queue(self, message_queue) -> None:
-        pass
+        _ = message_queue
 
 
 class TestRealWorkingDownloads:

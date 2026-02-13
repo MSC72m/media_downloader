@@ -7,19 +7,12 @@ import pytest
 from src.coordinators.download_coordinator import DownloadCoordinator
 from src.coordinators.main_coordinator import EventCoordinator
 from src.coordinators.platform_dialog_coordinator import PlatformDialogCoordinator
-from src.core.interfaces import (
-    ICookieHandler,
-    IDownloadHandler,
-    IErrorNotifier,
-    IFileService,
-    IMessageQueue,
-    INetworkChecker,
-)
+from src.core.enums import ServiceType
 from src.core.models import Download, DownloadStatus
 from src.services.events.event_bus import DownloadEventBus
 
 
-class MockDownloadHandler(IDownloadHandler):
+class MockDownloadHandler:
     """Mock download handler for testing."""
 
     def __init__(self):
@@ -42,7 +35,8 @@ class MockDownloadHandler(IDownloadHandler):
         """Get all downloads."""
         return self.downloads.copy()
 
-    def remove_downloads(self, indices: list) -> None:
+    def remove_downloads(self, indices: list[int]) -> None:
+        _ = indices
         pass
 
     def clear_downloads(self) -> None:
@@ -50,18 +44,26 @@ class MockDownloadHandler(IDownloadHandler):
 
     def start_downloads(
         self,
-        downloads: list,
-        download_dir: str,
+        downloads: list[Download],
+        download_dir: str | None = None,
         progress_callback=None,
         completion_callback=None,
     ) -> None:
+        _ = (download_dir, progress_callback, completion_callback)
         self.started_downloads.extend(downloads)
 
     def cancel_download(self, download: Download) -> None:
+        _ = download
         pass
 
+    def has_items(self) -> bool:
+        return bool(self.downloads)
 
-class MockErrorHandler(IErrorNotifier):
+    def has_active_downloads(self) -> bool:
+        return False
+
+
+class MockErrorHandler:
     """Mock error handler for testing."""
 
     def __init__(self):
@@ -71,44 +73,60 @@ class MockErrorHandler(IErrorNotifier):
         self.errors_shown.append((title, message))
 
     def show_warning(self, title: str, message: str) -> None:
-        pass
+        _ = (title, message)
 
     def show_info(self, title: str, message: str) -> None:
-        pass
+        _ = (title, message)
+
+    def set_message_queue(self, message_queue) -> None:
+        _ = message_queue
+
+    def handle_exception(
+        self,
+        exception: Exception,
+        context: str = "",
+        service: str = "",
+    ) -> None:
+        _ = (exception, context, service)
+
+    def handle_service_failure(
+        self,
+        service: str,
+        operation: str,
+        error_message: str,
+        url: str = "",
+    ) -> None:
+        _ = (service, operation, error_message, url)
 
 
-class MockCookieHandler(ICookieHandler):
+class MockCookieHandler:
     """Mock cookie handler for testing."""
 
-    def get_cookies(self) -> str:
-        return "/mock/cookies.txt"
-
-    def save_cookies(self, cookie_path: str) -> bool:
+    def set_cookie_file(self, cookie_path: str) -> bool:
+        _ = cookie_path
         return True
 
-    def validate_cookies(self, cookie_path: str) -> bool:
+    def has_valid_cookies(self) -> bool:
         return True
 
-    def clear_cookies(self) -> bool:
-        return True
-
-    def is_ready(self) -> bool:
-        return True
-
-    def detect_cookies(self) -> bool:
-        return True
+    def get_cookie_info_for_ytdlp(self) -> dict | None:
+        return {"cookiefile": "/mock/cookies.txt"}
 
 
-class MockFileService(IFileService):
+class MockFileService:
     """Mock file service for testing."""
 
     def clean_filename(self, filename: str) -> str:
         return filename.replace("/", "_")
 
+    def sanitize_filename(self, filename: str) -> str:
+        return filename
+
     def get_unique_filename(self, directory: str, base_name: str, extension: str) -> str:
         return f"{base_name}.{extension}"
 
-    def ensure_directory(self, directory: str) -> bool:
+    def ensure_directory(self, path: str) -> bool:
+        _ = path
         return True
 
     def get_file_size(self, file_path: str) -> int:
@@ -118,29 +136,23 @@ class MockFileService(IFileService):
         return True
 
 
-class MockNetworkChecker(INetworkChecker):
+class MockNetworkChecker:
     """Mock network checker for testing."""
 
     def check_internet_connection(self) -> tuple[bool, str]:
         return True, "Connected"
 
-    def check_service_connection(self, service_type: str) -> tuple[bool, str]:
-        return True, f"{service_type} connected"
+    def check_service_connection(self, service: ServiceType) -> tuple[bool, str]:
+        return True, f"{service} connected"
 
-    def check_all_services(self) -> dict:
-        return {"youtube": (True, ""), "twitter": (True, ""), "instagram": (True, "")}
+    def get_problem_services(self) -> list[ServiceType]:
+        return []
 
-    def is_service_connected(self, service_type: str) -> bool:
-        return True
-
-    def check_connectivity(self) -> bool:
-        return True
-
-    def is_connected(self) -> bool:
-        return True
+    def check_connectivity(self) -> tuple[bool, str]:
+        return True, "Connected"
 
 
-class MockMessageQueue(IMessageQueue):
+class MockMessageQueue:
     """Mock message queue for testing."""
 
     def __init__(self):
@@ -158,10 +170,10 @@ class MockMessageQueue(IMessageQueue):
     def clear_messages(self) -> None:
         self.messages.clear()
 
-    def register_handler(self, handler) -> None:
-        pass
+    def register_handler(self, message_type: str, handler) -> None:
+        _ = (message_type, handler)
 
-    def send_message(self, message) -> None:
+    def send_message(self, message: dict) -> None:
         self.add_message(message)
 
 

@@ -90,7 +90,8 @@ class YouTubeDownloader(BaseDownloader):
             "quiet": True,
             "no_warnings": True,
             "ignoreconfig": True,
-            "ignoreerrors": True,
+            # Keep extractor failures visible so format fallback logic can respond.
+            "ignoreerrors": False,
             "retries": self.retries,
             "fragment_retries": self.retries,
             "retry_sleep_functions": {"fragment": lambda x: 3 * (x + 1)},
@@ -243,7 +244,10 @@ class YouTubeDownloader(BaseDownloader):
                 with yt_dlp.YoutubeDL(cast(Any, opts)) as ydl:
                     if not ydl.extract_info(url, download=True):
                         logger.error("No video information extracted from YouTube")
-                        self._last_download_error_message = "No video information extracted"
+                        if opts.get("format"):
+                            self._last_download_error_message = "Requested format is not available"
+                        else:
+                            self._last_download_error_message = "No video information extracted"
                         break
 
                     download_succeeded = True

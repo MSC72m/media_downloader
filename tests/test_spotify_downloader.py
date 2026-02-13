@@ -8,21 +8,47 @@ from src.services.spotify.downloader import SpotifyDownloader
 class MockMessageQueue:
     """Mock message queue for testing."""
 
-    def add_message(self, message):
-        pass
+    def add_message(self, message) -> None:
+        _ = message
 
-    def send_message(self, message):
-        pass
+    def send_message(self, message: dict) -> None:
+        _ = message
+
+    def register_handler(self, message_type: str, handler) -> None:
+        _ = (message_type, handler)
 
 
 class MockErrorNotifier:
     """Mock error notifier for testing."""
 
-    def handle_service_failure(self, service, operation, message, url):
-        pass
+    def show_error(self, title: str, message: str) -> None:
+        _ = (title, message)
 
-    def handle_exception(self, exception, context, service):
-        pass
+    def show_warning(self, title: str, message: str) -> None:
+        _ = (title, message)
+
+    def show_info(self, title: str, message: str) -> None:
+        _ = (title, message)
+
+    def set_message_queue(self, message_queue) -> None:
+        _ = message_queue
+
+    def handle_service_failure(
+        self,
+        service: str,
+        operation: str,
+        error_message: str,
+        url: str = "",
+    ) -> None:
+        _ = (service, operation, error_message, url)
+
+    def handle_exception(
+        self,
+        exception: Exception,
+        context: str = "",
+        service: str = "",
+    ) -> None:
+        _ = (exception, context, service)
 
 
 class TestSpotifyDownloader:
@@ -215,7 +241,7 @@ class TestSpotifyDownloader:
             assert "id" in metadata
             assert "tracks" not in metadata
 
-    @patch("bs4.BeautifulSoup")
+    @patch("src.services.spotify.downloader.BeautifulSoup")
     @patch("src.services.spotify.downloader.requests.get")
     def test_get_metadata_playlist(self, mock_get, mock_bs4):
         """Test get metadata for playlist (with tracks)."""
@@ -230,11 +256,12 @@ class TestSpotifyDownloader:
         )
         mock_get.return_value = mock_response
 
+        row_one = Mock()
+        row_one.find.return_value = Mock(get_text=Mock(return_value="Track 1"))
+        row_two = Mock()
+        row_two.find.return_value = Mock(get_text=Mock(return_value="Track 2"))
         mock_soup = Mock()
-        mock_soup.find_all.return_value = [
-            Mock(get_text=Mock(return_value="Track 1")),
-            Mock(get_text=Mock(return_value="Track 2")),
-        ]
+        mock_soup.find_all.return_value = [row_one, row_two]
         mock_bs4.return_value = mock_soup
 
         downloader = SpotifyDownloader(

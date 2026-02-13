@@ -33,15 +33,24 @@ class MockErrorNotifier:
         pass
 
     def set_message_queue(self, message_queue) -> None:
-        pass
+        _ = message_queue
 
-    def handle_exception(self, exception: Exception, context: str = "", service: str = "") -> None:
-        pass
+    def handle_exception(
+        self,
+        exception: Exception,
+        context: str = "",
+        service: str = "",
+    ) -> None:
+        _ = (exception, context, service)
 
     def handle_service_failure(
-        self, service: str, operation: str, message: str, url: str = ""
+        self,
+        service: str,
+        operation: str,
+        error_message: str,
+        url: str = "",
     ) -> None:
-        pass
+        _ = (service, operation, error_message, url)
 
 
 class MockFileService:
@@ -66,19 +75,19 @@ class MockMessageQueue:
     def post(self, message: str) -> None:
         pass
 
-    def add_message(self, message: str) -> None:
-        pass
+    def add_message(self, message) -> None:
+        _ = message
 
     def send_message(self, message: dict) -> None:
-        pass
+        _ = message
 
     def clear(self) -> None:
         pass
 
     def register_handler(self, message_type: str, handler: Any) -> None:
-        pass
+        _ = (message_type, handler)
 
-    def get_messages(self) -> list[str]:
+    def get_messages(self) -> list:
         return []
 
 
@@ -198,7 +207,7 @@ class TestSpotifySingleTrackDownload:
         mock_ydl_class.return_value.__exit__.return_value = None
 
         results = self.downloader._search_youtube("Artist", "Track")
-        best_match = self.downloader._select_best_match("Track", results)
+        best_match = self.downloader._select_best_match("Artist Track", results)
 
         assert best_match is not None
         assert best_match["id"] == "match1"
@@ -237,7 +246,7 @@ class TestSpotifyPlaylistDownload:
         self.handler = SpotifyHandler(message_queue=MockMessageQueue())
 
     @patch("src.services.spotify.downloader.requests.get")
-    @patch("bs4.BeautifulSoup")
+    @patch("src.services.spotify.downloader.BeautifulSoup")
     def test_extract_metadata_from_playlist(self, mock_bs4, mock_get):
         """Verify metadata is extracted from playlist URL."""
         mock_response = Mock()
@@ -249,12 +258,14 @@ class TestSpotifyPlaylistDownload:
         mock_response.content = b"<html></html>"
         mock_get.return_value = mock_response
 
+        row_one = Mock()
+        row_one.find.return_value = Mock(get_text=Mock(return_value="Track One"))
+        row_two = Mock()
+        row_two.find.return_value = Mock(get_text=Mock(return_value="Track Two"))
+        row_three = Mock()
+        row_three.find.return_value = Mock(get_text=Mock(return_value="Track Three"))
         mock_soup = Mock()
-        mock_soup.find_all.return_value = [
-            Mock(get_text=Mock(return_value="Track One")),
-            Mock(get_text=Mock(return_value="Track Two")),
-            Mock(get_text=Mock(return_value="Track Three")),
-        ]
+        mock_soup.find_all.return_value = [row_one, row_two, row_three]
         mock_bs4.return_value = mock_soup
 
         url = "https://open.spotify.com/playlist/abc123"
@@ -272,7 +283,7 @@ class TestSpotifyPlaylistDownload:
 
     @patch("src.services.spotify.downloader.requests.get")
     @patch("src.services.spotify.downloader.yt_dlp.YoutubeDL")
-    @patch("bs4.BeautifulSoup")
+    @patch("src.services.spotify.downloader.BeautifulSoup")
     def test_playlist_tracks_get_youtube_matches(self, mock_bs4, mock_ydl_class, mock_get):
         """Verify playlist tracks get YouTube matches."""
         mock_response = Mock()
@@ -281,11 +292,12 @@ class TestSpotifyPlaylistDownload:
         mock_response.content = b"<html></html>"
         mock_get.return_value = mock_response
 
+        row_one = Mock()
+        row_one.find.return_value = Mock(get_text=Mock(return_value="Track One"))
+        row_two = Mock()
+        row_two.find.return_value = Mock(get_text=Mock(return_value="Track Two"))
         mock_soup = Mock()
-        mock_soup.find_all.return_value = [
-            Mock(get_text=Mock(return_value="Track One")),
-            Mock(get_text=Mock(return_value="Track Two")),
-        ]
+        mock_soup.find_all.return_value = [row_one, row_two]
         mock_bs4.return_value = mock_soup
 
         mock_ydl = MagicMock()
@@ -310,7 +322,7 @@ class TestSpotifyPlaylistDownload:
 
     @patch("src.services.spotify.downloader.requests.get")
     @patch("src.services.spotify.downloader.yt_dlp.YoutubeDL")
-    @patch("bs4.BeautifulSoup")
+    @patch("src.services.spotify.downloader.BeautifulSoup")
     def test_playlist_select_tracks_individually(self, mock_bs4, mock_ydl_class, mock_get):
         """Verify playlist allows individual track selection."""
         mock_response = Mock()
@@ -319,22 +331,24 @@ class TestSpotifyPlaylistDownload:
         mock_response.content = b"<html></html>"
         mock_get.return_value = mock_response
 
+        row_one = Mock()
+        row_one.find.return_value = Mock(get_text=Mock(return_value="Track One"))
+        row_two = Mock()
+        row_two.find.return_value = Mock(get_text=Mock(return_value="Track Two"))
+        row_three = Mock()
+        row_three.find.return_value = Mock(get_text=Mock(return_value="Track Three"))
         mock_soup = Mock()
-        mock_soup.find_all.return_value = [
-            Mock(get_text=Mock(return_value="Track One")),
-            Mock(get_text=Mock(return_value="Track Two")),
-            Mock(get_text=Mock(return_value="Track Three")),
-        ]
+        mock_soup.find_all.return_value = [row_one, row_two, row_three]
         mock_bs4.return_value = mock_soup
 
         mock_ydl = MagicMock()
         mock_ydl.extract_info.return_value = {
             "entries": [
                 {
-                    "id": f"video{i}",
-                    "title": f"Track {i + 1} Official",
-                    "duration": 200 + i * 10,
-                    "url": f"https://youtube.com/watch?v=video{i}",
+                    "id": "video1",
+                    "title": "Track One Official",
+                    "duration": 210,
+                    "url": "https://youtube.com/watch?v=video1",
                 }
             ]
         }
@@ -456,7 +470,7 @@ class TestSpotifyUserInterface:
         selected_result = results[0]
 
         download = Download(
-            url=selected_result["webpage_url"],
+            url=downloader._extract_youtube_url(selected_result) or "",
             name="Artist - Track.mp3",
             service_type="spotify",
             audio_only=True,
@@ -470,7 +484,7 @@ class TestSpotifyUserInterface:
         assert download.audio_only is True
 
     @patch("src.services.spotify.downloader.requests.get")
-    @patch("bs4.BeautifulSoup")
+    @patch("src.services.spotify.downloader.BeautifulSoup")
     def test_dialog_playlist_select_multiple_tracks(self, mock_bs4, mock_get):
         """Verify dialog allows selecting multiple tracks from playlist."""
         mock_response = Mock()
@@ -482,12 +496,14 @@ class TestSpotifyUserInterface:
         mock_response.content = b"<html></html>"
         mock_get.return_value = mock_response
 
+        row_one = Mock()
+        row_one.find.return_value = Mock(get_text=Mock(return_value="Song One"))
+        row_two = Mock()
+        row_two.find.return_value = Mock(get_text=Mock(return_value="Song Two"))
+        row_three = Mock()
+        row_three.find.return_value = Mock(get_text=Mock(return_value="Song Three"))
         mock_soup = Mock()
-        mock_soup.find_all.return_value = [
-            Mock(get_text=Mock(return_value="Song One")),
-            Mock(get_text=Mock(return_value="Song Two")),
-            Mock(get_text=Mock(return_value="Song Three")),
-        ]
+        mock_soup.find_all.return_value = [row_one, row_two, row_three]
         mock_bs4.return_value = mock_soup
 
         downloader = SpotifyDownloader(
@@ -635,12 +651,12 @@ class TestSpotifyUserNotifications:
         )
 
         results = downloader._search_youtube("Artist", "Track")
-        best_match = downloader._select_best_match("Track", results)
+        best_match = downloader._select_best_match("Artist Track", results)
 
         assert best_match is not None
         assert best_match["id"] == "video1"
 
-        similarity = downloader._calculate_similarity("Track", best_match["title"])
+        similarity = downloader._calculate_similarity("Artist Track", best_match["title"])
 
         assert similarity > 0.5
 
@@ -679,7 +695,7 @@ class TestSpotifyErrorHandling:
         assert metadata["type"] == "unknown"
 
     @patch("src.services.spotify.downloader.requests.get")
-    @patch("bs4.BeautifulSoup")
+    @patch("src.services.spotify.downloader.BeautifulSoup")
     def test_handle_empty_playlist(self, mock_bs4, mock_get):
         """Verify empty playlists are handled correctly."""
         mock_response = Mock()

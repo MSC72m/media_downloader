@@ -1,22 +1,15 @@
 """Comprehensive tests for all platform handlers with proper dependency injection."""
 
 import re
+from typing import Any, cast
 from unittest.mock import Mock, patch
 
 import pytest
 
-from src.core.interfaces import (
-    ICookieHandler,
-    IErrorNotifier,
-    IFileService,
-    IMessageQueue,
-    IMetadataService,
-    IUIState,
-)
 from src.handlers import _register_link_handlers
 
 
-class MockErrorHandler(IErrorNotifier):
+class MockErrorHandler:
     """Mock error handler for testing."""
 
     def __init__(self):
@@ -26,44 +19,62 @@ class MockErrorHandler(IErrorNotifier):
         self.errors_shown.append((title, message))
 
     def show_warning(self, title: str, message: str) -> None:
-        pass
+        _ = (title, message)
 
     def show_info(self, title: str, message: str) -> None:
-        pass
+        _ = (title, message)
+
+    def set_message_queue(self, message_queue) -> None:
+        _ = message_queue
+
+    def handle_exception(
+        self,
+        exception: Exception,
+        context: str = "",
+        service: str = "",
+    ) -> None:
+        _ = (exception, context, service)
+
+    def handle_service_failure(
+        self,
+        service: str,
+        operation: str,
+        error_message: str,
+        url: str = "",
+    ) -> None:
+        _ = (service, operation, error_message, url)
 
 
-class MockCookieHandler(ICookieHandler):
+class MockCookieHandler:
     """Mock cookie handler for testing."""
 
     def __init__(self):
         self.cookie_path = "/mock/cookies.txt"
 
-    def get_cookies(self) -> str:
-        return self.cookie_path
-
-    def save_cookies(self, cookie_path: str) -> bool:
+    def set_cookie_file(self, cookie_path: str) -> bool:
+        self.cookie_path = cookie_path
         return True
 
-    def validate_cookies(self, cookie_path: str) -> bool:
+    def has_valid_cookies(self) -> bool:
         return True
 
-    def clear_cookies(self) -> bool:
-        return True
-
-    def is_ready(self) -> bool:
-        return True
-
-    def detect_cookies(self) -> bool:
-        return True
+    def get_cookie_info_for_ytdlp(self) -> dict | None:
+        return {"cookiefile": self.cookie_path}
 
 
-class MockMetadataService(IMetadataService):
+class MockMetadataService:
     """Mock metadata service for testing."""
 
     def __init__(self):
         pass
 
-    def fetch_metadata(self, url: str) -> object:
+    def fetch_metadata(
+        self,
+        url: str,
+        cookie_path: str | None = None,
+        browser: str | None = None,
+    ) -> object:
+        _ = (url, cookie_path, browser)
         class MockMetadata:
             def __init__(self):
                 self.title = "Mock Title"
@@ -72,22 +83,30 @@ class MockMetadataService(IMetadataService):
         return MockMetadata()
 
     def get_metadata(self, url: str) -> dict:
+        _ = url
         return {"title": "Mock Title", "description": "Mock Description"}
 
     def is_available(self) -> bool:
         return True
 
+    def validate_url(self, url: str) -> bool:
+        return bool(url)
 
-class MockFileService(IFileService):
+
+class MockFileService:
     """Mock file service for testing."""
 
     def clean_filename(self, filename: str) -> str:
         return filename.replace("/", "_").replace("\\", "_")
 
+    def sanitize_filename(self, filename: str) -> str:
+        return self.clean_filename(filename)
+
     def get_unique_filename(self, directory: str, base_name: str, extension: str) -> str:
         return f"{base_name}.{extension}"
 
-    def ensure_directory(self, directory: str) -> bool:
+    def ensure_directory(self, path: str) -> bool:
+        _ = path
         return True
 
     def get_file_size(self, file_path: str) -> int:
@@ -97,11 +116,13 @@ class MockFileService(IFileService):
         return True
 
 
-class MockUIState(IUIState):
+class MockUIState:
     """Mock UI state for testing."""
 
     def __init__(self):
         self.download_directory = "~/Downloads"
+        self.show_options_panel = False
+        self.selected_indices: list[int] = []
         self.current_url = ""
         self.busy = False
 
@@ -124,7 +145,7 @@ class MockUIState(IUIState):
         self.busy = busy
 
 
-class MockMessageQueue(IMessageQueue):
+class MockMessageQueue:
     """Mock message queue for testing."""
 
     def __init__(self):
@@ -136,17 +157,10 @@ class MockMessageQueue(IMessageQueue):
     def get_messages(self) -> list:
         return self.messages.copy()
 
-    # IMessageQueue might have other required abstract methods
-    def process_messages(self) -> None:
-        pass
+    def register_handler(self, message_type: str, handler) -> None:
+        _ = (message_type, handler)
 
-    def clear_messages(self) -> None:
-        self.messages.clear()
-
-    def register_handler(self, handler) -> None:
-        pass
-
-    def send_message(self, message) -> None:
+    def send_message(self, message: dict) -> None:
         self.add_message(message)
 
 
@@ -157,8 +171,8 @@ class TestHandlerRegistration:
         """Test that all handlers are properly registered."""
         handlers = _register_link_handlers()
 
-        # Should have exactly 5 handlers
-        assert len(handlers) == 5
+        # Current registration includes all supported platform handlers.
+        assert len(handlers) == 8
 
         handler_names = [
             handler.__name__ if hasattr(handler, "__name__") else handler.__class__.__name__
@@ -167,7 +181,10 @@ class TestHandlerRegistration:
         expected_handlers = [
             "InstagramHandler",
             "PinterestHandler",
+            "RadioJavanHandler",
             "SoundCloudHandler",
+            "SpotifyHandler",
+            "TikTokHandler",
             "TwitterHandler",
             "YouTubeHandler",
         ]
@@ -561,13 +578,22 @@ class TestHandlerIntegration:
         for handler_class in handlers:
             # Create an instance if needed
             try:
-                if handler_class.__name__ in ["YouTubeHandler"]:
-                    # Skip YouTubeHandler as it requires complex dependencies
-                    continue
-                if handler_class.__name__ == "SoundCloudHandler":
-                    handler = handler_class(message_queue=MockMessageQueue())
-                else:
-                    handler = handler_class()
+                handler_ctor = cast(Any, handler_class)
+                match handler_class.__name__:
+                    case "YouTubeHandler":
+                        handler = handler_ctor(
+                            cookie_handler=MockCookieHandler(),
+                            metadata_service=MockMetadataService(),
+                            auto_cookie_manager=Mock(),
+                            message_queue=MockMessageQueue(),
+                        )
+                    case "InstagramHandler":
+                        handler = handler_ctor(
+                            instagram_auth_manager=Mock(),
+                            message_queue=MockMessageQueue(),
+                        )
+                    case _:
+                        handler = handler_ctor(message_queue=MockMessageQueue())
 
                 callback = handler.get_ui_callback()
                 assert callable(callback), f"{handler_class.__name__} callback is not callable"

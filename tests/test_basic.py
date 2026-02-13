@@ -42,6 +42,7 @@ def test_download_model_with_optional_fields():
     assert download.quality == "1080p"
     assert download.format == "video"
     assert download.download_subtitles is True
+    assert download.selected_subtitles is not None
     assert len(download.selected_subtitles) == 1
     assert download.selected_subtitles[0]["language_code"] == "en"
 

@@ -21,7 +21,7 @@ from src.services.tiktok.downloader import TikTokDownloader
 from src.services.network.downloader import download_file
 
 
-class MockFileService(IFileService):
+class MockFileService:
     """Mock file service for testing."""
 
     def ensure_directory(self, path: str) -> bool:
@@ -43,7 +43,7 @@ class MockFileService(IFileService):
         return f"{directory}/{base_name}{extension}"
 
 
-class MockErrorNotifier(IErrorNotifier):
+class MockErrorNotifier:
     """Mock error notifier for testing."""
 
     def handle_service_failure(

@@ -6,24 +6,28 @@ import pytest
 
 from src.application.service_factory import ServiceFactory
 from src.core.enums import ServiceType
-from src.core.interfaces import IErrorNotifier, IFileService
 from src.services.pinterest.downloader import PinterestDownloader
 from src.services.soundcloud.downloader import SoundCloudDownloader
 from src.services.spotify.downloader import SpotifyDownloader
 from src.services.youtube.downloader import YouTubeDownloader
 
 
-class MockFileService(IFileService):
+class MockFileService:
     """Mock file service for testing."""
 
-    def ensure_directory(self, path: str) -> None:
-        pass
+    def ensure_directory(self, path: str) -> bool:
+        _ = path
+        return True
 
     def sanitize_filename(self, filename: str) -> str:
         return filename
 
     def clean_filename(self, filename: str) -> str:
         return filename
+
+    def get_unique_filename(self, directory: str, base_name: str, extension: str) -> str:
+        suffix = extension if extension.startswith(".") else f".{extension}" if extension else ""
+        return f"{directory}/{base_name}{suffix}"
 
     def download_file(self, url: str, path: str, progress_callback=None):
         class Result:
@@ -32,14 +36,37 @@ class MockFileService(IFileService):
         return Result()
 
 
-class MockErrorNotifier(IErrorNotifier):
+class MockErrorNotifier:
     """Mock error notifier for testing."""
 
-    def handle_service_failure(self, service: str, operation: str, message: str, url: str) -> None:
-        pass
+    def show_error(self, title: str, message: str) -> None:
+        _ = (title, message)
 
-    def handle_exception(self, exception: Exception, context: str, service: str) -> None:
-        pass
+    def show_warning(self, title: str, message: str) -> None:
+        _ = (title, message)
+
+    def show_info(self, title: str, message: str) -> None:
+        _ = (title, message)
+
+    def set_message_queue(self, message_queue) -> None:
+        _ = message_queue
+
+    def handle_service_failure(
+        self,
+        service: str,
+        operation: str,
+        error_message: str,
+        url: str = "",
+    ) -> None:
+        _ = (service, operation, error_message, url)
+
+    def handle_exception(
+        self,
+        exception: Exception,
+        context: str = "",
+        service: str = "",
+    ) -> None:
+        _ = (exception, context, service)
 
 
 class TestServiceFactoryPinterestDetection:

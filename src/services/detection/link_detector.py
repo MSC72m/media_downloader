@@ -1,6 +1,6 @@
 import re
 from collections.abc import Callable
-from typing import Any, ClassVar, cast
+from typing import Any, ClassVar, TypeVar, cast
 
 from src.utils.logger import get_logger
 
@@ -11,6 +11,7 @@ logger = get_logger(__name__)
 
 
 LinkHandlerInterface = BaseHandler
+THandlerClass = TypeVar("THandlerClass", bound=type[BaseHandler])
 
 
 class LinkDetectionRegistry:
@@ -161,7 +162,7 @@ class LinkDetector:
         return None
 
 
-def auto_register_handler(handler_class: type[BaseHandler]):
+def auto_register_handler(handler_class: THandlerClass) -> THandlerClass:
     logger.info(f"[DECORATOR] Auto-registering handler: {handler_class.__name__}")
     try:
         LinkDetectionRegistry.register(handler_class)

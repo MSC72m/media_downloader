@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, cast
 
 from src.services.cookies.youtube_cookie_sources import (
     BrowserProbeCandidate,
@@ -15,18 +15,39 @@ from src.services.youtube.subtitle_extractor import YouTubeSubtitleExtractor
 class _AutoCookieManagerStub:
     def __init__(self, cookie_path: str | None):
         self._cookie_path = cookie_path
+        self._generating = False
 
     def get_cookies(self) -> str | None:
         return self._cookie_path
 
-    def get_cookie_info_for_ytdlp(self) -> dict[str, Any] | None: ...
+    @property
+    def generator(self):
+        class _Generator:
+            def get_state(self):
+                return None
 
-    def get_current_cookie_path(self) -> str | None: ...
+        return _Generator()
 
+    def initialize(self):
+        return None
 
-    def needs_regeneration(self, domain: str, max_age_hours: int) -> bool: ...
+    def is_ready(self) -> bool:
+        return bool(self._cookie_path)
 
-    def get_cookie_file_path(self, domain: str) -> str | None: ...
+    def is_generating(self) -> bool:
+        return self._generating
+
+    def get_state(self):
+        return None
+
+    def refresh_if_needed(self) -> bool:
+        return False
+
+    def invalidate_and_regenerate(self) -> bool:
+        return False
+
+    def cleanup(self) -> None:
+        return None
 
 
 class _CookieHandlerStub:
@@ -38,6 +59,13 @@ class _CookieHandlerStub:
             return None
         return {"cookiefile": self._cookie_path}
 
+    def set_cookie_file(self, cookie_path: str) -> bool:
+        self._cookie_path = cookie_path
+        return True
+
+    def has_valid_cookies(self) -> bool:
+        return bool(self._cookie_path)
+
 
 def test_build_auth_strategies_uses_cached_browser_winner_only(tmp_path):
     cookie_file = tmp_path / "cookies.txt"
@@ -47,7 +75,7 @@ def test_build_auth_strategies_uses_cached_browser_winner_only(tmp_path):
     )
 
     coordinator = YouTubeCookieSourceCoordinator(
-        auto_cookie_manager=_AutoCookieManagerStub(str(cookie_file)),
+        auto_cookie_manager=cast(Any, _AutoCookieManagerStub(str(cookie_file))),
         storage_dir=tmp_path,
     )
     coordinator.state.preferred_source = "browser"
@@ -72,7 +100,7 @@ def test_build_auth_strategies_deduplicates_identical_cookiefiles(tmp_path):
     )
 
     coordinator = YouTubeCookieSourceCoordinator(
-        auto_cookie_manager=_AutoCookieManagerStub(str(cookie_file)),
+        auto_cookie_manager=cast(Any, _AutoCookieManagerStub(str(cookie_file))),
         cookie_handler=_CookieHandlerStub(str(cookie_file)),
         storage_dir=tmp_path,
     )

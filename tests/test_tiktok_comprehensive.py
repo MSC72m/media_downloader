@@ -2,19 +2,18 @@
 
 import os
 import tempfile
-from unittest.mock import MagicMock, Mock, patch
 import re
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
 from src.core.config import AppConfig
 from src.core.enums import ServiceType
-from src.core.interfaces import IErrorNotifier, IFileService, IMessageQueue
 from src.handlers.tiktok_handler import TikTokHandler
 from src.services.tiktok.downloader import TikTokDownloader
 
 
-class MockFileService(IFileService):
+class MockFileService:
     """Mock file service for testing."""
 
     def ensure_directory(self, path: str) -> bool:
@@ -32,11 +31,12 @@ class MockFileService(IFileService):
 
         return Result()
 
-    def get_unique_filename(self, path: str, extension: str = "") -> str:
-        return path + extension
+    def get_unique_filename(self, directory: str, base_name: str, extension: str) -> str:
+        suffix = extension if extension.startswith(".") else f".{extension}" if extension else ""
+        return os.path.join(directory, f"{base_name}{suffix}")
 
 
-class MockErrorNotifier(IErrorNotifier):
+class MockErrorNotifier:
     """Mock error notifier for testing."""
 
     def handle_service_failure(
@@ -44,24 +44,29 @@ class MockErrorNotifier(IErrorNotifier):
         service: str,
         operation: str,
         error_message: str,
-        url: str,
-        exception: Exception | None = None,
+        url: str = "",
     ) -> None:
-        pass
+        _ = (service, operation, error_message, url)
 
     def handle_exception(
-        self, exception: Exception, context: str, service: str, url: str = ""
+        self, exception: Exception, context: str = "", service: str = ""
     ) -> None:
-        pass
+        _ = (exception, context, service)
 
     def show_error(self, title: str, message: str) -> None:
-        pass
+        _ = (title, message)
 
     def show_warning(self, title: str, message: str) -> None:
-        pass
+        _ = (title, message)
+
+    def show_info(self, title: str, message: str) -> None:
+        _ = (title, message)
+
+    def set_message_queue(self, message_queue) -> None:
+        _ = message_queue
 
 
-class MockMessageQueue(IMessageQueue):
+class MockMessageQueue:
     """Mock message queue for testing."""
 
     def post(self, message: str) -> None:
@@ -70,14 +75,17 @@ class MockMessageQueue(IMessageQueue):
     def add_message(self, message: str) -> None:
         pass
 
-    def send_message(self, message: str) -> None:
-        pass
+    def send_message(self, message: dict) -> None:
+        _ = message
 
     def clear(self) -> None:
         pass
 
     def get_messages(self) -> list[str]:
         return []
+
+    def register_handler(self, message_type: str, handler) -> None:
+        _ = (message_type, handler)
 
 
 class TestTikTokDownloader:

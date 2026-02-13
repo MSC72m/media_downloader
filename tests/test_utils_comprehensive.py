@@ -3,6 +3,7 @@
 import contextlib
 import os
 import tempfile
+from typing import Any, cast
 from unittest.mock import Mock, patch
 
 from src.services.file.sanitizer import FilenameSanitizer
@@ -177,16 +178,16 @@ class TestCommonUtilsComprehensive:
         )
         assert service.is_service_connected(ServiceType.GOOGLE) is False
 
-    @patch("src.services.network.downloader.requests.Session")
-    def test_download_file_success(self, mock_session):
+    @patch("src.services.network.downloader._is_mocked_requests_module", return_value=False)
+    @patch("src.services.network.downloader.requests")
+    def test_download_file_success(self, mock_requests, _mock_is_mocked):
         """Test successful file download."""
 
         mock_response = Mock()
-        mock_response.status_code = 200
         mock_response.headers = {"content-length": "100"}
         mock_response.iter_content.return_value = [b"test content"]
         mock_response.raise_for_status.return_value = None
-        mock_session.return_value.get.return_value = mock_response
+        mock_requests.Session.return_value.get.return_value = mock_response
 
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
             temp_path = temp_file.name
@@ -253,7 +254,7 @@ class TestWindowUtilsComprehensive:
 
     def test_window_center_mixin_creation(self):
         """Test WindowCenterMixin can be created."""
-        mixin = WindowCenterMixin()
+        mixin = cast(Any, WindowCenterMixin())
         assert mixin is not None
 
     @patch("src.utils.window.tk")
@@ -263,7 +264,7 @@ class TestWindowUtilsComprehensive:
         mock_tk.Tk = Mock
         mock_tk.Toplevel = Mock
 
-        mixin = WindowCenterMixin()
+        mixin = cast(Any, WindowCenterMixin())
 
         # Mock the window itself
         mixin.winfo_width = Mock(return_value=800)
@@ -284,7 +285,7 @@ class TestWindowUtilsComprehensive:
         mock_tk.Tk = Mock
         mock_tk.Toplevel = Mock
 
-        mixin = WindowCenterMixin()
+        mixin = cast(Any, WindowCenterMixin())
 
         # Mock the window methods
         mixin.winfo_width = Mock(return_value=800)
@@ -305,7 +306,7 @@ class TestWindowUtilsComprehensive:
         mock_tk.Tk = Mock
         mock_tk.Toplevel = Mock
 
-        mixin = WindowCenterMixin()
+        mixin = cast(Any, WindowCenterMixin())
 
         # Mock the window methods
         mixin.winfo_width = Mock(return_value=1000)
@@ -326,7 +327,7 @@ class TestWindowUtilsComprehensive:
         mock_tk.Tk = Mock
         mock_tk.Toplevel = Mock
 
-        mixin = WindowCenterMixin()
+        mixin = cast(Any, WindowCenterMixin())
 
         # Mock the window methods
         mixin.winfo_width = Mock(return_value=0)
@@ -347,7 +348,7 @@ class TestWindowUtilsComprehensive:
         mock_tk.Tk = Mock
         mock_tk.Toplevel = Mock
 
-        mixin = WindowCenterMixin()
+        mixin = cast(Any, WindowCenterMixin())
         mixin.master = None
 
         # Mock the window methods
