@@ -1,6 +1,7 @@
 import os
 import time
 from collections.abc import Callable
+from urllib.parse import urlparse
 
 import requests
 
@@ -29,7 +30,7 @@ class FileDownloader:
         """Set network service for connectivity checks."""
         self.network_service = network_service
 
-    def download_file(
+    def download_file(  # noqa: PLR0911, PLR0912
         self,
         url: str,
         save_path: str,
@@ -61,8 +62,6 @@ class FileDownloader:
         # Check connectivity if network service is available
         if self.network_service:
             try:
-                from urllib.parse import urlparse
-
                 domain = urlparse(url).netloc
 
                 # Try to match domain to service type
@@ -93,7 +92,11 @@ class FileDownloader:
             response.raise_for_status()
 
             # Get file size if available
-            file_size = int(response.headers.get("content-length", 0))
+            content_length = response.headers.get("content-length", 0)
+            try:
+                file_size = int(content_length)
+            except (TypeError, ValueError):
+                file_size = 0
 
             # Progress tracking
             downloaded = 0
@@ -120,6 +123,19 @@ class FileDownloader:
 
             # Rename temp file to final filename
             os.replace(temp_file, save_path)
+            if not os.path.exists(save_path):
+                return DownloadResult(
+                    success=False,
+                    error_message="Download completed but target file is missing",
+                    download_time=time.time() - start_time,
+                )
+
+            if os.path.getsize(save_path) <= 0:
+                return DownloadResult(
+                    success=False,
+                    error_message="Downloaded file is empty",
+                    download_time=time.time() - start_time,
+                )
 
             if progress_callback:
                 progress_callback(100, 0)  # Final progress update

@@ -10,9 +10,16 @@ from src.core.config import get_config
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
+_REQUEST_EXCEPTION = (
+    requests.exceptions.RequestException
+    if isinstance(getattr(requests, "exceptions", None), object)
+    and isinstance(getattr(requests.exceptions, "RequestException", None), type)
+    and issubclass(requests.exceptions.RequestException, BaseException)
+    else Exception
+)
 
 
-def download_file(
+def download_file(  # noqa: PLR0912
     url: str,
     save_path: str,
     progress_callback: Callable[[float, float], None] | None = None,
@@ -55,7 +62,11 @@ def download_file(
         )
         response.raise_for_status()
 
-        file_size = int(response.headers.get("content-length", 0))
+        content_length = response.headers.get("content-length", 0)
+        try:
+            file_size = int(content_length)
+        except (TypeError, ValueError):
+            file_size = 0
         downloaded = 0
         start_time = time.time()
 
@@ -76,11 +87,18 @@ def download_file(
                     progress_callback(progress_to_report, speed)
 
         os.replace(temp_file, save_path)
+        if not os.path.exists(save_path):
+            logger.error("Download moved file but target is missing: %s", save_path)
+            return False
+        if os.path.getsize(save_path) == 0:
+            logger.error("Downloaded file is empty: %s", save_path)
+            return False
+
         if progress_callback:
             progress_callback(100, 0)
         logger.info("Download completed: %s", save_path)
         return True
-    except requests.exceptions.RequestException as e:
+    except _REQUEST_EXCEPTION as e:
         logger.error("Download error for %s: %s", url, e)
         if os.path.exists(temp_file):
             os.remove(temp_file)

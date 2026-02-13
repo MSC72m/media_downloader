@@ -8,6 +8,7 @@ from src.application.service_factory import ServiceFactory
 from src.core.enums import ServiceType
 from src.core.interfaces import IErrorNotifier, IFileService
 from src.services.pinterest.downloader import PinterestDownloader
+from src.services.soundcloud.downloader import SoundCloudDownloader
 from src.services.spotify.downloader import SpotifyDownloader
 from src.services.youtube.downloader import YouTubeDownloader
 
@@ -116,6 +117,94 @@ class TestPinterestDownloader:
         )
         result = downloader.download("https://pin.it/3YtKpHT04", "/tmp/test.jpg")
         assert result is False
+
+    @patch("src.services.pinterest.downloader.check_site_connection")
+    @patch("src.services.pinterest.downloader.requests.get")
+    def test_pinterest_download_requires_real_output_file(self, mock_get, mock_check, tmp_path):
+        mock_check.return_value = (True, None)
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = (
+            b"<html><meta property='og:image' content='https://example.com/image.jpg'/></html>"
+        )
+        mock_get.return_value = mock_response
+
+        file_service = Mock()
+        file_service.ensure_directory.return_value = True
+        file_service.sanitize_filename.side_effect = lambda value: value
+
+        class Result:
+            success = True
+
+        def fake_download(url, path, progress_callback=None):
+            _ = (url, progress_callback)
+            with open(path, "wb") as handle:
+                handle.write(b"image-bytes")
+            return Result()
+
+        file_service.download_file.side_effect = fake_download
+
+        downloader = PinterestDownloader(error_handler=MockErrorNotifier(), file_service=file_service)
+        save_path = str(tmp_path / "pin_output")
+        assert downloader.download("https://pin.it/3YtKpHT04", save_path) is True
+
+    @patch("src.services.pinterest.downloader.check_site_connection")
+    @patch("src.services.pinterest.downloader.requests.get")
+    def test_pinterest_download_fails_when_result_success_but_file_missing(
+        self, mock_get, mock_check, tmp_path
+    ):
+        mock_check.return_value = (True, None)
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = (
+            b"<html><meta property='og:image' content='https://example.com/image.jpg'/></html>"
+        )
+        mock_get.return_value = mock_response
+
+        file_service = Mock()
+        file_service.ensure_directory.return_value = True
+        file_service.sanitize_filename.side_effect = lambda value: value
+
+        class Result:
+            success = True
+
+        file_service.download_file.return_value = Result()
+
+        downloader = PinterestDownloader(error_handler=MockErrorNotifier(), file_service=file_service)
+        save_path = str(tmp_path / "pin_output")
+        assert downloader.download("https://pin.it/3YtKpHT04", save_path) is False
+
+
+class TestSoundCloudDownloaderOutputVerification:
+    @patch("src.services.soundcloud.downloader.yt_dlp.YoutubeDL")
+    def test_soundcloud_download_requires_verified_output(self, mock_ydl_class, tmp_path):
+        mock_ydl = MagicMock()
+        mock_ydl.extract_info.return_value = {"title": "Track", "uploader": "Artist"}
+        mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+        mock_ydl_class.return_value.__exit__.return_value = None
+
+        downloader = SoundCloudDownloader(error_handler=MockErrorNotifier())
+        downloader._verify_download_output = Mock(return_value=False)
+
+        result = downloader.download("https://soundcloud.com/test/track", str(tmp_path / "track"))
+
+        assert result is False
+        downloader._verify_download_output.assert_called_once()
+
+    @patch("src.services.soundcloud.downloader.yt_dlp.YoutubeDL")
+    def test_soundcloud_download_succeeds_when_output_verified(self, mock_ydl_class, tmp_path):
+        mock_ydl = MagicMock()
+        mock_ydl.extract_info.return_value = {"title": "Track", "uploader": "Artist"}
+        mock_ydl_class.return_value.__enter__.return_value = mock_ydl
+        mock_ydl_class.return_value.__exit__.return_value = None
+
+        downloader = SoundCloudDownloader(error_handler=MockErrorNotifier())
+        downloader._verify_download_output = Mock(return_value=True)
+
+        result = downloader.download("https://soundcloud.com/test/track", str(tmp_path / "track"))
+
+        assert result is True
+        downloader._verify_download_output.assert_called_once()
 
 
 class TestYouTubeDownloaderFormatFallback:

@@ -1,9 +1,11 @@
 import asyncio
 import contextlib
 import json
+import random
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import Lock
+from urllib.parse import quote_plus
 
 from playwright.async_api import Browser, BrowserContext, Page, Playwright, async_playwright
 
@@ -13,6 +15,20 @@ from src.utils.logger import get_logger
 from src.utils.user_agent_rotator import get_random_user_agent
 
 logger = get_logger(__name__)
+
+_YOUTUBE_WARMUP_SEARCH_TOPICS = [
+    "coding tutorial",
+    "lofi music",
+    "travel vlog",
+    "productivity tips",
+    "python async",
+    "science documentary",
+]
+_YOUTUBE_WARMUP_FALLBACK_VIDEOS = [
+    "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+    "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    "https://www.youtube.com/watch?v=aqz-KE-bpKQ",
+]
 
 
 class CookieGenerator:
@@ -133,15 +149,95 @@ class CookieGenerator:
             logger.error(f"[COOKIE_GENERATOR] {error_msg}")
             return None
 
+    async def _wait_for_network_idle(self, page: Page) -> None:
+        """Best-effort wait for network idle."""
+        try:
+            await page.wait_for_load_state(
+                "networkidle",
+                timeout=int(self.config.cookies.wait_for_network_idle * 1000),
+            )
+        except Exception:
+            logger.debug("[COOKIE_GENERATOR] Network idle timeout, continuing")
+
+    async def _scroll_page(self, page: Page) -> None:
+        """Best-effort scroll interactions to emulate user activity."""
+        try:
+            await page.evaluate("() => window.scrollTo(0, 350)")
+            await asyncio.sleep(self.config.cookies.scroll_delay)
+            await page.evaluate("() => window.scrollTo(0, 900)")
+            await asyncio.sleep(self.config.cookies.scroll_delay)
+            await page.evaluate("() => window.scrollTo(0, 0)")
+            await asyncio.sleep(self.config.cookies.scroll_delay)
+        except Exception:
+            logger.debug("[COOKIE_GENERATOR] Scroll interaction failed, continuing")
+
+    async def _accept_consent_if_present(self, page: Page) -> None:
+        """Attempt to accept YouTube/Google consent dialogs when visible."""
+        selectors = [
+            "button:has-text('Accept all')",
+            "button:has-text('I agree')",
+            "button:has-text('Reject all')",
+            "form button",
+        ]
+        for selector in selectors:
+            with contextlib.suppress(Exception):
+                locator = page.locator(selector).first
+                if await locator.count() > 0:
+                    await locator.click(timeout=1500)
+                    await asyncio.sleep(self.config.cookies.wait_after_load)
+                    logger.info("[COOKIE_GENERATOR] Consent dialog handled")
+                    return
+
+    async def _collect_search_video_urls(self, page: Page, limit: int = 6) -> list[str]:
+        """Collect up to `limit` watch URLs from a YouTube search page."""
+        try:
+            hrefs = await page.eval_on_selector_all(
+                "a#video-title",
+                f"""(els) => els
+                    .slice(0, {limit * 2})
+                    .map((e) => e.getAttribute('href'))
+                    .filter((href) => typeof href === 'string' && href.startsWith('/watch'))""",
+            )
+        except Exception:
+            return []
+
+        urls: list[str] = []
+        for href in hrefs:
+            if not isinstance(href, str):
+                continue
+            full_url = f"https://www.youtube.com{href}"
+            if full_url not in urls:
+                urls.append(full_url)
+            if len(urls) >= limit:
+                break
+        return urls
+
+    async def _watch_video_page(self, page: Page, video_url: str) -> bool:
+        """Open a video page and simulate short viewing behavior."""
+        cookie_config = self.config.cookies
+        try:
+            await page.goto(
+                video_url,
+                wait_until="domcontentloaded",
+                timeout=cookie_config.generation_timeout * 1000,
+            )
+        except Exception as video_error:
+            logger.warning(
+                f"[COOKIE_GENERATOR] Failed to load video page {video_url}: {video_error}"
+            )
+            return False
+
+        logger.info(f"[COOKIE_GENERATOR] Watching video page: {video_url}")
+        await asyncio.sleep(cookie_config.wait_after_load * 1.5)
+        await self._wait_for_network_idle(page)
+        await self._scroll_page(page)
+
+        watch_seconds = random.uniform(4.0, 8.0)
+        await asyncio.sleep(watch_seconds)
+        return True
+
     async def _navigate_and_interact(self, page: Page) -> bool:
-        """Navigate to YouTube and perform interactions.
-
-        Args:
-            page: Page instance
-
-        Returns:
-            True if navigation succeeded, False otherwise
-        """
+        """Navigate to YouTube, warm up session state, then persist cookies."""
         cookie_config = self.config.cookies
 
         try:
@@ -153,58 +249,51 @@ class CookieGenerator:
             logger.info("[COOKIE_GENERATOR] YouTube homepage loaded")
 
             await asyncio.sleep(cookie_config.wait_after_load)
+            await self._wait_for_network_idle(page)
+            await self._accept_consent_if_present(page)
+            await self._scroll_page(page)
 
-            try:
-                await page.wait_for_load_state(
-                    "networkidle",
-                    timeout=int(cookie_config.wait_for_network_idle * 1000),
+            topics = random.sample(
+                _YOUTUBE_WARMUP_SEARCH_TOPICS,
+                k=min(3, len(_YOUTUBE_WARMUP_SEARCH_TOPICS)),
+            )
+            discovered_videos: list[str] = []
+
+            for topic in topics:
+                search_url = (
+                    "https://www.youtube.com/results?"
+                    f"search_query={quote_plus(topic)}&sp=EgIQAQ%253D%253D"
                 )
-            except Exception:
-                logger.debug("[COOKIE_GENERATOR] Network idle timeout, continuing")
-
-            await asyncio.sleep(cookie_config.wait_after_load)
-
-            try:
-                await page.evaluate("() => window.scrollTo(0, 300)")
-                await asyncio.sleep(cookie_config.scroll_delay)
-                await page.evaluate("() => window.scrollTo(0, 0)")
-                await asyncio.sleep(cookie_config.scroll_delay)
-            except Exception:
-                logger.debug("[COOKIE_GENERATOR] Scroll interaction failed, continuing")
-
-            test_video_url = "https://www.youtube.com/watch?v=jNQXAC9IVRw"
-            logger.info(f"[COOKIE_GENERATOR] Navigating to video page: {test_video_url}")
-
-            try:
-                await page.goto(
-                    test_video_url,
-                    wait_until="domcontentloaded",
-                    timeout=cookie_config.generation_timeout * 1000,
-                )
-                logger.info("[COOKIE_GENERATOR] Video page loaded successfully")
-
-                await asyncio.sleep(cookie_config.wait_after_load * 2)
-
+                logger.info(f"[COOKIE_GENERATOR] Performing warm-up search: {topic}")
                 try:
-                    await page.wait_for_load_state(
-                        "networkidle",
-                        timeout=int(cookie_config.wait_for_network_idle * 1000),
+                    await page.goto(
+                        search_url,
+                        wait_until="domcontentloaded",
+                        timeout=cookie_config.generation_timeout * 1000,
                     )
-                except Exception:
-                    logger.debug("[COOKIE_GENERATOR] Video page network idle timeout, continuing")
+                except Exception as search_error:
+                    logger.debug(
+                        f"[COOKIE_GENERATOR] Search navigation failed for '{topic}': {search_error}"
+                    )
+                    continue
 
-                await page.evaluate("() => window.scrollTo(0, 200)")
-                await asyncio.sleep(cookie_config.scroll_delay)
-                await page.evaluate("() => window.scrollTo(0, 0)")
-                await asyncio.sleep(cookie_config.scroll_delay)
+                await asyncio.sleep(cookie_config.wait_after_load)
+                await self._wait_for_network_idle(page)
+                await self._scroll_page(page)
+                for video_url in await self._collect_search_video_urls(page):
+                    if video_url not in discovered_videos:
+                        discovered_videos.append(video_url)
 
-                logger.info("[COOKIE_GENERATOR] Video page interactions completed")
-            except Exception as video_error:
-                logger.warning(
-                    f"[COOKIE_GENERATOR] Failed to navigate to video page: {video_error}, "
-                    "continuing with homepage cookies"
-                )
+            watched_count = 0
+            candidate_videos = discovered_videos[:3] + _YOUTUBE_WARMUP_FALLBACK_VIDEOS
+            for video_url in candidate_videos:
+                if watched_count >= 3:
+                    break
+                if not await self._watch_video_page(page, video_url):
+                    continue
+                watched_count += 1
 
+            logger.info(f"[COOKIE_GENERATOR] Warm-up complete. Videos watched: {watched_count}")
             await asyncio.sleep(cookie_config.wait_after_load)
             return True
 

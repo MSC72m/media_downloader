@@ -5,6 +5,8 @@ import requests
 
 from src.core.config import AppConfig, get_config
 from src.core.interfaces import (
+    IAutoCookieManager,
+    ICookieHandler,
     IErrorNotifier,
     IYouTubeMetadataService,
     SubtitleInfo,
@@ -26,14 +28,24 @@ class YouTubeMetadataService(IYouTubeMetadataService):
     def __init__(
         self,
         error_handler: IErrorNotifier | None = None,
+        auto_cookie_manager: IAutoCookieManager | None = None,
+        cookie_handler: ICookieHandler | None = None,
         config: AppConfig = get_config(),
     ):
         self.config = config
         self.error_handler = error_handler
-        self.info_extractor = YouTubeInfoExtractor(error_handler=error_handler, config=config)
+        self.info_extractor = YouTubeInfoExtractor(
+            error_handler=error_handler,
+            auto_cookie_manager=auto_cookie_manager,
+            cookie_handler=cookie_handler,
+            config=config,
+        )
         self.metadata_parser = YouTubeMetadataParser(config=config)
         self.subtitle_extractor = YouTubeSubtitleExtractor(
-            error_handler=error_handler, config=config
+            error_handler=error_handler,
+            auto_cookie_manager=auto_cookie_manager,
+            cookie_handler=cookie_handler,
+            config=config,
         )
 
     def fetch_metadata(

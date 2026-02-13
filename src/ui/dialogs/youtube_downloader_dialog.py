@@ -1,13 +1,15 @@
+import contextlib
 import io
 import re
 import threading
 import time
+import traceback
 from collections.abc import Callable
 from typing import Any
 
 import customtkinter as ctk
 import PIL.Image
-import PIL.ImageTk
+import requests
 
 from src.core.config import AppConfig, get_config
 from src.core.enums.message_level import MessageLevel
@@ -74,8 +76,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             self.center_window()
         except Exception as e:
             logger.warning(f"Could not center window: {e}")
-            import contextlib
-
             with contextlib.suppress(Exception):
                 self.geometry("700x900")
 
@@ -790,8 +790,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         except Exception as e:
             logger.error(f"Error in add to downloads: {e}")
-            import traceback
-
             traceback.print_exc()
             if hasattr(self, "add_button"):
                 self.add_button.configure(state="normal")
@@ -850,8 +848,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         except Exception as e:
             logger.error(f"Error processing add to downloads: {e}")
-            import traceback
-
             traceback.print_exc()
         finally:
             if self.winfo_exists() and hasattr(self, "add_button"):
@@ -877,15 +873,17 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         logger.debug(f"[YOUTUBE_DIALOG] Adding thumbnail preview from: {thumbnail_url}")
 
         try:
-            import requests
-
             response = requests.get(thumbnail_url, timeout=10)
             response.raise_for_status()
 
             image = PIL.Image.open(io.BytesIO(response.content))
             image.thumbnail((320, 180))
 
-            photo = PIL.ImageTk.PhotoImage(image)
+            ctk_image = ctk.CTkImage(
+                light_image=image,
+                dark_image=image,
+                size=image.size,
+            )
 
             thumbnail_outer_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
             thumbnail_outer_frame.pack(fill="x", pady=(0, 20))
@@ -901,12 +899,12 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
             thumbnail_label = ctk.CTkLabel(
                 thumbnail_container,
-                image=photo,
+                image=ctk_image,
                 text="",
             )
             thumbnail_label.pack(padx=10, pady=10)
-            thumbnail_label.image = photo
-            self._thumbnail_photo = photo
+            thumbnail_label.image = ctk_image
+            self._thumbnail_ctk_image = ctk_image
 
             logger.debug("[YOUTUBE_DIALOG] Thumbnail preview added successfully")
 

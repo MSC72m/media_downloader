@@ -20,13 +20,15 @@ class ServiceFactory:
     def __init__(
         self,
         cookie_handler=None,
+        cookie_manager=None,
         auto_cookie_manager=None,
         error_handler: IErrorNotifier | None = None,
         instagram_auth_manager: InstagramAuthManager | None = None,
         file_service: IFileService | None = None,
         config: AppConfig = get_config(),
     ):
-        self.cookie_handler = cookie_handler
+        # Backward-compat: `cookie_manager` maps to legacy manual cookie handler dependency.
+        self.cookie_handler = cookie_handler if cookie_handler is not None else cookie_manager
         self.auto_cookie_manager = auto_cookie_manager
         self.error_handler = error_handler
         self.instagram_auth_manager = instagram_auth_manager
@@ -36,6 +38,10 @@ class ServiceFactory:
         logger.info("[SERVICE_FACTORY] Initialized")
 
     def get_cookie_handler(self):
+        return self.cookie_handler
+
+    def get_cookie_manager(self):
+        """Backward-compatible alias for older tests/callers."""
         return self.cookie_handler
 
     def get_auto_cookie_manager(self):
@@ -83,6 +89,8 @@ class ServiceFactory:
                 cookie_handler=self.cookie_handler,
                 auto_cookie_manager=self.auto_cookie_manager,
                 error_handler=self.error_handler,
+                file_service=self.file_service,
+                config=self.config,
             ),
             ServiceType.TWITTER: lambda: TwitterDownloader(
                 error_handler=self.error_handler,

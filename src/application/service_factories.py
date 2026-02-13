@@ -18,8 +18,12 @@ from src.core.interfaces import (
 )
 from src.handlers.cookie_handler import CookieHandler
 from src.handlers.download_handler import DownloadHandler
+from src.handlers.network_checker import NetworkChecker
 from src.services.instagram import InstagramAuthManager
 from src.services.youtube.metadata_service import YouTubeMetadataService
+from src.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class ServiceFactoryRegistry:
@@ -41,9 +45,6 @@ class ServiceFactoryRegistry:
             module = __import__(module_path, fromlist=[module_path.rsplit(".", 1)[0]])
             return getattr(module, class_name)
         except Exception as e:
-            from src.utils.logger import get_logger
-
-            logger = get_logger(__name__)
             logger.error(f"Failed to import {class_name} from {module_path}: {e}")
             return None
 
@@ -61,9 +62,6 @@ class ServiceFactoryRegistry:
             module = __import__(module_path, fromlist=[module_path.rsplit(".", 1)[0]])
             return getattr(module, class_name)
         except Exception as e:
-            from src.utils.logger import get_logger
-
-            logger = get_logger(__name__)
             logger.error(f"Failed to import {class_name} from {module_path}: {e}")
             return None
 
@@ -80,9 +78,6 @@ class ServiceFactoryRegistry:
         service_config = getattr(config.services, service_type, None)
 
         if not service_config:
-            from src.utils.logger import get_logger
-
-            logger = get_logger(__name__)
             logger.error(f"No service configuration found for: {service_type}")
             return None
 
@@ -113,9 +108,6 @@ class ServiceFactoryRegistry:
         service_config = getattr(config.services, service_type, None)
 
         if not service_config:
-            from src.utils.logger import get_logger
-
-            logger = get_logger(__name__)
             logger.error(f"No service configuration found for: {service_type}")
             return None
 
@@ -186,15 +178,17 @@ class ServiceFactoryRegistry:
         """Create metadata service."""
         return YouTubeMetadataService(
             error_handler=self.container.get_optional(IErrorNotifier),
+            auto_cookie_manager=self.container.get_optional(IAutoCookieManager),
+            cookie_handler=self.container.get_optional(ICookieHandler),
             config=self.container.get(AppConfig),
         )
 
     def create_network_checker(self) -> INetworkChecker:
         """Create network checker or mock."""
-        from src.handlers.network_checker import NetworkChecker
-
         checker = self.container.get_optional(NetworkChecker)
-        return checker if checker else MockINetworkChecker()
+        if checker:
+            return checker
+        return NetworkChecker(error_handler=self.container.get_optional(IErrorNotifier))
 
     def create_service_factory(self) -> ServiceFactory:
         """Create service factory instance."""

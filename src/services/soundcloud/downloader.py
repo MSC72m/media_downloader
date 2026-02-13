@@ -1,6 +1,7 @@
 import os
 import re
 from collections.abc import Callable
+from glob import glob
 from typing import Any
 
 import yt_dlp
@@ -211,7 +212,16 @@ class SoundCloudDownloader(BaseDownloader):
                     logger.info(f"[SOUNDCLOUD_DOWNLOADER] Downloaded: {info['title']}")
                 if "uploader" in info:
                     logger.info(f"[SOUNDCLOUD_DOWNLOADER] Artist: {info['uploader']}")
-                return True
+                if self._verify_download_output(save_path):
+                    return True
+
+                error_msg = "Download finished but output file is missing or empty"
+                logger.error(f"[SOUNDCLOUD_DOWNLOADER] {error_msg}")
+                if self.error_handler:
+                    self.error_handler.handle_service_failure(
+                        "SoundCloud", "download", error_msg, url
+                    )
+                return False
 
         except Exception as e:
             return self._handle_download_exception(e, url)
@@ -252,6 +262,48 @@ class SoundCloudDownloader(BaseDownloader):
         if self.error_handler:
             self.error_handler.handle_exception(e, "SoundCloud download", "SoundCloud")
         return False
+
+    def _verify_download_output(self, save_path: str) -> bool:
+        """Verify that download produced a non-empty primary media file."""
+        output_candidates = [path for path in glob(f"{save_path}.*") if os.path.isfile(path)]
+        output_candidates.sort(key=os.path.getmtime, reverse=True)
+
+        for path in output_candidates:
+            if self._is_auxiliary_output_file(path):
+                continue
+
+            file_size = os.path.getsize(path)
+            if file_size <= 0:
+                continue
+
+            logger.info(
+                "[SOUNDCLOUD_DOWNLOADER] Download verified: %s (%d bytes)",
+                path,
+                file_size,
+            )
+            return True
+
+        return False
+
+    @staticmethod
+    def _is_auxiliary_output_file(path: str) -> bool:
+        lowered = path.lower()
+        if lowered.endswith((".info.json", ".description")):
+            return True
+        auxiliary_suffixes = {
+            ".part",
+            ".temp",
+            ".ytdl",
+            ".json",
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp",
+            ".vtt",
+            ".srt",
+            ".ass",
+        }
+        return any(lowered.endswith(suffix) for suffix in auxiliary_suffixes)
 
     def download(
         self,

@@ -1,6 +1,7 @@
 """YouTube downloader service implementation."""
 
 import copy
+import glob
 import os
 import shutil
 import time
@@ -9,12 +10,15 @@ from typing import Any
 
 import yt_dlp
 
+from src.core.config import AppConfig, get_config
+from src.services.cookies import YouTubeCookieSourceCoordinator
 from src.services.network.checker import check_site_connection
 from src.utils.logger import get_logger
 
 from ...core.enums import ServiceType
 from ...core.interfaces import BaseDownloader, IAutoCookieManager, ICookieHandler
 from ..file.sanitizer import FilenameSanitizer
+from .error_handler import YouTubeErrorBucket, YouTubeErrorHandler
 from .metadata_service import YouTubeMetadataService
 
 logger = get_logger(__name__)
@@ -23,10 +27,11 @@ logger = get_logger(__name__)
 class YouTubeDownloader(BaseDownloader):
     """YouTube downloader service with cookie support.
 
-    Cookie priority:
-        1. auto_cookie_manager (Playwright-generated or managed cookies)
-        2. cookie_handler (manual cookie file from user)
-        3. Browser cookies fallback (--cookies-from-browser chrome)
+    Source priority:
+        1. Browser cookies (probed + cached)
+        2. Manual cookie file (explicit override)
+        3. Generated guest cookies (fallback)
+        4. No cookies (last resort)
     """
 
     def __init__(
@@ -44,7 +49,11 @@ class YouTubeDownloader(BaseDownloader):
         embed_metadata: bool = True,
         speed_limit: int | None = None,
         retries: int = 3,
+        error_handler: Any | None = None,
+        file_service: Any | None = None,
+        config: AppConfig = get_config(),
     ):
+        super().__init__(error_handler=error_handler, file_service=file_service, config=config)
         self.quality = quality
         self.download_playlist = download_playlist
         self.audio_only = audio_only
@@ -58,7 +67,19 @@ class YouTubeDownloader(BaseDownloader):
         self.embed_metadata = embed_metadata
         self.speed_limit = speed_limit
         self.retries = retries
-        self.metadata_service = YouTubeMetadataService()
+        self.metadata_service = YouTubeMetadataService(
+            error_handler=error_handler,
+            auto_cookie_manager=auto_cookie_manager,
+            cookie_handler=cookie_handler,
+            config=config,
+        )
+        self.cookie_source_coordinator = YouTubeCookieSourceCoordinator(
+            auto_cookie_manager=self.auto_cookie_manager,
+            cookie_handler=self.cookie_handler,
+            config=config,
+        )
+        self.youtube_error_handler = YouTubeErrorHandler(error_handler=error_handler)
+        self._last_download_error_message: str | None = None
         self.ytdl_opts = self._get_simple_ytdl_options()
 
     def _get_simple_ytdl_options(self) -> dict[str, Any]:
@@ -123,63 +144,20 @@ class YouTubeDownloader(BaseDownloader):
             }
         )
 
-    def _resolve_auto_cookie_path(self) -> str | None:
-        """Resolve auto-managed cookie path, if available."""
-        if self.auto_cookie_manager:
-            try:
-                if self.auto_cookie_manager.is_ready():
-                    cookie_path = self.auto_cookie_manager.get_cookies()
-                    if cookie_path:
-                        logger.info(
-                            f"[YOUTUBE_DOWNLOADER] Using auto-managed cookies: {cookie_path}"
-                        )
-                        return cookie_path
-                elif self.auto_cookie_manager.is_generating():
-                    logger.warning("[YOUTUBE_DOWNLOADER] Cookies are still generating")
-            except Exception as e:
-                logger.error(f"[YOUTUBE_DOWNLOADER] Error getting auto-managed cookies: {e}")
-        return None
-
-    def _resolve_manual_cookie_path(self) -> str | None:
-        """Resolve user-provided manual cookie path, if available."""
-        if self.cookie_handler and self.cookie_handler.has_valid_cookies():
-            cookie_info = self.cookie_handler.get_cookie_info_for_ytdlp()
-            if cookie_info and "cookiefile" in cookie_info:
-                logger.info(
-                    f"[YOUTUBE_DOWNLOADER] Using manual cookie file: {cookie_info['cookiefile']}"
-                )
-                return cookie_info["cookiefile"]
-        return None
-
     def _build_auth_strategies(self) -> list[tuple[str, dict[str, Any]]]:
-        """Build ordered auth strategies for YouTube access.
+        """Build ordered auth strategies for YouTube access."""
+        strategies = self.cookie_source_coordinator.build_auth_strategies()
+        return [(strategy.label, strategy.ytdlp_options) for strategy in strategies]
 
-        Order favors managed cookies first, then public/no-cookie access, then browser cookies.
-        """
-        strategies: list[tuple[str, dict[str, Any]]] = []
-
-        auto_cookie = self._resolve_auto_cookie_path()
-        if auto_cookie:
-            strategies.append(("auto-cookie-file", {"cookiefile": auto_cookie}))
-
-        manual_cookie = self._resolve_manual_cookie_path()
-        if manual_cookie and manual_cookie != auto_cookie:
-            strategies.append(("manual-cookie-file", {"cookiefile": manual_cookie}))
-
-        strategies.append(("no-cookies", {}))
-        strategies.append(("browser-cookies-chrome", {"cookiesfrombrowser": ("chrome",)}))
-
-        return strategies
-
-    def _prepare_format_options(self, opts: dict[str, Any], output_template: str) -> str:
-        """Configure format selection options and return expected file extension.
+    def _prepare_format_options(self, opts: dict[str, Any], output_template: str) -> str | None:
+        """Configure format selection options and return a preferred output extension hint.
 
         Args:
             opts: yt-dlp options dict (modified in-place)
             output_template: Base output path without extension
 
         Returns:
-            File extension string (e.g. ".mp4", ".mp3")
+            Preferred extension hint (e.g. ".mp4", ".mp3"), or None.
         """
         if self.format == "audio" or self.audio_only:
             opts["format"] = "bestaudio/best"
@@ -197,8 +175,8 @@ class YouTubeDownloader(BaseDownloader):
 
         if self.format == "video_only" or self.video_only:
             opts["format"] = "bestvideo"
-            opts["outtmpl"] = {"default": output_template + ".mp4"}
-            return ".mp4"
+            opts["outtmpl"] = {"default": output_template}
+            return None
 
         # Default: video + audio
         format_map = {"highest": "best", "lowest": "worst"}
@@ -216,7 +194,8 @@ class YouTubeDownloader(BaseDownloader):
         else:
             opts["format"] = "best"
 
-        opts["outtmpl"] = {"default": output_template + ".mp4"}
+        opts["outtmpl"] = {"default": output_template}
+        opts["merge_output_format"] = "mp4"
         return ".mp4"
 
     def _attempt_download(
@@ -230,21 +209,37 @@ class YouTubeDownloader(BaseDownloader):
 
         Returns True on success, False on failure.
         """
+        self._last_download_error_message = None
+
         for attempt in range(max_retries):
             try:
                 with yt_dlp.YoutubeDL(opts) as ydl:  # type: ignore
                     info = ydl.extract_info(url, download=True)
                     if not info:
                         logger.error("No video information extracted from YouTube")
+                        self._last_download_error_message = "No video information extracted"
                         return False
                     return True
 
             except Exception as e:
                 error_msg = str(e)
+                self._last_download_error_message = error_msg
 
                 if "DownloadError" not in str(type(e).__name__):
                     logger.error(f"Error downloading from YouTube: {error_msg}")
                     self._log_specific_error(error_msg)
+                    return False
+
+                bucket = self.youtube_error_handler.classify_ytdlp_error(error_msg)
+                if bucket in {
+                    YouTubeErrorBucket.BROWSER_UNAVAILABLE,
+                    YouTubeErrorBucket.KEYCHAIN,
+                    YouTubeErrorBucket.LOGIN_REQUIRED,
+                }:
+                    logger.warning(
+                        "[YOUTUBE_DOWNLOADER] Non-retryable auth/source error for current strategy "
+                        f"(bucket={bucket.value}): {error_msg[:220]}"
+                    )
                     return False
 
                 logger.warning(
@@ -276,13 +271,15 @@ class YouTubeDownloader(BaseDownloader):
         url: str,
     ) -> bool:
         """Dispatch error handling by type. Returns True to retry."""
-        if error_type == "rate_limit":
-            return self._handle_rate_limit_error(attempt, retry_wait)
-        if error_type == "network":
-            return self._handle_network_error(attempt, max_retries, retry_wait, error_msg)
-        if error_type == "format":
-            return self._handle_format_error(attempt, opts, url)
-        return False
+        match error_type:
+            case "rate_limit":
+                return self._handle_rate_limit_error(attempt, retry_wait)
+            case "network":
+                return self._handle_network_error(attempt, max_retries, retry_wait, error_msg)
+            case "format":
+                return self._handle_format_error(attempt, opts, url)
+            case _:
+                return False
 
     def download(
         self,
@@ -316,8 +313,10 @@ class YouTubeDownloader(BaseDownloader):
             output_template = os.path.join(save_dir, sanitized_name)
 
             opts = self.ytdl_opts.copy()
-            ext = self._prepare_format_options(opts, output_template)
-            expected_output_path = output_template + ext
+            preferred_ext = self._prepare_format_options(opts, output_template)
+            expected_output_path = (
+                f"{output_template}{preferred_ext}" if preferred_ext else output_template
+            )
 
             if progress_callback:
                 opts["progress_hooks"] = [self._create_progress_hook(progress_callback)]
@@ -343,49 +342,84 @@ class YouTubeDownloader(BaseDownloader):
                     retry_wait=3,
                 )
                 if download_successful:
-                    return self._verify_download_completion(expected_output_path)
+                    return self._verify_download_completion(output_template, preferred_ext)
 
                 logger.warning(f"[YOUTUBE_DOWNLOADER] Strategy failed: {label}")
+                bucket = self.youtube_error_handler.classify_ytdlp_error(
+                    self._last_download_error_message or ""
+                )
+                should_continue = self._should_continue_auth_fallback(bucket)
+                if not should_continue:
+                    logger.warning(
+                        "[YOUTUBE_DOWNLOADER] Stopping auth fallback chain after "
+                        f"{label} due to error bucket: {bucket.value}"
+                    )
+                    return False
             return False
 
         except Exception as e:
             logger.error(f"Unexpected error downloading from YouTube: {e!s}", exc_info=True)
             return False
 
-    def _verify_download_completion(self, output_path: str) -> bool:
-        """Verify that the download actually completed successfully."""
-        logger.info(f"[VERIFICATION] Checking if download completed: {output_path}")
+    def _verify_download_completion(
+        self,
+        output_template: str,
+        preferred_ext: str | None = None,
+    ) -> bool:
+        """Verify that the download completed and produced a primary media file."""
+        preferred_path = f"{output_template}{preferred_ext}" if preferred_ext else output_template
+        logger.info(f"[VERIFICATION] Checking if download completed: {preferred_path}")
 
-        # Check if the expected file exists
-        if not os.path.exists(output_path):
-            logger.error(f"[VERIFICATION] Expected file does not exist: {output_path}")
+        candidates: list[str] = []
+        if preferred_ext:
+            candidates.append(preferred_path)
+        candidates.append(output_template)
 
-            # Check for .part file (incomplete download)
-            part_file = output_path + ".part"
+        discovered = [path for path in glob.glob(f"{output_template}.*") if os.path.isfile(path)]
+        discovered.sort(key=os.path.getmtime, reverse=True)
+        candidates.extend(discovered)
+
+        # Preserve order while deduplicating.
+        unique_candidates: list[str] = []
+        seen: set[str] = set()
+        for path in candidates:
+            if path in seen:
+                continue
+            seen.add(path)
+            unique_candidates.append(path)
+
+        for output_path in unique_candidates:
+            if not os.path.exists(output_path):
+                continue
+
+            if self._is_auxiliary_output_file(output_path):
+                continue
+
+            file_size = os.path.getsize(output_path)
+            if file_size == 0:
+                logger.error(f"[VERIFICATION] Output file is empty: {output_path}")
+                continue
+
+            logger.info(
+                f"[VERIFICATION] Download verified successfully: {output_path} ({file_size} bytes)"
+            )
+            return True
+
+        part_candidates = [f"{output_template}.part", *glob.glob(f"{output_template}.*.part")]
+        for part_file in part_candidates:
             if os.path.exists(part_file):
                 logger.error(f"[VERIFICATION] Found incomplete .part file: {part_file}")
                 logger.error("[VERIFICATION] Download was interrupted or failed")
                 return False
 
-            # Check for .temp file
-            temp_file = output_path + ".temp"
+        temp_candidates = [f"{output_template}.temp", *glob.glob(f"{output_template}.*.temp")]
+        for temp_file in temp_candidates:
             if os.path.exists(temp_file):
                 logger.error(f"[VERIFICATION] Found incomplete .temp file: {temp_file}")
                 return False
 
-            logger.error("[VERIFICATION] No output file or partial file found")
-            return False
-
-        # Check file size (should be > 0)
-        file_size = os.path.getsize(output_path)
-        if file_size == 0:
-            logger.error(f"[VERIFICATION] Output file is empty: {output_path}")
-            return False
-
-        logger.info(
-            f"[VERIFICATION] Download verified successfully: {output_path} ({file_size} bytes)"
-        )
-        return True
+        logger.error("[VERIFICATION] No media output file found after download")
+        return False
 
     def _classify_download_error(self, error_msg: str) -> str:
         """Classify the type of download error using pattern matching."""
@@ -405,6 +439,45 @@ class YouTubeDownloader(BaseDownloader):
                 return error_type
 
         return "other"
+
+    @staticmethod
+    def _should_continue_auth_fallback(bucket: YouTubeErrorBucket) -> bool:
+        """Route fallback behavior by normalized error bucket."""
+        match bucket:
+            case (
+                YouTubeErrorBucket.LOGIN_REQUIRED
+                | YouTubeErrorBucket.BROWSER_UNAVAILABLE
+                | YouTubeErrorBucket.KEYCHAIN
+            ):
+                return True
+            case YouTubeErrorBucket.NETWORK:
+                return True
+            case YouTubeErrorBucket.FORMAT:
+                return False
+            case YouTubeErrorBucket.OTHER:
+                return True
+
+    @staticmethod
+    def _is_auxiliary_output_file(path: str) -> bool:
+        """Return True when file is likely not the primary media output."""
+        lowered = path.lower()
+        if lowered.endswith((".info.json", ".description")):
+            return True
+
+        auxiliary_suffixes = {
+            ".part",
+            ".temp",
+            ".ytdl",
+            ".json",
+            ".webp",
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".vtt",
+            ".srt",
+            ".ass",
+        }
+        return any(lowered.endswith(suffix) for suffix in auxiliary_suffixes)
 
     def _handle_rate_limit_error(self, attempt: int, retry_wait: int) -> bool:
         """Handle rate limit error. Returns True to continue retrying."""

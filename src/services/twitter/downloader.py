@@ -6,6 +6,7 @@ from typing import Any
 
 import requests
 
+from src.core.config import get_config
 from src.core.interfaces import BaseDownloader, IErrorNotifier, IFileService
 
 from ...core.enums import ServiceType
@@ -30,10 +31,8 @@ class TwitterDownloader(BaseDownloader):
             file_service: Optional file service for file operations
             config: AppConfig instance (defaults to get_config() if None)
         """
-        from src.core.config import get_config as _get_config
-
         if config is None:
-            config = _get_config()
+            config = get_config()
         super().__init__(error_handler, file_service, config)
         if not self.file_service:
             self.file_service = FileService()
@@ -357,10 +356,14 @@ class TwitterDownloader(BaseDownloader):
 
                 full_path = os.path.join(os.path.dirname(save_path), filename)
 
-                file_service = FileService()
+                file_service = self.file_service if self.file_service else FileService()
                 result = file_service.download_file(url, full_path, progress_callback)
-                if result.success:
+                if result.success and os.path.exists(full_path) and os.path.getsize(full_path) > 0:
                     success = True
+                elif result.success:
+                    logger.warning(
+                        f"[TWITTER_DOWNLOADER] Download reported success but file is missing/empty: {full_path}"
+                    )
             except Exception as e:
                 logger.error(f"Error downloading media item {i}: {e!s}", exc_info=True)
                 if self.error_handler:

@@ -1,5 +1,6 @@
 import re
 from collections.abc import Callable
+from difflib import SequenceMatcher
 from typing import TYPE_CHECKING, Any
 
 import requests
@@ -10,6 +11,7 @@ from src.core.config import AppConfig, get_config
 from src.core.interfaces import BaseDownloader, IErrorNotifier, IFileService
 
 from ...utils.logger import get_logger
+from ..youtube.downloader import YouTubeDownloader
 
 if TYPE_CHECKING:
     pass
@@ -287,8 +289,6 @@ class SpotifyDownloader(BaseDownloader):
         Returns:
             Similarity score (0.0 to 1.0)
         """
-        from difflib import SequenceMatcher
-
         spotify_lower = spotify_track.lower()
         youtube_lower = youtube_title.lower()
 
@@ -445,13 +445,14 @@ class SpotifyDownloader(BaseDownloader):
         )
 
         try:
-            from src.services.youtube.downloader import YouTubeDownloader
-
             yt_downloader = YouTubeDownloader(
                 quality="lowest",
                 audio_only=True,
                 download_thumbnail=False,
                 embed_metadata=True,
+                error_handler=self.error_handler,
+                file_service=self.file_service,
+                config=self.config,
             )
             return yt_downloader.download(youtube_url, save_path, progress_callback)
         except Exception as e:

@@ -3,12 +3,18 @@ import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import Lock
+from typing import Any
 
 from src.core.config import AppConfig, get_config
 from src.core.models import CookieState
 from src.utils.logger import get_logger
 
 from .cookie_generator import CookieGenerator
+from .youtube_cookie_sources import (
+    YOUTUBE_STRICT_PROBE_URLS,
+    YouTubeCookieSourceCoordinator,
+    probe_youtube_cookie_file,
+)
 
 logger = get_logger(__name__)
 
@@ -25,6 +31,8 @@ class CookieManager:
         self._state: CookieState | None = None
         self._lock = Lock()
         self._initialization_complete = False
+        self._strict_probe_retry_count = 2
+        self._strict_probe_backoff_seconds = 1.5
 
     def initialize(self) -> CookieState:
         """Initialize cookie manager - load or generate cookies.
@@ -131,6 +139,11 @@ class CookieManager:
             if self._state:
                 return self._state
             return CookieState(is_valid=False, is_generating=False)
+
+    def get_cookie_file_path(self, domain: str | None = None) -> str | None:
+        """Compatibility helper for callers expecting domain-based cookie path."""
+        _ = domain
+        return self.get_cookies()
 
     def refresh_if_needed(self) -> bool:
         """Check if cookies need refresh and regenerate if necessary.
@@ -356,15 +369,111 @@ class CookieManager:
         )
         self._save_state(generating_state)
 
-        # Generate cookies
-        new_state = await self.generator.generate_cookies()
+        max_attempts = self._strict_probe_retry_count + 1
+        last_state = CookieState(is_valid=False, is_generating=False)
 
-        # Save new state
-        self._save_state(new_state)
+        for attempt in range(1, max_attempts + 1):
+            new_state = await self.generator.generate_cookies()
+            last_state = new_state
 
-        logger.info(f"[COOKIE_MANAGER] Cookie regeneration complete. Valid: {new_state.is_valid}")
+            if not new_state.is_valid or not new_state.cookie_path:
+                logger.warning(
+                    "[COOKIE_MANAGER] Cookie generation attempt "
+                    f"{attempt}/{max_attempts} returned invalid state"
+                )
+                if attempt < max_attempts:
+                    await self._sleep_before_retry(attempt)
+                    continue
+                self._save_state(new_state)
+                return new_state
 
-        return new_state
+            strict_valid, reason = self._probe_generated_cookie_strict(new_state.cookie_path)
+            if strict_valid:
+                new_state.error_message = None
+                self._save_state(new_state)
+                logger.info(
+                    "[COOKIE_MANAGER] Cookie regeneration complete. "
+                    f"Valid: {new_state.is_valid}, strict_probe=True"
+                )
+                return new_state
+
+            logger.warning(
+                "[COOKIE_MANAGER] Strict probe failed for generated cookies "
+                f"(attempt {attempt}/{max_attempts}): {reason}"
+            )
+            if attempt < max_attempts:
+                await self._sleep_before_retry(attempt)
+                continue
+
+            fallback_state = self._mark_generated_fallback_only(new_state, reason)
+            self._save_state(fallback_state)
+            return fallback_state
+
+        self._save_state(last_state)
+        return last_state
+
+    def _probe_generated_cookie_strict(self, cookie_path: str) -> tuple[bool, str | None]:
+        """Run strict YouTube probe validation on a generated cookie file."""
+        if not self.generator.validate_netscape_file(cookie_path):
+            return False, "Generated file failed Netscape validation"
+
+        try:
+            return probe_youtube_cookie_file(
+                cookie_path=cookie_path,
+                probe_urls=list(YOUTUBE_STRICT_PROBE_URLS),
+                config=self.config,
+            )
+        except Exception as exc:
+            return False, str(exc)
+
+    async def _sleep_before_retry(self, attempt: int) -> None:
+        """Bounded backoff before retrying cookie regeneration."""
+        wait_seconds = self._strict_probe_backoff_seconds * attempt
+        logger.info(
+            f"[COOKIE_MANAGER] Waiting {wait_seconds:.1f}s before cookie regeneration retry"
+        )
+        await asyncio.sleep(wait_seconds)
+
+    def _mark_generated_fallback_only(
+        self,
+        state: CookieState,
+        reason: str | None,
+    ) -> CookieState:
+        """Mark generated cookies as fallback-only when strict probes keep failing."""
+        state.is_generating = False
+        state.is_valid = True
+        details = reason or "Strict YouTube probe validation failed"
+        state.error_message = (
+            "Generated cookies are fallback-only; browser source should be preferred. "
+            f"Reason: {details}"
+        )
+        return state
+
+    def force_youtube_reprobe(self) -> list[dict[str, Any]]:
+        """Force a browser reprobe and return resolved strategy metadata."""
+        coordinator = YouTubeCookieSourceCoordinator(
+            auto_cookie_manager=self,
+            storage_dir=self.storage_dir,
+            config=self.config,
+        )
+        strategies = coordinator.force_reprobe()
+        return [
+            {
+                "label": strategy.label,
+                "source": strategy.source,
+                "browser": strategy.browser,
+            }
+            for strategy in strategies
+        ]
+
+    def reset_youtube_probe_state(self) -> None:
+        """Reset persisted YouTube browser probe state."""
+        coordinator = YouTubeCookieSourceCoordinator(
+            auto_cookie_manager=self,
+            storage_dir=self.storage_dir,
+            config=self.config,
+        )
+        coordinator.reset_probe_state()
 
     def _load_state(self) -> CookieState:
         """Load cookie state from file.

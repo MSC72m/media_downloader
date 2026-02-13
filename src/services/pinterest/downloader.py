@@ -78,7 +78,7 @@ class PinterestDownloader(BaseDownloader):
                 return False
 
             save_dir = os.path.dirname(save_path) if os.path.dirname(save_path) else "."
-            file_service = FileService()
+            file_service = self.file_service if self.file_service else FileService()
             self.file_service.ensure_directory(save_dir)
 
             filename = self.file_service.sanitize_filename(os.path.basename(save_path))
@@ -93,8 +93,23 @@ class PinterestDownloader(BaseDownloader):
                     self.error_handler.handle_service_failure(
                         "Pinterest", "download", error_msg, url
                     )
+                return False
 
-            return result.success
+            if not os.path.exists(full_path) or os.path.getsize(full_path) == 0:
+                error_msg = "Downloaded Pinterest file is missing or empty"
+                logger.error(f"[PINTEREST_DOWNLOADER] {error_msg}: {full_path}")
+                if self.error_handler:
+                    self.error_handler.handle_service_failure(
+                        "Pinterest", "download", error_msg, url
+                    )
+                return False
+
+            logger.info(
+                "[PINTEREST_DOWNLOADER] Download verified: %s (%d bytes)",
+                full_path,
+                os.path.getsize(full_path),
+            )
+            return True
 
         except Exception as e:
             logger.error(f"Error downloading from Pinterest: {e!s}", exc_info=True)
