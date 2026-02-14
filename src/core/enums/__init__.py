@@ -6,6 +6,7 @@ from .download_error_type import DownloadErrorType
 from .download_status import DownloadStatus
 from .error_type import ErrorType
 from .instagram_auth_status import InstagramAuthStatus
+from .lifetime_scope import LifetimeScope
 from .message_level import MessageLevel
 from .network_status import NetworkStatus
 from .platform_type import PlatformType
@@ -20,6 +21,7 @@ __all__ = [
     "DownloadStatus",
     "ErrorType",
     "InstagramAuthStatus",
+    "LifetimeScope",
     "MessageLevel",
     "NetworkStatus",
     "PlatformType",

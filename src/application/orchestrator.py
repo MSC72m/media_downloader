@@ -148,19 +148,16 @@ class ApplicationOrchestrator:
         self.container.register_singleton(LinkDetector, LinkDetector)
 
     def _create_handler_factory(self) -> Callable[[type[BaseHandler]], BaseHandler]:
+        def instantiate_directly(handler_class: type[BaseHandler]) -> BaseHandler:
+            return cast(Callable[[], BaseHandler], handler_class)()
+
         def handler_factory(handler_class: type[BaseHandler]) -> BaseHandler:
             try:
                 return cast(BaseHandler, self.container.create_with_injection(handler_class))
             except ValueError:
-                try:
-                    return cast(Callable[[], BaseHandler], handler_class)()
-                except Exception:
-                    raise
+                return instantiate_directly(handler_class)
             except Exception:
-                try:
-                    return cast(Callable[[], BaseHandler], handler_class)()
-                except Exception:
-                    raise
+                return instantiate_directly(handler_class)
 
         return handler_factory
 

@@ -1,18 +1,11 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Protocol, TypeVar, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from src.core.enums.instagram_auth_status import InstagramAuthStatus
 from src.core.models import Download
 from src.core.type_defs import JSONValue
-
-TService = TypeVar("TService")
-
-
-@runtime_checkable
-class ServiceResolverProtocol(Protocol):
-    def get(self, service_type: type[TService]) -> TService: ...
 
 
 @runtime_checkable

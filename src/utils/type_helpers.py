@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TypeVar, cast
+from typing import cast, overload
 
 from src.core.interfaces import (
     DynamicUIContextProtocol,
@@ -13,11 +13,11 @@ from src.core.interfaces import (
     UIContextProtocol,
 )
 from src.core.models import Download
+from src.core.type_defs import JSONValue
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-T = TypeVar("T")
 UIContextLike = UIContextProtocol | DynamicUIContextProtocol | HasEventCoordinatorProtocol
 DownloadCallback = Callable[[str | Download], None]
 
@@ -124,7 +124,35 @@ def remove_completed_downloads(download_list: HasCompletedDownloadsProtocol | No
         return 0
 
 
-def safe_getattr(obj: object, attr: str, default: T) -> T:
+@overload
+def safe_getattr(obj: object, attr: str, default: str) -> str: ...
+
+
+@overload
+def safe_getattr(obj: object, attr: str, default: int) -> int: ...
+
+
+@overload
+def safe_getattr(obj: object, attr: str, default: float) -> float: ...
+
+
+@overload
+def safe_getattr(obj: object, attr: str, default: bool) -> bool: ...
+
+
+@overload
+def safe_getattr(obj: object, attr: str, default: None) -> None: ...
+
+
+@overload
+def safe_getattr(obj: object, attr: str, default: list[JSONValue]) -> list[JSONValue]: ...
+
+
+@overload
+def safe_getattr(obj: object, attr: str, default: dict[str, JSONValue]) -> dict[str, JSONValue]: ...
+
+
+def safe_getattr(obj: object, attr: str, default: JSONValue) -> JSONValue:
     try:
         return getattr(obj, attr, default)
     except Exception:

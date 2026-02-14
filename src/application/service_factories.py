@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, cast, overload
 
 from src.application.di_container import ServiceContainer
 from src.application.service_factory import ServiceFactory
@@ -37,11 +37,37 @@ class ServiceFactoryRegistry:
         self.container = container
         self.root_window = root_window
 
-    def _import_class(self, module_path: str, class_name: str) -> type | None:
+    @overload
+    def _import_class(
+        self,
+        module_path: str,
+        class_name: str,
+        expected_type: type[BaseDownloader],
+    ) -> type[BaseDownloader] | None: ...
+
+    @overload
+    def _import_class(
+        self,
+        module_path: str,
+        class_name: str,
+        expected_type: type[BaseHandler],
+    ) -> type[BaseHandler] | None: ...
+
+    def _import_class(
+        self,
+        module_path: str,
+        class_name: str,
+        expected_type: type[BaseHandler] | type[BaseDownloader],
+    ) -> type[BaseHandler] | type[BaseDownloader] | None:
         try:
             module = __import__(module_path, fromlist=[module_path.rsplit(".", 1)[0]])
             imported = getattr(module, class_name, None)
-            return imported if isinstance(imported, type) else None
+            if isinstance(imported, type) and issubclass(imported, expected_type):
+                return imported
+            logger.error(
+                "%s.%s is not a %s implementation", module_path, class_name, expected_type.__name__
+            )
+            return None
         except Exception as e:
             logger.error(f"Failed to import {class_name} from {module_path}: {e}")
             return None
@@ -60,11 +86,7 @@ class ServiceFactoryRegistry:
         Returns:
             Downloader class or None
         """
-        imported = self._import_class(module_path, class_name)
-        if imported and issubclass(imported, BaseDownloader):
-            return cast(type[BaseDownloader], imported)
-        logger.error("%s.%s is not a BaseDownloader implementation", module_path, class_name)
-        return None
+        return self._import_class(module_path, class_name, BaseDownloader)
 
     def _import_handler_class(self, module_path: str, class_name: str) -> type[BaseHandler] | None:
         """Dynamically import handler class.
@@ -76,11 +98,7 @@ class ServiceFactoryRegistry:
         Returns:
             Handler class or None
         """
-        imported = self._import_class(module_path, class_name)
-        if imported and issubclass(imported, BaseHandler):
-            return cast(type[BaseHandler], imported)
-        logger.error("%s.%s is not a BaseHandler implementation", module_path, class_name)
-        return None
+        return self._import_class(module_path, class_name, BaseHandler)
 
     def create_downloader(self, service_type: str) -> BaseDownloader | None:
         """Create downloader instance dynamically from service config.
@@ -202,9 +220,9 @@ class ServiceFactoryRegistry:
 
     def create_network_checker(self) -> INetworkChecker:
         """Create network checker or mock."""
-        if checker := self.container.get_optional(NetworkChecker):
-            return checker
-        return NetworkChecker(error_handler=self.container.get_optional(IErrorNotifier))
+        return self.container.get_optional(NetworkChecker) or NetworkChecker(
+            error_handler=self.container.get_optional(IErrorNotifier)
+        )
 
     def create_service_factory(self) -> ServiceFactory:
         """Create service factory instance."""

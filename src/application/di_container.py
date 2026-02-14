@@ -2,10 +2,10 @@ import importlib
 import inspect
 import types
 from collections.abc import Callable
-from enum import Enum, auto
 from inspect import signature
 from typing import (
     Any,
+    Generic,
     TypeVar,
     Union,
     cast,
@@ -14,21 +14,18 @@ from typing import (
     get_type_hints,
 )
 
-T = TypeVar("T")
+from src.core.enums import LifetimeScope
+
+TService = TypeVar("TService")
 
 
-class LifetimeScope(Enum):
-    SINGLETON = auto()
-    TRANSIENT = auto()
-
-
-class ServiceDescriptor:
+class ServiceDescriptor(Generic[TService]):
     def __init__(
         self,
-        service_type: type,
-        implementation: type | None = None,
-        factory: Callable | None = None,
-        instance: object | None = None,
+        service_type: type[TService],
+        implementation: type[TService] | None = None,
+        factory: Callable[[], TService] | None = None,
+        instance: TService | None = None,
         lifetime: LifetimeScope = LifetimeScope.TRANSIENT,
     ) -> None:
         self.service_type = service_type
@@ -55,15 +52,15 @@ class ServiceDescriptor:
 
 class ServiceContainer:
     def __init__(self) -> None:
-        self._services: dict[type, ServiceDescriptor] = {}
-        self._singletons: dict[type, object] = {}
-        self._building: set[type] = set()
+        self._services: dict[type[Any], ServiceDescriptor[Any]] = {}
+        self._singletons: dict[type[Any], Any] = {}
+        self._building: set[type[Any]] = set()
 
     def register_transient(
         self,
-        service_type: type[T],
-        implementation: type[T] | Callable[[], T] | None = None,
-        factory: Callable[[], T] | None = None,
+        service_type: type[TService],
+        implementation: type[TService] | Callable[[], TService] | None = None,
+        factory: Callable[[], TService] | None = None,
     ) -> "ServiceContainer":
         return self._register_service(
             service_type, implementation, factory, LifetimeScope.TRANSIENT
@@ -71,10 +68,10 @@ class ServiceContainer:
 
     def register_singleton(
         self,
-        service_type: type[T],
-        implementation: type[T] | Callable[[], T] | None = None,
-        factory: Callable[[], T] | None = None,
-        instance: T | None = None,
+        service_type: type[TService],
+        implementation: type[TService] | Callable[[], TService] | None = None,
+        factory: Callable[[], TService] | None = None,
+        instance: TService | None = None,
     ) -> "ServiceContainer":
         if instance is not None:
             self._singletons[service_type] = instance
@@ -86,13 +83,13 @@ class ServiceContainer:
 
     def _register_service(
         self,
-        service_type: type[T],
-        implementation: type[T] | Callable[[], T] | None = None,
-        factory: Callable[[], T] | None = None,
+        service_type: type[TService],
+        implementation: type[TService] | Callable[[], TService] | None = None,
+        factory: Callable[[], TService] | None = None,
         lifetime: LifetimeScope = LifetimeScope.TRANSIENT,
     ) -> "ServiceContainer":
         if implementation is not None and factory is None and not isinstance(implementation, type):
-            factory = cast(Callable[[], T], implementation)
+            factory = cast(Callable[[], TService], implementation)
             implementation = None
 
         resolved_implementation: type | None
@@ -104,7 +101,7 @@ class ServiceContainer:
             resolved_implementation = service_type
         descriptor = ServiceDescriptor(
             service_type=service_type,
-            implementation=resolved_implementation,
+            implementation=cast(type[TService] | None, resolved_implementation),
             factory=factory,
             lifetime=lifetime,
         )
@@ -113,12 +110,12 @@ class ServiceContainer:
         self._services[service_type] = descriptor
         return self
 
-    def get(self, service_type: type[T]) -> T:
+    def get(self, service_type: type[TService]) -> TService:
         if service_type in self._building:
             raise ValueError(f"Circular dependency detected: {service_type.__name__}")
 
         if service_type in self._singletons:
-            return cast(T, self._singletons[service_type])
+            return cast(TService, self._singletons[service_type])
 
         if service_type not in self._services:
             raise ValueError(f"Service not registered: {service_type.__name__}")
@@ -126,7 +123,7 @@ class ServiceContainer:
         descriptor = self._services[service_type]
 
         if descriptor.instance is not None:
-            return cast(T, descriptor.instance)
+            return cast(TService, descriptor.instance)
 
         self._building.add(service_type)
 
@@ -142,12 +139,12 @@ class ServiceContainer:
             if descriptor.lifetime == LifetimeScope.SINGLETON:
                 self._singletons[service_type] = instance
 
-            return cast(T, instance)
+            return cast(TService, instance)
 
         finally:
             self._building.discard(service_type)
 
-    def _create_instance(self, implementation_type: type[T]) -> T:
+    def _create_instance(self, implementation_type: type[TService]) -> TService:
         if not hasattr(implementation_type, "__init__"):
             return implementation_type()
 
@@ -200,10 +197,10 @@ class ServiceContainer:
 
         return implementation_type(**kwargs)
 
-    def create_with_injection(self, class_type: type[T]) -> T:
+    def create_with_injection(self, class_type: type[TService]) -> TService:
         return self._create_instance(class_type)
 
-    def _get_type_name(self, param_type: type | object) -> str:
+    def _get_type_name(self, param_type: object) -> str:
         if param_type is None:
             return "None"
 
@@ -238,7 +235,7 @@ class ServiceContainer:
 
         return hasattr(param_type, "__module__") and not param_type.__module__.startswith("typing")
 
-    def get_optional(self, service_type: type[T]) -> T | None:
+    def get_optional(self, service_type: type[TService]) -> TService | None:
         try:
             return self.get(service_type)
         except ValueError:
@@ -251,7 +248,11 @@ class ServiceContainer:
         self._services.clear()
         self._singletons.clear()
 
-    def register_instance(self, service_type: type[T], instance: T) -> "ServiceContainer":
+    def register_instance(
+        self,
+        service_type: type[TService],
+        instance: TService,
+    ) -> "ServiceContainer":
         is_valid = False
 
         if hasattr(service_type, "__abstractmethods__"):
@@ -282,7 +283,7 @@ class ServiceContainer:
         return self
 
     def register_factory(
-        self, service_type: type[T], factory: Callable[[], T]
+        self, service_type: type[TService], factory: Callable[[], TService]
     ) -> "ServiceContainer":
         if not callable(factory):
             error_msg = "Factory must be callable"

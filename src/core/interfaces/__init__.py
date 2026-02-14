@@ -12,7 +12,6 @@ from .protocols import (
     HasClearProtocol,
     HasCompletedDownloadsProtocol,
     HasEventCoordinatorProtocol,
-    ServiceResolverProtocol,
     TkRootProtocol,
     UIContextProtocol,
 )
@@ -65,7 +64,6 @@ __all__ = [
     "IYouTubeMetadataService",
     "NetworkError",
     "ServiceError",
-    "ServiceResolverProtocol",
     "SubtitleInfo",
     "TkRootProtocol",
     "UIContextProtocol",
