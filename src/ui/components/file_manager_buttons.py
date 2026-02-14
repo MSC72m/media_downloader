@@ -12,7 +12,7 @@ class FileManagerButtonBar(ctk.CTkFrame):
         on_change_dir: Callable[[], None],
         on_create_folder: Callable[[], None],
         on_cancel: Callable[[], None],
-    ):
+    ) -> None:
         super().__init__(master, fg_color="transparent")
 
         # Configure grid

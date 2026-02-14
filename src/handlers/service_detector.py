@@ -15,12 +15,8 @@ class ServiceDetector:
     polymorphic service detection.
     """
 
-    def __init__(self, config: AppConfig | None = None):
-        """Initialize service detector with optional config.
-
-        Args:
-            config: AppConfig instance (uses get_config() if None)
-        """
+    def __init__(self, config: AppConfig | None = None) -> None:
+        """Initialize service detector with injected config."""
         self.config = config or get_config()
 
     def initialize(self) -> None:

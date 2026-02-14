@@ -57,7 +57,7 @@ class YouTubeErrorHandler:
         "password store",
     )
 
-    def __init__(self, error_handler: IErrorNotifier | None = None):
+    def __init__(self, error_handler: IErrorNotifier | None = None) -> None:
         self.error_handler = error_handler
 
     def classify_ytdlp_error(self, error_msg: str) -> YouTubeErrorBucket:

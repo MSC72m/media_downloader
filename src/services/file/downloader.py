@@ -1,6 +1,7 @@
 import os
 import time
 from collections.abc import Callable
+from typing import Protocol
 from urllib.parse import urlparse
 
 import requests
@@ -14,19 +15,23 @@ from .models import DownloadResult
 logger = get_logger(__name__)
 
 
+class _NetworkServiceProtocol(Protocol):
+    def is_service_connected(self, service: ServiceType) -> bool: ...
+
+
 class FileDownloader:
     def __init__(
         self,
         timeout: int | None = None,
         chunk_size: int | None = None,
         config: AppConfig = get_config(),
-    ):
+    ) -> None:
         self.config = config
         self.timeout = timeout or self.config.downloads.default_timeout
         self.chunk_size = chunk_size or self.config.downloads.chunk_size
-        self.network_service = None
+        self.network_service: _NetworkServiceProtocol | None = None
 
-    def set_network_service(self, network_service):
+    def set_network_service(self, network_service: _NetworkServiceProtocol) -> None:
         """Set network service for connectivity checks."""
         self.network_service = network_service
 

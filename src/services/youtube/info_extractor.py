@@ -26,7 +26,7 @@ class YouTubeInfoExtractor:
         auto_cookie_manager: IAutoCookieManager | None = None,
         cookie_handler: ICookieHandler | None = None,
         config: AppConfig = get_config(),
-    ):
+    ) -> None:
         self.error_handler = error_handler
         self.config = config
         self.cookie_source_coordinator = YouTubeCookieSourceCoordinator(

@@ -26,7 +26,7 @@ class DownloadCoordinator:
         message_queue: IMessageQueue | None = None,
         ui_callbacks: dict[str, Callable] | None = None,
         config: AppConfig = get_config(),
-    ):
+    ) -> None:
         """Initialize with injected dependencies and optional UI callbacks."""
         self.config = config
         self.event_bus = event_bus
@@ -55,7 +55,7 @@ class DownloadCoordinator:
         """Get a UI callback if available."""
         return self.ui_callbacks.get(callback_name)
 
-    def _update_status(self, message: str, is_error: bool = False):
+    def _update_status(self, message: str, is_error: bool = False) -> None:
         """Update status via callback or message queue."""
         # Try UI callback first
         if status_callback := self._get_ui_callback("update_status"):

@@ -1,4 +1,5 @@
 import json
+from collections.abc import Callable
 from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -54,7 +55,7 @@ class PathConfig(BaseModel):
 
     @field_validator("downloads_dir", "config_dir", mode="before")
     @classmethod
-    def validate_path(cls, v):
+    def validate_path(cls, v: str | Path) -> Path:
         """Convert string paths to Path objects."""
         if isinstance(v, str):
             return Path(v).expanduser()
@@ -803,7 +804,7 @@ class ThemeConfig(BaseModel):
 
     @field_validator("appearance_mode", mode="before")
     @classmethod
-    def validate_appearance_mode(cls, v):
+    def validate_appearance_mode(cls, v: AppearanceMode | str) -> str:
         """Validate appearance mode value."""
         if isinstance(v, AppearanceMode):
             return v.value
@@ -811,7 +812,7 @@ class ThemeConfig(BaseModel):
 
     @field_validator("color_theme", mode="before")
     @classmethod
-    def validate_color_theme(cls, v):
+    def validate_color_theme(cls, v: ColorTheme | str) -> str:
         """Validate color theme value."""
         if isinstance(v, ColorTheme):
             return v.value
@@ -1230,17 +1231,17 @@ class AppConfig(BaseSettings):
     @classmethod
     def _settings_customise_sources(
         cls,
-        _settings_cls,
-        init_settings,
-        env_settings,
-        dotenv_settings,
-        file_secret_settings,
-    ):
+        _settings_cls: type[BaseSettings],
+        init_settings: Callable[..., dict[str, object]],
+        env_settings: Callable[..., dict[str, object]],
+        dotenv_settings: Callable[..., dict[str, object]],
+        file_secret_settings: Callable[..., dict[str, object]],
+    ) -> tuple[Callable[..., dict[str, object]], ...]:
         """Customize settings sources to include YAML/JSON file."""
         config_dict = cls._load_config_file()
 
         # Create a settings source from the config file
-        def file_settings(_):
+        def file_settings(_: BaseSettings) -> dict[str, object]:
             return config_dict or {}
 
         return (
@@ -1282,7 +1283,7 @@ class AppConfig(BaseSettings):
         config_dict = self.model_dump(mode="json", exclude_none=True, by_alias=False)
 
         # Convert Path objects to strings
-        def convert_paths(obj):
+        def convert_paths(obj: object) -> object:
             if isinstance(obj, dict):
                 return {k: convert_paths(v) for k, v in obj.items()}
             if isinstance(obj, list):

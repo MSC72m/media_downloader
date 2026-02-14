@@ -56,6 +56,19 @@ class MockFileService:
     def sanitize_filename(self, filename: str) -> str:
         return filename.replace("/", "_").replace("\\", "_")
 
+    def download_file(self, url: str, path: str, progress_callback=None):
+        _ = (url, progress_callback)
+        Path(path).write_bytes(b"mock-audio")
+
+        class Result:
+            success = True
+
+        return Result()
+
+    def save_text_file(self, content: str, file_path: str) -> bool:
+        Path(file_path).write_text(content, encoding="utf-8")
+        return True
+
 
 @pytest.mark.integration
 class TestRealSpotifyDownloads:

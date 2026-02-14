@@ -20,7 +20,7 @@ class ActionButtonBar(ctk.CTkFrame):
         on_download: Callable[[], None],
         on_manage_files: Callable[[], None],
         theme_manager: ThemeManager | None = None,
-    ):
+    ) -> None:
         super().__init__(master, fg_color="transparent")
 
         self.grid_columnconfigure((0, 1, 2, 3), weight=1)
@@ -41,7 +41,7 @@ class ActionButtonBar(ctk.CTkFrame):
             "border_width": 0,
         }
 
-        def on_download_with_logging():
+        def on_download_with_logging() -> None:
             logger.info("[ACTION_BUTTONS] Download All button clicked")
             logger.info(f"[ACTION_BUTTONS] on_download callback: {on_download}")
             try:
@@ -84,7 +84,7 @@ class ActionButtonBar(ctk.CTkFrame):
 
         self._apply_theme_colors()
 
-    def set_button_state(self, button_name: str, state: str):
+    def set_button_state(self, button_name: str, state: str) -> None:
         button_map = {
             "remove": self.remove_button,
             "clear": self.clear_button,
@@ -94,7 +94,7 @@ class ActionButtonBar(ctk.CTkFrame):
         if button_name in button_map:
             button_map[button_name].configure(state=state)
 
-    def set_enabled(self, enabled: bool):
+    def set_enabled(self, enabled: bool) -> None:
         logger.debug(f"[ACTION_BUTTONS] set_enabled called with: {enabled}")
         state = "normal" if enabled else "disabled"
         logger.debug(f"[ACTION_BUTTONS] Setting button state to: {state}")
@@ -110,7 +110,7 @@ class ActionButtonBar(ctk.CTkFrame):
             button.configure(state=state)
         logger.debug(f"[ACTION_BUTTONS] All buttons configured with state: {state}")
 
-    def update_button_states(self, has_selection: bool, has_items: bool):
+    def update_button_states(self, has_selection: bool, has_items: bool) -> None:
         logger.debug(
             f"[ACTION_BUTTONS] update_button_states called: has_selection={has_selection}, has_items={has_items}"
         )
@@ -137,7 +137,7 @@ class ActionButtonBar(ctk.CTkFrame):
         logger.debug(f"[ACTION_BUTTONS] Setting manage_files_button to: {manage_state}")
         self.manage_files_button.configure(state=manage_state)
 
-    def _apply_theme_colors(self):
+    def _apply_theme_colors(self) -> None:
         theme_json = self._theme_manager.get_theme_json()
 
         if button_config := theme_json.get("CTkButton", {}):
@@ -180,5 +180,5 @@ class ActionButtonBar(ctk.CTkFrame):
                         text_color=text_color,
                     )
 
-    def _on_theme_changed(self, appearance, color):
+    def _on_theme_changed(self, appearance, color) -> None:
         self._apply_theme_colors()

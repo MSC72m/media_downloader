@@ -1,4 +1,4 @@
-from src.core.enums.compat import StrEnum
+from .compat import StrEnum
 
 
 class ConcurrentOption(StrEnum):

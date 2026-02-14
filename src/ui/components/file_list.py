@@ -6,7 +6,7 @@ from collections.abc import Callable
 class FileListBox(tk.Listbox):
     """Listbox for displaying files and directories."""
 
-    def __init__(self, master, on_double_click: Callable):
+    def __init__(self, master, on_double_click: Callable) -> None:
         super().__init__(
             master,
             bg="#2a2d2e",
@@ -18,7 +18,7 @@ class FileListBox(tk.Listbox):
 
         self.bind("<Double-1>", on_double_click)
 
-    def update_items(self, current_path: str):
+    def update_items(self, current_path: str) -> None:
         """Update list with directory contents."""
         self.delete(0, tk.END)
 

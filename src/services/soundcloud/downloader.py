@@ -6,7 +6,7 @@ from typing import Any, cast
 
 import yt_dlp
 
-from src.core.config import get_config
+from src.core.config import AppConfig, get_config
 from src.core.interfaces import BaseDownloader, IErrorNotifier, IFileService
 
 from ...utils.logger import get_logger
@@ -26,8 +26,8 @@ class SoundCloudDownloader(BaseDownloader):
         retries: int | None = None,
         error_handler: IErrorNotifier | None = None,
         file_service: IFileService | None = None,
-        config=None,
-    ):
+        config: AppConfig = get_config(),
+    ) -> None:
         """Initialize SoundCloud downloader.
 
         Args:
@@ -40,10 +40,8 @@ class SoundCloudDownloader(BaseDownloader):
             retries: Number of retries on failure - uses config default if None
             error_handler: Optional error handler for user notifications
             file_service: Optional file service for file operations
-            config: AppConfig instance (defaults to get_config() if None)
+            config: AppConfig instance (defaults to global app config)
         """
-        if config is None:
-            config = get_config()
         super().__init__(error_handler, file_service, config)
         self.audio_format = audio_format or self.config.soundcloud.default_audio_format
         self.audio_quality = audio_quality or self.config.soundcloud.default_audio_quality

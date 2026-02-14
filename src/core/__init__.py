@@ -1,6 +1,3 @@
-import importlib
-from typing import Any
-
 from .config import AppConfig, get_config, reset_config, set_config
 from .models import (
     AuthState,
@@ -15,17 +12,16 @@ from .models import (
 )
 
 
-def _load_symbol(module_path: str, symbol_name: str) -> Any:
-    module = importlib.import_module(module_path)
-    return getattr(module, symbol_name)
-
-
 def get_service_container():
-    return _load_symbol("src.application.di_container", "ServiceContainer")
+    from src.application.di_container import ServiceContainer
+
+    return ServiceContainer
 
 
 def get_application_orchestrator():
-    return _load_symbol("src.application.orchestrator", "ApplicationOrchestrator")
+    from src.application.orchestrator import ApplicationOrchestrator
+
+    return ApplicationOrchestrator
 
 
 __all__ = [

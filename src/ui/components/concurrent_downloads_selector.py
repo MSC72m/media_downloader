@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import customtkinter as ctk
 
-from src.core.config import get_config
+from src.core.config import AppConfig, get_config
 from src.core.enums.concurrent_option import ConcurrentOption
 from src.core.enums.theme_event import ThemeEvent
 from src.ui.utils.theme_manager import ThemeManager, get_theme_manager
@@ -12,11 +12,16 @@ logger = get_logger(__name__)
 
 
 class ConcurrentDownloadsSelector(ctk.CTkFrame):
-    def __init__(self, master, theme_manager: ThemeManager | None = None):
+    def __init__(
+        self,
+        master,
+        theme_manager: ThemeManager | None = None,
+        config: AppConfig = get_config(),
+    ) -> None:
         super().__init__(master, fg_color="transparent")
 
         self._theme_manager = theme_manager or get_theme_manager(master.winfo_toplevel())
-        self._config = get_config()
+        self._config = config
         self._current_value = self._config.downloads.max_concurrent_downloads
 
         self.grid_columnconfigure(0, weight=1)
@@ -49,13 +54,13 @@ class ConcurrentDownloadsSelector(ctk.CTkFrame):
 
         self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
 
-    def _make_combobox_readonly(self):
-        def prevent_edit(event):
+    def _make_combobox_readonly(self) -> None:
+        def prevent_edit(event) -> str | None:
             if event.keysym not in ("Return", "Escape", "Up", "Down"):
                 return "break"
             return None
 
-        def prevent_selection(_event):
+        def prevent_selection(_event) -> str:
             return "break"
 
         try:
@@ -67,7 +72,7 @@ class ConcurrentDownloadsSelector(ctk.CTkFrame):
         except Exception:
             pass
 
-    def _apply_theme_colors(self):
+    def _apply_theme_colors(self) -> None:
         theme_json = self._theme_manager.get_theme_json()
 
         if button_config := theme_json.get("CTkButton", {}):
@@ -109,7 +114,7 @@ class ConcurrentDownloadsSelector(ctk.CTkFrame):
                 text_color = text_color[0] if isinstance(text_color[0], str) else text_color
             self.label.configure(text_color=text_color)
 
-    def _on_theme_changed(self, appearance, color):
+    def _on_theme_changed(self, appearance, color) -> None:
         self._apply_theme_colors()
 
     def _on_change(self, value: str) -> None:

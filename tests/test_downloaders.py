@@ -35,6 +35,10 @@ class MockFileService:
 
         return Result()
 
+    def save_text_file(self, content: str, file_path: str) -> bool:
+        _ = (content, file_path)
+        return True
+
 
 class MockErrorNotifier:
     """Mock error notifier for testing."""

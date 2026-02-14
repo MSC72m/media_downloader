@@ -1,10 +1,16 @@
 import re
 from collections.abc import Callable
-from typing import Any, ClassVar, TypeVar, cast
+from typing import ClassVar, TypeVar, cast
 
+from src.core.interfaces import (
+    DynamicUIContextProtocol,
+    HasEventCoordinatorProtocol,
+    UIContextProtocol,
+)
 from src.utils.logger import get_logger
+from src.utils.type_helpers import get_ui_context
 
-from .base_handler import BaseHandler
+from .base_handler import BaseHandler, UICallback
 from .models import DetectionResult
 
 logger = get_logger(__name__)
@@ -15,9 +21,9 @@ THandlerClass = TypeVar("THandlerClass", bound=type[BaseHandler])
 
 
 class LinkDetectionRegistry:
-    _instance: ClassVar[Any] = None
+    _instance: ClassVar["LinkDetectionRegistry | None"] = None
     _handlers: ClassVar[dict[str, type[BaseHandler]]] = {}
-    _compiled_patterns: ClassVar[dict[str, list[re.Pattern]]] = {}
+    _compiled_patterns: ClassVar[dict[str, list[re.Pattern[str]]]] = {}
     _handler_factory: ClassVar[Callable[[type[BaseHandler]], BaseHandler] | None] = None
 
     def __new__(cls):
@@ -31,7 +37,7 @@ class LinkDetectionRegistry:
         logger.info("[REGISTRY] Handler factory set")
 
     @classmethod
-    def register(cls, handler_class: type[BaseHandler]):
+    def register(cls, handler_class: type[BaseHandler]) -> None:
         handler_name = handler_class.__name__
         logger.info(f"[REGISTRATION] Attempting to register handler: {handler_name}")
 
@@ -108,7 +114,7 @@ class LinkDetectionRegistry:
         return list(cls._handlers.keys())
 
     @classmethod
-    def clear(cls):
+    def clear(cls) -> None:
         cls._handlers.clear()
         cls._compiled_patterns.clear()
 
@@ -117,12 +123,19 @@ class LinkDetector:
     def __init__(
         self,
         handler_factory: Callable[[type[BaseHandler]], BaseHandler] | None = None,
-    ):
+    ) -> None:
         self.registry = LinkDetectionRegistry()
         if handler_factory:
             self.registry.set_handler_factory(handler_factory)
 
-    def detect_and_handle(self, url: str, ui_context: Any = None) -> bool:
+    def detect_and_handle(
+        self,
+        url: str,
+        ui_context: UIContextProtocol
+        | DynamicUIContextProtocol
+        | HasEventCoordinatorProtocol
+        | None = None,
+    ) -> bool:
         logger.info(f"[LINK_DETECTOR] Starting detect_and_handle for URL: {url}")
 
         if not (handler := self.registry.detect_handler(url)):
@@ -132,7 +145,7 @@ class LinkDetector:
         logger.info(f"[LINK_DETECTOR] Detected handler: {handler.__class__.__name__}")
 
         try:
-            if not (callback := handler.get_ui_callback()):
+            if not (callback := cast(UICallback | None, handler.get_ui_callback())):
                 logger.warning(
                     f"[LINK_DETECTOR] No callback from handler: {handler.__class__.__name__}"
                 )
@@ -142,8 +155,12 @@ class LinkDetector:
                 logger.warning("[LINK_DETECTOR] Missing ui_context")
                 return False
 
+            if not (resolved_context := get_ui_context(ui_context)):
+                logger.warning("[LINK_DETECTOR] Invalid ui_context")
+                return False
+
             logger.info(f"[LINK_DETECTOR] Executing callback with URL: {url}")
-            callback(url, ui_context)
+            callback(url, resolved_context)
             logger.info("[LINK_DETECTOR] Callback executed successfully")
             return True
         except Exception as e:

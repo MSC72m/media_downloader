@@ -24,7 +24,7 @@ logger = get_logger(__name__)
 class DialogHandler(ABC):
     """Base interface for platform-specific dialog handlers."""
 
-    def __init__(self, error_handler: IErrorNotifier):
+    def __init__(self, error_handler: IErrorNotifier) -> None:
         """Initialize dialog handler with error handler.
 
         Args:
@@ -231,7 +231,7 @@ class PlatformDialogCoordinator:
         instagram_auth_manager: InstagramAuthManager | None = None,
         orchestrator=None,
         config: AppConfig = get_config(),
-    ):
+    ) -> None:
         """Initialize with proper dependency injection.
 
         Args:
@@ -452,7 +452,7 @@ class PlatformDialogCoordinator:
         """Handle authentication completion on main thread."""
         context = "success" if success else "failure"
 
-        def update_ui():
+        def update_ui() -> None:
             try:
                 logger.info(
                     f"[PLATFORM_DIALOG_COORDINATOR] Updating UI for {context} path, loading_dialog: {loading_dialog is not None}"
@@ -524,7 +524,7 @@ class PlatformDialogCoordinator:
     ) -> None:
         """Handle authentication exception on main thread."""
 
-        def update_ui():
+        def update_ui() -> None:
             try:
                 logger.info(
                     f"[PLATFORM_DIALOG_COORDINATOR] Updating UI for exception path, loading_dialog: {loading_dialog is not None}"
@@ -574,7 +574,7 @@ class PlatformDialogCoordinator:
 
         logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Queuing UI update ({context})")
 
-        def execute_update():
+        def execute_update() -> None:
             try:
                 logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Executing UI update ({context})")
                 update_func()

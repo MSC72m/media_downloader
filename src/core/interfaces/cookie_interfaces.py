@@ -1,10 +1,12 @@
 from collections.abc import Mapping
-from typing import Any, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
+
+from src.core.type_defs import JSONDict
 
 
 @runtime_checkable
 class ICookieManager(Protocol):
-    def get_cookie_info_for_ytdlp(self) -> dict[str, Any] | None: ...
+    def get_cookie_info_for_ytdlp(self) -> JSONDict | None: ...
 
     def get_current_cookie_path(self) -> str | None: ...
 

@@ -19,7 +19,7 @@ class _DialogWindowProtocol(Protocol):
 class ThreadSafeDialogMixin:
     """Mixin class to provide thread-safe operations for dialogs."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._main_thread_id = threading.get_ident()
         self._lock = threading.Lock()
@@ -47,7 +47,7 @@ class ThreadSafeDialogMixin:
         except Exception as e:
             logger.error(f"Error in safe_execute: {e}", exc_info=True)
 
-    def safe_configure(self, widget, **kwargs):
+    def safe_configure(self, widget, **kwargs) -> None:
         """Thread-safe widget configuration."""
         if self.is_main_thread():
             try:
@@ -59,14 +59,14 @@ class ThreadSafeDialogMixin:
                 0, lambda: self._safe_configure(widget, **kwargs)
             )
 
-    def _safe_configure(self, widget, **kwargs):
+    def _safe_configure(self, widget, **kwargs) -> None:
         """Internal safe configuration."""
         try:
             widget.configure(**kwargs)
         except Exception as e:
             logger.error(f"Error in safe configure: {e}", exc_info=True)
 
-    def safe_destroy(self):
+    def safe_destroy(self) -> None:
         """Thread-safe window destruction."""
         if self.is_main_thread():
             try:
@@ -76,14 +76,14 @@ class ThreadSafeDialogMixin:
         else:
             cast(_DialogWindowProtocol, self).after(0, self._safe_destroy)
 
-    def _safe_destroy(self):
+    def _safe_destroy(self) -> None:
         """Internal safe destruction."""
         try:
             cast(_DialogWindowProtocol, self).destroy()
         except Exception as e:
             logger.error(f"Error in safe destroy: {e}", exc_info=True)
 
-    def safe_update(self):
+    def safe_update(self) -> None:
         """Thread-safe UI update."""
         if self.is_main_thread():
             try:
@@ -93,7 +93,7 @@ class ThreadSafeDialogMixin:
         else:
             cast(_DialogWindowProtocol, self).after(0, self._safe_update)
 
-    def _safe_update(self):
+    def _safe_update(self) -> None:
         """Internal safe update."""
         try:
             cast(_DialogWindowProtocol, self).update()
@@ -127,7 +127,7 @@ class ThreadSafeOperations:
         return None
 
     @staticmethod
-    def safe_widget_state(widget, state: str):
+    def safe_widget_state(widget, state: str) -> None:
         """Safely change widget state."""
         try:
             if widget.winfo_exists():
@@ -136,7 +136,7 @@ class ThreadSafeOperations:
             logger.error(f"Error changing widget state: {e}", exc_info=True)
 
     @staticmethod
-    def safe_widget_config(widget, **kwargs):
+    def safe_widget_config(widget, **kwargs) -> None:
         """Safely configure widget."""
         try:
             if widget.winfo_exists():

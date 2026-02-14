@@ -40,7 +40,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         error_handler: IErrorNotifier | None = None,
         message_queue: IMessageQueue | None = None,
         config: AppConfig = get_config(),
-    ):
+    ) -> None:
         super().__init__(parent)
 
         self.config = config
@@ -83,7 +83,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         self._poll_metadata_completion()
 
-    def _poll_metadata_completion(self):
+    def _poll_metadata_completion(self) -> None:
         """Poll for metadata completion from the main thread."""
         if self.video_metadata and self.video_metadata.error and not self._metadata_handler_called:
             logger.info("Metadata error detected - calling error handler")
@@ -103,7 +103,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         elif not self._metadata_handler_called:
             self.after(100, self._poll_metadata_completion)
 
-    def _safe_deiconify(self):
+    def _safe_deiconify(self) -> None:
         """Safely deiconify the window, handling CustomTkinter race conditions."""
         try:
             self.update_idletasks()
@@ -116,11 +116,11 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             except Exception as e2:
                 logger.error(f"Failed to deiconify window: {e2}")
 
-    def _start_metadata_fetch_with_cookie(self):
+    def _start_metadata_fetch_with_cookie(self) -> None:
         """Start metadata fetching with auto-generated cookies."""
         self._start_metadata_fetch()
 
-    def _start_metadata_fetch(self):
+    def _start_metadata_fetch(self) -> None:
         """Start metadata fetching after cookie selection."""
         logger.debug("Starting metadata fetch process")
 
@@ -129,7 +129,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         self._create_loading_overlay()
         self._fetch_metadata_async()
 
-    def _create_loading_overlay(self):
+    def _create_loading_overlay(self) -> None:
         """Create loading overlay for metadata fetching using centralized component."""
         logger.debug("Creating loading overlay")
 
@@ -168,7 +168,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         if not service:
             raise RuntimeError("No metadata service available")
 
-        def fetch_with_timeout():
+        def fetch_with_timeout() -> None:
             try:
                 metadata_result[0] = service.fetch_metadata(self.url, cookie_path, None)
                 fetch_completed[0] = True
@@ -217,10 +217,10 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             return "Connection timed out. Please check your internet connection and try again."
         return error_msg
 
-    def _fetch_metadata_async(self):
+    def _fetch_metadata_async(self) -> None:
         """Fetch metadata asynchronously."""
 
-        def fetch_worker():
+        def fetch_worker() -> None:
             try:
                 if not self.metadata_service:
                     error_msg = "No metadata service available"
@@ -275,7 +275,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         threading.Thread(target=fetch_worker, daemon=True).start()
 
-    def _handle_metadata_error(self):
+    def _handle_metadata_error(self) -> None:
         """Handle metadata fetch error by closing the dialog."""
         if self.loading_overlay:
             close_loading_dialog(self.loading_overlay, error_path=True)
@@ -413,7 +413,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         return True
 
-    def _handle_metadata_fetched(self):
+    def _handle_metadata_fetched(self) -> None:
         """Handle metadata fetch completion - ONLY SHOWS DIALOG AFTER FETCH COMPLETE."""
         logger.info("=== _handle_metadata_fetched called ===")
         logger.info("Handling metadata fetch completion")
@@ -446,11 +446,11 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         if not self._show_main_interface():
             return
 
-    def _schedule_main_window_show(self):
+    def _schedule_main_window_show(self) -> None:
         """Schedule showing main window after loading overlay is completely gone."""
         self.after(100, self._show_main_window)
 
-    def _show_main_window(self):
+    def _show_main_window(self) -> None:
         """Show the main window after loading is complete."""
         logger.debug("Showing main window - ensuring visibility")
         try:
@@ -514,7 +514,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         self._on_format_change()
 
-    def _create_widgets(self):
+    def _create_widgets(self) -> None:
         """Create dialog widgets with scrolling support."""
         self.title("YouTube Downloader")
         self.geometry("600x700")
@@ -782,7 +782,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                 if current_quality not in video_qualities:
                     self.quality_var.set(self.config.youtube.default_quality)
 
-    def _handle_add_to_downloads(self):
+    def _handle_add_to_downloads(self) -> None:
         """Handle add to downloads button click."""
         try:
             self.add_button.configure(state="disabled")
@@ -795,7 +795,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             if hasattr(self, "add_button"):
                 self.add_button.configure(state="normal")
 
-    def _process_add_to_downloads(self):
+    def _process_add_to_downloads(self) -> None:
         """Process add to downloads in a non-blocking way."""
         try:
             if not (name := self.name_entry.get().strip()):
@@ -911,7 +911,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         except Exception as e:
             logger.warning(f"[YOUTUBE_DIALOG] Failed to load thumbnail: {e}")
 
-    def _show_error(self, message: str):
+    def _show_error(self, message: str) -> None:
         """Show error message temporarily."""
         error_label = ctk.CTkLabel(
             self, text=message, text_color="red", font=("Roboto", 11, "bold")

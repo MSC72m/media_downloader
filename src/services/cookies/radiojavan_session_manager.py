@@ -3,15 +3,24 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import random
 from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import RLock
 from typing import Any
+from urllib.parse import quote_plus
 
 import requests
-from playwright.async_api import Browser, BrowserContext, Page, Playwright, async_playwright
+from playwright.async_api import (
+    Browser,
+    BrowserContext,
+    Page,
+    Playwright,
+    Request,
+    async_playwright,
+)
 
 from src.core.config import AppConfig, get_config
 from src.utils.logger import get_logger
@@ -22,6 +31,18 @@ logger = get_logger(__name__)
 class RadioJavanSessionManager:
     """Centralized RadioJavan browser session storage with TTL refresh."""
 
+    WARMUP_SEARCH_TOPICS = (
+        "persian pop",
+        "radio javan top songs",
+        "persian rap",
+        "dj mix",
+        "iranian music video",
+    )
+    WARMUP_FALLBACK_MEDIA_URLS = (
+        "https://www.radiojavan.com/mp3s/mp3/shadmehr-asteni",
+        "https://www.radiojavan.com/mp3s/mp3/ebi-khalij",
+        "https://www.radiojavan.com/videos/video/siavash-ghomayshi-faryad",
+    )
     CHALLENGE_MARKERS = (
         "window._cf_chl_opt",
         "/cdn-cgi/challenge-platform/h/",
@@ -42,7 +63,7 @@ class RadioJavanSessionManager:
         self,
         storage_dir: Path | None = None,
         config: AppConfig = get_config(),
-    ):
+    ) -> None:
         self.config = config
         self.enabled = self.config.radiojavan.session_enabled
         self.storage_dir = storage_dir or self.config.cookies.storage_dir
@@ -198,6 +219,7 @@ class RadioJavanSessionManager:
             return await playwright.chromium.launch(
                 headless=self.config.radiojavan.session_headless,
                 args=[
+                    "--incognito",
                     "--disable-blink-features=AutomationControlled",
                     "--disable-dev-shm-usage",
                     "--no-sandbox",
@@ -231,7 +253,7 @@ class RadioJavanSessionManager:
     ) -> dict[str, object] | None:
         captured_headers: dict[str, str] = {}
 
-        def capture_headers(request) -> None:
+        def capture_headers(request: Request) -> None:
             url = request.url.lower()
             if "radiojavan.com" not in url and "rj.app" not in url:
                 return
@@ -244,30 +266,11 @@ class RadioJavanSessionManager:
         timeout_ms = self.config.radiojavan.session_generation_timeout_seconds * 1000
         wait_seconds = self.config.radiojavan.session_wait_after_load_seconds
 
-        try:
-            await page.goto(
-                self.config.radiojavan.session_bootstrap_url,
-                wait_until="domcontentloaded",
-                timeout=timeout_ms,
+        if not await self._warmup_session(page, timeout_ms, wait_seconds):
+            logger.warning(
+                "[RADIOJAVAN_SESSION] Session warm-up had navigation failures; "
+                "continuing with collected cookies"
             )
-            await asyncio.sleep(wait_seconds)
-            await page.goto(
-                self.config.radiojavan.session_validation_url,
-                wait_until="domcontentloaded",
-                timeout=timeout_ms,
-            )
-            await asyncio.sleep(wait_seconds)
-        except Exception as e:
-            if self.is_transport_block_error(e):
-                logger.warning(
-                    "[RADIOJAVAN_SESSION] Transport-level block during browser navigation: %s",
-                    e,
-                )
-            else:
-                logger.warning(
-                    "[RADIOJAVAN_SESSION] Navigation failed during session extraction: %s",
-                    e,
-                )
 
         cookies = await context.cookies()
         if not (filtered := [cookie for cookie in cookies if self._is_radiojavan_cookie(cookie)]):
@@ -282,6 +285,158 @@ class RadioJavanSessionManager:
                 + timedelta(hours=self.config.radiojavan.session_ttl_hours)
             ).isoformat(),
         }
+
+    async def _warmup_session(
+        self,
+        page: Page,
+        timeout_ms: int,
+        wait_seconds: float,
+    ) -> bool:
+        try:
+            await page.goto(
+                self.config.radiojavan.session_bootstrap_url,
+                wait_until="domcontentloaded",
+                timeout=timeout_ms,
+            )
+            await asyncio.sleep(wait_seconds)
+            await self._wait_for_network_idle(page, timeout_ms)
+            await self._scroll_page(page, wait_seconds)
+
+            topics = random.sample(
+                self.WARMUP_SEARCH_TOPICS,
+                k=min(3, len(self.WARMUP_SEARCH_TOPICS)),
+            )
+            discovered_media_urls: list[str] = []
+
+            for topic in topics:
+                search_url = f"https://www.radiojavan.com/search?q={quote_plus(topic)}"
+                try:
+                    await page.goto(search_url, wait_until="domcontentloaded", timeout=timeout_ms)
+                except Exception as search_error:
+                    logger.debug(
+                        "[RADIOJAVAN_SESSION] Search navigation failed for '%s': %s",
+                        topic,
+                        search_error,
+                    )
+                    continue
+
+                await asyncio.sleep(wait_seconds)
+                await self._wait_for_network_idle(page, timeout_ms)
+                await self._scroll_page(page, wait_seconds)
+                for media_url in await self._collect_search_media_urls(page):
+                    if media_url not in discovered_media_urls:
+                        discovered_media_urls.append(media_url)
+
+            watched_count = 0
+            candidate_media_urls = [
+                *discovered_media_urls[:3],
+                *self.WARMUP_FALLBACK_MEDIA_URLS,
+            ]
+            for media_url in candidate_media_urls:
+                if watched_count >= 3:
+                    break
+                if not await self._watch_media_page(page, media_url, timeout_ms, wait_seconds):
+                    continue
+                watched_count += 1
+
+            logger.info(
+                "[RADIOJAVAN_SESSION] Warm-up complete. Media pages visited: %d",
+                watched_count,
+            )
+            await page.goto(
+                self.config.radiojavan.session_validation_url,
+                wait_until="domcontentloaded",
+                timeout=timeout_ms,
+            )
+            await asyncio.sleep(wait_seconds)
+            await self._wait_for_network_idle(page, timeout_ms)
+            return True
+        except Exception as navigation_error:
+            if self.is_transport_block_error(navigation_error):
+                logger.warning(
+                    "[RADIOJAVAN_SESSION] Transport-level block during browser navigation: %s",
+                    navigation_error,
+                )
+            else:
+                logger.warning(
+                    "[RADIOJAVAN_SESSION] Navigation failed during session extraction: %s",
+                    navigation_error,
+                )
+            return False
+
+    async def _wait_for_network_idle(self, page: Page, timeout_ms: int) -> None:
+        try:
+            await page.wait_for_load_state("networkidle", timeout=timeout_ms)
+        except Exception:
+            logger.debug("[RADIOJAVAN_SESSION] Network idle timeout, continuing")
+
+    async def _scroll_page(self, page: Page, wait_seconds: float) -> None:
+        try:
+            await page.evaluate("() => window.scrollTo(0, 320)")
+            await asyncio.sleep(wait_seconds / 2)
+            await page.evaluate("() => window.scrollTo(0, 900)")
+            await asyncio.sleep(wait_seconds / 2)
+            await page.evaluate("() => window.scrollTo(0, 0)")
+            await asyncio.sleep(wait_seconds / 2)
+        except Exception:
+            logger.debug("[RADIOJAVAN_SESSION] Scroll interaction failed, continuing")
+
+    async def _collect_search_media_urls(
+        self,
+        page: Page,
+        limit: int = 6,
+    ) -> list[str]:
+        try:
+            hrefs = await page.eval_on_selector_all(
+                "a[href*='/mp3s/mp3/'], a[href*='/videos/video/'], a[href*='/mp4s/mp4/']",
+                f"""(els) => els
+                    .slice(0, {limit * 2})
+                    .map((e) => e.getAttribute('href'))
+                    .filter((href) => typeof href === 'string')""",
+            )
+        except Exception:
+            return []
+
+        urls: list[str] = []
+        for href in hrefs:
+            if not isinstance(href, str) or not href:
+                continue
+            if href.startswith("/"):
+                full_url = f"https://www.radiojavan.com{href}"
+            elif href.startswith("http"):
+                full_url = href
+            else:
+                continue
+            if "radiojavan.com" not in full_url and "rj.app" not in full_url:
+                continue
+            if full_url not in urls:
+                urls.append(full_url)
+            if len(urls) >= limit:
+                break
+        return urls
+
+    async def _watch_media_page(
+        self,
+        page: Page,
+        media_url: str,
+        timeout_ms: int,
+        wait_seconds: float,
+    ) -> bool:
+        try:
+            await page.goto(media_url, wait_until="domcontentloaded", timeout=timeout_ms)
+        except Exception as media_error:
+            logger.debug(
+                "[RADIOJAVAN_SESSION] Failed to load media page %s: %s",
+                media_url,
+                media_error,
+            )
+            return False
+
+        await asyncio.sleep(wait_seconds)
+        await self._wait_for_network_idle(page, timeout_ms)
+        await self._scroll_page(page, wait_seconds)
+        await asyncio.sleep(max(wait_seconds, 2.0))
+        return True
 
     def _validate_session_data(self, session_data: dict[str, object]) -> bool:
         cookies = self._session_cookie_jar(session_data)

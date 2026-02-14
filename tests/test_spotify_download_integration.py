@@ -68,6 +68,18 @@ class MockFileService:
     def sanitize_filename(self, filename: str) -> str:
         return filename
 
+    def download_file(self, url: str, path: str, progress_callback=None):
+        _ = (url, path, progress_callback)
+
+        class Result:
+            success = True
+
+        return Result()
+
+    def save_text_file(self, content: str, file_path: str) -> bool:
+        _ = (content, file_path)
+        return True
+
 
 class MockMessageQueue:
     """Mock message queue for testing."""

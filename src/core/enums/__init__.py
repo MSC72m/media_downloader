@@ -4,6 +4,7 @@ from .color_theme import ColorTheme
 from .concurrent_option import ConcurrentOption
 from .download_error_type import DownloadErrorType
 from .download_status import DownloadStatus
+from .error_type import ErrorType
 from .instagram_auth_status import InstagramAuthStatus
 from .message_level import MessageLevel
 from .network_status import NetworkStatus
@@ -17,6 +18,7 @@ __all__ = [
     "ConcurrentOption",
     "DownloadErrorType",
     "DownloadStatus",
+    "ErrorType",
     "InstagramAuthStatus",
     "MessageLevel",
     "NetworkStatus",

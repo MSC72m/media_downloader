@@ -1,11 +1,11 @@
 import re
-from collections.abc import Callable
-from typing import Any
+from collections.abc import Mapping
 from urllib.parse import unquote
 
 from src.core.config import AppConfig, get_config
-from src.core.interfaces import IErrorNotifier, IMessageQueue
-from src.services.detection.base_handler import BaseHandler
+from src.core.interfaces import IErrorNotifier, IMessageQueue, UIContextProtocol
+from src.core.type_defs import JSONDict, JSONValue
+from src.services.detection.base_handler import BaseHandler, UICallback
 from src.services.detection.link_detector import (
     auto_register_handler,
 )
@@ -25,24 +25,25 @@ class RadioJavanHandler(BaseHandler):
         self,
         message_queue: IMessageQueue,
         error_handler: IErrorNotifier | None = None,
-        config: AppConfig = get_config(),
-    ):
-        super().__init__(message_queue, config, service_name="radiojavan")
+        config: AppConfig | None = None,
+    ) -> None:
+        resolved_config = config or get_config()
+        super().__init__(message_queue, resolved_config, service_name="radiojavan")
         self.error_handler = error_handler
 
     @classmethod
-    def get_patterns(cls):
+    def get_patterns(cls) -> list[str]:
         """Get URL patterns for this handler."""
         return get_config().radiojavan.url_patterns
 
-    def _extract_metadata(self, url: str) -> dict[str, Any]:
+    def _extract_metadata(self, url: str) -> JSONDict:
         """Extract Radio Javan-specific metadata from URL."""
         return {
             "type": self._detect_radiojavan_type(url),
             "media_id": self._extract_media_id(url),
         }
 
-    def get_metadata(self, url: str) -> dict[str, Any]:
+    def get_metadata(self, url: str) -> JSONDict:
         """Get Radio Javan metadata for URL."""
         return {
             "type": self._detect_radiojavan_type(url),
@@ -50,16 +51,16 @@ class RadioJavanHandler(BaseHandler):
             "requires_auth": False,
         }
 
-    def process_download(self, url: str, options: dict[str, Any]) -> bool:
+    def process_download(self, url: str, options: Mapping[str, JSONValue]) -> bool:
         """Process Radio Javan download."""
         logger.info(f"[RADIOJAVAN_HANDLER] Processing Radio Javan download: {url}")
         return True
 
-    def get_ui_callback(self) -> Callable[[str, Any], None]:
+    def get_ui_callback(self) -> UICallback:
         """Get UI callback for Radio Javan URLs."""
         logger.info("[RADIOJAVAN_HANDLER] Getting UI callback")
 
-        def radiojavan_callback(url: str, ui_context: Any):
+        def radiojavan_callback(url: str, ui_context: UIContextProtocol) -> None:
             """Callback for handling Radio Javan URLs."""
             logger.info(f"[RADIOJAVAN_HANDLER] Radio Javan callback called with URL: {url}")
 
@@ -76,7 +77,7 @@ class RadioJavanHandler(BaseHandler):
                     )
                 return
 
-            def process_radiojavan_download():
+            def process_radiojavan_download() -> None:
                 try:
                     logger.info(f"[RADIOJAVAN_HANDLER] Calling download callback for: {url}")
                     download_callback(url)

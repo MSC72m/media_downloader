@@ -16,7 +16,7 @@ from .network_checker import NetworkChecker
 from .service_detector import ServiceDetector
 
 
-def _register_link_handlers():
+def _register_link_handlers() -> tuple[type, ...]:
     return (
         youtube_handler.YouTubeHandler,
         instagram_handler.InstagramHandler,
@@ -50,7 +50,7 @@ TikTokHandler = tiktok_handler.TikTokHandler
 RadioJavanHandler = radiojavan_handler.RadioJavanHandler
 
 
-def __getattr__(name):
+def __getattr__(name: str) -> type:
     if name in _HANDLER_IMPORTS:
         module_name, class_name = _HANDLER_IMPORTS[name]
         module = importlib.import_module(f".{module_name}", __name__)

@@ -6,7 +6,7 @@ from typing import Any
 
 import requests
 
-from src.core.config import get_config
+from src.core.config import AppConfig, get_config
 from src.core.interfaces import BaseDownloader, IErrorNotifier, IFileService
 
 from ...core.enums import ServiceType
@@ -22,20 +22,17 @@ class TwitterDownloader(BaseDownloader):
         self,
         error_handler: IErrorNotifier | None = None,
         file_service: IFileService | None = None,
-        config=None,
-    ):
+        config: AppConfig = get_config(),
+    ) -> None:
         """Initialize Twitter downloader.
 
         Args:
             error_handler: Optional error handler for user notifications
             file_service: Optional file service for file operations
-            config: AppConfig instance (defaults to get_config() if None)
+            config: AppConfig instance (defaults to global app config)
         """
-        if config is None:
-            config = get_config()
         super().__init__(error_handler, file_service, config)
-        if not self.file_service:
-            self.file_service = FileService()
+        self.file_service = file_service or FileService()
 
     def download(
         self,
@@ -230,7 +227,7 @@ class TwitterDownloader(BaseDownloader):
         return data if isinstance(data, dict) else None
 
     @staticmethod
-    def _best_variant_url(variants: Any) -> str | None:
+    def _best_variant_url(variants: object) -> str | None:
         """Pick highest bitrate MP4 from variant list when present."""
         if not isinstance(variants, list):
             return None
@@ -301,7 +298,7 @@ class TwitterDownloader(BaseDownloader):
             if (normalized := self._normalize_modern_media_item(item))
         ]
 
-    def _normalize_modern_media_item(self, item: Any) -> dict[str, str] | None:
+    def _normalize_modern_media_item(self, item: object) -> dict[str, str] | None:
         """Normalize a single media item from FixTweet payload."""
         if not isinstance(item, dict):
             return None

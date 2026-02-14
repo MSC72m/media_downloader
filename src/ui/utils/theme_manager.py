@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from functools import cache
 from typing import Any
 
 import customtkinter as ctk
@@ -18,7 +17,7 @@ _theme_manager_instance: ThemeManager | None = None
 
 
 class ThemeManager(EventBus[ThemeEvent]):
-    def __init__(self, root: Any | None = None, config: AppConfig = get_config()):
+    def __init__(self, root: Any | None = None, config: AppConfig = get_config()) -> None:
         super().__init__(ThemeEvent, root)
         self.config = config
         self._current_appearance: AppearanceMode = config.ui.theme.appearance_mode_enum
@@ -90,12 +89,14 @@ class ThemeManager(EventBus[ThemeEvent]):
             logger.error(f"[THEME_MANAGER] Failed to persist theme: {e}", exc_info=True)
 
 
-@cache
-def get_theme_manager(root: Any | None = None) -> ThemeManager:
+def get_theme_manager(
+    root: Any | None = None,
+    config: AppConfig = get_config(),
+) -> ThemeManager:
     global _theme_manager_instance  # noqa: PLW0603
 
     if _theme_manager_instance is None:
-        _theme_manager_instance = ThemeManager(root)
+        _theme_manager_instance = ThemeManager(root, config=config)
     elif root and _theme_manager_instance._root != root:
         _theme_manager_instance.set_root(root)
 

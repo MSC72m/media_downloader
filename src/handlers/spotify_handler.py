@@ -1,10 +1,10 @@
 import re
-from collections.abc import Callable
-from typing import Any
+from collections.abc import Mapping
 
 from src.core.config import AppConfig, get_config
-from src.core.interfaces import IErrorNotifier, IMessageQueue
-from src.services.detection.base_handler import BaseHandler
+from src.core.interfaces import IErrorNotifier, IMessageQueue, UIContextProtocol
+from src.core.type_defs import JSONDict, JSONValue
+from src.services.detection.base_handler import BaseHandler, UICallback
 from src.services.detection.link_detector import (
     auto_register_handler,
 )
@@ -26,24 +26,25 @@ class SpotifyHandler(BaseHandler):
         self,
         message_queue: IMessageQueue,
         error_handler: IErrorNotifier | None = None,
-        config: AppConfig = get_config(),
-    ):
-        super().__init__(message_queue, config, service_name="spotify")
+        config: AppConfig | None = None,
+    ) -> None:
+        resolved_config = config or get_config()
+        super().__init__(message_queue, resolved_config, service_name="spotify")
         self.error_handler = error_handler
 
     @classmethod
-    def get_patterns(cls):
+    def get_patterns(cls) -> list[str]:
         """Get URL patterns for this handler."""
         return get_config().spotify.url_patterns
 
-    def _extract_metadata(self, url: str) -> dict[str, Any]:
+    def _extract_metadata(self, url: str) -> JSONDict:
         """Extract Spotify-specific metadata from URL."""
         return {
             "type": self._detect_spotify_type(url),
             "id": self._extract_spotify_id(url),
         }
 
-    def get_metadata(self, url: str) -> dict[str, Any]:
+    def get_metadata(self, url: str) -> JSONDict:
         """Get Spotify metadata for URL."""
         return {
             "type": self._detect_spotify_type(url),
@@ -51,16 +52,16 @@ class SpotifyHandler(BaseHandler):
             "requires_auth": False,
         }
 
-    def process_download(self, url: str, options: dict[str, Any]) -> bool:
+    def process_download(self, url: str, options: Mapping[str, JSONValue]) -> bool:
         """Process Spotify download."""
         logger.info(f"[SPOTIFY_HANDLER] Processing Spotify download: {url}")
         return True
 
-    def get_ui_callback(self) -> Callable:
+    def get_ui_callback(self) -> UICallback:
         """Get UI callback for Spotify URLs."""
         logger.info("[SPOTIFY_HANDLER] Getting UI callback")
 
-        def spotify_callback(url: str, ui_context: Any):
+        def spotify_callback(url: str, ui_context: UIContextProtocol) -> None:
             """Callback for handling Spotify URLs."""
             logger.info(f"[SPOTIFY_HANDLER] Spotify callback called with URL: {url}")
 
@@ -77,7 +78,7 @@ class SpotifyHandler(BaseHandler):
                     )
                 return
 
-            def create_spotify_dialog():
+            def create_spotify_dialog() -> None:
                 """Create Spotify downloader dialog."""
                 try:
                     logger.info("[SPOTIFY_HANDLER] Creating SpotifyDownloaderDialog")

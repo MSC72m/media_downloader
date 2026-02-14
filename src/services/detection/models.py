@@ -1,9 +1,10 @@
 from dataclasses import dataclass
-from typing import Any
+
+from src.core.type_defs import JSONDict
 
 
 @dataclass
 class DetectionResult:
     service_type: str
     confidence: float
-    metadata: dict[str, Any] | None = None
+    metadata: JSONDict | None = None

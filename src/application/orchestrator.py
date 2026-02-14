@@ -3,7 +3,7 @@ import os
 import threading
 from collections.abc import Callable
 from functools import partial
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, ParamSpec, Protocol, cast
 
 from src.coordinators.main_coordinator import EventCoordinator
 from src.core.config import AppConfig, get_config
@@ -19,6 +19,7 @@ from src.core.interfaces import (
     IServiceFactory,
     IUIState,
 )
+from src.core.models import Download
 from src.handlers import (
     instagram_handler,
     pinterest_handler,
@@ -31,6 +32,7 @@ from src.handlers import (
 )
 from src.handlers.service_detector import ServiceDetector
 from src.services.cookies import CookieManager as AutoCookieManager
+from src.services.detection.base_handler import BaseHandler
 from src.services.detection.link_detector import LinkDetector
 from src.services.events.queue import Message, MessageLevel, MessageQueue
 from src.services.file import FileService
@@ -47,11 +49,31 @@ from src.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+class _DownloadListProtocol(Protocol):
+    def refresh_items(self, items: list[Download]) -> None: ...
+    def update_item_progress(self, item: Download, progress: float) -> None: ...
+
+
+class _ActionButtonsProtocol(Protocol):
+    def set_enabled(self, enabled: bool = True) -> None: ...
+
+
+class _StatusBarProtocol(Protocol):
+    def show_error(self, message: str) -> None: ...
+    def show_message(self, message: str) -> None: ...
+    def show_warning(self, message: str) -> None: ...
+    def update_progress(self, progress: float) -> None: ...
+
+
+class _UIComponentProtocol(Protocol): ...
+
+
+P = ParamSpec("P")
+
+
 class ApplicationOrchestrator:
-    def __init__(self, root_window: "ctk.CTk", config: AppConfig | None = None):
-        if config is None:
-            config = get_config()
-        self.config: AppConfig = config
+    def __init__(self, root_window: "ctk.CTk", config: AppConfig | None = None) -> None:
+        self.config: AppConfig = config or get_config()
         self.root = root_window
         self.downloads_folder = str(self.config.paths.downloads_dir)
         os.makedirs(self.downloads_folder, exist_ok=True)
@@ -67,7 +89,7 @@ class ApplicationOrchestrator:
         self.link_detector = LinkDetector(handler_factory=self._create_handler_factory())
         self._initialize_cookies_background()
 
-        self.ui_components: dict[str, Any] = {}
+        self.ui_components: dict[str, _UIComponentProtocol] = {}
 
     def _configure_dependencies(self) -> None:
         self.container.register_instance(AppConfig, self.config)
@@ -125,18 +147,18 @@ class ApplicationOrchestrator:
     def _register_detectors(self) -> None:
         self.container.register_singleton(LinkDetector, LinkDetector)
 
-    def _create_handler_factory(self) -> Callable[[type], Any]:
-        def handler_factory(handler_class: type) -> Any:
+    def _create_handler_factory(self) -> Callable[[type[BaseHandler]], BaseHandler]:
+        def handler_factory(handler_class: type[BaseHandler]) -> BaseHandler:
             try:
-                return self.container.create_with_injection(handler_class)
+                return cast(BaseHandler, self.container.create_with_injection(handler_class))
             except ValueError:
                 try:
-                    return handler_class()
+                    return cast(Callable[[], BaseHandler], handler_class)()
                 except Exception:
                     raise
             except Exception:
                 try:
-                    return handler_class()
+                    return cast(Callable[[], BaseHandler], handler_class)()
                 except Exception:
                     raise
 
@@ -163,7 +185,7 @@ class ApplicationOrchestrator:
             )
 
     def _initialize_cookies_background(self) -> None:
-        def init_cookies():
+        def init_cookies() -> None:
             try:
                 state = self.auto_cookie_manager.initialize()
 
@@ -204,11 +226,12 @@ class ApplicationOrchestrator:
     def event_coordinator(self) -> EventCoordinator:
         return self.container.get(EventCoordinator)
 
-    def set_ui_components(self, **components) -> None:
+    def set_ui_components(self, **components: _UIComponentProtocol) -> None:
         self.ui_components.update(components)
 
         if "status_bar" in components:
-            message_queue = MessageQueue(components["status_bar"])
+            status_bar = cast(_StatusBarProtocol, components["status_bar"])
+            message_queue = MessageQueue(status_bar)
             self.container.register_instance(IMessageQueue, message_queue)
 
             if self.container.has(IErrorNotifier):
@@ -233,25 +256,32 @@ class ApplicationOrchestrator:
             self.event_coordinator.set_ui_callbacks(callbacks)
             self.event_coordinator.refresh_handlers()
 
-    def _create_ui_callbacks(self, components: dict) -> dict:
-        callbacks = {}
+    def _create_ui_callbacks(
+        self,
+        components: dict[str, _UIComponentProtocol],
+    ) -> dict[str, Callable[..., None]]:
+        callbacks: dict[str, Callable[..., None]] = {}
 
-        def safe_ui_update(func, *args, **kwargs):
+        def safe_ui_update(
+            func: Callable[P, None],
+            *args: P.args,
+            **kwargs: P.kwargs,
+        ) -> None:
             self._run_on_main_thread(partial(func, *args, **kwargs))
 
         if "download_list" in components:
-            dl_list = components["download_list"]
+            dl_list = cast(_DownloadListProtocol, components["download_list"])
             callbacks["refresh_download_list"] = partial(safe_ui_update, dl_list.refresh_items)
             callbacks["update_download_progress"] = partial(
                 safe_ui_update, dl_list.update_item_progress
             )
 
         if "action_buttons" in components:
-            buttons = components["action_buttons"]
+            buttons = cast(_ActionButtonsProtocol, components["action_buttons"])
             callbacks["set_action_buttons_enabled"] = partial(safe_ui_update, buttons.set_enabled)
 
         if "status_bar" in components:
-            sb = components["status_bar"]
+            sb = cast(_StatusBarProtocol, components["status_bar"])
 
             def update_status_wrapper(msg: str, is_error: bool = False) -> None:
                 if is_error:
@@ -270,21 +300,21 @@ class ApplicationOrchestrator:
         return callbacks
 
     def check_connectivity(self) -> None:
-        if status_bar := self.ui_components.get("status_bar"):
+        if status_bar := cast(_StatusBarProtocol | None, self.ui_components.get("status_bar")):
             status_bar.show_message("Checking network connection...")
 
-        def check_in_background():
+        def check_in_background() -> None:
             try:
                 is_connected, error_message = self.network_checker.check_connectivity()
 
-                def update_ui():
+                def update_ui() -> None:
                     self._handle_connectivity_result(is_connected, error_message)
 
                 self._run_on_main_thread(update_ui)
             except Exception as e:
                 error_msg = str(e)
 
-                def update_ui_error():
+                def update_ui_error() -> None:
                     self._handle_connectivity_result(False, error_msg)
 
                 self._run_on_main_thread(update_ui_error)
@@ -293,7 +323,7 @@ class ApplicationOrchestrator:
         thread.start()
 
     def _handle_connectivity_result(self, is_connected: bool, error_message: str) -> None:
-        status_bar = self.ui_components.get("status_bar")
+        status_bar = cast(_StatusBarProtocol | None, self.ui_components.get("status_bar"))
 
         if is_connected:
             if status_bar:

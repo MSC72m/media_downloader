@@ -31,7 +31,7 @@ class YouTubeMetadataService(IYouTubeMetadataService):
         auto_cookie_manager: IAutoCookieManager | None = None,
         cookie_handler: ICookieHandler | None = None,
         config: AppConfig = get_config(),
-    ):
+    ) -> None:
         self.config = config
         self.error_handler = error_handler
         self.info_extractor = YouTubeInfoExtractor(
@@ -154,15 +154,31 @@ class YouTubeMetadataService(IYouTubeMetadataService):
             if not metadata or not metadata.available_subtitles:
                 return []
 
-            return [
-                SubtitleInfo(
-                    language_code=sub["language_code"],
-                    language_name=sub["language_name"],
-                    is_auto_generated=sub["is_auto_generated"],
-                    url=sub["url"],
+            subtitles: list[SubtitleInfo] = []
+            for sub in metadata.available_subtitles:
+                language_code = sub.get("language_code")
+                language_name = sub.get("language_name")
+                is_auto_generated = sub.get("is_auto_generated")
+                subtitle_url = sub.get("url")
+
+                if not isinstance(language_code, str):
+                    continue
+                if not isinstance(language_name, str):
+                    continue
+                if not isinstance(is_auto_generated, bool):
+                    continue
+                if not isinstance(subtitle_url, str):
+                    continue
+
+                subtitles.append(
+                    SubtitleInfo(
+                        language_code=language_code,
+                        language_name=language_name,
+                        is_auto_generated=is_auto_generated,
+                        url=subtitle_url,
+                    )
                 )
-                for sub in metadata.available_subtitles
-            ]
+            return subtitles
         except Exception as e:
             logger.error(f"[METADATA_SERVICE] Error fetching subtitles: {e!s}")
             return []

@@ -75,7 +75,7 @@ class NetworkStatusDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         self.check_connectivity()
 
-    def check_connectivity(self):
+    def check_connectivity(self) -> None:
         """Check connectivity to each service."""
         for service in ServiceType:
             self.service_statuses[service] = NetworkStatus.CHECKING
@@ -87,7 +87,7 @@ class NetworkStatusDialog(ctk.CTkToplevel, WindowCenterMixin):
             self.advice_frame.destroy()
             self.advice_frame = None
 
-        def check_worker():
+        def check_worker() -> None:
             _internet_connected, _error_msg = check_internet_connection()
 
             service_results = check_all_services()
@@ -106,7 +106,7 @@ class NetworkStatusDialog(ctk.CTkToplevel, WindowCenterMixin):
 
     def update_status_display(
         self, service_results: dict[ServiceType, tuple[bool, str]], any_error: bool
-    ):
+    ) -> None:
         """Update the status display with check results."""
         for service, (connected, error) in service_results.items():
             if service not in self.status_labels:
@@ -122,7 +122,7 @@ class NetworkStatusDialog(ctk.CTkToplevel, WindowCenterMixin):
         if any_error:
             self.add_troubleshooting_advice()
 
-    def add_troubleshooting_advice(self):
+    def add_troubleshooting_advice(self) -> None:
         """Add troubleshooting advice to the dialog."""
         if self.advice_frame:
             return

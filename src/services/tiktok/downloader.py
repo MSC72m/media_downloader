@@ -4,7 +4,7 @@ from typing import Any, cast
 
 import yt_dlp
 
-from src.core.config import get_config
+from src.core.config import AppConfig, get_config
 from src.core.interfaces import BaseDownloader, IErrorNotifier, IFileService
 
 from ...utils.logger import get_logger
@@ -17,10 +17,8 @@ class TikTokDownloader(BaseDownloader):
         self,
         error_handler: IErrorNotifier | None = None,
         file_service: IFileService | None = None,
-        config=None,
-    ):
-        if config is None:
-            config = get_config()
+        config: AppConfig = get_config(),
+    ) -> None:
         super().__init__(error_handler, file_service, config)
         self.default_timeout = config.tiktok.default_timeout
         self.max_retries = config.tiktok.max_retries

@@ -51,12 +51,10 @@ class EventCoordinator:
         cookie_handler: ICookieHandler,
         message_queue: IMessageQueue | None = None,
         downloads_folder: str | None = None,
-        config: AppConfig | None = None,
+        config: AppConfig = get_config(),
         instagram_auth_manager: InstagramAuthManager | None = None,
-    ):
+    ) -> None:
         """Initialize with proper dependency injection."""
-        if config is None:
-            config = get_config()
         self.config = config
 
         if downloads_folder is None:
@@ -152,7 +150,7 @@ class EventCoordinator:
             logger.error(f"[EVENT_COORDINATOR] Unknown platform: {platform}")
             return
 
-        def callback(download):
+        def callback(download) -> None:
             self.downloads.add_download(download)
 
         if platform == "generic":

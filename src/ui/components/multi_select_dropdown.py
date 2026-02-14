@@ -21,7 +21,7 @@ class MultiSelectDropdown(ctk.CTkFrame):
         width: int = 200,
         height: int = 30,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(master, fg_color="transparent", **kwargs)
 
         self.placeholder = placeholder
@@ -37,7 +37,7 @@ class MultiSelectDropdown(ctk.CTkFrame):
 
         self._create_widgets()
 
-    def _create_widgets(self):
+    def _create_widgets(self) -> None:
         """Create the dropdown widgets."""
         self.main_button = ctk.CTkButton(
             self,
@@ -53,14 +53,14 @@ class MultiSelectDropdown(ctk.CTkFrame):
         self.arrow_label = ctk.CTkLabel(self.main_button, text="▼", font=("Roboto", 12))
         self.arrow_label.place(relx=0.95, rely=0.5, anchor="e")
 
-    def _toggle_dropdown(self):
+    def _toggle_dropdown(self) -> None:
         """Toggle dropdown visibility."""
         if self.is_open:
             self._close_dropdown()
         else:
             self.after(10, self._open_dropdown)
 
-    def _open_dropdown(self):
+    def _open_dropdown(self) -> None:
         """Open the dropdown menu."""
         if self.is_open:
             return
@@ -121,7 +121,7 @@ class MultiSelectDropdown(ctk.CTkFrame):
                 self.dropdown_window = None
             self.is_open = False
 
-    def _create_option_item(self, parent, option: dict[str, Any], index: int):
+    def _create_option_item(self, parent, option: dict[str, Any], index: int) -> None:
         """Create a single option item with checkbox."""
         try:
             option_frame = ctk.CTkFrame(parent, fg_color="transparent")
@@ -176,7 +176,7 @@ class MultiSelectDropdown(ctk.CTkFrame):
         except Exception as e:
             logger.error(f"Error creating option item: {e}", exc_info=True)
 
-    def _handle_option_change(self, option_id: str, is_selected: bool):
+    def _handle_option_change(self, option_id: str, is_selected: bool) -> None:
         """Handle option selection change."""
         if is_selected and option_id not in self.selected_options:
             self.selected_options.append(option_id)
@@ -187,7 +187,7 @@ class MultiSelectDropdown(ctk.CTkFrame):
         if self.on_change:
             self.on_change(self.selected_options)
 
-    def _select_all(self):
+    def _select_all(self) -> None:
         """Select all options."""
         for option_id, var in self.checkboxes.items():
             var.set(True)
@@ -198,7 +198,7 @@ class MultiSelectDropdown(ctk.CTkFrame):
         if self.on_change:
             self.on_change(self.selected_options)
 
-    def _deselect_all(self):
+    def _deselect_all(self) -> None:
         """Deselect all options."""
         for _option_id, var in self.checkboxes.items():
             var.set(False)
@@ -208,7 +208,7 @@ class MultiSelectDropdown(ctk.CTkFrame):
         if self.on_change:
             self.on_change(self.selected_options)
 
-    def _update_display_text(self):
+    def _update_display_text(self) -> None:
         """Update the display text on the main button."""
         if not self.selected_options:
             display_text = self.placeholder
@@ -219,7 +219,7 @@ class MultiSelectDropdown(ctk.CTkFrame):
 
         self.main_button.configure(text=display_text)
 
-    def _close_dropdown(self):
+    def _close_dropdown(self) -> None:
         """Close the dropdown menu."""
         if self.dropdown_window:
             with contextlib.suppress(Exception):
@@ -231,7 +231,7 @@ class MultiSelectDropdown(ctk.CTkFrame):
             self._checkbox_vars.clear()
         self.is_open = False
 
-    def _handle_outside_click(self, event):
+    def _handle_outside_click(self, event) -> None:
         """Handle clicks outside the dropdown."""
         if self.is_open and self.dropdown_window:
             widget = event.widget
@@ -242,12 +242,12 @@ class MultiSelectDropdown(ctk.CTkFrame):
 
             self._close_dropdown()
 
-    def _handle_focus_out(self, event):
+    def _handle_focus_out(self, event) -> None:
         """Handle focus out event to close dropdown."""
         if self.is_open and self.dropdown_window:
             self.after(100, self._check_focus_and_close)
 
-    def _check_focus_and_close(self):
+    def _check_focus_and_close(self) -> None:
         """Check if dropdown still has focus and close if not."""
         if self.is_open and self.dropdown_window:
             try:
@@ -260,7 +260,7 @@ class MultiSelectDropdown(ctk.CTkFrame):
             except Exception:
                 self._close_dropdown()
 
-    def _is_descendant(self, widget, parent):
+    def _is_descendant(self, widget, parent) -> bool:
         """Check if widget is a descendant of parent."""
         while widget:
             if widget == parent:
@@ -278,12 +278,12 @@ class MultiSelectDropdown(ctk.CTkFrame):
         """Get currently selected option IDs."""
         return self.selected_options.copy()
 
-    def set_selected_options(self, selected_ids: list[str]):
+    def set_selected_options(self, selected_ids: list[str]) -> None:
         """Set currently selected option IDs."""
         self.selected_options = selected_ids.copy()
         self._update_display_text()
 
-    def destroy(self):
+    def destroy(self) -> None:
         """Clean up the dropdown."""
         self._close_dropdown()
         super().destroy()
@@ -299,13 +299,13 @@ class SubtitleMultiSelect(MultiSelectDropdown):
         width: int = 300,
         height: int = 35,
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(master, placeholder=placeholder, width=width, height=height, **kwargs)
 
         self.auto_options: list[dict[str, Any]] = []
         self.manual_options: list[dict[str, Any]] = []
 
-    def set_subtitle_options(self, subtitles: list[dict[str, Any]]):
+    def set_subtitle_options(self, subtitles: list[dict[str, Any]]) -> None:
         """Set subtitle options from metadata."""
         options = []
         self.auto_options = []
@@ -343,7 +343,7 @@ class SubtitleMultiSelect(MultiSelectDropdown):
 
         self.set_options(options)
 
-    def _create_option_item(self, parent, option: dict[str, Any], index: int):
+    def _create_option_item(self, parent, option: dict[str, Any], index: int) -> None:
         """Override to handle separator items."""
         if option.get("is_separator"):
             separator_label = ctk.CTkLabel(

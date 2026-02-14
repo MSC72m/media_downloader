@@ -26,10 +26,15 @@ class MockFileService:
         return filename
 
     def download_file(self, url: str, path: str, progress_callback=None):
+        _ = (url, path, progress_callback)
         class Result:
             success = True
 
         return Result()
+
+    def save_text_file(self, content: str, file_path: str) -> bool:
+        _ = (content, file_path)
+        return True
 
     def get_unique_filename(self, directory: str, base_name: str, extension: str) -> str:
         suffix = extension if extension.startswith(".") else f".{extension}" if extension else ""
@@ -72,7 +77,7 @@ class MockMessageQueue:
     def post(self, message: str) -> None:
         pass
 
-    def add_message(self, message: str) -> None:
+    def add_message(self, message: object) -> None:
         pass
 
     def send_message(self, message: dict) -> None:

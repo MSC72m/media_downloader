@@ -12,7 +12,7 @@ class FileManagerActionButtonBar(ctk.CTkFrame):
         on_change_dir: Callable[[], None],
         on_create_folder: Callable[[], None],
         on_cancel: Callable[[], None],
-    ):
+    ) -> None:
         super().__init__(master, fg_color="transparent")
 
         # Configure grid
@@ -40,7 +40,7 @@ class FileManagerActionButtonBar(ctk.CTkFrame):
         self.cancel_button = ctk.CTkButton(self, text="Cancel", command=on_cancel, **button_style)
         self.cancel_button.grid(row=0, column=2, padx=5, pady=5, sticky="ew")
 
-    def set_enabled(self, enabled: bool):
+    def set_enabled(self, enabled: bool) -> None:
         """Enable or disable all buttons."""
         state = "normal" if enabled else "disabled"
         self.change_dir_button.configure(state=state)

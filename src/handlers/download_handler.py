@@ -37,9 +37,9 @@ class DownloadHandler(IDownloadHandler):
         auto_cookie_manager: IAutoCookieManager | None = None,
         message_queue: IMessageQueue | None = None,
         error_handler: IErrorNotifier | None = None,
-        config: AppConfig = get_config(),
-    ):
-        self.config = config
+        config: AppConfig | None = None,
+    ) -> None:
+        self.config = config or get_config()
         self.service_factory = service_factory
         self.file_service = file_service
         self.ui_state = ui_state
@@ -121,9 +121,9 @@ class DownloadHandler(IDownloadHandler):
         self,
         download: Download,
         download_dir: str,
-        progress_callback,
-        completion_callback,
-    ):
+        progress_callback: Callable[[Download, float], None] | None,
+        completion_callback: Callable[[bool, str | None], None] | None,
+    ) -> None:
         """Worker function to handle a single download."""
         logger.info(f"[DOWNLOAD_HANDLER] Worker started for: {download.name}")
         logger.info(f"[DOWNLOAD_HANDLER] URL: {download.url}")
@@ -204,7 +204,11 @@ class DownloadHandler(IDownloadHandler):
             )
             self._handle_download_failure(download, completion_callback, error_msg)
 
-    def _validate_download_directory(self, download_dir: str, completion_callback) -> str | None:
+    def _validate_download_directory(
+        self,
+        download_dir: str,
+        completion_callback: Callable[[bool, str | None], None] | None,
+    ) -> str | None:
         """Validate and expand download directory. Returns validated path or None."""
         try:
             expanded_dir = Path(download_dir).expanduser().resolve()
@@ -240,8 +244,8 @@ class DownloadHandler(IDownloadHandler):
         self,
         downloads: list[Download],
         download_dir: str,
-        progress_callback,
-        completion_callback,
+        progress_callback: Callable[[Download, float], None] | None,
+        completion_callback: Callable[[bool, str | None], None] | None,
     ) -> None:
         """Start downloads with ThreadPoolExecutor and configurable concurrency."""
         if not downloads:
@@ -261,7 +265,7 @@ class DownloadHandler(IDownloadHandler):
             f"[DOWNLOAD_HANDLER] Starting {len(downloads)} downloads with {max_workers} concurrent workers"
         )
 
-        def process_downloads_concurrently():
+        def process_downloads_concurrently() -> None:
             try:
                 with ThreadPoolExecutor(
                     max_workers=max_workers, thread_name_prefix="DownloadWorker"
@@ -273,7 +277,7 @@ class DownloadHandler(IDownloadHandler):
                             logger.error(f"[DOWNLOAD_HANDLER] Invalid URL for: {download.name}")
                             continue
 
-                        def wrapper(d: Download):
+                        def wrapper(d: Download) -> None:
                             with active_downloads:
                                 if d.status != DownloadStatus.DOWNLOADING:
                                     d.status = DownloadStatus.DOWNLOADING
@@ -340,7 +344,11 @@ class DownloadHandler(IDownloadHandler):
         logger.info(f"[DOWNLOAD_HANDLER] Output path (without extension): {output_path}")
         return output_path
 
-    def _create_progress_wrapper(self, download: Download, progress_callback):
+    def _create_progress_wrapper(
+        self,
+        download: Download,
+        progress_callback: Callable[[Download, float], None] | None,
+    ) -> Callable[[float, float], None] | None:
         """Create a progress wrapper function for the download with throttling."""
         if not progress_callback:
             return None
@@ -348,7 +356,7 @@ class DownloadHandler(IDownloadHandler):
         last_update_time = [0.0]
         update_interval = 0.1
 
-        def progress_wrapper(progress, speed):
+        def progress_wrapper(progress: float, speed: float) -> None:
             current_time = time.time()
             time_since_update = current_time - last_update_time[0]
 
@@ -359,7 +367,11 @@ class DownloadHandler(IDownloadHandler):
 
         return progress_wrapper
 
-    def _handle_download_success(self, download: Download, completion_callback) -> None:
+    def _handle_download_success(
+        self,
+        download: Download,
+        completion_callback: Callable[[bool, str | None], None] | None,
+    ) -> None:
         """Handle successful download completion."""
         logger.info(f"[DOWNLOAD_HANDLER] Successfully downloaded: {download.name}")
         if download.status != DownloadStatus.COMPLETED:
@@ -370,7 +382,10 @@ class DownloadHandler(IDownloadHandler):
         self._invoke_completion_callback(completion_callback, True, f"Downloaded: {download.name}")
 
     def _handle_download_failure(
-        self, download: Download, completion_callback, message: str
+        self,
+        download: Download,
+        completion_callback: Callable[[bool, str | None], None] | None,
+        message: str,
     ) -> None:
         """Handle download failure."""
         logger.error(f"[DOWNLOAD_HANDLER] {message}")
@@ -384,7 +399,12 @@ class DownloadHandler(IDownloadHandler):
             )
         self._invoke_completion_callback(completion_callback, False, message)
 
-    def _invoke_completion_callback(self, callback, success: bool, message: str) -> None:
+    def _invoke_completion_callback(
+        self,
+        callback: Callable[[bool, str | None], None] | None,
+        success: bool,
+        message: str,
+    ) -> None:
         """Safely invoke completion callback if available."""
         if not callback:
             return

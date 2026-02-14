@@ -8,5 +8,10 @@ else:
     class StrEnum(str, Enum):
         """Fallback StrEnum implementation for Python < 3.11"""
 
-        def _generate_next_value_(self, start, count, last_values):
+        def _generate_next_value_(
+            self,
+            start: int,
+            count: int,
+            last_values: list[str],
+        ) -> str:
             return self.lower()

@@ -28,9 +28,9 @@ class ServiceDescriptor:
         service_type: type,
         implementation: type | None = None,
         factory: Callable | None = None,
-        instance: Any | None = None,
+        instance: object | None = None,
         lifetime: LifetimeScope = LifetimeScope.TRANSIENT,
-    ):
+    ) -> None:
         self.service_type = service_type
         self.implementation = implementation
         self.factory = factory
@@ -54,9 +54,9 @@ class ServiceDescriptor:
 
 
 class ServiceContainer:
-    def __init__(self):
+    def __init__(self) -> None:
         self._services: dict[type, ServiceDescriptor] = {}
-        self._singletons: dict[type, Any] = {}
+        self._singletons: dict[type, object] = {}
         self._building: set[type] = set()
 
     def register_transient(
@@ -118,7 +118,7 @@ class ServiceContainer:
             raise ValueError(f"Circular dependency detected: {service_type.__name__}")
 
         if service_type in self._singletons:
-            return self._singletons[service_type]
+            return cast(T, self._singletons[service_type])
 
         if service_type not in self._services:
             raise ValueError(f"Service not registered: {service_type.__name__}")
@@ -126,7 +126,7 @@ class ServiceContainer:
         descriptor = self._services[service_type]
 
         if descriptor.instance is not None:
-            return descriptor.instance
+            return cast(T, descriptor.instance)
 
         self._building.add(service_type)
 
@@ -142,7 +142,7 @@ class ServiceContainer:
             if descriptor.lifetime == LifetimeScope.SINGLETON:
                 self._singletons[service_type] = instance
 
-            return instance
+            return cast(T, instance)
 
         finally:
             self._building.discard(service_type)
@@ -165,6 +165,8 @@ class ServiceContainer:
         kwargs = {}
         for param_name, param in sig.parameters.items():
             if param_name == "self":
+                continue
+            if param.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
                 continue
 
             if param.default != param.empty and not self._is_custom_type(
@@ -201,7 +203,7 @@ class ServiceContainer:
     def create_with_injection(self, class_type: type[T]) -> T:
         return self._create_instance(class_type)
 
-    def _get_type_name(self, param_type: type | Any) -> str:
+    def _get_type_name(self, param_type: type | object) -> str:
         if param_type is None:
             return "None"
 
@@ -221,7 +223,7 @@ class ServiceContainer:
         if not param_type:
             return False
 
-        builtin_types = (str, int, float, bool, list, dict, tuple, set)
+        builtin_types = (str, int, float, bool, list, dict, tuple, set, object)
         if param_type in builtin_types:
             return False
 

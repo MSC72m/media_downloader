@@ -1,4 +1,5 @@
-from typing import Any
+from collections.abc import Callable
+from typing import TYPE_CHECKING, cast
 
 from src.application.di_container import ServiceContainer
 from src.application.service_factory import ServiceFactory
@@ -7,6 +8,7 @@ from src.coordinators.main_coordinator import EventCoordinator
 from src.core.config import AppConfig
 from src.core.enums.service_type import ServiceType
 from src.core.interfaces import (
+    BaseDownloader,
     IAutoCookieManager,
     ICookieHandler,
     IDownloadHandler,
@@ -19,19 +21,36 @@ from src.core.interfaces import (
 from src.handlers.cookie_handler import CookieHandler
 from src.handlers.download_handler import DownloadHandler
 from src.handlers.network_checker import NetworkChecker
+from src.services.detection.base_handler import BaseHandler
 from src.services.instagram import InstagramAuthManager
 from src.services.youtube.metadata_service import YouTubeMetadataService
 from src.utils.logger import get_logger
+
+if TYPE_CHECKING:
+    import customtkinter as ctk
 
 logger = get_logger(__name__)
 
 
 class ServiceFactoryRegistry:
-    def __init__(self, container: ServiceContainer, root_window: Any):
+    def __init__(self, container: ServiceContainer, root_window: "ctk.CTk") -> None:
         self.container = container
         self.root_window = root_window
 
-    def _import_downloader_class(self, module_path: str, class_name: str):
+    def _import_class(self, module_path: str, class_name: str) -> type | None:
+        try:
+            module = __import__(module_path, fromlist=[module_path.rsplit(".", 1)[0]])
+            imported = getattr(module, class_name, None)
+            return imported if isinstance(imported, type) else None
+        except Exception as e:
+            logger.error(f"Failed to import {class_name} from {module_path}: {e}")
+            return None
+
+    def _import_downloader_class(
+        self,
+        module_path: str,
+        class_name: str,
+    ) -> type[BaseDownloader] | None:
         """Dynamically import downloader class.
 
         Args:
@@ -41,14 +60,13 @@ class ServiceFactoryRegistry:
         Returns:
             Downloader class or None
         """
-        try:
-            module = __import__(module_path, fromlist=[module_path.rsplit(".", 1)[0]])
-            return getattr(module, class_name)
-        except Exception as e:
-            logger.error(f"Failed to import {class_name} from {module_path}: {e}")
-            return None
+        imported = self._import_class(module_path, class_name)
+        if imported and issubclass(imported, BaseDownloader):
+            return cast(type[BaseDownloader], imported)
+        logger.error("%s.%s is not a BaseDownloader implementation", module_path, class_name)
+        return None
 
-    def _import_handler_class(self, module_path: str, class_name: str):
+    def _import_handler_class(self, module_path: str, class_name: str) -> type[BaseHandler] | None:
         """Dynamically import handler class.
 
         Args:
@@ -58,14 +76,13 @@ class ServiceFactoryRegistry:
         Returns:
             Handler class or None
         """
-        try:
-            module = __import__(module_path, fromlist=[module_path.rsplit(".", 1)[0]])
-            return getattr(module, class_name)
-        except Exception as e:
-            logger.error(f"Failed to import {class_name} from {module_path}: {e}")
-            return None
+        imported = self._import_class(module_path, class_name)
+        if imported and issubclass(imported, BaseHandler):
+            return cast(type[BaseHandler], imported)
+        logger.error("%s.%s is not a BaseHandler implementation", module_path, class_name)
+        return None
 
-    def create_downloader(self, service_type: str):
+    def create_downloader(self, service_type: str) -> BaseDownloader | None:
         """Create downloader instance dynamically from service config.
 
         Args:
@@ -86,13 +103,16 @@ class ServiceFactoryRegistry:
         if not downloader_class:
             return None
 
-        return downloader_class(
+        downloader_ctor = cast(Callable[..., BaseDownloader], downloader_class)
+        return downloader_ctor(
             error_handler=self.container.get_optional(IErrorNotifier),
             file_service=self.container.get(IFileService),
             config=config,
         )
 
-    def create_handler(self, service_type: str, message_queue):
+    def create_handler(
+        self, service_type: str, message_queue: IMessageQueue | None
+    ) -> BaseHandler | None:
         """Create handler instance dynamically from service config.
 
         Args:
@@ -114,7 +134,8 @@ class ServiceFactoryRegistry:
         if not handler_class:
             return None
 
-        return handler_class(message_queue=message_queue, config=config)
+        handler_ctor = cast(Callable[..., BaseHandler], handler_class)
+        return handler_ctor(message_queue=message_queue, config=config)
 
     def create_download_handler(self) -> DownloadHandler:
         """Create download handler with proper dependencies."""
@@ -128,7 +149,7 @@ class ServiceFactoryRegistry:
             error_handler=self.container.get_optional(IErrorNotifier),
         )
 
-    def _get_service_factory(self):
+    def _get_service_factory(self) -> ServiceFactory:
         """Get or create ServiceFactory using new registry."""
         return ServiceFactory(
             cookie_handler=self.container.get_optional(ICookieHandler),

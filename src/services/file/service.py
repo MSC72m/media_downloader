@@ -11,7 +11,7 @@ class FileService:
         self,
         downloader: FileDownloader | None = None,
         sanitizer: FilenameSanitizer | None = None,
-    ):
+    ) -> None:
         self.downloader = downloader or FileDownloader()
         self.sanitizer = sanitizer or FilenameSanitizer()
 
@@ -47,10 +47,10 @@ class FileService:
     def download_file(
         self,
         url: str,
-        save_path: str,
+        path: str,
         progress_callback: Callable[[float, float], None] | None = None,
     ) -> DownloadResult:
-        return self.downloader.download_file(url, save_path, progress_callback)
+        return self.downloader.download_file(url, path, progress_callback)
 
     def save_text_file(self, content: str, file_path: str) -> bool:
         try:

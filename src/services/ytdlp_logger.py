@@ -8,7 +8,7 @@ logger = get_logger(__name__)
 class YTDLPLoggerBridge:
     """Route yt-dlp log output through app logger instead of raw stderr."""
 
-    def __init__(self, scope: str):
+    def __init__(self, scope: str) -> None:
         self.scope = scope
 
     def debug(self, msg: str) -> None:

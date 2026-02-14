@@ -25,9 +25,7 @@ class ThumbnailCache:
     DEFAULT_MAX_CACHE_SIZE = 100 * 1024 * 1024
     DEFAULT_MAX_AGE_DAYS = 30
 
-    def __init__(self, config: AppConfig | None = None):
-        if config is None:
-            config = get_config()
+    def __init__(self, config: AppConfig = get_config()) -> None:
         self.config = config
 
     @classmethod

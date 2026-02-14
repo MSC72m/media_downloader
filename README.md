@@ -3,7 +3,7 @@
 Cross-platform desktop application for downloading media content from social media platforms.
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)]()
 
 ## Supported Platforms
@@ -41,6 +41,21 @@ Cross-platform desktop application for downloading media content from social med
 - Python 3.10 or higher
 - Playwright (for YouTube cookie generation)
 - Internet connection
+
+### Development Requirements (Linting + LSP)
+
+The local quality gates in this repo require these tools:
+- `ruff` for linting (`uv run ruff check .`)
+- `basedpyright` for strict editor/LSP parity (`npx basedpyright --outputjson` and `npx basedpyright tests --outputjson`)
+- `pytest` for test validation (`uv run pytest -q`)
+
+Install development dependencies with:
+
+```bash
+pip install -r requirements-dev.txt
+```
+
+For `npx basedpyright ...`, install Node.js 18+ if it is not already available.
 
 ## Installation
 
@@ -275,7 +290,7 @@ playwright install chromium
 
 ## License
 
-MIT License - See [LICENSE](LICENSE) file for details.
+GNU General Public License v3.0 - See [LICENSE](LICENSE) file for details.
 
 ## Disclaimer
 

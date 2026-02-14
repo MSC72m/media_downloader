@@ -1,10 +1,10 @@
 import re
-from collections.abc import Callable
-from typing import Any
+from collections.abc import Mapping
 
 from src.core.config import AppConfig, get_config
-from src.core.interfaces import IErrorNotifier, IMessageQueue
-from src.services.detection.base_handler import BaseHandler
+from src.core.interfaces import IErrorNotifier, IMessageQueue, UIContextProtocol
+from src.core.type_defs import JSONDict, JSONValue
+from src.services.detection.base_handler import BaseHandler, UICallback
 from src.services.detection.link_detector import (
     auto_register_handler,
 )
@@ -20,24 +20,25 @@ class TikTokHandler(BaseHandler):
         self,
         message_queue: IMessageQueue,
         error_handler: IErrorNotifier | None = None,
-        config: AppConfig = get_config(),
-    ):
-        super().__init__(message_queue, config, service_name="tiktok")
+        config: AppConfig | None = None,
+    ) -> None:
+        resolved_config = config or get_config()
+        super().__init__(message_queue, resolved_config, service_name="tiktok")
         self.error_handler = error_handler
 
     @classmethod
-    def get_patterns(cls):
+    def get_patterns(cls) -> list[str]:
         """Get URL patterns for this handler."""
         return get_config().tiktok.url_patterns
 
-    def _extract_metadata(self, url: str) -> dict[str, Any]:
+    def _extract_metadata(self, url: str) -> JSONDict:
         """Extract TikTok-specific metadata from URL."""
         return {
             "type": self._detect_tiktok_type(url),
             "video_id": self._extract_video_id(url),
         }
 
-    def get_metadata(self, url: str) -> dict[str, Any]:
+    def get_metadata(self, url: str) -> JSONDict:
         """Get TikTok metadata for URL."""
         return {
             "type": self._detect_tiktok_type(url),
@@ -45,16 +46,16 @@ class TikTokHandler(BaseHandler):
             "requires_auth": False,
         }
 
-    def process_download(self, url: str, options: dict[str, Any]) -> bool:
+    def process_download(self, url: str, options: Mapping[str, JSONValue]) -> bool:
         """Process TikTok download."""
         logger.info(f"[TIKTOK_HANDLER] Processing TikTok download: {url}")
         return True
 
-    def get_ui_callback(self) -> Callable:
+    def get_ui_callback(self) -> UICallback:
         """Get UI callback for TikTok URLs."""
         logger.info("[TIKTOK_HANDLER] Getting UI callback")
 
-        def tiktok_callback(url: str, ui_context: Any):
+        def tiktok_callback(url: str, ui_context: UIContextProtocol) -> None:
             """Callback for handling TikTok URLs."""
             logger.info(f"[TIKTOK_HANDLER] TikTok callback called with URL: {url}")
 
@@ -73,7 +74,7 @@ class TikTokHandler(BaseHandler):
                     )
                 return
 
-            def process_tiktok_download():
+            def process_tiktok_download() -> None:
                 try:
                     logger.info(f"[TIKTOK_HANDLER] Calling download callback for: {url}")
                     download_callback(url)

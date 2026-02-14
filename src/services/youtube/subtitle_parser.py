@@ -13,7 +13,7 @@ _TLANG_PARAM_PATTERN = re.compile(r'[?&]tlang=([^&"\']+?)(?:[&"\']|$)', re.IGNOR
 
 
 class YouTubeSubtitleParser(IParser):
-    def __init__(self, config: AppConfig = get_config()):
+    def __init__(self, config: AppConfig = get_config()) -> None:
         self.config = config
 
     def validate(self, url: str, context: dict[str, Any] | None = None) -> bool:

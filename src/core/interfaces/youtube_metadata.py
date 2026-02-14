@@ -1,25 +1,45 @@
-from typing import Any, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
+
+from src.core.type_defs import JSONDict
 
 
 class YouTubeMetadata:
-    def __init__(self, **kwargs):
-        self.title: str = kwargs.get("title", "")
-        self.duration: str = kwargs.get("duration", "")
-        self.view_count: str = kwargs.get("view_count", "")
-        self.upload_date: str = kwargs.get("upload_date", "")
-        self.channel: str = kwargs.get("channel", "")
-        self.description: str = kwargs.get("description", "")
-        self.thumbnail: str = kwargs.get("thumbnail", "")
-        self.available_qualities: list[str] = kwargs.get("available_qualities", [])
-        self.available_formats: list[str] = kwargs.get("available_formats", [])
-        self.available_subtitles: list[dict[str, Any]] = kwargs.get("available_subtitles", [])
-        self.is_playlist: bool = kwargs.get("is_playlist", False)
-        self.playlist_count: int = kwargs.get("playlist_count", 0)
-        self.error: str | None = kwargs.get("error")
+    def __init__(self, **kwargs: object) -> None:
+        self.title: str = str(kwargs.get("title", ""))
+        self.duration: str = str(kwargs.get("duration", ""))
+        self.view_count: str = str(kwargs.get("view_count", ""))
+        self.upload_date: str = str(kwargs.get("upload_date", ""))
+        self.channel: str = str(kwargs.get("channel", ""))
+        self.description: str = str(kwargs.get("description", ""))
+        self.thumbnail: str = str(kwargs.get("thumbnail", ""))
+
+        qualities = kwargs.get("available_qualities", [])
+        self.available_qualities: list[str] = (
+            [str(item) for item in qualities] if isinstance(qualities, list) else []
+        )
+        formats = kwargs.get("available_formats", [])
+        self.available_formats: list[str] = (
+            [str(item) for item in formats] if isinstance(formats, list) else []
+        )
+        subtitles = kwargs.get("available_subtitles", [])
+        self.available_subtitles: list[JSONDict] = (
+            [item for item in subtitles if isinstance(item, dict)]
+            if isinstance(subtitles, list)
+            else []
+        )
+
+        self.is_playlist: bool = bool(kwargs.get("is_playlist", False))
+        playlist_count = kwargs.get("playlist_count", 0)
+        self.playlist_count: int = int(playlist_count) if isinstance(playlist_count, int) else 0
+
+        error_value = kwargs.get("error")
+        self.error: str | None = str(error_value) if isinstance(error_value, str) else None
 
 
 class SubtitleInfo:
-    def __init__(self, language_code: str, language_name: str, is_auto_generated: bool, url: str):
+    def __init__(
+        self, language_code: str, language_name: str, is_auto_generated: bool, url: str
+    ) -> None:
         self.language_code = language_code
         self.language_name = language_name
         self.is_auto_generated = is_auto_generated

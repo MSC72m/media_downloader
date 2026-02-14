@@ -27,7 +27,7 @@ class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
         max_dots: int = 3,
         dot_animation_interval: int = 500,
         **kwargs,
-    ):
+    ) -> None:
         """Initialize loading dialog.
 
         Args:
@@ -68,7 +68,7 @@ class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
         if timeout > 0:
             self._timeout_id = self.after(timeout * 1000, self._timeout)
 
-    def _create_content(self):
+    def _create_content(self) -> None:
         """Create the loading dialog content."""
         main_frame = ctk.CTkFrame(self, fg_color="transparent")
         main_frame.pack(expand=True, fill="both", padx=20, pady=20)
@@ -81,7 +81,7 @@ class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
         )
         self.message_label.pack(expand=True)
 
-    def start_animation(self):
+    def start_animation(self) -> None:
         """Start the dot animation."""
         if self.is_running:
             return
@@ -89,7 +89,7 @@ class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.is_running = True
         self._animate_dots()
 
-    def _animate_dots(self):
+    def _animate_dots(self) -> None:
         """Animate dots with cycling behavior."""
         if not self.is_running:
             return
@@ -101,7 +101,7 @@ class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         self._animation_id = self.after(self.dot_animation_interval, self._animate_dots)
 
-    def stop_animation(self):
+    def stop_animation(self) -> None:
         """Stop the animation."""
         self.is_running = False
 
@@ -110,12 +110,12 @@ class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
                 self.after_cancel(self._animation_id)
             self._animation_id = None
 
-    def _timeout(self):
+    def _timeout(self) -> None:
         """Handle timeout."""
         logger.info("[LOADING_DIALOG] Timeout reached, closing dialog")
         self.close()
 
-    def close(self):
+    def close(self) -> None:
         """Close the dialog with proper cleanup."""
         logger.debug("[LOADING_DIALOG] close() called")
         self.stop_animation()
@@ -133,7 +133,7 @@ class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
             except Exception as e:
                 logger.error(f"[LOADING_DIALOG] Error in destroy(): {e}", exc_info=True)
 
-    def _release_grab(self):
+    def _release_grab(self) -> None:
         """Release window grab if active."""
         try:
             if hasattr(self, "grab_current") and self.grab_current():
@@ -142,7 +142,7 @@ class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
         except Exception as e:
             logger.debug(f"[LOADING_DIALOG] Error releasing grab: {e}")
 
-    def destroy(self):
+    def destroy(self) -> None:
         """Clean up the dialog with proper resource management."""
         logger.debug("[LOADING_DIALOG] destroy() called")
 

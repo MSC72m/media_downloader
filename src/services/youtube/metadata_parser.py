@@ -17,7 +17,7 @@ _YOUTUBE_URL_PATTERN = re.compile(
 class YouTubeMetadataParser(IParser):
     """Parses and formats YouTube metadata from yt-dlp info dict."""
 
-    def __init__(self, config: AppConfig = get_config()):
+    def __init__(self, config: AppConfig = get_config()) -> None:
         self.config = config
         self.subtitle_parser = YouTubeSubtitleParser(config)
 

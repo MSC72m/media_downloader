@@ -19,32 +19,32 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 class MockTk:
     """Mock tkinter base class."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         pass
 
 
 class MockTkWidget:
     """Mock tkinter widget base class."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         pass
 
-    def pack(self, **kwargs):
+    def pack(self, **kwargs) -> None:
         pass
 
-    def grid(self, **kwargs):
+    def grid(self, **kwargs) -> None:
         pass
 
-    def place(self, **kwargs):
+    def place(self, **kwargs) -> None:
         pass
 
-    def configure(self, **kwargs):
+    def configure(self, **kwargs) -> None:
         pass
 
-    def cget(self, *args):
+    def cget(self, *args) -> None:
         return None
 
-    def bind(self, *args, **kwargs):
+    def bind(self, *args, **kwargs) -> None:
         return None
 
 
@@ -71,62 +71,62 @@ class MockTkListbox(MockTkWidget):
 class MockCTk:
     """Mock customtkinter base class."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         pass
 
 
 class MockTkWidget2:
     """Mock customtkinter widget base class."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         pass
 
-    def pack(self, **kwargs):
+    def pack(self, **kwargs) -> None:
         pass
 
-    def grid(self, **kwargs):
+    def grid(self, **kwargs) -> None:
         pass
 
-    def place(self, **kwargs):
+    def place(self, **kwargs) -> None:
         pass
 
-    def configure(self, **kwargs):
+    def configure(self, **kwargs) -> None:
         pass
 
-    def cget(self, *args):
+    def cget(self, *args) -> None:
         return None
 
-    def bind(self, *args, **kwargs):
+    def bind(self, *args, **kwargs) -> None:
         return None
 
 
 class MockMessagebox:
     """Mock messagebox functions."""
 
-    def showerror(self, title, message):
+    def showerror(self, title, message) -> None:
         pass
 
-    def showwarning(self, title, message):
+    def showwarning(self, title, message) -> None:
         pass
 
-    def showinfo(self, title, message):
+    def showinfo(self, title, message) -> None:
         pass
 
 
 class MockFiledialog:
     """Mock file dialog functions."""
 
-    def askopenfilename(self, **kwargs):
+    def askopenfilename(self, **kwargs) -> str:
         return ""
 
-    def askdirectory(self, **kwargs):
+    def askdirectory(self, **kwargs) -> str:
         return ""
 
 
 class MockBaseModel:
     """Mock Pydantic BaseModel."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         # Get default values from class attributes that are MockField objects
         for key, value in self.__class__.__dict__.items():
             if not key.startswith("_") and hasattr(value, "value") and key not in kwargs:
@@ -140,7 +140,7 @@ class MockBaseModel:
 class MockField:
     """Mock Pydantic Field."""
 
-    def __init__(self, default=None, default_factory=None, description=None, **kwargs):
+    def __init__(self, default=None, default_factory=None, description=None, **kwargs) -> None:
         # Store the actual value that should be returned when the field is accessed
         resolved_value = (
             default_factory() if default_factory is not None and callable(default_factory) else default_factory
@@ -152,11 +152,11 @@ class MockField:
         self.default_factory = default_factory
         self.description = description
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Return the default value as string representation."""
         return str(self.value) if self.value is not None else ""
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """Return the default value as representation."""
         return repr(self.value)
 
@@ -212,15 +212,15 @@ class MockField:
         """Reverse true division operation with default value."""
         return other / self.value if self.value is not None and self.value != 0 else 0
 
-    def __int__(self):
+    def __int__(self) -> int:
         """Convert default value to int."""
         return int(self.value) if self.value is not None else 0
 
-    def __float__(self):
+    def __float__(self) -> float:
         """Convert default value to float."""
         return float(self.value) if self.value is not None else 0.0
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         """Convert default value to bool."""
         return bool(self.value) if self.value is not None else False
 
@@ -228,7 +228,7 @@ class MockField:
 class MockYoutubeDL:
     """Mock yt-dlp."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         pass
 
     def __enter__(self):
@@ -349,7 +349,7 @@ def mock_yt_dlp_fixture():
 # ================================
 
 
-def pytest_configure(config):
+def pytest_configure(config) -> None:
     """Configure pytest with custom options."""
     config.addinivalue_line(
         "markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')"

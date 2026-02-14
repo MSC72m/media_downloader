@@ -13,7 +13,7 @@ logger = get_logger(__name__)
 class NetworkChecker:
     """Network checker for verifying connectivity to services."""
 
-    def __init__(self, error_handler: IErrorNotifier | None = None):
+    def __init__(self, error_handler: IErrorNotifier | None = None) -> None:
         """Initialize network checker.
 
         Args:

@@ -3,8 +3,8 @@ from __future__ import annotations
 import http.client
 import os
 import time
-from collections.abc import Callable, Iterable
-from typing import Any
+from collections.abc import Callable, Iterable, Mapping
+from typing import Any, cast
 from urllib.parse import urlparse
 
 import requests
@@ -22,6 +22,7 @@ _REQUEST_EXCEPTION = (
 )
 
 _COOKIE_JAR_CLASS = getattr(getattr(requests, "cookies", None), "RequestsCookieJar", None)
+CookiePayload = object | None
 
 
 def _safe_user_agent(config: AppConfig) -> str:
@@ -29,11 +30,11 @@ def _safe_user_agent(config: AppConfig) -> str:
     return candidate if isinstance(candidate, str) and candidate.strip() else "Mozilla/5.0"
 
 
-def _normalize_cookies(cookies: Any) -> Any:
+def _normalize_cookies(cookies: object | None) -> CookiePayload:
     if cookies is None:
         return None
-    if isinstance(cookies, dict):
-        return cookies
+    if isinstance(cookies, Mapping):
+        return {str(key): str(value) for key, value in cookies.items()}
     if isinstance(_COOKIE_JAR_CLASS, type) and isinstance(cookies, _COOKIE_JAR_CLASS):
         return cookies
     return None
@@ -173,9 +174,9 @@ def download_file(
     save_path: str,
     progress_callback: Callable[[float, float], None] | None = None,
     chunk_size: int | None = None,
-    config=None,
+    config: AppConfig | None = None,
     headers: dict[str, str] | None = None,
-    cookies: Any = None,
+    cookies: object | None = None,
 ) -> bool:
     """Download a file from URL.
 
@@ -216,7 +217,7 @@ def download_file(
             url,
             stream=True,
             headers=request_headers,
-            cookies=_normalize_cookies(cookies),
+            cookies=cast(Any, _normalize_cookies(cookies)),
             timeout=config.network.default_timeout,
         )
         response.raise_for_status()

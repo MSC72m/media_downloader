@@ -24,13 +24,13 @@ class InstagramDownloader(BaseDownloader):
         error_handler: IErrorNotifier | None = None,
         file_service: IFileService | None = None,
         config: AppConfig = get_config(),
-    ):
+    ) -> None:
         """Initialize Instagram downloader.
 
         Args:
             error_handler: Optional error handler for user notifications
             file_service: Optional file service for file operations
-            config: AppConfig instance (defaults to get_config() if None)
+            config: AppConfig instance (defaults to global app config)
         """
         super().__init__(error_handler, file_service, config)
         self.loader = None
@@ -38,8 +38,7 @@ class InstagramDownloader(BaseDownloader):
         self.login_attempts = 0
         self.max_login_attempts = self.config.instagram.max_login_attempts
         self.last_login_attempt = 0
-        if not self.file_service:
-            self.file_service = FileService()
+        self.file_service = file_service or FileService()
 
     def authenticate(self, username: str, password: str) -> bool:
         """
@@ -191,10 +190,10 @@ class InstagramDownloader(BaseDownloader):
 
     def _download_media_from_post(
         self,
-        post,
+        post: instaloader.Post,
         save_dir: str,
         base_name: str,
-        file_service: "FileService",
+        file_service: IFileService,
         progress_callback: Callable[[float, float], None] | None = None,
     ) -> bool:
         """Download media files from an Instagram post based on its type.
@@ -224,10 +223,10 @@ class InstagramDownloader(BaseDownloader):
 
     def _download_sidecar(
         self,
-        post,
+        post: instaloader.Post,
         save_dir: str,
         base_name: str,
-        file_service: "FileService",
+        file_service: IFileService,
         progress_callback: Callable[[float, float], None] | None = None,
     ) -> bool:
         """Download all items from a GraphSidecar (carousel) post."""
@@ -262,13 +261,12 @@ class InstagramDownloader(BaseDownloader):
                 return False
             post = instaloader.Post.from_shortcode(self.loader.context, shortcode)
 
-            file_service = FileService()
             save_dir = os.path.dirname(save_path) if os.path.dirname(save_path) else "."
             self.file_service.ensure_directory(save_dir)
 
             base_name = os.path.basename(save_path)
             media_success = self._download_media_from_post(
-                post, save_dir, base_name, file_service, progress_callback
+                post, save_dir, base_name, self.file_service, progress_callback
             )
 
             if caption := post.caption:

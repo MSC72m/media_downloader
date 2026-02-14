@@ -120,32 +120,17 @@ def test_retry_cooldown_skips_regeneration(monkeypatch: pytest.MonkeyPatch, tmp_
     assert generate_calls["count"] == 0
 
 
-def test_downloader_retries_host_lookup_after_challenge(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_downloader_stops_host_lookup_on_challenge(monkeypatch: pytest.MonkeyPatch) -> None:
     downloader = RadioJavanDownloader()
 
-    request_context_calls: list[bool] = []
-    invalidate_calls = {"count": 0}
-
     def fake_request_context(force_refresh: bool = False):
-        request_context_calls.append(force_refresh)
+        _ = force_refresh
         return {"User-Agent": "ua"}, None
 
-    def fake_invalidate() -> bool:
-        invalidate_calls["count"] += 1
-        return True
-
-    responses = iter(
-        [
-            _FakeResponse("<html>window._cf_chl_opt=1</html>", {"cf-mitigated": "challenge"}, 200),
-            _FakeResponse('{"host":"https://rj.app"}', {}, 200),
-        ]
-    )
-
     def fake_post(*_args, **_kwargs):
-        return next(responses)
+        return _FakeResponse("<html>window._cf_chl_opt=1</html>", {"cf-mitigated": "challenge"}, 200)
 
     monkeypatch.setattr(downloader, "_request_context", fake_request_context)
-    monkeypatch.setattr(downloader._session_manager, "invalidate_and_refresh", fake_invalidate)
     monkeypatch.setattr("src.services.radiojavan.downloader.requests.post", fake_post)
 
     host = downloader._fetch_host_from_endpoint(
@@ -153,9 +138,7 @@ def test_downloader_retries_host_lookup_after_challenge(monkeypatch: pytest.Monk
         "shadmehr-asteni",
     )
 
-    assert host == "https://rj.app"
-    assert request_context_calls == [False, True]
-    assert invalidate_calls["count"] == 1
+    assert host is None
 
 
 def test_session_manager_refresh_inside_running_event_loop(

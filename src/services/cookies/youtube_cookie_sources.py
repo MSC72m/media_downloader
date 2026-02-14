@@ -118,7 +118,7 @@ class YouTubeCookieSourceStrategy(Protocol):
 class _YouTubeProbeRunner:
     """Executes yt-dlp probe runs for cookie source health checks."""
 
-    def __init__(self, config: AppConfig = get_config()):
+    def __init__(self, config: AppConfig = get_config()) -> None:
         self.config = config
 
     def probe_browser(
@@ -231,7 +231,7 @@ class BrowserCookieSource:
         coordinator: YouTubeCookieSourceCoordinator,
         preferred_browser: str | None = None,
         force_reprobe: bool = False,
-    ):
+    ) -> None:
         self.coordinator = coordinator
         self.preferred_browser = preferred_browser
         self.force_reprobe = force_reprobe
@@ -291,7 +291,7 @@ class ManualCookieFileSource:
 
     source_name = "manual"
 
-    def __init__(self, cookie_path: str | None):
+    def __init__(self, cookie_path: str | None) -> None:
         self.cookie_path = cookie_path
 
     def resolve(self) -> list[YouTubeAuthConfig]:
@@ -316,7 +316,7 @@ class GeneratedGuestCookieSource:
 
     source_name = "generated"
 
-    def __init__(self, auto_cookie_manager: IAutoCookieManager | None):
+    def __init__(self, auto_cookie_manager: IAutoCookieManager | None) -> None:
         self.auto_cookie_manager = auto_cookie_manager
 
     def resolve(self) -> list[YouTubeAuthConfig]:
@@ -371,7 +371,7 @@ class YouTubeCookieSourceCoordinator:
         cookie_handler: ICookieHandler | None = None,
         storage_dir: Path | None = None,
         config: AppConfig = get_config(),
-    ):
+    ) -> None:
         self.config = config
         self.auto_cookie_manager = auto_cookie_manager
         self.cookie_handler = cookie_handler
@@ -758,7 +758,7 @@ def _extract_video_id(url: str) -> str | None:
     return None
 
 
-def _freeze_json_like(value: Any) -> tuple[Any, ...]:
+def _freeze_json_like(value: object) -> tuple[Any, ...]:
     if isinstance(value, dict):
         return tuple(sorted((str(key), _freeze_json_like(val)) for key, val in value.items()))
     if isinstance(value, list | tuple):

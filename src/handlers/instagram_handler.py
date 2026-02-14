@@ -1,14 +1,14 @@
 import re
-from collections.abc import Callable
-from typing import Any
+from collections.abc import Mapping
 
 from src.core.config import AppConfig, get_config
 from src.core.enums.instagram_auth_status import InstagramAuthStatus
 from src.core.enums.message_level import MessageLevel
 from src.core.enums.service_type import ServiceType
-from src.core.interfaces import IErrorNotifier, IMessageQueue
+from src.core.interfaces import IErrorNotifier, IMessageQueue, UIContextProtocol
 from src.core.models import Download, DownloadStatus
-from src.services.detection.base_handler import BaseHandler
+from src.core.type_defs import JSONDict, JSONValue
+from src.services.detection.base_handler import BaseHandler, UICallback
 from src.services.detection.link_detector import (
     auto_register_handler,
 )
@@ -33,18 +33,19 @@ class InstagramHandler(BaseHandler):
         instagram_auth_manager: InstagramAuthManager,
         error_handler: IErrorNotifier | None = None,
         message_queue: IMessageQueue | None = None,
-        config: AppConfig = get_config(),
-    ):
-        super().__init__(message_queue, config, service_name="instagram")
+        config: AppConfig | None = None,
+    ) -> None:
+        resolved_config = config or get_config()
+        super().__init__(message_queue, resolved_config, service_name="instagram")
         self.instagram_auth_manager = instagram_auth_manager
         self.error_handler = error_handler
 
     @classmethod
-    def get_patterns(cls):
+    def get_patterns(cls) -> list[str]:
         """Get URL patterns for this handler."""
         return get_config().instagram.url_patterns
 
-    def _extract_metadata(self, url: str) -> dict[str, Any]:
+    def _extract_metadata(self, url: str) -> JSONDict:
         """Extract Instagram-specific metadata from URL."""
         return {
             "type": self._detect_instagram_type(url),
@@ -59,16 +60,16 @@ class InstagramHandler(BaseHandler):
             "requires_auth": True,
         }
 
-    def process_download(self, url: str, options: dict[str, Any]) -> bool:
+    def process_download(self, url: str, options: Mapping[str, JSONValue]) -> bool:
         """Process Instagram download."""
         logger.info(f"[INSTAGRAM_HANDLER] Processing Instagram download: {url}")
         return True
 
-    def get_ui_callback(self) -> Callable:
+    def get_ui_callback(self) -> UICallback:
         """Get the UI callback for Instagram URLs."""
         logger.info("[INSTAGRAM_HANDLER] Getting UI callback")
 
-        def instagram_callback(url: str, ui_context: Any):
+        def instagram_callback(url: str, ui_context: UIContextProtocol) -> None:
             """Callback for handling Instagram URLs."""
             logger.info(f"[INSTAGRAM_HANDLER] Instagram callback called with URL: {url}")
 
@@ -109,7 +110,7 @@ class InstagramHandler(BaseHandler):
 
             download_index_ref: dict[str, int | None] = {"index": None}
 
-            def add_download_to_list():
+            def add_download_to_list() -> None:
                 try:
                     if hasattr(ctx, "downloads") and hasattr(ctx.downloads, "add_download"):
                         ctx.downloads.add_download(download)
@@ -118,7 +119,7 @@ class InstagramHandler(BaseHandler):
                         if hasattr(ctx.downloads, "get_downloads"):
                             downloads = ctx.downloads.get_downloads()
                             for idx, d in enumerate(downloads):
-                                if d.url == url:
+                                if isinstance(d, Download) and d.url == url:
                                     download_index_ref["index"] = idx
                                     logger.info(
                                         f"[INSTAGRAM_HANDLER] Tracked download at index: {idx}"
@@ -155,8 +156,11 @@ class InstagramHandler(BaseHandler):
                     return
 
                 platform_coordinator = ctx.platform_dialogs
+                if root is None:
+                    logger.error("[INSTAGRAM_HANDLER] Root window not available for auth dialog")
+                    return
 
-                def on_auth_complete(status):
+                def on_auth_complete(status: InstagramAuthStatus) -> None:
                     """Callback after authentication completes.
 
                     Args:
@@ -179,7 +183,7 @@ class InstagramHandler(BaseHandler):
                             if (index := download_index_ref["index"]) is None:
                                 return
 
-                            def remove_download():
+                            def remove_download() -> None:
                                 try:
                                     ctx.downloads.remove_downloads([index])
                                     logger.info(
@@ -206,7 +210,7 @@ class InstagramHandler(BaseHandler):
                 platform_coordinator.authenticate_instagram(root, on_auth_complete)
                 return
 
-            def process_instagram_download():
+            def process_instagram_download() -> None:
                 try:
                     logger.info(f"[INSTAGRAM_HANDLER] Calling download callback for: {url}")
                     download_callback(url)

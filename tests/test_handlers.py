@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from src.core.interfaces.youtube_metadata import YouTubeMetadata
 from src.handlers import _register_link_handlers
 
 
@@ -73,14 +74,9 @@ class MockMetadataService:
         url: str,
         cookie_path: str | None = None,
         browser: str | None = None,
-    ) -> object:
+    ) -> YouTubeMetadata | None:
         _ = (url, cookie_path, browser)
-        class MockMetadata:
-            def __init__(self):
-                self.title = "Mock Title"
-                self.description = "Mock Description"
-
-        return MockMetadata()
+        return YouTubeMetadata(title="Mock Title", description="Mock Description")
 
     def get_metadata(self, url: str) -> dict:
         _ = url
@@ -107,6 +103,18 @@ class MockFileService:
 
     def ensure_directory(self, path: str) -> bool:
         _ = path
+        return True
+
+    def download_file(self, url: str, path: str, progress_callback=None):
+        _ = (url, path, progress_callback)
+
+        class Result:
+            success = True
+
+        return Result()
+
+    def save_text_file(self, content: str, file_path: str) -> bool:
+        _ = (content, file_path)
         return True
 
     def get_file_size(self, file_path: str) -> int:

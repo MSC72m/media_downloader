@@ -26,7 +26,7 @@ class YouTubeSubtitleExtractor:
         auto_cookie_manager: IAutoCookieManager | None = None,
         cookie_handler: ICookieHandler | None = None,
         config: AppConfig = get_config(),
-    ):
+    ) -> None:
         self.error_handler = error_handler
         self.config = config
         self.subtitle_parser = YouTubeSubtitleParser(config)

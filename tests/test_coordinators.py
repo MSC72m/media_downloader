@@ -129,6 +129,18 @@ class MockFileService:
         _ = path
         return True
 
+    def download_file(self, url: str, path: str, progress_callback=None):
+        _ = (url, path, progress_callback)
+
+        class Result:
+            success = True
+
+        return Result()
+
+    def save_text_file(self, content: str, file_path: str) -> bool:
+        _ = (content, file_path)
+        return True
+
     def get_file_size(self, file_path: str) -> int:
         return 1024
 

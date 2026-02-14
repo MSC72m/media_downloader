@@ -1,7 +1,12 @@
 from src.core.config import AppConfig, get_config
 from src.core.enums import ServiceType
-from src.core.interfaces import IErrorNotifier, IFileService
-from src.services.cookies import RadioJavanSessionManager
+from src.core.interfaces import (
+    BaseDownloader,
+    IAutoCookieManager,
+    ICookieHandler,
+    IErrorNotifier,
+    IFileService,
+)
 from src.services.instagram import InstagramAuthManager
 from src.services.instagram.downloader import InstagramDownloader
 from src.services.pinterest.downloader import PinterestDownloader
@@ -19,32 +24,31 @@ logger = get_logger(__name__)
 class ServiceFactory:
     def __init__(
         self,
-        cookie_handler=None,
-        cookie_manager=None,
-        auto_cookie_manager=None,
+        cookie_handler: ICookieHandler | None = None,
+        cookie_manager: ICookieHandler | None = None,
+        auto_cookie_manager: IAutoCookieManager | None = None,
         error_handler: IErrorNotifier | None = None,
         instagram_auth_manager: InstagramAuthManager | None = None,
         file_service: IFileService | None = None,
-        config: AppConfig = get_config(),
-    ):
-        # Backward-compat: `cookie_manager` maps to legacy manual cookie handler dependency.
+        config: AppConfig | None = None,
+    ) -> None:
+        resolved_config = config or get_config()
         self.cookie_handler = cookie_handler if cookie_handler is not None else cookie_manager
         self.auto_cookie_manager = auto_cookie_manager
         self.error_handler = error_handler
         self.instagram_auth_manager = instagram_auth_manager
         self.file_service = file_service
-        self.config = config
-        self.radiojavan_session_manager = RadioJavanSessionManager(config=self.config)
+        self.config = resolved_config
         logger.info("[SERVICE_FACTORY] Initialized")
 
-    def get_cookie_handler(self):
+    def get_cookie_handler(self) -> ICookieHandler | None:
         return self.cookie_handler
 
-    def get_cookie_manager(self):
+    def get_cookie_manager(self) -> ICookieHandler | None:
         """Backward-compatible alias for older tests/callers."""
         return self.cookie_handler
 
-    def get_auto_cookie_manager(self):
+    def get_auto_cookie_manager(self) -> IAutoCookieManager | None:
         return self.auto_cookie_manager
 
     def detect_service_type(self, url: str) -> ServiceType:
@@ -75,7 +79,7 @@ class ServiceFactory:
             )
         return ServiceType.GENERIC
 
-    def get_downloader(self, url: str):
+    def get_downloader(self, url: str) -> BaseDownloader | None:
         service_type = self.detect_service_type(url)
         logger.info(f"[SERVICE_FACTORY] Getting downloader for service: {service_type}")
 
@@ -112,7 +116,6 @@ class ServiceFactory:
                 error_handler=self.error_handler,
                 file_service=self.file_service,
                 config=self.config,
-                session_manager=self.radiojavan_session_manager,
             ),
             ServiceType.SPOTIFY: lambda: SpotifyDownloader(
                 error_handler=self.error_handler,
@@ -135,15 +138,7 @@ class ServiceFactory:
                 )
             return None
 
-        error_msg = f"No downloader available for: {service_type}"
-        logger.error(f"[SERVICE_FACTORY] {error_msg}")
-        if self.error_handler:
-            self.error_handler.handle_service_failure(
-                "Service Factory", "downloader creation", error_msg, url
-            )
-        return None
-
-    def _get_instagram_downloader(self):
+    def _get_instagram_downloader(self) -> InstagramDownloader:
         if not self.instagram_auth_manager:
             logger.warning("[SERVICE_FACTORY] Instagram auth manager not available")
             return InstagramDownloader(
@@ -169,5 +164,5 @@ class ServiceFactory:
             config=self.config,
         )
 
-    def get_service(self, service_type: str):
+    def get_service(self, service_type: str) -> None:
         logger.debug(f"[SERVICE_FACTORY] Getting service for: {service_type}")

@@ -48,9 +48,7 @@ class SpotifyDownloader(BaseDownloader):
         error_handler: IErrorNotifier | None = None,
         file_service: IFileService | None = None,
         config: AppConfig = get_config(),
-    ):
-        if config is None:
-            config = get_config()
+    ) -> None:
         super().__init__(error_handler, file_service, config)
         self.default_timeout = config.spotify.default_timeout
         self.oembed_timeout = config.spotify.oembed_timeout

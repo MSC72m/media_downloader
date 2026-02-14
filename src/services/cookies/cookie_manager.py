@@ -21,7 +21,7 @@ logger = get_logger(__name__)
 
 
 class CookieManager:
-    def __init__(self, storage_dir: Path | None = None, config: AppConfig = get_config()):
+    def __init__(self, storage_dir: Path | None = None, config: AppConfig = get_config()) -> None:
         self.config = config
         self.storage_dir = storage_dir or self.config.cookies.storage_dir
         self.storage_dir.mkdir(parents=True, exist_ok=True)

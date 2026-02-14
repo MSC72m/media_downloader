@@ -7,7 +7,7 @@ import requests
 from bs4 import BeautifulSoup
 from bs4.element import Tag
 
-from src.core.config import get_config
+from src.core.config import AppConfig, get_config
 from src.core.enums import ServiceType
 from src.core.interfaces import BaseDownloader, IErrorNotifier, IFileService
 
@@ -25,20 +25,17 @@ class PinterestDownloader(BaseDownloader):
         self,
         error_handler: IErrorNotifier | None = None,
         file_service: IFileService | None = None,
-        config=None,
-    ):
+        config: AppConfig = get_config(),
+    ) -> None:
         """Initialize Pinterest downloader.
 
         Args:
             error_handler: Optional error handler for user notifications
             file_service: Optional file service for file operations
-            config: AppConfig instance (defaults to get_config() if None)
+            config: AppConfig instance (defaults to global app config)
         """
-        if config is None:
-            config = get_config()
         super().__init__(error_handler, file_service, config)
-        if not self.file_service:
-            self.file_service = FileService()
+        self.file_service = file_service or FileService()
 
     def download(
         self,
@@ -77,14 +74,13 @@ class PinterestDownloader(BaseDownloader):
                 return False
 
             save_dir = os.path.dirname(save_path) if os.path.dirname(save_path) else "."
-            file_service = self.file_service if self.file_service else FileService()
             self.file_service.ensure_directory(save_dir)
 
             filename = self.file_service.sanitize_filename(os.path.basename(save_path))
 
             ext = self._get_extension_from_url(media_url) or ".jpg"
             full_path = os.path.join(save_dir, filename + ext)
-            result = file_service.download_file(media_url, full_path, progress_callback)
+            result = self.file_service.download_file(media_url, full_path, progress_callback)
 
             if not result.success:
                 error_msg = "Failed to download media file"

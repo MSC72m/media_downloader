@@ -18,9 +18,13 @@ class CookieHandler(ICookieHandler):
     - Manual cookie file selection (this handler)
     """
 
-    def __init__(self, config: AppConfig):
+    def __init__(
+        self,
+        config: AppConfig,
+        service_detector: ServiceDetector | None = None,
+    ) -> None:
         self.config = config
-        self._service_detector = ServiceDetector()
+        self._service_detector = service_detector or ServiceDetector(config=config)
         self._current_cookie_path: str | None = None
         self._initialized = False
 

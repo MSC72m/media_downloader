@@ -18,7 +18,13 @@ from src.services.ytdlp_logger import YTDLPLoggerBridge
 from src.utils.logger import get_logger
 
 from ...core.enums import ServiceType
-from ...core.interfaces import BaseDownloader, IAutoCookieManager, ICookieHandler
+from ...core.interfaces import (
+    BaseDownloader,
+    IAutoCookieManager,
+    ICookieHandler,
+    IErrorNotifier,
+    IFileService,
+)
 from ..file.sanitizer import FilenameSanitizer
 from .error_handler import YouTubeErrorBucket, YouTubeErrorHandler
 from .metadata_service import YouTubeMetadataService
@@ -51,10 +57,10 @@ class YouTubeDownloader(BaseDownloader):
         embed_metadata: bool = True,
         speed_limit: int | None = None,
         retries: int = 3,
-        error_handler: Any | None = None,
-        file_service: Any | None = None,
+        error_handler: IErrorNotifier | None = None,
+        file_service: IFileService | None = None,
         config: AppConfig = get_config(),
-    ):
+    ) -> None:
         super().__init__(error_handler=error_handler, file_service=file_service, config=config)
         self.quality = quality
         self.download_playlist = download_playlist
@@ -732,11 +738,13 @@ class YouTubeDownloader(BaseDownloader):
         logger.error(f"YouTube download error: {error_msg}")
 
     @staticmethod
-    def _create_progress_hook(callback: Callable[[float, float], None]):
+    def _create_progress_hook(
+        callback: Callable[[float, float], None],
+    ) -> Callable[[dict[str, Any]], None]:
         """Create a progress hook function for yt-dlp."""
         start_time = time.time()
 
-        def hook(d):
+        def hook(d: dict[str, Any]) -> None:
             status = d.get("status")
 
             if status == "downloading":

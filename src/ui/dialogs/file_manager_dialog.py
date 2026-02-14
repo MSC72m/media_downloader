@@ -26,7 +26,7 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
         show_status: Callable[[str], None],
         error_handler: IErrorNotifier | None = None,
         message_queue: IMessageQueue | None = None,
-    ):
+    ) -> None:
         super().__init__(parent)
 
         self.title("File Browser")
@@ -61,7 +61,7 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.grab_set()
         self.focus_set()
 
-    def create_widgets(self):
+    def create_widgets(self) -> None:
         """Create and arrange all widgets."""
         # Path entry bar
         self.path_entry = PathEntryBar(self, self.current_path, self.update_file_list)
@@ -77,7 +77,7 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
         )
         self.action_buttons.grid(row=2, column=0, columnspan=2, padx=20, pady=(0, 20), sticky="ew")
 
-    def update_file_list(self):
+    def update_file_list(self) -> None:
         """Update the file list with current directory contents."""
         try:
             self.current_path = os.path.expanduser(self.path_entry.get_path())
@@ -87,7 +87,7 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
             if self.show_status:
                 self.show_status("Error: Unable to access the specified directory.")
 
-    def on_item_double_click(self, event):
+    def on_item_double_click(self, event) -> None:
         """Handle double-click on file/directory."""
         if not (item := self.file_list.get_selected_item()):
             return
@@ -106,7 +106,7 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
             self.path_entry.set_path(new_path)
             self.update_file_list()
 
-    def change_directory(self):
+    def change_directory(self) -> None:
         """Change the download directory."""
         if os.path.exists(self.current_path) and os.path.isdir(self.current_path):
             self.on_directory_change(self.current_path)
@@ -129,7 +129,7 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
             elif self.show_status:
                 self.show_status(error_msg)
 
-    def create_folder(self):
+    def create_folder(self) -> None:
         """Create a new folder."""
         dialog = CenteredInputDialog(title="Create Folder", text="Enter folder name:")
         if folder_name := dialog.get_input():

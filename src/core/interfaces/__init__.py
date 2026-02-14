@@ -6,11 +6,13 @@ from .notifier import INotifier
 from .parser import IParser
 from .protocols import (
     DownloadAttributesProtocol,
+    DynamicUIContextProtocol,
     HandlerWithPatternsProtocol,
     HasCleanupProtocol,
     HasClearProtocol,
     HasCompletedDownloadsProtocol,
     HasEventCoordinatorProtocol,
+    ServiceResolverProtocol,
     TkRootProtocol,
     UIContextProtocol,
 )
@@ -40,6 +42,7 @@ __all__ = [
     "AuthenticationError",
     "BaseDownloader",
     "DownloadAttributesProtocol",
+    "DynamicUIContextProtocol",
     "HandlerWithPatternsProtocol",
     "HasCleanupProtocol",
     "HasClearProtocol",
@@ -62,6 +65,7 @@ __all__ = [
     "IYouTubeMetadataService",
     "NetworkError",
     "ServiceError",
+    "ServiceResolverProtocol",
     "SubtitleInfo",
     "TkRootProtocol",
     "UIContextProtocol",

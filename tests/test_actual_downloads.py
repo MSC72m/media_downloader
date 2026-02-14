@@ -34,10 +34,15 @@ class MockFileService:
         return filename
 
     def download_file(self, url: str, path: str, progress_callback=None):
+        _ = (url, path, progress_callback)
         class Result:
             success = True
 
         return Result()
+
+    def save_text_file(self, content: str, file_path: str) -> bool:
+        _ = (content, file_path)
+        return True
 
     def get_unique_filename(self, directory: str, base_name: str, extension: str = "") -> str:
         return f"{directory}/{base_name}{extension}"

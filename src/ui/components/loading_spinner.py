@@ -8,7 +8,7 @@ from ...utils.window import WindowCenterMixin
 class SmallLoadingSpinner(ctk.CTkToplevel, WindowCenterMixin):
     """Small, elegant loading spinner that centers itself."""
 
-    def __init__(self, parent, message: str = "Loading...", size: int = 60, **kwargs):
+    def __init__(self, parent, message: str = "Loading...", size: int = 60, **kwargs) -> None:
         ctk.CTkToplevel.__init__(self, parent, **kwargs)
 
         self.message = message
@@ -24,7 +24,7 @@ class SmallLoadingSpinner(ctk.CTkToplevel, WindowCenterMixin):
 
         self.withdraw()
 
-    def _create_spinner(self):
+    def _create_spinner(self) -> None:
         """Create the small spinner with message."""
         container = ctk.CTkFrame(self, fg_color=("#2b2b2b", "#f0f0f0"), corner_radius=10)
         container.pack(expand=True)
@@ -64,18 +64,18 @@ class SmallLoadingSpinner(ctk.CTkToplevel, WindowCenterMixin):
         )
         self.message_label.pack(pady=(0, 15))
 
-    def start(self):
+    def start(self) -> None:
         """Start the spinner animation."""
         if not self.is_running:
             self.is_running = True
             self.lift()
             self._animate()
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop the spinner animation."""
         self.is_running = False
 
-    def _animate(self):
+    def _animate(self) -> None:
         """Animate the spinner rotation."""
         if not self.is_running:
             return
@@ -94,13 +94,13 @@ class SmallLoadingSpinner(ctk.CTkToplevel, WindowCenterMixin):
 
         self.after(50, self._animate)
 
-    def set_message(self, message: str):
+    def set_message(self, message: str) -> None:
         """Update the loading message."""
         self.message = message
         if hasattr(self, "message_label"):
             self.message_label.configure(text=message)
 
-    def _safe_deiconify(self):
+    def _safe_deiconify(self) -> None:
         """Safely deiconify the window, handling CustomTkinter race conditions."""
         try:
             self.update_idletasks()
@@ -112,7 +112,7 @@ class SmallLoadingSpinner(ctk.CTkToplevel, WindowCenterMixin):
             except Exception:
                 pass
 
-    def show(self, parent=None):
+    def show(self, parent=None) -> None:
         """Show the spinner centered on parent or screen."""
         if parent and hasattr(parent, "winfo_exists") and parent.winfo_exists():
             self.transient(parent)
@@ -126,12 +126,12 @@ class SmallLoadingSpinner(ctk.CTkToplevel, WindowCenterMixin):
         self.grab_set()  # Make modal
         self.start()  # Start animation
 
-    def hide(self):
+    def hide(self) -> None:
         """Hide the spinner."""
         self.stop()
         self.withdraw()
 
-    def destroy(self):
+    def destroy(self) -> None:
         """Clean up the spinner."""
         self.stop()
         super().destroy()
@@ -140,7 +140,7 @@ class SmallLoadingSpinner(ctk.CTkToplevel, WindowCenterMixin):
 class LoadingOverlay(ctk.CTkFrame):
     """Simple full-page loading overlay for modal dialogs."""
 
-    def __init__(self, parent, message: str = "Loading...", **kwargs):
+    def __init__(self, parent, message: str = "Loading...", **kwargs) -> None:
         super().__init__(parent, **kwargs)
 
         self.message = message
@@ -148,7 +148,7 @@ class LoadingOverlay(ctk.CTkFrame):
 
         self._create_overlay()
 
-    def _create_overlay(self):
+    def _create_overlay(self) -> None:
         """Create the overlay with spinner."""
         self.grid(row=0, column=0, sticky="nsew")
         self.master.grid_rowconfigure(0, weight=1)
@@ -161,28 +161,28 @@ class LoadingOverlay(ctk.CTkFrame):
 
         self.spinner = SmallLoadingSpinner(self.winfo_toplevel(), message=self.message, size=50)
 
-    def start(self):
+    def start(self) -> None:
         """Start the loading animation."""
         if self.spinner:
             self.spinner.show(self.winfo_toplevel())
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop the loading animation."""
         if self.spinner:
             self.spinner.hide()
 
-    def set_message(self, message: str):
+    def set_message(self, message: str) -> None:
         """Update the loading message."""
         self.message = message
         if self.spinner:
             self.spinner.set_message(message)
 
-    def show(self):
+    def show(self) -> None:
         """Show the overlay."""
         self.lift()
         self.start()
 
-    def hide(self):
+    def hide(self) -> None:
         """Hide the overlay."""
         self.stop()
         self.place_forget()
