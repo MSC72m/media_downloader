@@ -1,0 +1,42 @@
+{
+  "name": "amber",
+  "emoji": "\ud83d\udfe1",
+  "light": {
+    "fg_color": ["#FFF8E1", "#FFFFFF"],
+    "text_color": ["#1A1A1A", "#666666"],
+    "button_color": ["#FFC107", "#FFA000"],
+    "button_hover_color": ["#FFA000", "#FF6F00"],
+    "border_color": ["#FFC107", "#FFA000"],
+    "text_muted": "#999999",
+    "status_success": "#28a745",
+    "status_error": "#dc3545",
+    "button_success": ["#28a745", "#1E7E34"],
+    "button_success_hover": ["#218838", "#155724"],
+    "accent": "#FFC107",
+    "surface": "#FFFFFF",
+    "surface_elevated": "#F5F5F5",
+    "overlay_bg": "#F0F0F0",
+    "card_border": "#CCCCCC",
+    "select_bg": "#FFC107",
+    "text_on_surface": "#1A1A1A"
+  },
+  "dark": {
+    "fg_color": ["#3A2E1A", "#473424"],
+    "text_color": ["#FFFFFF", "#CCCCCC"],
+    "button_color": ["#FFC107", "#FFA000"],
+    "button_hover_color": ["#FFA000", "#FF6F00"],
+    "border_color": ["#FFC107", "#FFA000"],
+    "text_muted": "#888888",
+    "status_success": "#28a745",
+    "status_error": "#dc3545",
+    "button_success": ["#28a745", "#1E7E34"],
+    "button_success_hover": ["#218838", "#155724"],
+    "accent": "#FFC107",
+    "surface": "#2b2b2b",
+    "surface_elevated": "#2b2b2b",
+    "overlay_bg": "#1a1a1a",
+    "card_border": "#4a4a4a",
+    "select_bg": "#a07a00",
+    "text_on_surface": "#FFFFFF"
+  }
+}

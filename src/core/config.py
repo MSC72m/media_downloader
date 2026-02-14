@@ -9,7 +9,6 @@ from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from src.core.enums.appearance_mode import AppearanceMode
-from src.core.enums.color_theme import ColorTheme
 from src.utils.logger import get_logger
 
 if TYPE_CHECKING:
@@ -812,229 +811,30 @@ class ThemeConfig(BaseModel):
 
     @field_validator("color_theme", mode="before")
     @classmethod
-    def validate_color_theme(cls, v: ColorTheme | str) -> str:
-        """Validate color theme value."""
-        if isinstance(v, ColorTheme):
-            return v.value
-        return v
+    def validate_color_theme(cls, v: str | object) -> str:
+        """Validate color theme value.
+
+        Accepts any string (or StrEnum which ``str()`` converts correctly).
+        """
+        return str(v)
 
     @property
     def appearance_mode_enum(self) -> AppearanceMode:
         """Get appearance mode as enum."""
         return AppearanceMode(self.appearance_mode)
 
-    @property
-    def color_theme_enum(self) -> ColorTheme:
-        """Get color theme as enum."""
-        return ColorTheme(self.color_theme)
-
     @staticmethod
     def get_color_schemes() -> dict[str, dict[str, Any]]:
-        """Get all color schemes for themes."""
-        return {
-            "light_blue": {
-                "fg_color": ["#CCE6FF", "#FFFFFF"],
-                "text_color": ["#1A1A1A", "#666666"],
-                "button_color": ["#007BFF", "#0056b3"],
-                "button_hover_color": ["#0056b3", "#003d82"],
-                "border_color": ["#007BFF", "#0056b3"],
-            },
-            "dark_blue": {
-                "fg_color": ["#1A2332", "#243447"],
-                "text_color": ["#FFFFFF", "#CCCCCC"],
-                "button_color": ["#007BFF", "#0056b3"],
-                "button_hover_color": ["#0056b3", "#003d82"],
-                "border_color": ["#007BFF", "#0056b3"],
-            },
-            "light_green": {
-                "fg_color": ["#D4EDDA", "#FFFFFF"],
-                "text_color": ["#1A1A1A", "#666666"],
-                "button_color": ["#28A745", "#1E7E34"],
-                "button_hover_color": ["#1E7E34", "#155724"],
-                "border_color": ["#28A745", "#1E7E34"],
-            },
-            "dark_green": {
-                "fg_color": ["#1A2E1A", "#243424"],
-                "text_color": ["#FFFFFF", "#CCCCCC"],
-                "button_color": ["#28A745", "#1E7E34"],
-                "button_hover_color": ["#1E7E34", "#155724"],
-                "border_color": ["#28A745", "#1E7E34"],
-            },
-            "light_red": {
-                "fg_color": ["#F8D7DA", "#FFFFFF"],
-                "text_color": ["#1A1A1A", "#666666"],
-                "button_color": ["#DC3545", "#C82333"],
-                "button_hover_color": ["#C82333", "#A71E2A"],
-                "border_color": ["#DC3545", "#C82333"],
-            },
-            "dark_red": {
-                "fg_color": ["#2E1A1A", "#342424"],
-                "text_color": ["#FFFFFF", "#CCCCCC"],
-                "button_color": ["#DC3545", "#C82333"],
-                "button_hover_color": ["#C82333", "#A71E2A"],
-                "border_color": ["#DC3545", "#C82333"],
-            },
-            "light_purple": {
-                "fg_color": ["#E6D7FF", "#FFFFFF"],
-                "text_color": ["#1A1A1A", "#666666"],
-                "button_color": ["#6F42C1", "#5A32A3"],
-                "button_hover_color": ["#5A32A3", "#4A2790"],
-                "border_color": ["#6F42C1", "#5A32A3"],
-            },
-            "dark_purple": {
-                "fg_color": ["#2E1A3A", "#342447"],
-                "text_color": ["#FFFFFF", "#CCCCCC"],
-                "button_color": ["#6F42C1", "#5A32A3"],
-                "button_hover_color": ["#5A32A3", "#4A2790"],
-                "border_color": ["#6F42C1", "#5A32A3"],
-            },
-            "light_orange": {
-                "fg_color": ["#FFF3E0", "#FFFFFF"],
-                "text_color": ["#1A1A1A", "#666666"],
-                "button_color": ["#FF9800", "#F57C00"],
-                "button_hover_color": ["#F57C00", "#E65100"],
-                "border_color": ["#FF9800", "#F57C00"],
-            },
-            "dark_orange": {
-                "fg_color": ["#3A2A1A", "#473424"],
-                "text_color": ["#FFFFFF", "#CCCCCC"],
-                "button_color": ["#FF9800", "#F57C00"],
-                "button_hover_color": ["#F57C00", "#E65100"],
-                "border_color": ["#FF9800", "#F57C00"],
-            },
-            "light_teal": {
-                "fg_color": ["#E0F2F1", "#FFFFFF"],
-                "text_color": ["#1A1A1A", "#666666"],
-                "button_color": ["#009688", "#00796B"],
-                "button_hover_color": ["#00796B", "#00695C"],
-                "border_color": ["#009688", "#00796B"],
-            },
-            "dark_teal": {
-                "fg_color": ["#1A2E2E", "#243434"],
-                "text_color": ["#FFFFFF", "#CCCCCC"],
-                "button_color": ["#009688", "#00796B"],
-                "button_hover_color": ["#00796B", "#00695C"],
-                "border_color": ["#009688", "#00796B"],
-            },
-            "light_pink": {
-                "fg_color": ["#FCE4EC", "#FFFFFF"],
-                "text_color": ["#1A1A1A", "#666666"],
-                "button_color": ["#E91E63", "#C2185B"],
-                "button_hover_color": ["#C2185B", "#880E4F"],
-                "border_color": ["#E91E63", "#C2185B"],
-            },
-            "dark_pink": {
-                "fg_color": ["#3A1A2E", "#472434"],
-                "text_color": ["#FFFFFF", "#CCCCCC"],
-                "button_color": ["#E91E63", "#C2185B"],
-                "button_hover_color": ["#C2185B", "#880E4F"],
-                "border_color": ["#E91E63", "#C2185B"],
-            },
-            "light_indigo": {
-                "fg_color": ["#E8EAF6", "#FFFFFF"],
-                "text_color": ["#1A1A1A", "#666666"],
-                "button_color": ["#3F51B5", "#303F9F"],
-                "button_hover_color": ["#303F9F", "#283593"],
-                "border_color": ["#3F51B5", "#303F9F"],
-            },
-            "dark_indigo": {
-                "fg_color": ["#1A1E3A", "#242447"],
-                "text_color": ["#FFFFFF", "#CCCCCC"],
-                "button_color": ["#3F51B5", "#303F9F"],
-                "button_hover_color": ["#303F9F", "#283593"],
-                "border_color": ["#3F51B5", "#303F9F"],
-            },
-            "light_amber": {
-                "fg_color": ["#FFF8E1", "#FFFFFF"],
-                "text_color": ["#1A1A1A", "#666666"],
-                "button_color": ["#FFC107", "#FFA000"],
-                "button_hover_color": ["#FFA000", "#FF6F00"],
-                "border_color": ["#FFC107", "#FFA000"],
-            },
-            "dark_amber": {
-                "fg_color": ["#3A2E1A", "#473424"],
-                "text_color": ["#FFFFFF", "#CCCCCC"],
-                "button_color": ["#FFC107", "#FFA000"],
-                "button_hover_color": ["#FFA000", "#FF6F00"],
-                "border_color": ["#FFC107", "#FFA000"],
-            },
-            "light_cyan": {
-                "fg_color": ["#E0F7FA", "#FFFFFF"],
-                "text_color": ["#1A1A1A", "#666666"],
-                "button_color": ["#00BCD4", "#00ACC1"],
-                "button_hover_color": ["#00ACC1", "#0097A7"],
-                "border_color": ["#00BCD4", "#00ACC1"],
-            },
-            "dark_cyan": {
-                "fg_color": ["#1A2E3A", "#243447"],
-                "text_color": ["#FFFFFF", "#CCCCCC"],
-                "button_color": ["#00BCD4", "#00ACC1"],
-                "button_hover_color": ["#00ACC1", "#0097A7"],
-                "border_color": ["#00BCD4", "#00ACC1"],
-            },
-            "light_emerald": {
-                "fg_color": ["#E8F5E8", "#FFFFFF"],
-                "text_color": ["#1A1A1A", "#666666"],
-                "button_color": ["#4CAF50", "#388E3C"],
-                "button_hover_color": ["#388E3C", "#2E7D32"],
-                "border_color": ["#4CAF50", "#388E3C"],
-            },
-            "dark_emerald": {
-                "fg_color": ["#1A3A1A", "#243424"],
-                "text_color": ["#FFFFFF", "#CCCCCC"],
-                "button_color": ["#4CAF50", "#388E3C"],
-                "button_hover_color": ["#388E3C", "#2E7D32"],
-                "border_color": ["#4CAF50", "#388E3C"],
-            },
-            "light_rose": {
-                "fg_color": ["#FFF1F2", "#FFFFFF"],
-                "text_color": ["#1A1A1A", "#666666"],
-                "button_color": ["#F43F5E", "#E11D48"],
-                "button_hover_color": ["#E11D48", "#BE123C"],
-                "border_color": ["#F43F5E", "#E11D48"],
-            },
-            "dark_rose": {
-                "fg_color": ["#3A1A1F", "#472424"],
-                "text_color": ["#FFFFFF", "#CCCCCC"],
-                "button_color": ["#F43F5E", "#E11D48"],
-                "button_hover_color": ["#E11D48", "#BE123C"],
-                "border_color": ["#F43F5E", "#E11D48"],
-            },
-            "light_violet": {
-                "fg_color": ["#F3E8FF", "#FFFFFF"],
-                "text_color": ["#1A1A1A", "#666666"],
-                "button_color": ["#8B5CF6", "#7C3AED"],
-                "button_hover_color": ["#7C3AED", "#6D28D9"],
-                "border_color": ["#8B5CF6", "#7C3AED"],
-            },
-            "dark_violet": {
-                "fg_color": ["#2E1A3A", "#342447"],
-                "text_color": ["#FFFFFF", "#CCCCCC"],
-                "button_color": ["#8B5CF6", "#7C3AED"],
-                "button_hover_color": ["#7C3AED", "#6D28D9"],
-                "border_color": ["#8B5CF6", "#7C3AED"],
-            },
-            "light_slate": {
-                "fg_color": ["#F8FAFC", "#FFFFFF"],
-                "text_color": ["#1A1A1A", "#666666"],
-                "button_color": ["#64748B", "#475569"],
-                "button_hover_color": ["#475569", "#334155"],
-                "border_color": ["#64748B", "#475569"],
-            },
-            "dark_slate": {
-                "fg_color": ["#1A1F2E", "#242434"],
-                "text_color": ["#FFFFFF", "#CCCCCC"],
-                "button_color": ["#64748B", "#475569"],
-                "button_hover_color": ["#475569", "#334155"],
-                "border_color": ["#64748B", "#475569"],
-            },
-        }
+        """Get all color schemes, loaded from JSON theme files in ``themes/``."""
+        from src.core.themes import load_color_schemes
+
+        return load_color_schemes()
 
     @staticmethod
-    def get_theme_json(appearance: AppearanceMode, color: ColorTheme) -> dict[str, Any]:
+    def get_theme_json(appearance: AppearanceMode, color: str) -> dict[str, Any]:
         """Get CTK theme JSON structure for appearance and color combination."""
         schemes = ThemeConfig.get_color_schemes()
-        key = f"{appearance.value}_{color.value}"
+        key = f"{appearance.value}_{color}"
         scheme = schemes.get(key, schemes[f"{appearance.value}_blue"])
 
         # Extract colors - handle both list and string formats
@@ -1221,7 +1021,7 @@ class AppConfig(BaseSettings):
                     with open(config_file, encoding="utf-8") as f:
                         if config_file.suffix in {".yaml", ".yml"}:
                             return yaml.safe_load(f)
-                            return json.load(f)
+                        return json.load(f)
                 except Exception as e:
                     logger.debug(f"Error loading config file: {e}")
                     continue
@@ -1229,7 +1029,7 @@ class AppConfig(BaseSettings):
         return None
 
     @classmethod
-    def _settings_customise_sources(
+    def settings_customise_sources(
         cls,
         _settings_cls: type[BaseSettings],
         init_settings: Callable[..., dict[str, object]],
@@ -1241,7 +1041,7 @@ class AppConfig(BaseSettings):
         config_dict = cls._load_config_file()
 
         # Create a settings source from the config file
-        def file_settings(_: BaseSettings) -> dict[str, object]:
+        def file_settings() -> dict[str, object]:
             return config_dict or {}
 
         return (

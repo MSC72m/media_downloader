@@ -1,6 +1,5 @@
 from .appearance_mode import AppearanceMode
 from .browser_type import BrowserType
-from .color_theme import ColorTheme
 from .concurrent_option import ConcurrentOption
 from .download_error_type import DownloadErrorType
 from .download_status import DownloadStatus
@@ -15,7 +14,6 @@ from .service_type import ServiceType
 __all__ = [
     "AppearanceMode",
     "BrowserType",
-    "ColorTheme",
     "ConcurrentOption",
     "DownloadErrorType",
     "DownloadStatus",

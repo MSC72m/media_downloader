@@ -29,7 +29,8 @@ Cross-platform desktop application for downloading media content from social med
 - Multi-platform support for YouTube, Instagram, Twitter, Pinterest, and SoundCloud
 - Bulk download queue with concurrent processing
 - Video quality selection (144p to 8K) and audio-only extraction
-- Real-time theme switching between dark/light modes with 14 color themes
+- Real-time theme switching between dark/light modes with 18 color themes
+- Custom themes — drop a JSON file into `themes/` and it appears in the UI (see [docs/themes.md](docs/themes.md))
 - Automatic YouTube cookie generation using Playwright for age-restricted content
 - Live progress tracking with status indicators and speed metrics
 - Network connectivity monitoring and validation

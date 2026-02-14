@@ -6,7 +6,6 @@ import customtkinter as ctk
 
 from src.core.config import AppConfig, get_config
 from src.core.enums.appearance_mode import AppearanceMode
-from src.core.enums.color_theme import ColorTheme
 from src.core.enums.theme_event import ThemeEvent
 from src.services.events.event_bus import EventBus
 from src.utils.logger import get_logger
@@ -21,19 +20,17 @@ class ThemeManager(EventBus[ThemeEvent]):
         super().__init__(ThemeEvent, root)
         self.config = config
         self._current_appearance: AppearanceMode = config.ui.theme.appearance_mode_enum
-        self._current_color: ColorTheme = config.ui.theme.color_theme_enum
+        self._current_color: str = config.ui.theme.color_theme
         self._current_colors: dict[str, Any] = {}
         self._theme_json: dict[str, Any] = {}
 
         self._apply_theme(self._current_appearance, self._current_color)
 
         logger.info(
-            f"[THEME_MANAGER] Initialized with {self._current_appearance.value}/{self._current_color.value}"
+            f"[THEME_MANAGER] Initialized with {self._current_appearance.value}/{self._current_color}"
         )
 
-    def set_theme(
-        self, appearance: AppearanceMode, color: ColorTheme, persist: bool = True
-    ) -> None:
+    def set_theme(self, appearance: AppearanceMode, color: str, persist: bool = True) -> None:
         if appearance == self._current_appearance and color == self._current_color:
             logger.debug("[THEME_MANAGER] Theme unchanged, skipping")
             return
@@ -50,9 +47,9 @@ class ThemeManager(EventBus[ThemeEvent]):
             self._persist_theme()
 
         self.publish(ThemeEvent.THEME_CHANGED, appearance=appearance, color=color)
-        logger.info(f"[THEME_MANAGER] Theme changed to {appearance.value}/{color.value}")
+        logger.info(f"[THEME_MANAGER] Theme changed to {appearance.value}/{color}")
 
-    def _apply_theme(self, appearance: AppearanceMode, color: ColorTheme) -> None:
+    def _apply_theme(self, appearance: AppearanceMode, color: str) -> None:
         ctk.set_appearance_mode(appearance.value)
 
         self._theme_json = self.config.ui.theme.get_theme_json(appearance, color)
@@ -61,9 +58,9 @@ class ThemeManager(EventBus[ThemeEvent]):
 
         logger.debug("[THEME_MANAGER] Applied theme and color scheme")
 
-    def _get_color_scheme(self, appearance: AppearanceMode, color: ColorTheme) -> dict[str, Any]:
+    def _get_color_scheme(self, appearance: AppearanceMode, color: str) -> dict[str, Any]:
         schemes = self.config.ui.theme.get_color_schemes()
-        key = f"{appearance.value}_{color.value}"
+        key = f"{appearance.value}_{color}"
         return schemes.get(key, schemes[f"{appearance.value}_blue"])
 
     def get_colors(self) -> dict[str, Any]:
@@ -75,12 +72,12 @@ class ThemeManager(EventBus[ThemeEvent]):
     def get_appearance(self) -> AppearanceMode:
         return self._current_appearance
 
-    def get_color_theme(self) -> ColorTheme:
+    def get_color_theme(self) -> str:
         return self._current_color
 
     def _persist_theme(self) -> None:
         try:
-            self.config.ui.theme.appearance_mode = self._current_appearance
+            self.config.ui.theme.appearance_mode = self._current_appearance.value
             self.config.ui.theme.color_theme = self._current_color
 
             self.config.save_to_file()
