@@ -469,55 +469,55 @@ class RadioJavanConfig(BaseModel):
 
     default_timeout: int = Field(default=30, description="Default request timeout in seconds")
     max_retries: int = Field(default=3, description="Maximum number of retries")
-    session_enabled: bool = Field(
+    cookie_enabled: bool = Field(
         default=True,
-        description="Enable browser-backed session caching for Cloudflare-protected endpoints",
+        description="Enable browser-backed cookie caching for Cloudflare-protected endpoints",
     )
-    session_storage_dir: Path = Field(
+    cookie_storage_dir: Path = Field(
         default_factory=lambda: Path.home() / ".media_downloader",
-        description="Directory to store RadioJavan session state and cookies",
+        description="Directory to store RadioJavan cookie state and data files",
     )
-    session_state_file_name: str = Field(
-        default="radiojavan_session_state.json",
-        description="State filename for RadioJavan session manager",
+    cookie_state_file_name: str = Field(
+        default="radiojavan_cookie_state.json",
+        description="State filename for RadioJavan cookie manager",
     )
-    session_data_file_name: str = Field(
-        default="radiojavan_session.json",
-        description="Session payload filename for RadioJavan manager",
+    cookie_data_file_name: str = Field(
+        default="radiojavan_cookies.json",
+        description="Cookie data filename for RadioJavan cookie manager",
     )
-    session_ttl_hours: int = Field(
+    cookie_ttl_hours: int = Field(
         default=4,
-        description="How long a RadioJavan browser session stays valid before refresh",
+        description="How long RadioJavan browser cookies stay valid before refresh",
     )
-    session_refresh_margin_minutes: int = Field(
+    cookie_refresh_margin_minutes: int = Field(
         default=20,
-        description="Refresh session this many minutes before TTL expiry",
+        description="Refresh cookies this many minutes before TTL expiry",
     )
-    session_headless: bool = Field(
+    cookie_headless: bool = Field(
         default=True,
-        description="Use headless browser for RadioJavan session generation",
+        description="Use headless browser for RadioJavan cookie generation",
     )
-    session_generation_timeout_seconds: int = Field(
+    cookie_generation_timeout_seconds: int = Field(
         default=45,
-        description="Timeout per browser navigation during session generation",
+        description="Timeout per browser navigation during cookie generation",
     )
-    session_wait_after_load_seconds: float = Field(
+    cookie_wait_after_load_seconds: float = Field(
         default=6.0,
         description="Wait window after page loads to allow challenge completion",
     )
-    session_retry_cooldown_seconds: int = Field(
+    cookie_retry_cooldown_seconds: int = Field(
         default=180,
         description=(
-            "Cooldown after failed session generation before attempting a new browser session"
+            "Cooldown after failed cookie generation before attempting a new browser session"
         ),
     )
-    session_bootstrap_url: str = Field(
+    cookie_bootstrap_url: str = Field(
         default="https://www.radiojavan.com/",
-        description="Initial page to open for browser-backed session extraction",
+        description="Initial page to open for browser-backed cookie extraction",
     )
-    session_validation_url: str = Field(
+    cookie_validation_url: str = Field(
         default="https://www.radiojavan.com/mp3s/mp3_host?id=shadmehr-asteni",
-        description="Endpoint used to validate that stored session can pass challenge",
+        description="Endpoint used to validate that stored cookies can pass challenge",
     )
     url_patterns: list[str] = Field(
         default_factory=lambda: [

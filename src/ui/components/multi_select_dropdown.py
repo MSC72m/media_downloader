@@ -4,6 +4,8 @@ from typing import Any
 
 import customtkinter as ctk
 
+from src.core.enums.theme_event import ThemeEvent
+from src.ui.utils.theme_manager import ThemeManager, get_theme_manager
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -20,6 +22,7 @@ class MultiSelectDropdown(ctk.CTkFrame):
         on_change: Callable[[list[str]], None] | None = None,
         width: int = 200,
         height: int = 30,
+        theme_manager: ThemeManager | None = None,
         **kwargs,
     ) -> None:
         super().__init__(master, fg_color="transparent", **kwargs)
@@ -34,6 +37,9 @@ class MultiSelectDropdown(ctk.CTkFrame):
         self.dropdown_window: ctk.CTkToplevel | None = None
         self.is_open = False
         self.checkboxes: dict[str, ctk.BooleanVar] = {}
+
+        self._theme_manager = theme_manager or get_theme_manager()
+        self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
 
         self._create_widgets()
 
@@ -162,11 +168,13 @@ class MultiSelectDropdown(ctk.CTkFrame):
             text_label.pack(anchor="w")
 
             if subtitle:
+                colors = self._theme_manager.get_colors()
+                text_muted = colors.get("text_muted", "gray")
                 subtitle_label = ctk.CTkLabel(
                     details_frame,
                     text=subtitle,
                     font=("Roboto", 8),
-                    text_color="gray",
+                    text_color=text_muted,
                     anchor="w",
                 )
                 subtitle_label.pack(anchor="w")
@@ -286,7 +294,12 @@ class MultiSelectDropdown(ctk.CTkFrame):
     def destroy(self) -> None:
         """Clean up the dropdown."""
         self._close_dropdown()
+        if self._theme_manager:
+            self._theme_manager.unsubscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
         super().destroy()
+
+    def _on_theme_changed(self, appearance, color) -> None:
+        """Handle theme change - dropdown is recreated each open, so no live update needed."""
 
 
 class SubtitleMultiSelect(MultiSelectDropdown):
@@ -346,8 +359,10 @@ class SubtitleMultiSelect(MultiSelectDropdown):
     def _create_option_item(self, parent, option: dict[str, Any], index: int) -> None:
         """Override to handle separator items."""
         if option.get("is_separator"):
+            colors = self._theme_manager.get_colors()
+            text_muted = colors.get("text_muted", "gray")
             separator_label = ctk.CTkLabel(
-                parent, text=option["display"], font=("Roboto", 8), text_color="gray"
+                parent, text=option["display"], font=("Roboto", 8), text_color=text_muted
             )
             separator_label.pack(fill="x", pady=(5, 2))
             return

@@ -13,9 +13,11 @@ import requests
 
 from src.core.config import AppConfig, get_config
 from src.core.enums.message_level import MessageLevel
+from src.core.enums.theme_event import ThemeEvent
 from src.core.interfaces import IErrorNotifier, IMessageQueue, YouTubeMetadata
 from src.core.models import Download
 from src.services.events.queue import Message
+from src.ui.utils.theme_manager import ThemeManager, get_theme_manager
 
 from ...utils.logger import get_logger
 from ...utils.window import WindowCenterMixin, close_loading_dialog
@@ -40,6 +42,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         error_handler: IErrorNotifier | None = None,
         message_queue: IMessageQueue | None = None,
         config: AppConfig = get_config(),
+        theme_manager: ThemeManager | None = None,
     ) -> None:
         super().__init__(parent)
 
@@ -57,6 +60,9 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         self._metadata_handler_called = False
         self._metadata_ready = False
         self.selected_subtitles = []
+
+        self._theme_manager = theme_manager or get_theme_manager()
+        self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
 
         self.title("YouTube Video Downloader")
         self.geometry("700x900")
@@ -570,11 +576,13 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         )
         cookie_label.pack(anchor="w", padx=10, pady=(10, 5))
 
+        colors = self._theme_manager.get_colors()
+
         cookie_info_label = ctk.CTkLabel(
             cookie_frame,
             text="Cookies are automatically managed for age-restricted content",
             font=("Roboto", 10),
-            text_color="gray",
+            text_color=colors.get("text_muted", "gray"),
         )
         cookie_info_label.pack(anchor="w", padx=(10, 0))
 
@@ -727,6 +735,9 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         button_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
         button_frame.pack(fill="x", pady=(30, 0))
 
+        button_success = colors.get("button_success", ["#28a745", "#1E7E34"])
+        button_success_hover = colors.get("button_success_hover", ["#218838", "#155724"])
+
         self.add_button = ctk.CTkButton(
             button_frame,
             text="Add to Downloads",
@@ -734,8 +745,10 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             width=150,
             height=40,
             font=("Roboto", 12, "bold"),
-            fg_color="#28a745",
-            hover_color="#218838",
+            fg_color=button_success[0] if isinstance(button_success, list) else button_success,
+            hover_color=button_success_hover[0]
+            if isinstance(button_success_hover, list)
+            else button_success_hover,
         )
         self.add_button.pack(side="right", padx=5)
 
@@ -889,12 +902,16 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             thumbnail_outer_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
             thumbnail_outer_frame.pack(fill="x", pady=(0, 20))
 
+            colors = self._theme_manager.get_colors()
+            surface = colors.get("surface", "#2b2b2b")
+            card_border = colors.get("card_border", "#4a4a4a")
+
             thumbnail_container = ctk.CTkFrame(
                 thumbnail_outer_frame,
                 corner_radius=12,
-                fg_color=("#2b2b2b", "#3a3a3a"),
+                fg_color=surface,
                 border_width=2,
-                border_color=("#4a4a4a", "#555555"),
+                border_color=card_border,
             )
             thumbnail_container.pack(pady=10)
 
@@ -913,8 +930,34 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
     def _show_error(self, message: str) -> None:
         """Show error message temporarily."""
+        colors = self._theme_manager.get_colors()
+        status_error = colors.get("status_error", "red")
         error_label = ctk.CTkLabel(
-            self, text=message, text_color="red", font=("Roboto", 11, "bold")
+            self, text=message, text_color=status_error, font=("Roboto", 11, "bold")
         )
         error_label.pack(pady=5)
         self.after(4000, error_label.destroy)
+
+    def _on_theme_changed(self, appearance, color) -> None:
+        self._apply_theme_colors()
+
+    def _apply_theme_colors(self) -> None:
+        if not self.widgets_created:
+            return
+        colors = self._theme_manager.get_colors()
+
+        button_success = colors.get("button_success", ["#28a745", "#1E7E34"])
+        button_success_hover = colors.get("button_success_hover", ["#218838", "#155724"])
+
+        if hasattr(self, "add_button"):
+            self.add_button.configure(
+                fg_color=button_success[0] if isinstance(button_success, list) else button_success,
+                hover_color=button_success_hover[0]
+                if isinstance(button_success_hover, list)
+                else button_success_hover,
+            )
+
+    def destroy(self) -> None:
+        if self._theme_manager:
+            self._theme_manager.unsubscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
+        super().destroy()

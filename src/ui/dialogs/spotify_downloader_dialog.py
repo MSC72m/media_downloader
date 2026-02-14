@@ -11,10 +11,12 @@ import requests
 
 from src.core.config import AppConfig, get_config
 from src.core.enums.message_level import MessageLevel
+from src.core.enums.theme_event import ThemeEvent
 from src.core.interfaces import IErrorNotifier, IMessageQueue
 from src.core.models import Download
 from src.services.events.queue import Message
 from src.services.spotify.downloader import SpotifyDownloader
+from src.ui.utils.theme_manager import ThemeManager, get_theme_manager
 
 from ...utils.logger import get_logger
 from ...utils.window import WindowCenterMixin, close_loading_dialog
@@ -42,6 +44,7 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         error_handler: IErrorNotifier | None = None,
         message_queue: IMessageQueue | None = None,
         config: AppConfig = get_config(),
+        theme_manager: ThemeManager | None = None,
     ) -> None:
         super().__init__(parent)
 
@@ -65,6 +68,9 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.result_radio_var: ctk.StringVar | None = None
         self.result_checkboxes: dict[int, ctk.BooleanVar] = {}
         self.track_checkboxes: dict[int, ctk.BooleanVar] = {}
+
+        self._theme_manager = theme_manager or get_theme_manager()
+        self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
 
         self.title("Spotify Downloader")
         self.geometry("900x950")
@@ -466,6 +472,10 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         button_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
         button_frame.pack(fill="x", pady=(30, 0))
 
+        colors = self._theme_manager.get_colors()
+        button_success = colors.get("button_success", ["#28a745", "#1E7E34"])
+        button_success_hover = colors.get("button_success_hover", ["#218838", "#155724"])
+
         self.download_button = ctk.CTkButton(
             button_frame,
             text="Download Selected",
@@ -473,8 +483,10 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             width=150,
             height=40,
             font=("Roboto", 12, "bold"),
-            fg_color="#1DB954",
-            hover_color="#1ed760",
+            fg_color=button_success[0] if isinstance(button_success, list) else button_success,
+            hover_color=button_success_hover[0]
+            if isinstance(button_success_hover, list)
+            else button_success_hover,
         )
         self.download_button.pack(side="right", padx=5)
         self.download_button.configure(state="disabled")
@@ -512,11 +524,13 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         title_label.pack(anchor="w", pady=(0, 10))
 
         content_type = self.spotify_metadata.get("type", "track")
+        colors = self._theme_manager.get_colors()
+        accent = colors.get("accent", "#007BFF")
         type_label = ctk.CTkLabel(
             info_frame,
             text=content_type.upper(),
             font=("Roboto", 10, "bold"),
-            fg_color="#1DB954",
+            fg_color=accent,
             corner_radius=4,
         )
         type_label.pack(anchor="w")
@@ -541,12 +555,16 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                 size=image.size,
             )
 
+            colors = self._theme_manager.get_colors()
+            surface = colors.get("surface", "#2b2b2b")
+            border_color = colors.get("border_color", ["#007BFF", "#0056b3"])
+
             thumbnail_container = ctk.CTkFrame(
                 parent_frame,
                 corner_radius=12,
-                fg_color=("#1DB954", "#191414"),
+                fg_color=surface,
                 border_width=2,
-                border_color=("#1DB954", "#191414"),
+                border_color=border_color,
             )
             thumbnail_container.pack(side="left", padx=(0, 15))
 
@@ -619,11 +637,13 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         )
         info_label.pack(anchor="w", padx=10, pady=(10, 5))
 
+        colors = self._theme_manager.get_colors()
+
         count_label = ctk.CTkLabel(
             section_frame,
             text=f"{len(self.spotify_metadata.get('tracks', []))} tracks found",
             font=("Roboto", 11),
-            text_color="gray",
+            text_color=colors.get("text_muted", "gray"),
         )
         count_label.pack(anchor="w", padx=10, pady=(0, 10))
 
@@ -655,12 +675,14 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         )
         checkbox.pack(fill="x")
 
+        colors = self._theme_manager.get_colors()
+
         if best_match := track_data.get("best_match"):
             match_label = ctk.CTkLabel(
                 track_frame,
                 text=f"✓ Match found: {best_match.get('title', 'Unknown')[:40]}...",
                 font=("Roboto", 9),
-                text_color="#28a745",
+                text_color=colors.get("status_success", "#28a745"),
             )
             match_label.pack(anchor="w", padx=(30, 0), pady=(0, 5))
         else:
@@ -668,7 +690,7 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                 track_frame,
                 text="✗ No match found",
                 font=("Roboto", 9),
-                text_color="#dc3545",
+                text_color=colors.get("status_error", "#dc3545"),
             )
             no_match_label.pack(anchor="w", padx=(30, 0), pady=(0, 5))
 
@@ -829,8 +851,10 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
     def _show_error(self, message: str) -> None:
         """Show error message temporarily (YouTube pattern)."""
+        colors = self._theme_manager.get_colors()
+        status_error = colors.get("status_error", "red")
         error_label = ctk.CTkLabel(
-            self, text=message, text_color="red", font=("Roboto", 11, "bold")
+            self, text=message, text_color=status_error, font=("Roboto", 11, "bold")
         )
         error_label.pack(pady=5)
         self.after(4000, error_label.destroy)
@@ -844,3 +868,27 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             return
 
         self.after(0, update_func)
+
+    def _on_theme_changed(self, appearance, color) -> None:
+        self._apply_theme_colors()
+
+    def _apply_theme_colors(self) -> None:
+        if not self.widgets_created:
+            return
+        colors = self._theme_manager.get_colors()
+
+        button_success = colors.get("button_success", ["#28a745", "#1E7E34"])
+        button_success_hover = colors.get("button_success_hover", ["#218838", "#155724"])
+
+        if self.download_button:
+            self.download_button.configure(
+                fg_color=button_success[0] if isinstance(button_success, list) else button_success,
+                hover_color=button_success_hover[0]
+                if isinstance(button_success_hover, list)
+                else button_success_hover,
+            )
+
+    def destroy(self) -> None:
+        if self._theme_manager:
+            self._theme_manager.unsubscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
+        super().destroy()

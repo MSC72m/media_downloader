@@ -2,6 +2,8 @@ import contextlib
 
 import customtkinter as ctk
 
+from ...core.enums.theme_event import ThemeEvent
+from ...ui.utils.theme_manager import ThemeManager, get_theme_manager
 from ...utils.logger import get_logger
 from ...utils.window import WindowCenterMixin
 
@@ -26,6 +28,7 @@ class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
         timeout: int = 90,
         max_dots: int = 3,
         dot_animation_interval: int = 500,
+        theme_manager: ThemeManager | None = None,
         **kwargs,
     ) -> None:
         """Initialize loading dialog.
@@ -47,6 +50,9 @@ class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.is_running = False
         self._timeout_id = None
         self._animation_id = None
+
+        self._theme_manager = theme_manager or get_theme_manager()
+        self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
 
         self.title("Loading")
         self.geometry("300x100")
@@ -73,11 +79,14 @@ class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
         main_frame = ctk.CTkFrame(self, fg_color="transparent")
         main_frame.pack(expand=True, fill="both", padx=20, pady=20)
 
+        colors = self._theme_manager.get_colors()
+        text_color = colors.get("text_color", ("gray10", "gray90"))
+
         self.message_label = ctk.CTkLabel(
             main_frame,
             text=self.message,
             font=("Roboto", 14),
-            text_color=("gray10", "gray90"),
+            text_color=text_color,
         )
         self.message_label.pack(expand=True)
 
@@ -88,6 +97,16 @@ class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         self.is_running = True
         self._animate_dots()
+
+    def _on_theme_changed(self, appearance, color) -> None:
+        self._apply_theme_colors()
+
+    def _apply_theme_colors(self) -> None:
+        if not hasattr(self, "message_label"):
+            return
+        colors = self._theme_manager.get_colors()
+        text_color = colors.get("text_color", ("gray10", "gray90"))
+        self.message_label.configure(text_color=text_color)
 
     def _animate_dots(self) -> None:
         """Animate dots with cycling behavior."""
@@ -153,9 +172,15 @@ class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
                 self._release_grab()
             finally:
                 try:
-                    super().destroy()
-                except Exception as e:
-                    logger.error(
-                        f"[LOADING_DIALOG] Error in super().destroy(): {e}",
-                        exc_info=True,
-                    )
+                    if self._theme_manager:
+                        self._theme_manager.unsubscribe(
+                            ThemeEvent.THEME_CHANGED, self._on_theme_changed
+                        )
+                finally:
+                    try:
+                        super().destroy()
+                    except Exception as e:
+                        logger.error(
+                            f"[LOADING_DIALOG] Error in super().destroy(): {e}",
+                            exc_info=True,
+                        )

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Refresh persisted RadioJavan browser session state."""
+"""Refresh persisted RadioJavan browser cookie state."""
 
 from src.core.config import get_config
-from src.services.cookies import RadioJavanSessionManager
+from src.services.cookies import RadioJavanCookieManager
 
 
 def main() -> int:
-    manager = RadioJavanSessionManager(config=get_config())
-    success = manager.refresh_session()
+    manager = RadioJavanCookieManager(config=get_config())
+    success = manager.refresh_if_needed()
     state = manager.get_state()
     print("refresh_success:", success)
     print("state:", state)

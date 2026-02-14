@@ -32,6 +32,7 @@ from src.handlers import (
 )
 from src.handlers.service_detector import ServiceDetector
 from src.services.cookies import CookieManager as AutoCookieManager
+from src.services.cookies.radiojavan_cookie_manager import RadioJavanCookieManager
 from src.services.detection.base_handler import BaseHandler
 from src.services.detection.link_detector import LinkDetector
 from src.services.events.queue import Message, MessageLevel, MessageQueue
@@ -109,6 +110,7 @@ class ApplicationOrchestrator:
         self.container.register_factory(IMessageQueue, lambda: None)
         self.container.register_singleton(IFileService, FileService)
         self.container.register_singleton(IAutoCookieManager, AutoCookieManager)
+        self.container.register_singleton(RadioJavanCookieManager, RadioJavanCookieManager)
         self.container.register_singleton(
             InstagramAuthManager, self.factory_registry.create_instagram_auth_manager
         )
@@ -182,7 +184,7 @@ class ApplicationOrchestrator:
             )
 
     def _initialize_cookies_background(self) -> None:
-        def init_cookies() -> None:
+        def init_youtube_cookies() -> None:
             try:
                 state = self.auto_cookie_manager.initialize()
 
@@ -206,10 +208,30 @@ class ApplicationOrchestrator:
                         ),
                     )
             except Exception as e:
-                logger.debug(f"Error in cookie initialization: {e}")
+                logger.debug(f"Error in YouTube cookie initialization: {e}")
 
-        thread = threading.Thread(target=init_cookies, daemon=True, name="CookieInit")
-        thread.start()
+        def init_rj_cookies() -> None:
+            try:
+                rj_config = self.config.radiojavan
+                if not rj_config.cookie_enabled:
+                    logger.info("[ORCHESTRATOR] RadioJavan cookies disabled by config")
+                    return
+                rj_manager = self.container.get(RadioJavanCookieManager)
+                state = rj_manager.initialize()
+                if state.is_valid:
+                    logger.info("[ORCHESTRATOR] RadioJavan cookies initialized successfully")
+                else:
+                    logger.warning(
+                        "[ORCHESTRATOR] RadioJavan cookie init issue: %s",
+                        state.error_message,
+                    )
+            except Exception as e:
+                logger.debug(f"Error in RadioJavan cookie initialization: {e}")
+
+        yt_thread = threading.Thread(target=init_youtube_cookies, daemon=True, name="YTCookieInit")
+        rj_thread = threading.Thread(target=init_rj_cookies, daemon=True, name="RJCookieInit")
+        yt_thread.start()
+        rj_thread.start()
 
     @property
     def auto_cookie_manager(self) -> IAutoCookieManager:

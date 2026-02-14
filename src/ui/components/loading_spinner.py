@@ -2,19 +2,37 @@ import math
 
 import customtkinter as ctk
 
+from ...core.enums.theme_event import ThemeEvent
+from ...ui.utils.theme_manager import ThemeManager, get_theme_manager
 from ...utils.window import WindowCenterMixin
+
+
+def _hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
+    """Convert hex color string to RGB tuple."""
+    hex_color = hex_color.lstrip("#")
+    return (int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16))
 
 
 class SmallLoadingSpinner(ctk.CTkToplevel, WindowCenterMixin):
     """Small, elegant loading spinner that centers itself."""
 
-    def __init__(self, parent, message: str = "Loading...", size: int = 60, **kwargs) -> None:
+    def __init__(
+        self,
+        parent,
+        message: str = "Loading...",
+        size: int = 60,
+        theme_manager: ThemeManager | None = None,
+        **kwargs,
+    ) -> None:
         ctk.CTkToplevel.__init__(self, parent, **kwargs)
 
         self.message = message
         self.size = size
         self.is_running = False
         self.angle = 0
+
+        self._theme_manager = theme_manager or get_theme_manager()
+        self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
 
         self.configure(fg_color="transparent")
         self.overrideredirect(True)  # Remove window decorations
@@ -24,17 +42,36 @@ class SmallLoadingSpinner(ctk.CTkToplevel, WindowCenterMixin):
 
         self.withdraw()
 
+    def _get_surface_color(self) -> str:
+        """Get the current surface color as a single string for canvas bg."""
+        colors = self._theme_manager.get_colors()
+        return colors.get("surface", "#2b2b2b")
+
+    def _get_accent_color(self) -> str:
+        """Get the current accent color."""
+        colors = self._theme_manager.get_colors()
+        return colors.get("accent", "#3498db")
+
+    def _get_accent_rgb(self) -> tuple[int, int, int]:
+        """Get the accent color as an RGB tuple."""
+        return _hex_to_rgb(self._get_accent_color())
+
     def _create_spinner(self) -> None:
         """Create the small spinner with message."""
-        container = ctk.CTkFrame(self, fg_color=("#2b2b2b", "#f0f0f0"), corner_radius=10)
-        container.pack(expand=True)
+        colors = self._theme_manager.get_colors()
+        surface = colors.get("surface", "#2b2b2b")
+        accent = colors.get("accent", "#3498db")
+        text_on_surface = colors.get("text_on_surface", "#FFFFFF")
+
+        self.container = ctk.CTkFrame(self, fg_color=surface, corner_radius=10)
+        self.container.pack(expand=True)
 
         self.canvas = ctk.CTkCanvas(
-            container,
+            self.container,
             width=self.size,
             height=self.size,
             highlightthickness=0,
-            bg="#2b2b2b" if ctk.get_appearance_mode() == "Dark" else "#f0f0f0",
+            bg=surface,
         )
         self.canvas.pack(pady=(15, 5))
 
@@ -52,15 +89,15 @@ class SmallLoadingSpinner(ctk.CTkToplevel, WindowCenterMixin):
             y2 = center + radius * math.sin(angle)
 
             segment = self.canvas.create_line(
-                x1, y1, x2, y2, width=3, capstyle="round", fill="#3498db"
+                x1, y1, x2, y2, width=3, capstyle="round", fill=accent
             )
             self.segments.append((segment, angle))
 
         self.message_label = ctk.CTkLabel(
-            container,
+            self.container,
             text=self.message,
             font=("Roboto", 10),
-            text_color=("#ffffff", "#000000"),
+            text_color=text_on_surface,
         )
         self.message_label.pack(pady=(0, 15))
 
@@ -82,11 +119,12 @@ class SmallLoadingSpinner(ctk.CTkToplevel, WindowCenterMixin):
 
         self.angle = (self.angle + 15) % 360
 
+        base_color = self._get_accent_rgb()
+
         for segment, base_angle in self.segments:
             angle_rad = math.radians(base_angle + self.angle)
             opacity = (math.sin(angle_rad) + 1) / 2  # Normalize to 0-1
 
-            base_color = (52, 152, 219)  # #3498db
             faded_color = tuple(int(c * opacity) for c in base_color)
             color = f"#{faded_color[0]:02x}{faded_color[1]:02x}{faded_color[2]:02x}"
 
@@ -134,17 +172,46 @@ class SmallLoadingSpinner(ctk.CTkToplevel, WindowCenterMixin):
     def destroy(self) -> None:
         """Clean up the spinner."""
         self.stop()
+        if self._theme_manager:
+            self._theme_manager.unsubscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
         super().destroy()
+
+    def _on_theme_changed(self, appearance, color) -> None:
+        self._apply_theme_colors()
+
+    def _apply_theme_colors(self) -> None:
+        if not hasattr(self, "container"):
+            return
+        colors = self._theme_manager.get_colors()
+        surface = colors.get("surface", "#2b2b2b")
+        text_on_surface = colors.get("text_on_surface", "#FFFFFF")
+        accent = colors.get("accent", "#3498db")
+
+        self.container.configure(fg_color=surface)
+        self.canvas.configure(bg=surface)
+        self.message_label.configure(text_color=text_on_surface)
+
+        for segment, _angle in self.segments:
+            self.canvas.itemconfig(segment, fill=accent)
 
 
 class LoadingOverlay(ctk.CTkFrame):
     """Simple full-page loading overlay for modal dialogs."""
 
-    def __init__(self, parent, message: str = "Loading...", **kwargs) -> None:
+    def __init__(
+        self,
+        parent,
+        message: str = "Loading...",
+        theme_manager: ThemeManager | None = None,
+        **kwargs,
+    ) -> None:
         super().__init__(parent, **kwargs)
 
         self.message = message
         self.spinner: SmallLoadingSpinner | None = None
+
+        self._theme_manager = theme_manager or get_theme_manager()
+        self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_overlay_theme_changed)
 
         self._create_overlay()
 
@@ -154,12 +221,19 @@ class LoadingOverlay(ctk.CTkFrame):
         self.master.grid_rowconfigure(0, weight=1)
         self.master.grid_columnconfigure(0, weight=1)
 
-        self.configure(fg_color=("#1a1a1a", "#f0f0f0"))
+        colors = self._theme_manager.get_colors()
+        overlay_bg = colors.get("overlay_bg", "#1a1a1a")
+        self.configure(fg_color=overlay_bg)
 
         content_frame = ctk.CTkFrame(self, fg_color="transparent")
         content_frame.place(relx=0.5, rely=0.5, anchor="center")
 
-        self.spinner = SmallLoadingSpinner(self.winfo_toplevel(), message=self.message, size=50)
+        self.spinner = SmallLoadingSpinner(
+            self.winfo_toplevel(),
+            message=self.message,
+            size=50,
+            theme_manager=self._theme_manager,
+        )
 
     def start(self) -> None:
         """Start the loading animation."""
@@ -186,3 +260,16 @@ class LoadingOverlay(ctk.CTkFrame):
         """Hide the overlay."""
         self.stop()
         self.place_forget()
+
+    def _on_overlay_theme_changed(self, appearance, color) -> None:
+        colors = self._theme_manager.get_colors()
+        overlay_bg = colors.get("overlay_bg", "#1a1a1a")
+        self.configure(fg_color=overlay_bg)
+
+    def destroy(self) -> None:
+        """Clean up the overlay."""
+        if self._theme_manager:
+            self._theme_manager.unsubscribe(
+                ThemeEvent.THEME_CHANGED, self._on_overlay_theme_changed
+            )
+        super().destroy()

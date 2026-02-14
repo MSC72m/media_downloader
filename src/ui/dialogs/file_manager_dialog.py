@@ -4,8 +4,10 @@ from collections.abc import Callable
 import customtkinter as ctk
 
 from src.core.enums.message_level import MessageLevel
+from src.core.enums.theme_event import ThemeEvent
 from src.core.interfaces import IErrorNotifier, IMessageQueue
 from src.services.events.queue import Message
+from src.ui.utils.theme_manager import ThemeManager, get_theme_manager
 from src.utils.logger import get_logger
 from src.utils.window import WindowCenterMixin
 
@@ -26,8 +28,12 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
         show_status: Callable[[str], None],
         error_handler: IErrorNotifier | None = None,
         message_queue: IMessageQueue | None = None,
+        theme_manager: ThemeManager | None = None,
     ) -> None:
         super().__init__(parent)
+
+        self._theme_manager = theme_manager or get_theme_manager()
+        self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
 
         self.title("File Browser")
         self.geometry("600x400")
@@ -153,3 +159,11 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
                     )
                 elif self.show_status:
                     self.show_status(f"Error: {error_msg}")
+
+    def _on_theme_changed(self, appearance, color) -> None:
+        """Handle theme change - CTk widgets auto-update, subscription enables future extensions."""
+
+    def destroy(self) -> None:
+        if self._theme_manager:
+            self._theme_manager.unsubscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
+        super().destroy()

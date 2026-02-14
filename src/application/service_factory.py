@@ -7,6 +7,7 @@ from src.core.interfaces import (
     IErrorNotifier,
     IFileService,
 )
+from src.services.cookies.radiojavan_cookie_manager import RadioJavanCookieManager
 from src.services.instagram import InstagramAuthManager
 from src.services.instagram.downloader import InstagramDownloader
 from src.services.pinterest.downloader import PinterestDownloader
@@ -27,6 +28,7 @@ class ServiceFactory:
         cookie_handler: ICookieHandler | None = None,
         cookie_manager: ICookieHandler | None = None,
         auto_cookie_manager: IAutoCookieManager | None = None,
+        rj_cookie_manager: RadioJavanCookieManager | None = None,
         error_handler: IErrorNotifier | None = None,
         instagram_auth_manager: InstagramAuthManager | None = None,
         file_service: IFileService | None = None,
@@ -35,6 +37,7 @@ class ServiceFactory:
         resolved_config = config or get_config()
         self.cookie_handler = cookie_handler if cookie_handler is not None else cookie_manager
         self.auto_cookie_manager = auto_cookie_manager
+        self.rj_cookie_manager = rj_cookie_manager
         self.error_handler = error_handler
         self.instagram_auth_manager = instagram_auth_manager
         self.file_service = file_service
@@ -116,6 +119,7 @@ class ServiceFactory:
                 error_handler=self.error_handler,
                 file_service=self.file_service,
                 config=self.config,
+                cookie_manager=self.rj_cookie_manager,
             ),
             ServiceType.SPOTIFY: lambda: SpotifyDownloader(
                 error_handler=self.error_handler,

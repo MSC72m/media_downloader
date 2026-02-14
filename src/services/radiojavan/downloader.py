@@ -4,7 +4,7 @@ import json
 import os
 import re
 from collections.abc import Callable
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 from urllib.parse import quote, unquote
 
 import requests
@@ -14,6 +14,9 @@ from src.core.interfaces import BaseDownloader, IErrorNotifier, IFileService
 from src.services.network.downloader import download_file
 
 from ...utils.logger import get_logger
+
+if TYPE_CHECKING:
+    from src.services.cookies.radiojavan_cookie_manager import RadioJavanCookieManager
 
 logger = get_logger(__name__)
 
@@ -56,6 +59,7 @@ class RadioJavanDownloader(BaseDownloader):
         error_handler: IErrorNotifier | None = None,
         file_service: IFileService | None = None,
         config: AppConfig | None = None,
+        cookie_manager: RadioJavanCookieManager | None = None,
     ) -> None:
         resolved_config = config or get_config()
         super().__init__(error_handler, file_service, resolved_config)
@@ -65,13 +69,20 @@ class RadioJavanDownloader(BaseDownloader):
         self._site_base = self._api_base.removesuffix("/api2")
         self._base_headers = {"User-Agent": self.config.network.user_agent}
         self._last_access_error: str | None = None
+        self._cookie_manager = cookie_manager
 
     def _request_context(
         self,
         force_refresh: bool = False,
     ) -> tuple[dict[str, str], dict[str, str] | None]:
-        _ = force_refresh
-        return dict(self._base_headers), None
+        if not self._cookie_manager:
+            return dict(self._base_headers), None
+
+        if force_refresh:
+            self._cookie_manager.invalidate_and_regenerate()
+
+        cookies = self._cookie_manager.get_cookies()
+        return dict(self._base_headers), cookies
 
     @staticmethod
     def _is_challenge_response(
