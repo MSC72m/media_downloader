@@ -28,6 +28,12 @@ _DEFAULT_THEME = "blue"
 
 def _get_project_themes_dir() -> Path:
     """Return the ``themes/`` directory at the project root."""
+    # When running as a PyInstaller bundle, data files are extracted to sys._MEIPASS
+    if hasattr(sys, "_MEIPASS"):
+        bundled = Path(sys._MEIPASS) / "themes"  # type: ignore[attr-defined]
+        if bundled.is_dir():
+            return bundled
+
     # Walk up from this file (src/core/themes/__init__.py) to find project root.
     # Fall back to cwd-based lookup and sys.path inspection.
     candidate = Path(__file__).resolve().parent.parent.parent.parent / "themes"

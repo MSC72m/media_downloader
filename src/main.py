@@ -371,9 +371,31 @@ class MediaDownloaderApp(ctk.CTk):
 
 if __name__ == "__main__":
     try:
+        # Step 1: Verify Playwright Python package is available
+        logger.info("[MAIN_APP] Step 1/3: Checking Playwright installation...")
         _check_playwright_installation()
-        logger.info("[MAIN_APP] Starting Media Downloader application")
+
+        # Step 2: Create and display the main application window
+        logger.info("[MAIN_APP] Step 2/3: Initializing application window...")
         app = MediaDownloaderApp()
+
+        # Step 3: Ensure Chromium browser is downloaded (first-run setup).
+        # If Chromium is already installed this returns immediately.
+        # If not, a progress dialog is shown to the user during download.
+        logger.info("[MAIN_APP] Step 3/3: Checking Chromium browser availability...")
+        try:
+            from src.services.cookies.playwright_bootstrap import ensure_playwright_ready
+
+            if ensure_playwright_ready(root_window=app):
+                logger.info("[MAIN_APP] Startup complete - all dependencies ready")
+            else:
+                logger.warning(
+                    "[MAIN_APP] Startup complete - Chromium unavailable, "
+                    "cookie generation will not work"
+                )
+        except Exception as e:
+            logger.warning(f"[MAIN_APP] Playwright bootstrap skipped: {e}")
+
         app.mainloop()
 
     except (SystemExit, ImportError) as e:

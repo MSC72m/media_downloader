@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import contextlib
 import json
@@ -6,9 +8,10 @@ from collections.abc import Mapping, Sequence
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import Lock
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from playwright.async_api import Browser, BrowserContext, Page, Playwright, async_playwright
+if TYPE_CHECKING:
+    from playwright.async_api import Browser, BrowserContext, Page, Playwright
 
 from src.core.config import AppConfig, get_config
 from src.core.models import CookieState
@@ -324,6 +327,8 @@ class RadioJavanCookieGenerator:
         self._update_state(state)
 
         try:
+            from playwright.async_api import async_playwright
+
             async with async_playwright() as p:
                 if (browser := await self._launch_browser(p)) is None:
                     return self._create_error_state("Failed to launch browser")

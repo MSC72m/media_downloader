@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import contextlib
 import json
@@ -5,9 +7,11 @@ import random
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import Lock
+from typing import TYPE_CHECKING
 from urllib.parse import quote_plus
 
-from playwright.async_api import Browser, BrowserContext, Page, Playwright, async_playwright
+if TYPE_CHECKING:
+    from playwright.async_api import Browser, BrowserContext, Page, Playwright
 
 from src.core.config import AppConfig, get_config
 from src.core.models import CookieState
@@ -421,6 +425,8 @@ class CookieGenerator:
         self._update_state(state)
 
         try:
+            from playwright.async_api import async_playwright
+
             async with async_playwright() as p:
                 logger.info("[COOKIE_GENERATOR] Launching Chromium browser")
 
@@ -631,6 +637,8 @@ class CookieGenerator:
             True if Chromium is installed, False otherwise
         """
         try:
+            from playwright.async_api import async_playwright
+
             async with async_playwright() as p:
                 if p.chromium:
                     logger.info("[COOKIE_GENERATOR] Chromium is available")
