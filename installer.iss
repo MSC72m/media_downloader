@@ -9,6 +9,9 @@
 ;
 ; This produces:
 ;   installers/MediaDownloaderSetup-{version}.exe
+;
+; Compile-time defines (passed via ISCC.exe command line):
+;   /DBUNDLE_CHROMIUM - Indicates Chromium is bundled in the installer
 
 #define MyAppName "Media Downloader"
 #define MyAppVersion "0.1.0"
@@ -82,23 +85,48 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChang
 WelcomeLabel2=This will install [name/ver] on your computer.%n%nThe application allows you to download media from YouTube, Instagram, SoundCloud, TikTok, Twitter, Pinterest, RadioJavan, and Spotify.%n%nIt is recommended that you close all other applications before continuing.
 
 [Code]
-// Display important notes about first-run browser setup on the finish page.
+// Display information about what's included and what to expect
 procedure CurPageChanged(CurPageID: Integer);
+var
+  chromiumBundled: Boolean;
+  chromiumPath: String;
 begin
+  // Check if Chromium is bundled in the installer
+  chromiumPath := ExpandConstant('{app}\chromium');
+  chromiumBundled := DirExists(chromiumPath);
+
   if CurPageID = wpFinished then
   begin
-    WizardForm.FinishedLabel.Caption :=
-      'Setup has finished installing {#MyAppName} on your computer.' + #13#10 + #13#10 +
-      'IMPORTANT - First Launch:' + #13#10 +
-      'On the first run, the application will download a browser ' +
-      'component (~150 MB) required for cookie generation. This is ' +
-      'needed to access age-restricted or login-protected content.' + #13#10 + #13#10 +
-      'What to expect:' + #13#10 +
-      '  - A progress dialog will appear showing the download status' + #13#10 +
-      '  - This download only happens once' + #13#10 +
-      '  - An internet connection is required' + #13#10 +
-      '  - The download takes 1-3 minutes depending on your connection' + #13#10 + #13#10 +
-      'The browser component is stored in your user profile and does ' +
-      'not require reinstallation when updating the application.';
+    if chromiumBundled then
+    begin
+      // Chromium is bundled - app is ready immediately
+      WizardForm.FinishedLabel.Caption :=
+        'Setup has finished installing {#MyAppName} on your computer.' + #13#10 + #13#10 +
+        'What was installed:' + #13#10 +
+        '  - Media Downloader application' + #13#10 +
+        '  - ffmpeg for video processing' + #13#10 +
+        '  - Chromium browser for cookie generation' + #13#10 + #13#10 +
+        'The application is ready to use immediately. No additional downloads are required.';
+    end
+    else
+    begin
+      // Chromium will be downloaded on first launch
+      WizardForm.FinishedLabel.Caption :=
+        'Setup has finished installing {#MyAppName} on your computer.' + #13#10 + #13#10 +
+        'What was installed:' + #13#10 +
+        '  - Media Downloader application' + #13#10 +
+        '  - ffmpeg for video processing' + #13#10 + #13#10 +
+        'IMPORTANT - First Launch:' + #13#10 +
+        'On the first run, the application will download a browser ' +
+        'component (~150 MB) required for cookie generation. This is ' +
+        'needed to access age-restricted or login-protected content.' + #13#10 + #13#10 +
+        'What to expect:' + #13#10 +
+        '  - A progress dialog will appear showing the download status' + #13#10 +
+        '  - This download only happens once' + #13#10 +
+        '  - An internet connection is required' + #13#10 +
+        '  - The download takes 1-3 minutes depending on your connection' + #13#10 + #13#10 +
+        'The browser component is stored in your user profile and does ' +
+        'not require reinstallation when updating the application.';
+    end;
   end;
 end;

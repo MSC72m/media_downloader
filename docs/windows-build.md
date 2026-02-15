@@ -23,29 +23,76 @@ Media Downloader as a Windows `.exe` with a proper installer.
 
 ## Architecture Overview
 
-The distribution strategy has three layers:
+### What the Installer Contains
+
+When a user downloads and runs `MediaDownloaderSetup.exe`, they get:
+
+**Always Included (Standard Build):**
+- Python interpreter (bundled by PyInstaller)
+- All Python dependencies (yt-dlp, playwright, requests, beautifulsoup4, etc.)
+- Your application code
+- ffmpeg for video processing (~100 MB)
+- **Total: ~150-200 MB installed**
+
+**Two Options for Chromium Browser:**
+
+#### Option A: Standard (Recommended)
+- **Installer size:** ~60-80 MB
+- **Chromium:** Downloaded automatically on first app launch (~150 MB)
+- **User experience:** First launch shows a progress dialog for 1-3 minutes
+- **Benefit:** Smaller download, always gets latest Chromium
+
+#### Option B: Full Bundle
+- **Installer size:** ~200-250 MB
+- **Chromium:** Included in the installer
+- **User experience:** App works immediately after installation
+- **Benefit:** Works offline, no wait on first launch
+
+### Build Architecture
 
 ```
-┌──────────────────────────────────────────────────────┐
-│  Inno Setup Installer  (MediaDownloaderSetup.exe)    │
-│  - Setup wizard with license, install dir, icons     │
-│  - ~50-60 MB                                         │
-├──────────────────────────────────────────────────────┤
-│  PyInstaller Bundle   (dist/MediaDownloader/)        │
-│  - Standalone folder with .exe + all Python deps     │
-│  - Playwright Python package included                │
-│  - Chromium browser binary NOT included              │
-├──────────────────────────────────────────────────────┤
-│  First-Run Bootstrap                                 │
-│  - Auto-downloads Chromium (~150 MB) on first launch │
-│  - Shows GUI progress dialog to the user             │
-│  - Only happens once, stored in user's AppData       │
-└──────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────┐
+│  Inno Setup Installer  (MediaDownloaderSetup.exe)          │
+│  ├─ PyInstaller Bundle (app + Python + ffmpeg)            │
+│  └─ [Optional] Chromium browser (~150 MB)                 │
+│                                                             │
+│  Standard:  ~60-80 MB  |  Full: ~200-250 MB               │
+└────────────────────────────────────────────────────────────┘
+                             │
+                             ▼
+┌────────────────────────────────────────────────────────────┐
+│  Installed to C:\Program Files\Media Downloader\          │
+│  ├─ MediaDownloader.exe (entry point)                     │
+│  ├─ _internal\ (Python interpreter + libraries)           │
+│  │   ├─ bin\ffmpeg.exe (video processing)                 │
+│  │   └─ All Python packages (yt-dlp, playwright, etc.)    │
+│  └─ [If not bundled] Chromium downloads to AppData        │
+│                                                             │
+│  No separate Python installation required!                │
+└────────────────────────────────────────────────────────────┘
 ```
 
-**Why not bundle Chromium?** It's ~150-200 MB, updates frequently, and would
-make the installer ~250 MB. By downloading it on first launch, the installer
-stays ~50 MB and the user always gets a recent Chromium version.
+### How It Works (Standard Build)
+
+1. **User downloads installer** (~60-80 MB)
+2. **Runs installer** → Extracts files to Program Files
+3. **Launches app** → App checks if Chromium exists
+4. **First launch only** → Downloads Chromium (~150 MB) with progress dialog
+5. **Ready to use** → All features work (downloads, cookies, etc.)
+
+### How It Works (Full Bundle)
+
+1. **User downloads installer** (~200-250 MB)
+2. **Runs installer** → Extracts everything including Chromium
+3. **Launches app** → Works immediately, no additional downloads
+4. **Ready to use** → All features work from first launch
+
+### What About Code Signing?
+
+Without code signing, Windows SmartScreen will show a warning when users run
+the installer. This is covered in detail in the [Code Signing](#step-5----code-signing)
+section below. You need an **EV Code Signing Certificate** (~$300-400/year) to
+completely avoid SmartScreen warnings.
 
 ---
 
@@ -90,6 +137,47 @@ script expects `ISCC.exe` at that path. If you installed elsewhere, edit the
 
 See the [Code Signing](#step-5----code-signing) section below. You do NOT
 need this for local testing.
+
+---
+
+## Step 0 -- Download Dependencies (ffmpeg)
+
+Before building, you need to download **ffmpeg** which is required for video
+processing. The app will not work correctly without it.
+
+### Download ffmpeg
+
+```cmd
+python scripts\download_ffmpeg.py
+```
+
+This downloads ffmpeg (~100 MB) to `bin/ffmpeg.exe`. The build script will
+automatically bundle it into the installer.
+
+**One-time setup** -- you only need to do this once unless you delete the `bin/`
+folder.
+
+### Optional: Download Chromium (for Full Bundle)
+
+If you want to bundle Chromium in the installer (instead of downloading it on
+first launch), download it first:
+
+```cmd
+python scripts\download_chromium.py
+```
+
+This downloads Chromium (~150 MB) to `bin/chromium/`. Then build with:
+
+```cmd
+set BUNDLE_CHROMIUM=1
+scripts\build_windows.bat installer
+```
+
+Or use the convenient `full` mode which downloads everything and builds:
+
+```cmd
+scripts\build_windows.bat full installer
+```
 
 ---
 

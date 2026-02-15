@@ -1,6 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""
-PyInstaller spec file for Media Downloader.
+"""PyInstaller spec file for Media Downloader.
 
 Build with:
     pyinstaller media_downloader.spec
@@ -8,11 +7,15 @@ Build with:
 This produces:
     dist/MediaDownloader/  (folder with .exe and all dependencies)
 
-Playwright Strategy:
-    The Playwright Python package IS bundled so that ``import playwright``
-    works at runtime. However, the Chromium browser binary (~150 MB) is
-    NOT bundled -- it is downloaded automatically on first launch via
-    ``src.services.cookies.playwright_bootstrap.ensure_playwright_ready()``.
+Architecture:
+    - Python interpreter + all packages bundled in _internal/
+    - ffmpeg bundled for video processing
+    - Chromium browser: EITHER bundled OR downloaded on first launch
+      (controlled by BUNDLE_CHROMIUM environment variable)
+
+Environment Variables:
+    BUNDLE_CHROMIUM=1  - Bundle Chromium browser (~150MB extra)
+    BUNDLE_CHROMIUM=0  - Download Chromium on first launch (default)
 """
 
 import os
@@ -27,16 +30,42 @@ block_cipher = None
 PROJECT_ROOT = os.path.abspath(".")
 CTK_PATH = os.path.dirname(customtkinter.__file__)
 
+# Check if we should bundle Chromium
+BUNDLE_CHROMIUM = os.environ.get("BUNDLE_CHROMIUM", "0") == "1"
+
+# Collect data files
+datas = [
+    # Bundle the themes directory
+    (os.path.join(PROJECT_ROOT, "themes"), "themes"),
+    # CustomTkinter needs its own assets bundled
+    (CTK_PATH, "customtkinter"),
+]
+
+# Check for ffmpeg - bundle it if available
+FFMPEG_PATH = os.path.join(PROJECT_ROOT, "bin", "ffmpeg.exe")
+if os.path.exists(FFMPEG_PATH):
+    print(f"[PyInstaller] Bundling ffmpeg: {FFMPEG_PATH}")
+    datas.append((FFMPEG_PATH, "bin"))
+else:
+    print("[PyInstaller] WARNING: ffmpeg.exe not found at bin/ffmpeg.exe")
+    print("[PyInstaller] Video processing may not work without ffmpeg")
+    print("[PyInstaller] Run: python scripts/download_ffmpeg.py")
+
+# Check for bundled Chromium
+if BUNDLE_CHROMIUM:
+    CHROMIUM_PATH = os.path.join(PROJECT_ROOT, "bin", "chromium")
+    if os.path.exists(CHROMIUM_PATH):
+        print(f"[PyInstaller] Bundling Chromium: {CHROMIUM_PATH}")
+        datas.append((CHROMIUM_PATH, "chromium"))
+    else:
+        print("[PyInstaller] WARNING: Chromium not found at bin/chromium")
+        print("[PyInstaller] Run: python scripts/download_chromium.py")
+
 a = Analysis(
     ["src/main.py"],
     pathex=[PROJECT_ROOT],
     binaries=[],
-    datas=[
-        # Bundle the themes directory
-        (os.path.join(PROJECT_ROOT, "themes"), "themes"),
-        # CustomTkinter needs its own assets bundled
-        (CTK_PATH, "customtkinter"),
-    ],
+    datas=datas,
     hiddenimports=[
         # Core GUI
         "customtkinter",
@@ -114,8 +143,7 @@ a = Analysis(
         # Third-party dependencies
         "yt_dlp",
         "instaloader",
-        # Playwright Python package (NOT the browser binary -- that is
-        # downloaded on first launch by playwright_bootstrap)
+        # Playwright Python package (browser binary is bundled separately if BUNDLE_CHROMIUM=1)
         "playwright",
         "playwright.async_api",
         "playwright.sync_api",
@@ -191,3 +219,5 @@ coll = COLLECT(
     upx_exclude=[],
     name="MediaDownloader",
 )
+
+print(f"[PyInstaller] Build complete. Chromium bundled: {BUNDLE_CHROMIUM}")
