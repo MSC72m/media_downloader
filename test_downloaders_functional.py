@@ -12,12 +12,23 @@ from src.services.file.service import FileService
 
 
 class MockError:
-    def handle_service_failure(self, *a, **kw): pass
-    def handle_exception(self, *a, **kw): pass
-    def show_error(self, *a, **kw): pass
-    def show_warning(self, *a, **kw): pass
-    def show_info(self, *a, **kw): pass
-    def set_message_queue(self, *a): pass
+    def handle_service_failure(self, *a, **kw):
+        pass
+
+    def handle_exception(self, *a, **kw):
+        pass
+
+    def show_error(self, *a, **kw):
+        pass
+
+    def show_warning(self, *a, **kw):
+        pass
+
+    def show_info(self, *a, **kw):
+        pass
+
+    def set_message_queue(self, *a):
+        pass
 
 
 config = get_config()
@@ -25,13 +36,48 @@ err = MockError()
 fs = FileService()
 
 TESTS = [
-    ("SoundCloud",  "src.services.soundcloud.downloader",  "SoundCloudDownloader",  "https://soundcloud.com/forss/flickermood"),
-    ("Spotify",     "src.services.spotify.downloader",     "SpotifyDownloader",     "https://open.spotify.com/track/3n3Ppam7vgaVa1iaRUc9Lp"),
-    ("TikTok",      "src.services.tiktok.downloader",      "TikTokDownloader",      "https://www.tiktok.com/@scout2015/video/6718335390845095173"),
-    ("RadioJavan",  "src.services.radiojavan.downloader",  "RadioJavanDownloader",  "https://www.radiojavan.com/mp3s/mp3/Arash-Boro-Boro"),
-    ("Twitter",     "src.services.twitter.downloader",     "TwitterDownloader",     "https://x.com/SpaceX/status/1798743372168431848"),
-    ("YouTube",     "src.services.youtube.downloader",     "YouTubeDownloader",     "https://www.youtube.com/watch?v=dQw4w9WgXcQ"),
-    ("Instagram",   "src.services.instagram.downloader",   "InstagramDownloader",   "https://www.instagram.com/p/CuJtqA2sM4x/"),
+    (
+        "SoundCloud",
+        "src.services.soundcloud.downloader",
+        "SoundCloudDownloader",
+        "https://soundcloud.com/forss/flickermood",
+    ),
+    (
+        "Spotify",
+        "src.services.spotify.downloader",
+        "SpotifyDownloader",
+        "https://open.spotify.com/track/3n3Ppam7vgaVa1iaRUc9Lp",
+    ),
+    (
+        "TikTok",
+        "src.services.tiktok.downloader",
+        "TikTokDownloader",
+        "https://www.tiktok.com/@scout2015/video/6718335390845095173",
+    ),
+    (
+        "RadioJavan",
+        "src.services.radiojavan.downloader",
+        "RadioJavanDownloader",
+        "https://www.radiojavan.com/mp3s/mp3/Arash-Boro-Boro",
+    ),
+    (
+        "Twitter",
+        "src.services.twitter.downloader",
+        "TwitterDownloader",
+        "https://x.com/SpaceX/status/1798743372168431848",
+    ),
+    (
+        "YouTube",
+        "src.services.youtube.downloader",
+        "YouTubeDownloader",
+        "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    ),
+    (
+        "Instagram",
+        "src.services.instagram.downloader",
+        "InstagramDownloader",
+        "https://www.instagram.com/p/CuJtqA2sM4x/",
+    ),
 ]
 
 results = {}
@@ -59,7 +105,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
 
             if ok and name_files:
                 sizes = [os.path.getsize(os.path.join(tmpdir, f)) for f in name_files]
-                results[name] = f"PASS ({sum(sizes)//1024}KB across {len(name_files)} files)"
+                results[name] = f"PASS ({sum(sizes) // 1024}KB across {len(name_files)} files)"
             elif ok:
                 results[name] = "PASS (download returned True, no matching files found)"
             else:

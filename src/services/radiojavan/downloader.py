@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -505,27 +506,27 @@ class RadioJavanDownloader(BaseDownloader):
         hosts = self._candidate_hosts(media_name, media_type)
         paths = self._candidate_paths(media_type)
 
-        validated_url: str | None = None
+        first_candidate: str | None = None
         for host in hosts:
             for path in paths:
                 download_url = f"{host}{path.format(media_name=media_name)}"
+                if first_candidate is None:
+                    first_candidate = download_url
                 if self._validate_url(download_url):
                     logger.debug(f"[RADIOJAVAN_DOWNLOADER] Valid URL found: {download_url}")
-                    validated_url = download_url
-                    break
-            if validated_url:
-                break
+                    return download_url
 
-        if validated_url:
-            return validated_url
-
-        if self._last_access_error:
+        if first_candidate:
+            if self._last_access_error:
+                logger.warning(
+                    "[RADIOJAVAN_DOWNLOADER] Returning best-effort URL after transport errors: %s",
+                    self._last_access_error,
+                )
             logger.warning(
-                "[RADIOJAVAN_DOWNLOADER] Returning best-effort URL after transport errors: %s",
-                self._last_access_error,
+                "[RADIOJAVAN_DOWNLOADER] No candidate URL validated; returning best-effort URL: "
+                f"{first_candidate}"
             )
-            if hosts and paths:
-                return f"{hosts[0]}{paths[0].format(media_name=media_name)}"
+            return first_candidate
 
         logger.warning(f"[RADIOJAVAN_DOWNLOADER] Could not construct valid URL for: {url}")
         return None
@@ -653,11 +654,25 @@ class RadioJavanDownloader(BaseDownloader):
         _, ext = os.path.splitext(download_url.split("?")[0])
         if ext:
             save_path = f"{save_path}{ext}"
-        return download_file(
+
+        if not download_file(
             url=download_url,
             save_path=save_path,
             progress_callback=progress_callback,
             config=self.config,
             headers=headers,
             cookies=cookies,
+        ):
+            return False
+
+        # Verify the downloaded file is valid media (not a 403/404 error page)
+        if os.path.isfile(save_path) and os.path.getsize(save_path) >= self.MIN_FILE_SIZE:
+            return True
+
+        logger.warning(
+            "[RADIOJAVAN_DOWNLOADER] Downloaded file too small or missing: %s",
+            save_path,
         )
+        with contextlib.suppress(OSError):
+            os.remove(save_path)
+        return False
