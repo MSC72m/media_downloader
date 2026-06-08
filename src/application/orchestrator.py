@@ -31,7 +31,7 @@ from src.handlers import (
     youtube_handler,
 )
 from src.handlers.service_detector import ServiceDetector
-from src.services.cookies import CookieManager as AutoCookieManager
+from src.services.cookies import YouTubeCookieManager as AutoCookieManager
 from src.services.cookies.radiojavan_cookie_manager import RadioJavanCookieManager
 from src.services.detection.base_handler import BaseHandler
 from src.services.detection.link_detector import LinkDetector
