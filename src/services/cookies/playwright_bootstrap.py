@@ -89,32 +89,64 @@ def is_chromium_installed() -> bool:
         return _check_browser_path()
 
 
+def _get_browser_search_bases() -> list[Path]:
+    """Return directories to search for Playwright browser binaries."""
+    bases: list[Path] = []
+
+    # PyInstaller frozen bundle: browsers under _internal/playwright/driver/package/.local-browsers/
+    if getattr(sys, "frozen", False):
+        internal = (
+            Path(sys._MEIPASS)
+            if hasattr(sys, "_MEIPASS")
+            else Path(sys.executable).parent / "_internal"
+        )
+        bases.append(internal / "playwright" / "driver" / "package" / ".local-browsers")
+
+    # Standard Playwright locations
+    if sys.platform == "win32":
+        bases.append(Path.home() / "AppData" / "Local" / "ms-playwright")
+    elif sys.platform == "darwin":
+        bases.append(Path.home() / "Library" / "Caches" / "ms-playwright")
+    else:
+        bases.append(Path.home() / ".cache" / "ms-playwright")
+
+    return bases
+
+
+def _get_browser_executable_candidates(browser_dir: Path) -> list[Path]:
+    """Return known browser executable paths for a given browser directory."""
+    if sys.platform == "win32":
+        return [
+            browser_dir / "chrome-win" / "chrome.exe",
+            browser_dir / "chrome-win64" / "chrome.exe",
+            browser_dir / "chrome-headless-shell-win64" / "chrome-headless-shell.exe",
+        ]
+    if sys.platform == "darwin":
+        return [
+            browser_dir / "chrome-mac" / "Chromium.app" / "Contents" / "MacOS" / "Chromium",
+            browser_dir / "chrome-mac-arm64" / "Chromium.app" / "Contents" / "MacOS" / "Chromium",
+        ]
+    return [
+        browser_dir / "chrome-linux" / "chrome",
+        browser_dir / "chrome-linux64" / "chrome",
+    ]
+
+
 def _check_browser_path() -> bool:
     """Inspect the filesystem for Playwright's Chromium binary."""
     try:
-        # Playwright stores browsers in a platform-specific location
-        if sys.platform == "win32":
-            base = Path.home() / "AppData" / "Local" / "ms-playwright"
-        elif sys.platform == "darwin":
-            base = Path.home() / "Library" / "Caches" / "ms-playwright"
-        else:
-            base = Path.home() / ".cache" / "ms-playwright"
+        for base in _get_browser_search_bases():
+            if not base.exists():
+                continue
 
-        if not base.exists():
-            return False
+            for child in base.iterdir():
+                if not child.is_dir() or "chromium" not in child.name.lower():
+                    continue
 
-        # Look for any chromium-* directory with an executable inside
-        for child in base.iterdir():
-            if child.is_dir() and "chromium" in child.name.lower():
-                # Check for the actual browser executable
-                if sys.platform == "win32":
-                    exe = child / "chrome-win" / "chrome.exe"
-                elif sys.platform == "darwin":
-                    exe = child / "chrome-mac" / "Chromium.app" / "Contents" / "MacOS" / "Chromium"
-                else:
-                    exe = child / "chrome-linux" / "chrome"
-                if exe.exists():
-                    return True
+                for exe in _get_browser_executable_candidates(child):
+                    if exe.exists():
+                        logger.info(f"[PLAYWRIGHT_BOOTSTRAP] Found Chromium at {exe}")
+                        return True
         return False
     except OSError:
         return False
