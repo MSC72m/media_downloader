@@ -148,7 +148,7 @@ if /i "%1"=="installer" (
     )
     echo.
     echo       Installer built successfully.
-    echo       Output: installers\MediaDownloaderSetup-0.1.0.exe
+    echo       Output: installers\MediaDownloaderSetup-1.0.0-x64.exe
 ) else (
     echo [4/5] Skipping installer build (pass "installer" argument to build it)
 )
@@ -160,7 +160,7 @@ echo ============================================================
 echo.
 echo  Portable app:  dist\MediaDownloader\MediaDownloader.exe
 if /i "%1"=="installer" (
-    echo  Installer:     installers\MediaDownloaderSetup-0.1.0.exe
+    echo  Installer:     installers\MediaDownloaderSetup-1.0.0-x64.exe
 )
 echo.
 if "%BUNDLE_CHROMIUM%"=="1" (

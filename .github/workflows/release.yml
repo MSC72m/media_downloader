@@ -26,10 +26,20 @@ concurrency:
 
 jobs:
   build-windows:
-    runs-on: windows-latest
+    name: build-windows-${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.12"]
+        include:
+          - arch: x64
+            runner: windows-latest
+            python-architecture: x64
+            inno-architectures-allowed: x64compatible
+          - arch: arm64
+            runner: windows-11-arm
+            python-architecture: arm64
+            inno-architectures-allowed: arm64
 
     steps:
       - name: Checkout
@@ -40,10 +50,11 @@ jobs:
         with:
           version: "latest"
 
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python 3.12 (${{ matrix.arch }})
         uses: actions/setup-python@v4
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.12"
+          architecture: ${{ matrix.python-architecture }}
 
       - name: Install dependencies
         run: uv sync --dev
@@ -99,16 +110,25 @@ jobs:
             $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
           }
           if (!$iscc -or !(Test-Path $iscc)) {
+            Write-Host "Inno Setup not found; installing with Chocolatey..."
+            choco install innosetup --no-progress -y
+            $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+            if (!(Test-Path $iscc)) {
+              $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
+            }
+          }
+          if (!$iscc -or !(Test-Path $iscc)) {
             Write-Error "Inno Setup not found. Install it or check the runner image."
             exit 1
           }
-          & $iscc installer.iss
+          & $iscc /DMyAppArchLabel=${{ matrix.arch }} /DMyAppArchitecturesAllowed=${{ matrix.inno-architectures-allowed }} installer.iss
 
       - name: Verify installer output
         id: installer
         run: |
           $version = "1.0.0"
-          $installerPath = "installers\MediaDownloaderSetup-$version.exe"
+          $arch = "${{ matrix.arch }}"
+          $installerPath = "installers\MediaDownloaderSetup-$version-$arch.exe"
           if (!(Test-Path $installerPath)) {
             Write-Error "Installer not found at $installerPath"
             exit 1
@@ -116,7 +136,7 @@ jobs:
           $size = (Get-Item $installerPath).Length / 1MB
           Write-Host "Installer size: $([math]::Round($size, 2)) MB"
           echo "installer_path=$installerPath" >> $env:GITHUB_OUTPUT
-          echo "installer_name=MediaDownloaderSetup-$version.exe" >> $env:GITHUB_OUTPUT
+          echo "installer_name=MediaDownloaderSetup-$version-$arch.exe" >> $env:GITHUB_OUTPUT
 
       # ── Sign Installer (optional) ──────────────────────────────────
       - name: Sign installer
@@ -141,14 +161,14 @@ jobs:
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: windows-installer
+          name: windows-installer-${{ matrix.arch }}
           path: ${{ steps.installer.outputs.installer_path }}
           retention-days: 30
 
       - name: Upload portable build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: windows-portable
+          name: windows-portable-${{ matrix.arch }}
           path: dist/MediaDownloader/
           retention-days: 30
 
@@ -159,11 +179,12 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.create_release == 'true')
 
     steps:
-      - name: Download installer artifact
+      - name: Download installer artifacts
         uses: actions/download-artifact@v4
         with:
-          name: windows-installer
+          pattern: windows-installer-*
           path: artifacts/
+          merge-multiple: true
 
       - name: Extract version from tag
         id: version
@@ -186,7 +207,9 @@ jobs:
 
             ### Installation
 
-            1. Download `MediaDownloaderSetup-1.0.0.exe` below
+            1. Download the installer for your Windows architecture below:
+               - `MediaDownloaderSetup-1.0.0-x64.exe` for Intel/AMD Windows PCs
+               - `MediaDownloaderSetup-1.0.0-arm64.exe` for Windows on ARM devices
             2. Run the installer and follow the setup wizard
             3. On first launch, the app will download a browser component (~150 MB) for cookie generation -- this only happens once
 

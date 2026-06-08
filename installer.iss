@@ -15,6 +15,12 @@
 
 #define MyAppName "Media Downloader"
 #define MyAppVersion "1.0.0"
+#ifndef MyAppArchLabel
+#define MyAppArchLabel "x64"
+#endif
+#ifndef MyAppArchitecturesAllowed
+#define MyAppArchitecturesAllowed "x64compatible"
+#endif
 #define MyAppPublisher "Media Downloader"
 #define MyAppExeName "MediaDownloader.exe"
 #define MyAppURL "https://github.com/MSC72m/media_downloader"
@@ -25,6 +31,8 @@ AppId={{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppVerName={#MyAppName} {#MyAppVersion}
+ArchitecturesAllowed={#MyAppArchitecturesAllowed}
+ArchitecturesInstallIn64BitMode={#MyAppArchitecturesAllowed}
 AppPublisher={#MyAppPublisher}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}/releases
@@ -35,7 +43,7 @@ DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 ; Output installer to installers/ directory
 OutputDir=installers
-OutputBaseFilename=MediaDownloaderSetup-{#MyAppVersion}
+OutputBaseFilename=MediaDownloaderSetup-{#MyAppVersion}-{#MyAppArchLabel}
 ; Compression
 Compression=lzma2/ultra64
 SolidCompression=yes

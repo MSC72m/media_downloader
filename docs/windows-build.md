@@ -34,6 +34,10 @@ When a user downloads and runs `MediaDownloaderSetup.exe`, they get:
 - ffmpeg for video processing (~100 MB)
 - **Total: ~150-200 MB installed**
 
+**Release Architectures:**
+- `MediaDownloaderSetup-{version}-x64.exe` for Intel/AMD Windows PCs
+- `MediaDownloaderSetup-{version}-arm64.exe` for Windows on ARM devices
+
 **Two Options for Chromium Browser:**
 
 #### Option A: Standard (Recommended)
