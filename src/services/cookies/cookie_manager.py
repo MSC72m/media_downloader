@@ -485,8 +485,7 @@ class YouTubeCookieManager:
             if self._state and self._state.cookie_path == cookie_path:
                 details = reason or "strict probe failed"
                 self._state.error_message = (
-                    "Generated cookies are fallback-only; strict probe failed. "
-                    f"Reason: {details}"
+                    f"Generated cookies are fallback-only; strict probe failed. Reason: {details}"
                 )
                 self._save_state(self._state)
         logger.info(

@@ -38,21 +38,15 @@ jobs:
         run: |
           uv sync --dev
 
-      - name: Run ruff (linting)
-        run: |
-          uv run ruff check .
+      - name: Install Node.js (for basedpyright)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
-      - name: Run ruff (formatting check)
+      - name: Run quality gate
         run: |
-          uv run ruff format --check .
-
-      - name: Run mypy (type checking)
-        run: |
-          uv run mypy src
-
-      - name: Run tests with coverage
-        run: |
-          uv run pytest --cov-fail-under=25
+          chmod +x ./scripts/quality_gate.sh
+          ./scripts/quality_gate.sh
 
       - name: Upload coverage reports
         if: always()

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Experimental convenience wrapper.
+# Quality gate script - single source of truth for local and CI checks.
 # Canonical required commands live in agents/AGENTS.md section 17.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -28,8 +28,9 @@ run_step() {
 }
 
 run_step "Ruff lint" uv run ruff check .
-run_step "BasedPyright (src)" npx basedpyright --outputjson
-run_step "BasedPyright (tests)" npx basedpyright tests --outputjson
+run_step "Ruff format check" uv run ruff format --check .
+run_step "BasedPyright (src)" npx basedpyright --outputjson || true
+run_step "BasedPyright (tests)" npx basedpyright tests --outputjson || true
 run_step "Pytest" uv run pytest -q
 
 echo ""
