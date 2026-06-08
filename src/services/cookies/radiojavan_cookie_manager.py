@@ -95,13 +95,16 @@ class RadioJavanCookieManager:
     # ------------------------------------------------------------------
 
     def get_cookies(self) -> dict[str, str] | None:
-        """Return cookie dict for use with ``requests``, or None."""
+        """Return cookie dict for use with ``requests``, or None.
+
+        If not initialized, returns None immediately (background init handles it).
+        Does not trigger synchronous generation to avoid blocking the caller.
+        """
         if not self._initialization_complete:
-            self.initialize()
+            logger.info("[RJ_COOKIE_MANAGER] Manager still initializing, returning None")
+            return None
 
         with self._lock:
-            self._ensure_cookies_regenerated()
-
             if not self._state or not self._state.is_valid:
                 logger.warning("[RJ_COOKIE_MANAGER] No valid cookies available")
                 return None
@@ -110,11 +113,8 @@ class RadioJavanCookieManager:
             if cookies:
                 return cookies
 
-            # Cookie file missing/corrupt — regenerate
-            logger.warning("[RJ_COOKIE_MANAGER] Cookie file unreadable, regenerating")
-            loop = self._get_event_loop()
-            self._state = loop.run_until_complete(self._regenerate_cookies())
-            return self.generator.load_cookies()
+            logger.warning("[RJ_COOKIE_MANAGER] Cookie file unreadable")
+            return None
 
     def get_state(self) -> CookieState:
         if not self._initialization_complete:
@@ -178,13 +178,6 @@ class RadioJavanCookieManager:
             logger.warning("[RJ_COOKIE_MANAGER] Cookie file invalid, forcing regeneration")
             return True
         return False
-
-    def _ensure_cookies_regenerated(self) -> None:
-        if not self._state or not self._state.is_valid or self._state.should_regenerate():
-            self._delete_old_cookie_files()
-            logger.info("[RJ_COOKIE_MANAGER] Triggering cookie generation")
-            loop = self._get_event_loop()
-            self._state = loop.run_until_complete(self._regenerate_cookies())
 
     def _delete_old_cookie_files(self) -> None:
         if (

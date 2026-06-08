@@ -109,29 +109,28 @@ class YouTubeCookieManager:
     def get_cookies(self) -> str | None:
         """Get path to cookie file for use with yt-dlp.
 
-        If no valid cookies exist, triggers generation automatically.
+        If not initialized, returns None immediately (background init handles it).
+        If cookies need regeneration, triggers it in a background thread.
 
         Returns:
             Path to Netscape format cookie file, or None if not available
         """
         if not self._initialization_complete:
-            logger.info("[COOKIE_MANAGER] Manager not initialized, initializing now")
-            self.initialize()
+            logger.info("[COOKIE_MANAGER] Manager still initializing, returning None")
+            return None
 
         with self._lock:
-            self._ensure_cookies_regenerated()
-
             if not self._state or not self._state.is_valid:
-                logger.warning("[COOKIE_MANAGER] Cookie generation failed")
+                logger.warning("[COOKIE_MANAGER] No valid cookies available")
                 return None
 
             if not (cookie_path := self._ensure_cookie_file_exists()):
                 return None
 
-            if cookie_path := self._validate_and_regenerate_if_needed(cookie_path):
-                logger.info(f"[COOKIE_MANAGER] Returning validated cookie file: {cookie_path}")
+            if self.generator.validate_netscape_file(cookie_path):
                 return cookie_path
-            return None
+
+        return None
 
     def get_state(self) -> CookieState:
         """Get current cookie state.
@@ -285,14 +284,6 @@ class YouTubeCookieManager:
                 )
             except Exception as e:
                 logger.warning(f"[COOKIE_MANAGER] Failed to delete JSON cookie file: {e}")
-
-    def _ensure_cookies_regenerated(self) -> None:
-        """Ensure cookies are regenerated if needed."""
-        if not self._state or not self._state.is_valid or self._state.should_regenerate():
-            self._delete_old_cookie_files()
-            logger.info("[COOKIE_MANAGER] No valid cookies available, triggering generation")
-            loop = self._get_event_loop()
-            self._state = loop.run_until_complete(self._regenerate_cookies())
 
     def _try_convert_netscape(self) -> str | None:
         """Try to convert JSON cookies to Netscape format.
