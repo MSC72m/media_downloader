@@ -218,7 +218,7 @@ class RadioJavanCookieManager:
                     max_attempts,
                 )
                 if attempt < max_attempts:
-                    await asyncio.sleep(self._backoff_seconds * attempt)
+                    await self._sleep_before_retry(attempt)
                     continue
                 self._save_state(new_state)
                 return new_state
@@ -244,16 +244,40 @@ class RadioJavanCookieManager:
                 reason,
             )
             if attempt < max_attempts:
-                await asyncio.sleep(self._backoff_seconds * attempt)
+                await self._sleep_before_retry(attempt)
                 continue
 
             # Accept cookies as fallback-only
-            new_state.error_message = f"Generated cookies are fallback-only; probe failed: {reason}"
-            self._save_state(new_state)
-            return new_state
+            fallback_state = self._mark_generated_fallback_only(new_state, reason)
+            self._save_state(fallback_state)
+            return fallback_state
 
         self._save_state(last_state)
         return last_state
+
+    async def _sleep_before_retry(self, attempt: int) -> None:
+        """Bounded backoff before retrying cookie regeneration."""
+        wait_seconds = self._backoff_seconds * attempt
+        logger.info(
+            "[RJ_COOKIE_MANAGER] Waiting %.1fs before cookie regeneration retry",
+            wait_seconds,
+        )
+        await asyncio.sleep(wait_seconds)
+
+    def _mark_generated_fallback_only(
+        self,
+        state: CookieState,
+        reason: str | None,
+    ) -> CookieState:
+        """Mark generated cookies as fallback-only when probes keep failing."""
+        state.is_generating = False
+        state.is_valid = True
+        details = reason or "Radio Javan probe validation failed"
+        state.error_message = (
+            "Generated cookies are fallback-only; browser source should be preferred. "
+            f"Reason: {details}"
+        )
+        return state
 
     def _start_background_probe_validation(self) -> None:
         """Run probe validation in background to keep startup responsive."""
