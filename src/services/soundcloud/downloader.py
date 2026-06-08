@@ -462,7 +462,7 @@ class SoundCloudDownloader(BaseDownloader):
                     "view_count": info.get("view_count", 0),
                     "like_count": info.get("like_count", 0),
                     "is_playlist": "entries" in info,
-                    "track_count": len(info.get("entries", [])) if "entries" in info else 1,
+                    "track_count": len(list(info.get("entries", []))) if "entries" in info else 1,  # type: ignore[arg-type]
                     "is_available": info.get("availability") != "premium_only",
                     "policy": info.get("policy", ""),
                 }

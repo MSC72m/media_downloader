@@ -270,7 +270,7 @@ class SpotifyDownloader(BaseDownloader):
                         }
                     ) as ydl:
                         results = ydl.extract_info(query, download=False)
-                        return results.get("entries", [])
+                        return list(results.get("entries", []))  # type: ignore[arg-type]
                 except Exception as e:
                     if attempt < 2:
                         logger.warning(

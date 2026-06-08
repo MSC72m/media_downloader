@@ -649,6 +649,10 @@ class RadioJavanDownloader(BaseDownloader):
             return False
 
         headers, cookies = self._request_context_for_url(download_url, force_refresh=False)
+        # Append the extension from the download URL (e.g. .mp3 or .mp4)
+        _, ext = os.path.splitext(download_url.split("?")[0])
+        if ext:
+            save_path = f"{save_path}{ext}"
         return download_file(
             url=download_url,
             save_path=save_path,
