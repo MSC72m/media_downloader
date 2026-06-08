@@ -656,6 +656,159 @@ class CookieGenerator:
             logger.error(f"[COOKIE_GENERATOR] Failed to check Chromium: {e}", exc_info=True)
             return False
 
+    async def generate_site_cookies(
+        self,
+        site_url: str,
+        site_name: str,
+        fast_mode: bool = False,
+    ) -> CookieState:
+        """Generate cookies by visiting any site in headless browser.
+
+        Args:
+            site_url: The URL to navigate to (e.g. "https://soundcloud.com")
+            site_name: Human-readable site name for logging (e.g. "SoundCloud")
+            fast_mode: If True, skip extra interactions
+
+        Returns:
+            CookieState with generation results
+        """
+        mode = "fast" if fast_mode else "full"
+        logger.info(f"[COOKIE_GENERATOR] Starting {site_name} cookie generation (mode={mode})")
+
+        state = CookieState(is_generating=True, is_valid=False)
+        self._update_state(state)
+
+        try:
+            from playwright.async_api import async_playwright
+
+            async with async_playwright() as p:
+                logger.info(f"[COOKIE_GENERATOR] Launching Chromium for {site_name}")
+
+                if (browser := await self._launch_browser(p)) is None:
+                    return self._create_error_state(f"Failed to launch browser for {site_name}")
+
+                if (context_result := await self._create_browser_context(browser)) is None:
+                    with contextlib.suppress(Exception):
+                        await browser.close()
+                    return self._create_error_state(
+                        f"Failed to create browser context for {site_name}"
+                    )
+
+                context, page = context_result
+                logger.info(f"[COOKIE_GENERATOR] Navigating to {site_name}: {site_url}")
+
+                return await self._navigate_site_and_process_cookies(
+                    page=page,
+                    context=context,
+                    browser=browser,
+                    state=state,
+                    site_url=site_url,
+                    site_name=site_name,
+                    fast_mode=fast_mode,
+                )
+
+        except ImportError as e:
+            error_msg = (
+                "Playwright is not installed. Please run: "
+                "pip install playwright && playwright install chromium"
+            )
+            logger.error(f"[COOKIE_GENERATOR] {error_msg}: {e}")
+            return self._create_error_state(error_msg)
+        except Exception as e:
+            error_msg = f"Failed to generate {site_name} cookies: {e!s}"
+            logger.error(f"[COOKIE_GENERATOR] {error_msg}", exc_info=True)
+            return self._create_error_state(error_msg)
+
+    async def _navigate_site_and_process_cookies(
+        self,
+        *,
+        page: Page,
+        context: BrowserContext,
+        browser: Browser,
+        state: CookieState,
+        site_url: str,
+        site_name: str,
+        fast_mode: bool,
+    ) -> CookieState:
+        try:
+            await page.goto(
+                site_url,
+                wait_until="domcontentloaded",
+                timeout=self.config.cookies.generation_timeout * 1000,
+            )
+            logger.info(f"[COOKIE_GENERATOR] {site_name} loaded")
+
+            await asyncio.sleep(self.config.cookies.wait_after_load)
+            await self._wait_for_network_idle(page)
+            await self._accept_consent_if_present(page)
+            await self._scroll_page(page)
+
+            if not fast_mode:
+                await asyncio.sleep(self.config.cookies.wait_after_load)
+
+            return await self._process_site_cookies(context, browser, state)
+        except Exception as nav_error:
+            logger.warning(f"[COOKIE_GENERATOR] {site_name} navigation failed: {nav_error}")
+
+        try:
+            await asyncio.sleep(self.config.cookies.wait_after_load)
+            await page.goto(
+                site_url,
+                wait_until="domcontentloaded",
+                timeout=self.config.cookies.generation_timeout * 1000,
+            )
+            await asyncio.sleep(self.config.cookies.wait_after_load)
+            logger.info(f"[COOKIE_GENERATOR] {site_name} loaded successfully on retry")
+            return await self._process_site_cookies(context, browser, state)
+        except Exception as retry_e:
+            logger.error(f"[COOKIE_GENERATOR] {site_name} retry also failed: {retry_e}")
+            with contextlib.suppress(Exception):
+                await browser.close()
+            return self._create_error_state(f"Failed to navigate to {site_name}")
+
+    async def _process_site_cookies(
+        self,
+        context: BrowserContext,
+        browser: Browser,
+        state: CookieState,
+    ) -> CookieState:
+        """Extract cookies from context, save them, and clean up.
+
+        Args:
+            context: Playwright browser context with cookies
+            browser: Playwright browser instance to close
+            state: Current cookie state to update
+
+        Returns:
+            Updated CookieState
+        """
+        try:
+            cookies = await context.cookies()
+            await browser.close()
+
+            if not cookies:
+                return self._create_error_state("No cookies retrieved from browser")
+
+            logger.info(f"[COOKIE_GENERATOR] Retrieved {len(cookies)} total cookies")
+
+            self._save_cookies(list(cookies))
+            netscape_path = self.convert_to_netscape_text()
+
+            if netscape_path:
+                new_state = CookieState(
+                    is_generating=False,
+                    is_valid=True,
+                    cookie_path=netscape_path,
+                )
+                self._update_state(new_state)
+                return new_state
+
+            return self._create_error_state("Failed to convert cookies to Netscape format")
+        except Exception as e:
+            with contextlib.suppress(Exception):
+                await browser.close()
+            return self._create_error_state(f"Failed to process cookies: {e!s}")
+
     def cleanup(self) -> None:
         """Cleanup resources."""
         logger.info("[COOKIE_GENERATOR] Cleanup completed")

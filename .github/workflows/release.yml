@@ -107,7 +107,7 @@ jobs:
       - name: Verify installer output
         id: installer
         run: |
-          $version = "0.1.0"
+          $version = "1.0.0"
           $installerPath = "installers\MediaDownloaderSetup-$version.exe"
           if (!(Test-Path $installerPath)) {
             Write-Error "Installer not found at $installerPath"
@@ -186,7 +186,7 @@ jobs:
 
             ### Installation
 
-            1. Download `MediaDownloaderSetup-0.1.0.exe` below
+            1. Download `MediaDownloaderSetup-1.0.0.exe` below
             2. Run the installer and follow the setup wizard
             3. On first launch, the app will download a browser component (~150 MB) for cookie generation -- this only happens once
 

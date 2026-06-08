@@ -21,7 +21,11 @@ from src.core.interfaces import (
 from src.handlers.cookie_handler import CookieHandler
 from src.handlers.download_handler import DownloadHandler
 from src.handlers.network_checker import NetworkChecker
-from src.services.cookies.radiojavan_cookie_manager import RadioJavanCookieManager
+from src.services.cookies import (
+    RadioJavanCookieManager,
+    SoundCloudCookieManager,
+    SpotifyCookieManager,
+)
 from src.services.detection.base_handler import BaseHandler
 from src.services.instagram import InstagramAuthManager
 from src.services.youtube.metadata_service import YouTubeMetadataService
@@ -231,6 +235,8 @@ class ServiceFactoryRegistry:
             cookie_handler=self.container.get_optional(ICookieHandler),
             auto_cookie_manager=self.container.get_optional(IAutoCookieManager),
             rj_cookie_manager=self.container.get_optional(RadioJavanCookieManager),
+            sc_cookie_manager=self.container.get_optional(SoundCloudCookieManager),
+            spotify_cookie_manager=self.container.get_optional(SpotifyCookieManager),
             error_handler=self.container.get_optional(IErrorNotifier),
             file_service=self.container.get(IFileService),
             config=self.container.get(AppConfig),

@@ -31,7 +31,13 @@ from src.handlers import (
     youtube_handler,
 )
 from src.handlers.service_detector import ServiceDetector
-from src.services.cookies import YouTubeCookieManager as AutoCookieManager
+from src.services.cookies import (
+    SoundCloudCookieManager,
+    SpotifyCookieManager,
+)
+from src.services.cookies import (
+    YouTubeCookieManager as AutoCookieManager,
+)
 from src.services.cookies.radiojavan_cookie_manager import RadioJavanCookieManager
 from src.services.detection.base_handler import BaseHandler
 from src.services.detection.link_detector import LinkDetector
@@ -111,6 +117,8 @@ class ApplicationOrchestrator:
         self.container.register_singleton(IFileService, FileService)
         self.container.register_singleton(IAutoCookieManager, AutoCookieManager)
         self.container.register_singleton(RadioJavanCookieManager, RadioJavanCookieManager)
+        self.container.register_singleton(SoundCloudCookieManager, SoundCloudCookieManager)
+        self.container.register_singleton(SpotifyCookieManager, SpotifyCookieManager)
         self.container.register_singleton(
             InstagramAuthManager, self.factory_registry.create_instagram_auth_manager
         )
@@ -228,10 +236,44 @@ class ApplicationOrchestrator:
             except Exception as e:
                 logger.debug(f"Error in RadioJavan cookie initialization: {e}")
 
+        def init_soundcloud_cookies() -> None:
+            try:
+                sc_manager = self.container.get(SoundCloudCookieManager)
+                state = sc_manager.initialize()
+                if state.is_valid:
+                    logger.info("[ORCHESTRATOR] SoundCloud cookies initialized successfully")
+                else:
+                    logger.warning(
+                        "[ORCHESTRATOR] SoundCloud cookie init issue: %s",
+                        state.error_message,
+                    )
+            except Exception as e:
+                logger.debug(f"Error in SoundCloud cookie initialization: {e}")
+
+        def init_spotify_cookies() -> None:
+            try:
+                sp_manager = self.container.get(SpotifyCookieManager)
+                state = sp_manager.initialize()
+                if state.is_valid:
+                    logger.info("[ORCHESTRATOR] Spotify cookies initialized successfully")
+                else:
+                    logger.warning(
+                        "[ORCHESTRATOR] Spotify cookie init issue: %s",
+                        state.error_message,
+                    )
+            except Exception as e:
+                logger.debug(f"Error in Spotify cookie initialization: {e}")
+
         yt_thread = threading.Thread(target=init_youtube_cookies, daemon=True, name="YTCookieInit")
         rj_thread = threading.Thread(target=init_rj_cookies, daemon=True, name="RJCookieInit")
+        sc_thread = threading.Thread(
+            target=init_soundcloud_cookies, daemon=True, name="SCCookieInit"
+        )
+        sp_thread = threading.Thread(target=init_spotify_cookies, daemon=True, name="SPCookieInit")
         yt_thread.start()
         rj_thread.start()
+        sc_thread.start()
+        sp_thread.start()
 
     @property
     def auto_cookie_manager(self) -> IAutoCookieManager:

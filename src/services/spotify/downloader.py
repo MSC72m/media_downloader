@@ -8,7 +8,13 @@ import yt_dlp
 from bs4 import BeautifulSoup
 
 from src.core.config import AppConfig, get_config
-from src.core.interfaces import BaseDownloader, IErrorNotifier, IFileService
+from src.core.interfaces import (
+    BaseDownloader,
+    IAutoCookieManager,
+    ICookieHandler,
+    IErrorNotifier,
+    IFileService,
+)
 
 from ...utils.logger import get_logger
 from ..youtube.downloader import YouTubeDownloader
@@ -45,12 +51,18 @@ class SpotifyDownloader(BaseDownloader):
         error_handler: IErrorNotifier | None = None,
         file_service: IFileService | None = None,
         config: AppConfig = get_config(),
+        cookie_handler: ICookieHandler | None = None,
+        auto_cookie_manager: IAutoCookieManager | None = None,
+        spotify_cookie_manager: Any = None,
     ) -> None:
         super().__init__(error_handler, file_service, config)
         self.default_timeout = config.spotify.default_timeout
         self.oembed_timeout = config.spotify.oembed_timeout
         self.max_search_results = config.spotify.max_search_results
         self.min_similarity_threshold = config.spotify.min_similarity_threshold
+        self.cookie_handler = cookie_handler
+        self.auto_cookie_manager = auto_cookie_manager
+        self.spotify_cookie_manager = spotify_cookie_manager
 
     def _detect_url_type(self, url: str) -> str:
         """Detect if URL is track, album, playlist, or artist.
@@ -457,6 +469,8 @@ class SpotifyDownloader(BaseDownloader):
                 error_handler=self.error_handler,
                 file_service=self.file_service,
                 config=self.config,
+                cookie_handler=self.cookie_handler,
+                auto_cookie_manager=self.auto_cookie_manager,
             )
             return yt_downloader.download(youtube_url, save_path, progress_callback)
         except Exception as e:

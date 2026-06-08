@@ -14,11 +14,11 @@
 ;   /DBUNDLE_CHROMIUM - Indicates Chromium is bundled in the installer
 
 #define MyAppName "Media Downloader"
-#define MyAppVersion "0.1.0"
+#define MyAppVersion "1.0.0"
 #define MyAppPublisher "Media Downloader"
 #define MyAppExeName "MediaDownloader.exe"
-#define MyAppURL "https://github.com/your-username/media_downloader"
-#define MyAppDescription "Download media from YouTube, Instagram, SoundCloud, and more"
+#define MyAppURL "https://github.com/MSC72m/media_downloader"
+#define MyAppDescription "Download media from YouTube, Spotify, TikTok, Instagram, Twitter/X, Pinterest, SoundCloud, RadioJavan, and more"
 
 [Setup]
 AppId={{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}

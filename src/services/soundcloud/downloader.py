@@ -27,6 +27,7 @@ class SoundCloudDownloader(BaseDownloader):
         error_handler: IErrorNotifier | None = None,
         file_service: IFileService | None = None,
         config: AppConfig = get_config(),
+        cookie_manager: Any = None,
     ) -> None:
         """Initialize SoundCloud downloader.
 
@@ -41,6 +42,7 @@ class SoundCloudDownloader(BaseDownloader):
             error_handler: Optional error handler for user notifications
             file_service: Optional file service for file operations
             config: AppConfig instance (defaults to global app config)
+            cookie_manager: Optional cookie manager (e.g. SoundCloudCookieManager)
         """
         super().__init__(error_handler, file_service, config)
         self.audio_format = audio_format or self.config.soundcloud.default_audio_format
@@ -50,6 +52,7 @@ class SoundCloudDownloader(BaseDownloader):
         self.download_thumbnail = download_thumbnail
         self.speed_limit = speed_limit
         self.retries = retries or self.config.soundcloud.default_retries
+        self.cookie_manager = cookie_manager
         self.ytdl_opts = self._get_ytdl_options()
 
     def _get_ytdl_options(self) -> dict[str, Any]:
@@ -113,7 +116,16 @@ class SoundCloudDownloader(BaseDownloader):
         # Playlist handling
         if not self.download_playlist:
             options["noplaylist"] = True
-            options["playlist_items"] = "1"
+
+        # Cookie file from cookie_manager
+        if (
+            self.cookie_manager
+            and hasattr(self.cookie_manager, "is_ready")
+            and self.cookie_manager.is_ready()
+        ):
+            cookie_path = self.cookie_manager.get_cookies()
+            if cookie_path:
+                options["cookiefile"] = cookie_path
 
         return options
 

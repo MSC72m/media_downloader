@@ -482,3 +482,4 @@ REFACTOR_PLAN.md
 # Documentation files (keep only README.md)
 /*.md
 !README.md
+!CHANGELOG.md
