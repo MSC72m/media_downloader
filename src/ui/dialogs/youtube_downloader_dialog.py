@@ -1,16 +1,23 @@
+import contextlib
+import io
 import re
 import threading
 import time
+import traceback
 from collections.abc import Callable
 from typing import Any
 
 import customtkinter as ctk
+import PIL.Image
+import requests
 
 from src.core.config import AppConfig, get_config
 from src.core.enums.message_level import MessageLevel
+from src.core.enums.theme_event import ThemeEvent
 from src.core.interfaces import IErrorNotifier, IMessageQueue, YouTubeMetadata
 from src.core.models import Download
 from src.services.events.queue import Message
+from src.ui.utils.theme_manager import ThemeManager, get_theme_manager
 
 from ...utils.logger import get_logger
 from ...utils.window import WindowCenterMixin, close_loading_dialog
@@ -35,7 +42,8 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         error_handler: IErrorNotifier | None = None,
         message_queue: IMessageQueue | None = None,
         config: AppConfig = get_config(),
-    ):
+        theme_manager: ThemeManager | None = None,
+    ) -> None:
         super().__init__(parent)
 
         self.config = config
@@ -52,6 +60,9 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         self._metadata_handler_called = False
         self._metadata_ready = False
         self.selected_subtitles = []
+
+        self._theme_manager = theme_manager or get_theme_manager()
+        self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
 
         self.title("YouTube Video Downloader")
         self.geometry("700x900")
@@ -71,8 +82,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             self.center_window()
         except Exception as e:
             logger.warning(f"Could not center window: {e}")
-            import contextlib
-
             with contextlib.suppress(Exception):
                 self.geometry("700x900")
 
@@ -80,7 +89,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         self._poll_metadata_completion()
 
-    def _poll_metadata_completion(self):
+    def _poll_metadata_completion(self) -> None:
         """Poll for metadata completion from the main thread."""
         if self.video_metadata and self.video_metadata.error and not self._metadata_handler_called:
             logger.info("Metadata error detected - calling error handler")
@@ -100,7 +109,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         elif not self._metadata_handler_called:
             self.after(100, self._poll_metadata_completion)
 
-    def _safe_deiconify(self):
+    def _safe_deiconify(self) -> None:
         """Safely deiconify the window, handling CustomTkinter race conditions."""
         try:
             self.update_idletasks()
@@ -113,11 +122,11 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             except Exception as e2:
                 logger.error(f"Failed to deiconify window: {e2}")
 
-    def _start_metadata_fetch_with_cookie(self):
+    def _start_metadata_fetch_with_cookie(self) -> None:
         """Start metadata fetching with auto-generated cookies."""
         self._start_metadata_fetch()
 
-    def _start_metadata_fetch(self):
+    def _start_metadata_fetch(self) -> None:
         """Start metadata fetching after cookie selection."""
         logger.debug("Starting metadata fetch process")
 
@@ -126,7 +135,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         self._create_loading_overlay()
         self._fetch_metadata_async()
 
-    def _create_loading_overlay(self):
+    def _create_loading_overlay(self) -> None:
         """Create loading overlay for metadata fetching using centralized component."""
         logger.debug("Creating loading overlay")
 
@@ -148,7 +157,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             logger.error(f"Failed to create loading overlay: {e}", exc_info=True)
             self.loading_overlay = None
 
-    def _fetch_metadata_with_timeout(self, cookie_path: str) -> tuple[Any, Exception | None]:
+    def _fetch_metadata_with_timeout(self, cookie_path: str | None) -> tuple[Any, Exception | None]:
         """Fetch metadata with timeout protection.
 
         Args:
@@ -157,15 +166,17 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         Returns:
             Tuple of (metadata_result, error)
         """
-        metadata_result = [None]
-        metadata_error = [None]
-        fetch_completed = [False]
+        metadata_result: list[Any | None] = [None]
+        metadata_error: list[Exception | None] = [None]
+        fetch_completed: list[bool] = [False]
 
-        def fetch_with_timeout():
+        service = self.metadata_service
+        if not service:
+            raise RuntimeError("No metadata service available")
+
+        def fetch_with_timeout() -> None:
             try:
-                metadata_result[0] = self.metadata_service.fetch_metadata(
-                    self.url, cookie_path, None
-                )
+                metadata_result[0] = service.fetch_metadata(self.url, cookie_path, None)
                 fetch_completed[0] = True
             except Exception as e:
                 metadata_error[0] = e
@@ -205,18 +216,17 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         error_code_pattern = re.compile(r"(429|403)")
         timeout_pattern = re.compile(r"timeout", re.IGNORECASE)
 
-        code_match = error_code_pattern.search(error_msg)
-        if code_match:
+        if code_match := error_code_pattern.search(error_msg):
             code = code_match.group(1)
             return error_map.get(code, error_msg)
         if timeout_pattern.search(error_msg):
             return "Connection timed out. Please check your internet connection and try again."
         return error_msg
 
-    def _fetch_metadata_async(self):
+    def _fetch_metadata_async(self) -> None:
         """Fetch metadata asynchronously."""
 
-        def fetch_worker():
+        def fetch_worker() -> None:
             try:
                 if not self.metadata_service:
                     error_msg = "No metadata service available"
@@ -271,7 +281,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         threading.Thread(target=fetch_worker, daemon=True).start()
 
-    def _handle_metadata_error(self):
+    def _handle_metadata_error(self) -> None:
         """Handle metadata fetch error by closing the dialog."""
         if self.loading_overlay:
             close_loading_dialog(self.loading_overlay, error_path=True)
@@ -409,7 +419,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         return True
 
-    def _handle_metadata_fetched(self):
+    def _handle_metadata_fetched(self) -> None:
         """Handle metadata fetch completion - ONLY SHOWS DIALOG AFTER FETCH COMPLETE."""
         logger.info("=== _handle_metadata_fetched called ===")
         logger.info("Handling metadata fetch completion")
@@ -442,11 +452,11 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         if not self._show_main_interface():
             return
 
-    def _schedule_main_window_show(self):
+    def _schedule_main_window_show(self) -> None:
         """Schedule showing main window after loading overlay is completely gone."""
         self.after(100, self._show_main_window)
 
-    def _show_main_window(self):
+    def _show_main_window(self) -> None:
         """Show the main window after loading is complete."""
         logger.debug("Showing main window - ensuring visibility")
         try:
@@ -490,8 +500,8 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         if self.video_metadata.available_subtitles:
             subtitle_options = [
                 {
-                    "id": sub["language_code"],  # Use language code as ID
-                    "display": sub["language_name"],  # Use language name for display
+                    "id": sub["language_code"],
+                    "display": sub["language_name"],
                     "language_code": sub["language_code"],
                     "language_name": sub["language_name"],
                     "is_auto": sub["is_auto_generated"],
@@ -505,9 +515,12 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         else:
             self.subtitle_frame.pack_forget()
 
+        if self.video_metadata.thumbnail:
+            self._add_thumbnail_preview(self.video_metadata.thumbnail)
+
         self._on_format_change()
 
-    def _create_widgets(self):
+    def _create_widgets(self) -> None:
         """Create dialog widgets with scrolling support."""
         self.title("YouTube Downloader")
         self.geometry("600x700")
@@ -563,11 +576,13 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         )
         cookie_label.pack(anchor="w", padx=10, pady=(10, 5))
 
+        colors = self._theme_manager.get_colors()
+
         cookie_info_label = ctk.CTkLabel(
             cookie_frame,
             text="Cookies are automatically managed for age-restricted content",
             font=("Roboto", 10),
-            text_color="gray",
+            text_color=colors.get("text_muted", "gray"),
         )
         cookie_info_label.pack(anchor="w", padx=(10, 0))
 
@@ -720,6 +735,9 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         button_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
         button_frame.pack(fill="x", pady=(30, 0))
 
+        button_success = colors.get("button_success", ["#28a745", "#1E7E34"])
+        button_success_hover = colors.get("button_success_hover", ["#218838", "#155724"])
+
         self.add_button = ctk.CTkButton(
             button_frame,
             text="Add to Downloads",
@@ -727,8 +745,10 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             width=150,
             height=40,
             font=("Roboto", 12, "bold"),
-            fg_color="#28a745",
-            hover_color="#218838",
+            fg_color=button_success[0] if isinstance(button_success, list) else button_success,
+            hover_color=button_success_hover[0]
+            if isinstance(button_success_hover, list)
+            else button_success_hover,
         )
         self.add_button.pack(side="right", padx=5)
 
@@ -775,7 +795,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                 if current_quality not in video_qualities:
                     self.quality_var.set(self.config.youtube.default_quality)
 
-    def _handle_add_to_downloads(self):
+    def _handle_add_to_downloads(self) -> None:
         """Handle add to downloads button click."""
         try:
             self.add_button.configure(state="disabled")
@@ -784,17 +804,14 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         except Exception as e:
             logger.error(f"Error in add to downloads: {e}")
-            import traceback
-
             traceback.print_exc()
             if hasattr(self, "add_button"):
                 self.add_button.configure(state="normal")
 
-    def _process_add_to_downloads(self):
+    def _process_add_to_downloads(self) -> None:
         """Process add to downloads in a non-blocking way."""
         try:
-            name = self.name_entry.get().strip()
-            if not name:
+            if not (name := self.name_entry.get().strip()):
                 self._show_error("Please enter a name for this download")
                 return
 
@@ -844,8 +861,6 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         except Exception as e:
             logger.error(f"Error processing add to downloads: {e}")
-            import traceback
-
             traceback.print_exc()
         finally:
             if self.winfo_exists() and hasattr(self, "add_button"):
@@ -854,15 +869,95 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
     def _schedule_ui_update(self, update_func: Callable) -> None:
         """Schedule UI update on main thread using centralized queue from MediaDownloaderApp."""
         root = self.winfo_toplevel()
-        if hasattr(root, "run_on_main_thread"):
-            root.run_on_main_thread(update_func)
+        run_on_main_thread = getattr(root, "run_on_main_thread", None)
+        if callable(run_on_main_thread):
+            run_on_main_thread(update_func)
         else:
             self.after(0, update_func)
 
-    def _show_error(self, message: str):
+    def _add_thumbnail_preview(self, thumbnail_url: str) -> None:
+        """Add thumbnail preview to dialog.
+
+        Args:
+            thumbnail_url: URL of the thumbnail image
+        """
+        if not thumbnail_url:
+            return
+
+        logger.debug(f"[YOUTUBE_DIALOG] Adding thumbnail preview from: {thumbnail_url}")
+
+        try:
+            response = requests.get(thumbnail_url, timeout=10)
+            response.raise_for_status()
+
+            image = PIL.Image.open(io.BytesIO(response.content))
+            image.thumbnail((320, 180))
+
+            ctk_image = ctk.CTkImage(
+                light_image=image,
+                dark_image=image,
+                size=image.size,
+            )
+
+            thumbnail_outer_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
+            thumbnail_outer_frame.pack(fill="x", pady=(0, 20))
+
+            colors = self._theme_manager.get_colors()
+            surface = colors.get("surface", "#2b2b2b")
+            card_border = colors.get("card_border", "#4a4a4a")
+
+            thumbnail_container = ctk.CTkFrame(
+                thumbnail_outer_frame,
+                corner_radius=12,
+                fg_color=surface,
+                border_width=2,
+                border_color=card_border,
+            )
+            thumbnail_container.pack(pady=10)
+
+            thumbnail_label = ctk.CTkLabel(
+                thumbnail_container,
+                image=ctk_image,
+                text="",
+            )
+            thumbnail_label.pack(padx=10, pady=10)
+            self._thumbnail_ctk_image = ctk_image
+
+            logger.debug("[YOUTUBE_DIALOG] Thumbnail preview added successfully")
+
+        except Exception as e:
+            logger.warning(f"[YOUTUBE_DIALOG] Failed to load thumbnail: {e}")
+
+    def _show_error(self, message: str) -> None:
         """Show error message temporarily."""
+        colors = self._theme_manager.get_colors()
+        status_error = colors.get("status_error", "red")
         error_label = ctk.CTkLabel(
-            self, text=message, text_color="red", font=("Roboto", 11, "bold")
+            self, text=message, text_color=status_error, font=("Roboto", 11, "bold")
         )
         error_label.pack(pady=5)
         self.after(4000, error_label.destroy)
+
+    def _on_theme_changed(self, appearance, color) -> None:
+        self._apply_theme_colors()
+
+    def _apply_theme_colors(self) -> None:
+        if not self.widgets_created:
+            return
+        colors = self._theme_manager.get_colors()
+
+        button_success = colors.get("button_success", ["#28a745", "#1E7E34"])
+        button_success_hover = colors.get("button_success_hover", ["#218838", "#155724"])
+
+        if hasattr(self, "add_button"):
+            self.add_button.configure(
+                fg_color=button_success[0] if isinstance(button_success, list) else button_success,
+                hover_color=button_success_hover[0]
+                if isinstance(button_success_hover, list)
+                else button_success_hover,
+            )
+
+    def destroy(self) -> None:
+        if self._theme_manager:
+            self._theme_manager.unsubscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
+        super().destroy()

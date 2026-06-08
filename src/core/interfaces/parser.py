@@ -1,10 +1,10 @@
-from typing import Any, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
+
+from src.core.type_defs import JSONDict
 
 
 @runtime_checkable
 class IParser(Protocol):
-    def validate(self, url: str, context: dict[str, Any] | None = None) -> bool: ...
+    def validate(self, url: str, context: JSONDict | None = None) -> bool: ...
 
-    def parse(
-        self, data: dict[str, Any], context: dict[str, Any] | None = None
-    ) -> list[dict[str, Any]]: ...
+    def parse(self, data: JSONDict, context: JSONDict | None = None) -> list[JSONDict]: ...

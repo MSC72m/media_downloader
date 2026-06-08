@@ -16,28 +16,28 @@ class SubtitleChecklist(ctk.CTkFrame):
         self,
         master,
         placeholder: str = "No subtitles available",
-        on_change: Callable[[list[dict[str, str]]], None] | None = None,
+        on_change: Callable[[list[str]], None] | None = None,
         height: int = 120,
         config: AppConfig = get_config(),
         **kwargs,
-    ):
+    ) -> None:
         super().__init__(master, fg_color="transparent", **kwargs)
 
         self.placeholder = placeholder
         self.on_change = on_change
         self.height = height
-        self.config = config
+        self.app_config = config
         self.selected_options: list[str] = []
         self.options: list[dict[str, Any]] = []
         self.checkboxes: dict[str, ctk.CTkCheckBox] = {}
         self.option_vars: dict[str, ctk.BooleanVar] = {}
-        self._subtitle_generator: Iterator[dict[str, Any]] | None = None
-        self._batch_size: int = self.config.ui.subtitle_batch_size
+        self._subtitle_generator: Iterator[tuple[dict[str, Any], int]] | None = None
+        self._batch_size: int = self.app_config.ui.subtitle_batch_size
         self._current_index: int = 0
 
         self._create_widgets()
 
-    def _create_widgets(self):
+    def _create_widgets(self) -> None:
         """Create the checklist widgets."""
         self.title_label = ctk.CTkLabel(
             self, text="Available Subtitles:", font=("Roboto", 11, "bold")
@@ -114,7 +114,7 @@ class SubtitleChecklist(ctk.CTkFrame):
 
     def _subtitle_batch_generator(
         self, subtitles: list[dict[str, Any]]
-    ) -> Iterator[dict[str, Any]]:
+    ) -> Iterator[tuple[dict[str, Any], int]]:
         """Generator that yields subtitles in batches with offset/indexing.
 
         Args:
@@ -165,7 +165,7 @@ class SubtitleChecklist(ctk.CTkFrame):
             logger.error(f"Error loading subtitle batch: {e}", exc_info=True)
             self._update_status()
 
-    def _clear_existing_options(self):
+    def _clear_existing_options(self) -> None:
         """Clear existing option widgets."""
         self._subtitle_generator = None
         self._current_index = 0
@@ -177,7 +177,7 @@ class SubtitleChecklist(ctk.CTkFrame):
 
         self.selected_options.clear()
 
-    def _create_option_item(self, option: dict[str, Any], index: int):
+    def _create_option_item(self, option: dict[str, Any], index: int) -> None:
         """Create a single option item."""
         try:
             option_frame = ctk.CTkFrame(self.scrollable_frame, fg_color="transparent")
@@ -203,7 +203,7 @@ class SubtitleChecklist(ctk.CTkFrame):
         except Exception as e:
             logger.error(f"Error creating option item {index}: {e}")
 
-    def _handle_option_change(self, option_id: str, is_selected: bool):
+    def _handle_option_change(self, option_id: str, is_selected: bool) -> None:
         """Handle option selection change."""
         try:
             if is_selected and option_id not in self.selected_options:
@@ -219,11 +219,10 @@ class SubtitleChecklist(ctk.CTkFrame):
         except Exception as e:
             logger.error(f"Error handling option change: {e}")
 
-    def _update_status(self):
+    def _update_status(self) -> None:
         """Update the status label."""
         try:
-            count = len(self.selected_options)
-            if count == 0:
+            if (count := len(self.selected_options)) == 0:
                 text = "0 selected"
             elif count == 1:
                 text = "1 selected"
@@ -235,7 +234,7 @@ class SubtitleChecklist(ctk.CTkFrame):
         except Exception as e:
             logger.error(f"Error updating status: {e}")
 
-    def _select_all(self):
+    def _select_all(self) -> None:
         """Select all options."""
         try:
             self.selected_options.clear()
@@ -251,7 +250,7 @@ class SubtitleChecklist(ctk.CTkFrame):
         except Exception as e:
             logger.error(f"Error selecting all: {e}")
 
-    def _clear_all(self):
+    def _clear_all(self) -> None:
         """Clear all selections."""
         try:
             self.selected_options.clear()
@@ -283,7 +282,7 @@ class SubtitleChecklist(ctk.CTkFrame):
                     break
         return selected_dicts
 
-    def set_selected_subtitles(self, selected_ids: list[str]):
+    def set_selected_subtitles(self, selected_ids: list[str]) -> None:
         """Set currently selected subtitle IDs."""
         try:
             self.selected_options = list(selected_ids)
@@ -296,6 +295,6 @@ class SubtitleChecklist(ctk.CTkFrame):
         except Exception as e:
             logger.error(f"Error setting selected subtitles: {e}")
 
-    def clear_selection(self):
+    def clear_selection(self) -> None:
         """Clear all selections (alias for _clear_all)."""
         self._clear_all()

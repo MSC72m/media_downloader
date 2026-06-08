@@ -1,6 +1,7 @@
 """Direct test for YouTube cookie functionality without complex imports."""
 
 import os
+from typing import Any, cast
 import sys
 import tempfile
 
@@ -189,7 +190,7 @@ def test_real_yt_dlp_behavior():
 
         print(f"Using yt-dlp options: {ydl_opts}")
 
-        with yt_dlp.YoutubeDL(ydl_opts):
+        with yt_dlp.YoutubeDL(cast(Any, ydl_opts)):
             # This should work and extract cookies like we saw in the terminal
             print("✅ Real yt-dlp accepts Chrome cookies parameter")
 

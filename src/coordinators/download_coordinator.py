@@ -11,6 +11,7 @@ from src.core.interfaces import (
 )
 from src.core.models import Download, DownloadStatus
 from src.services.events.event_bus import DownloadEvent, DownloadEventBus
+from src.services.events.queue import Message
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -25,7 +26,7 @@ class DownloadCoordinator:
         message_queue: IMessageQueue | None = None,
         ui_callbacks: dict[str, Callable] | None = None,
         config: AppConfig = get_config(),
-    ):
+    ) -> None:
         """Initialize with injected dependencies and optional UI callbacks."""
         self.config = config
         self.event_bus = event_bus
@@ -54,11 +55,10 @@ class DownloadCoordinator:
         """Get a UI callback if available."""
         return self.ui_callbacks.get(callback_name)
 
-    def _update_status(self, message: str, is_error: bool = False):
+    def _update_status(self, message: str, is_error: bool = False) -> None:
         """Update status via callback or message queue."""
         # Try UI callback first
-        status_callback = self._get_ui_callback("update_status")
-        if status_callback:
+        if status_callback := self._get_ui_callback("update_status"):
             try:
                 status_callback(message, is_error)
                 return
@@ -74,8 +74,6 @@ class DownloadCoordinator:
 
         if self.message_queue:
             try:
-                from src.services.events.queue import Message
-
                 level = MessageLevel.ERROR if is_error else MessageLevel.INFO
                 self.message_queue.add_message(Message(text=message, level=level))
             except Exception as e:
@@ -89,8 +87,7 @@ class DownloadCoordinator:
 
     def _refresh_ui_after_event(self, enable_buttons: bool = True) -> None:
         """Refresh UI components after download event via callbacks."""
-        refresh_callback = self._get_ui_callback("refresh_download_list")
-        if refresh_callback:
+        if refresh_callback := self._get_ui_callback("refresh_download_list"):
             try:
                 downloads = self.download_handler.get_downloads()
                 self._cleanup_old_progress_tracking(downloads)
@@ -103,8 +100,7 @@ class DownloadCoordinator:
                         e, "Refreshing download list", "Download Coordinator"
                     )
 
-        buttons_callback = self._get_ui_callback("set_action_buttons_enabled")
-        if buttons_callback:
+        if buttons_callback := self._get_ui_callback("set_action_buttons_enabled"):
             try:
                 buttons_callback(enable_buttons)
             except Exception as e:
@@ -171,8 +167,7 @@ class DownloadCoordinator:
 
         self._last_progress_update[download_id] = current_time
 
-        progress_callback = self._get_ui_callback("update_download_progress")
-        if progress_callback:
+        if progress_callback := self._get_ui_callback("update_download_progress"):
             try:
                 progress_callback(download, progress)
             except Exception as e:
@@ -186,8 +181,7 @@ class DownloadCoordinator:
                     )
 
         overall_progress = self._calculate_overall_progress()
-        status_callback = self._get_ui_callback("update_status_progress")
-        if status_callback:
+        if status_callback := self._get_ui_callback("update_status_progress"):
             try:
                 status_callback(overall_progress)
             except Exception as e:
@@ -210,8 +204,7 @@ class DownloadCoordinator:
                 download.completed_at = datetime.now()
 
         overall_progress = self._calculate_overall_progress()
-        status_callback = self._get_ui_callback("update_status_progress")
-        if status_callback:
+        if status_callback := self._get_ui_callback("update_status_progress"):
             try:
                 status_callback(overall_progress)
             except Exception as e:
@@ -244,8 +237,6 @@ class DownloadCoordinator:
 
         if self.message_queue:
             try:
-                from src.services.events.queue import Message
-
                 self.message_queue.add_message(
                     Message(
                         text=f"Download failed: {download.name}\n{error}",
@@ -338,8 +329,7 @@ class DownloadCoordinator:
             logger.info(f"[DOWNLOAD_COORDINATOR] Available UI callbacks: {available_callbacks}")
 
             # Disable buttons BEFORE starting downloads
-            buttons_callback = self._get_ui_callback("set_action_buttons_enabled")
-            if buttons_callback:
+            if buttons_callback := self._get_ui_callback("set_action_buttons_enabled"):
                 try:
                     buttons_callback(False)
                     logger.info(

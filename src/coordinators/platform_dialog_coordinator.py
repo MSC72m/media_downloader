@@ -11,6 +11,7 @@ from src.core.models import Download
 from src.services.instagram.auth_manager import InstagramAuthManager
 from src.services.instagram.downloader import InstagramDownloader
 from src.services.soundcloud.downloader import SoundCloudDownloader
+from src.services.spotify.downloader import SpotifyDownloader
 from src.ui.components.loading_dialog import LoadingDialog
 from src.ui.dialogs.login_dialog import LoginDialog
 from src.utils.error_helpers import extract_error_context
@@ -23,7 +24,7 @@ logger = get_logger(__name__)
 class DialogHandler(ABC):
     """Base interface for platform-specific dialog handlers."""
 
-    def __init__(self, error_handler: IErrorNotifier):
+    def __init__(self, error_handler: IErrorNotifier) -> None:
         """Initialize dialog handler with error handler.
 
         Args:
@@ -95,6 +96,28 @@ class PinterestDialogHandler(DialogHandler):
             self.error_handler.handle_exception(e, "Pinterest dialog", "Pinterest")
 
 
+class SpotifyDialogHandler(DialogHandler):
+    """Spotify dialog handler."""
+
+    def show_dialog(self, url: str, on_download_callback: Callable) -> None:
+        """Show Spotify download dialog."""
+        try:
+            downloader = SpotifyDownloader(error_handler=self.error_handler)
+            info = downloader.get_metadata(url)
+
+            track_name = info.get("title", os.path.basename(url) or "spotify_download")
+            download = Download(
+                url=url,
+                name=track_name,
+                service_type="spotify",
+            )
+            on_download_callback(download)
+            logger.info(f"[SPOTIFY_DIALOG] Download added: {track_name}")
+        except Exception as e:
+            logger.error(f"[SPOTIFY_DIALOG] Error: {e}", exc_info=True)
+            self.error_handler.handle_exception(e, "Spotify dialog", "Spotify")
+
+
 class SoundCloudDialogHandler(DialogHandler):
     """SoundCloud dialog handler with premium check."""
 
@@ -106,9 +129,7 @@ class SoundCloudDialogHandler(DialogHandler):
         """Show SoundCloud download dialog with track info."""
         try:
             downloader = SoundCloudDownloader(error_handler=self.error_handler)
-            info = downloader.get_info(url)
-
-            if not info:
+            if not (info := downloader.get_info(url)):
                 download = Download(
                     url=url,
                     name=os.path.basename(url) or "soundcloud_download",
@@ -130,7 +151,6 @@ class SoundCloudDialogHandler(DialogHandler):
             )
             on_download_callback(download)
             logger.info(f"[SOUNDCLOUD_DIALOG] Download added: {track_name}")
-
         except Exception as e:
             error_str = str(e)
             if self._PREMIUM_KEYWORD_PATTERN.search(error_str):
@@ -140,6 +160,44 @@ class SoundCloudDialogHandler(DialogHandler):
 
             logger.error(f"[SOUNDCLOUD_DIALOG] Error: {e}", exc_info=True)
             self.error_handler.handle_exception(e, "SoundCloud dialog", "SoundCloud")
+
+
+class RadioJavanDialogHandler(DialogHandler):
+    """Radio Javan dialog handler."""
+
+    def show_dialog(self, url: str, on_download_callback: Callable) -> None:
+        """Show Radio Javan download dialog."""
+        try:
+            track_name = os.path.basename(url) or "radiojavan_download"
+            download = Download(
+                url=url,
+                name=track_name,
+                service_type="radiojavan",
+            )
+            on_download_callback(download)
+            logger.info(f"[RADIOJAVAN_DIALOG] Download added: {track_name}")
+        except Exception as e:
+            logger.error(f"[RADIOJAVAN_DIALOG] Error: {e}", exc_info=True)
+            self.error_handler.handle_exception(e, "Radio Javan dialog", "Radio Javan")
+
+
+class TikTokDialogHandler(DialogHandler):
+    """TikTok dialog handler."""
+
+    def show_dialog(self, url: str, on_download_callback: Callable) -> None:
+        """Show TikTok download dialog."""
+        try:
+            track_name = os.path.basename(url) or "tiktok_download"
+            download = Download(
+                url=url,
+                name=track_name,
+                service_type="tiktok",
+            )
+            on_download_callback(download)
+            logger.info(f"[TIKTOK_DIALOG] Download added: {track_name}")
+        except Exception as e:
+            logger.error(f"[TIKTOK_DIALOG] Error: {e}", exc_info=True)
+            self.error_handler.handle_exception(e, "TikTok dialog", "TikTok")
 
 
 class GenericDialogHandler(DialogHandler):
@@ -173,7 +231,7 @@ class PlatformDialogCoordinator:
         instagram_auth_manager: InstagramAuthManager | None = None,
         orchestrator=None,
         config: AppConfig = get_config(),
-    ):
+    ) -> None:
         """Initialize with proper dependency injection.
 
         Args:
@@ -195,6 +253,9 @@ class PlatformDialogCoordinator:
             "instagram": InstagramDialogHandler(error_handler),
             "pinterest": PinterestDialogHandler(error_handler),
             "soundcloud": SoundCloudDialogHandler(error_handler),
+            "spotify": SpotifyDialogHandler(error_handler),
+            "radiojavan": RadioJavanDialogHandler(error_handler),
+            "tiktok": TikTokDialogHandler(error_handler),
             "generic": GenericDialogHandler(error_handler),
         }
 
@@ -228,6 +289,21 @@ class PlatformDialogCoordinator:
         handler = self._dialog_handlers["soundcloud"]
         handler.show_dialog(url, on_download_callback)
 
+    def show_spotify_dialog(self, url: str, on_download_callback: Callable) -> None:
+        """Show Spotify download dialog."""
+        handler = self._dialog_handlers["spotify"]
+        handler.show_dialog(url, on_download_callback)
+
+    def show_radiojavan_dialog(self, url: str, on_download_callback: Callable) -> None:
+        """Show Radio Javan download dialog."""
+        handler = self._dialog_handlers["radiojavan"]
+        handler.show_dialog(url, on_download_callback)
+
+    def show_tiktok_dialog(self, url: str, on_download_callback: Callable) -> None:
+        """Show TikTok download dialog."""
+        handler = self._dialog_handlers["tiktok"]
+        handler.show_dialog(url, on_download_callback)
+
     def generic_download(self, url: str, name: str | None, on_download_callback: Callable) -> None:
         """Generic download handler."""
         handler = self._dialog_handlers["generic"]
@@ -251,8 +327,7 @@ class PlatformDialogCoordinator:
         self.instagram_auth_manager.set_authenticating(True)
 
         try:
-            credentials = self._get_instagram_credentials(parent_window)
-            if not credentials:
+            if not (credentials := self._get_instagram_credentials(parent_window)):
                 self._handle_auth_cancellation(callback)
                 return
 
@@ -295,7 +370,9 @@ class PlatformDialogCoordinator:
 
         return (dialog.username, dialog.password)
 
-    def _show_loading_dialog(self, parent_window, message: str = "Loading...") -> object | None:
+    def _show_loading_dialog(
+        self, parent_window, message: str = "Loading..."
+    ) -> LoadingDialog | None:
         """Show loading dialog after credentials are entered.
 
         Args:
@@ -326,7 +403,7 @@ class PlatformDialogCoordinator:
         self,
         username: str,
         password: str,
-        loading_dialog: object | None,
+        loading_dialog: LoadingDialog | None,
         callback: Callable | None,
         parent_window=None,
     ) -> None:
@@ -367,7 +444,7 @@ class PlatformDialogCoordinator:
         success: bool,
         username: str,
         downloader: InstagramDownloader,
-        loading_dialog: object | None,
+        loading_dialog: LoadingDialog | None,
         callback: Callable | None,
         error_msg: str,
         parent_window=None,
@@ -375,7 +452,7 @@ class PlatformDialogCoordinator:
         """Handle authentication completion on main thread."""
         context = "success" if success else "failure"
 
-        def update_ui():
+        def update_ui() -> None:
             try:
                 logger.info(
                     f"[PLATFORM_DIALOG_COORDINATOR] Updating UI for {context} path, loading_dialog: {loading_dialog is not None}"
@@ -389,14 +466,22 @@ class PlatformDialogCoordinator:
                     f"[PLATFORM_DIALOG_COORDINATOR] Loading dialog closed for {context} path"
                 )
 
+                auth_manager = self.instagram_auth_manager
+                if not auth_manager:
+                    logger.error(
+                        "[PLATFORM_DIALOG_COORDINATOR] Instagram auth manager not available"
+                    )
+                    self._handle_auth_result(False, username, callback, error_msg)
+                    return
+
                 match success:
                     case True:
-                        self.instagram_auth_manager.set_authenticated_downloader(downloader)
+                        auth_manager.set_authenticated_downloader(downloader)
                         logger.info(
                             "[PLATFORM_DIALOG_COORDINATOR] Stored authenticated Instagram downloader instance"
                         )
                     case False:
-                        self.instagram_auth_manager.set_authenticating(False)
+                        auth_manager.set_authenticating(False)
                         logger.info(
                             "[PLATFORM_DIALOG_COORDINATOR] Set authenticating flag to False"
                         )
@@ -432,14 +517,14 @@ class PlatformDialogCoordinator:
     def _handle_auth_exception(
         self,
         username: str,
-        loading_dialog: object | None,
+        loading_dialog: LoadingDialog | None,
         callback: Callable | None,
         error: Exception,
         parent_window=None,
     ) -> None:
         """Handle authentication exception on main thread."""
 
-        def update_ui():
+        def update_ui() -> None:
             try:
                 logger.info(
                     f"[PLATFORM_DIALOG_COORDINATOR] Updating UI for exception path, loading_dialog: {loading_dialog is not None}"
@@ -448,7 +533,8 @@ class PlatformDialogCoordinator:
                 logger.info(
                     "[PLATFORM_DIALOG_COORDINATOR] Loading dialog closed for exception path"
                 )
-                self.instagram_auth_manager.set_authenticating(False)
+                if auth_manager := self.instagram_auth_manager:
+                    auth_manager.set_authenticating(False)
 
                 user_friendly_msg = "Instagram authentication failed. Please check your username and password, then try again."
                 self.error_handler.show_error("Instagram Authentication Failed", user_friendly_msg)
@@ -488,7 +574,7 @@ class PlatformDialogCoordinator:
 
         logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Queuing UI update ({context})")
 
-        def execute_update():
+        def execute_update() -> None:
             try:
                 logger.info(f"[PLATFORM_DIALOG_COORDINATOR] Executing UI update ({context})")
                 update_func()
@@ -500,12 +586,17 @@ class PlatformDialogCoordinator:
                 )
 
         # Use centralized queue from MediaDownloaderApp (no duplication!)
-        self.root.run_on_main_thread(execute_update)
+        run_on_main_thread = getattr(self.root, "run_on_main_thread", None)
+        if callable(run_on_main_thread):
+            run_on_main_thread(execute_update)
+            return
+        self.root.after(0, execute_update)
 
     def _handle_auth_cancellation(self, callback: Callable | None) -> None:
         """Handle authentication cancellation."""
         logger.info("[PLATFORM_DIALOG_COORDINATOR] Instagram login cancelled")
-        self.instagram_auth_manager.set_authenticating(False)
+        if auth_manager := self.instagram_auth_manager:
+            auth_manager.set_authenticating(False)
         if callback:
             callback(InstagramAuthStatus.FAILED)
         self.error_handler.show_info("Instagram Login", "Login cancelled")
@@ -538,7 +629,7 @@ class PlatformDialogCoordinator:
                     logger.info(
                         "[PLATFORM_DIALOG_COORDINATOR] Calling callback with AUTHENTICATED status"
                     )
-                callback(InstagramAuthStatus.AUTHENTICATED)
+                    callback(InstagramAuthStatus.AUTHENTICATED)
                 self.error_handler.show_info(
                     "Instagram Login", f"Successfully authenticated as {username}"
                 )
@@ -548,7 +639,7 @@ class PlatformDialogCoordinator:
                 )
                 if callback:
                     logger.info("[PLATFORM_DIALOG_COORDINATOR] Calling callback with FAILED status")
-                callback(InstagramAuthStatus.FAILED)
+                    callback(InstagramAuthStatus.FAILED)
 
                 user_friendly_msg = "Instagram authentication failed. Please check your username and password, then try again."
                 self.error_handler.show_error("Instagram Authentication Failed", user_friendly_msg)

@@ -19,7 +19,7 @@ class DownloadListView(ctk.CTkFrame):
         master,
         on_selection_change: Callable[[list[int]], None],
         theme_manager: ThemeManager | None = None,
-    ):
+    ) -> None:
         super().__init__(master)
 
         self.on_selection_change = on_selection_change
@@ -38,7 +38,7 @@ class DownloadListView(ctk.CTkFrame):
         )
         self.list_view.pack(fill=tk.BOTH, expand=True, padx=0, pady=0)
 
-    def _on_theme_changed(self, appearance, color):
+    def _on_theme_changed(self, appearance, color) -> None:
         theme_json = self._theme_manager.get_theme_json()
 
         frame_config = theme_json.get("CTkFrame", {})
@@ -70,10 +70,9 @@ class DownloadListView(ctk.CTkFrame):
         except Exception as e:
             logger.error(f"[DOWNLOAD_LIST] Error refreshing items: {e}", exc_info=True)
 
-    def update_item_progress(self, item: Download, progress: float):
+    def update_item_progress(self, item: Download, progress: float) -> None:
         try:
-            line_num = self._item_line_mapping.get(item.name)
-            if not line_num:
+            if not (line_num := self._item_line_mapping.get(item.name)):
                 return
 
             item.progress = progress
@@ -82,8 +81,7 @@ class DownloadListView(ctk.CTkFrame):
             line_start = f"{line_num}.0"
             line_end = f"{line_num}.end"
 
-            current_line = self.list_view.get(line_start, line_end).strip()
-            if not current_line:
+            if not (current_line := self.list_view.get(line_start, line_end).strip()):
                 return
 
             parts = current_line.split(" | ", 2)
@@ -116,16 +114,16 @@ class DownloadListView(ctk.CTkFrame):
         except tk.TclError:
             return []
 
-    def _handle_selection(self, event):
+    def _handle_selection(self, event) -> None:
         self.on_selection_change(self.get_selected_indices())
 
-    def _select_all(self, event):
+    def _select_all(self, event) -> str:
         self.list_view.tag_add(tk.SEL, "1.0", tk.END)
         self.list_view.mark_set(tk.INSERT, "1.0")
         self.list_view.see(tk.INSERT)
         return "break"
 
-    def add_download(self, download: Download):
+    def add_download(self, download: Download) -> None:
         self._downloads.append(download)
 
         current_content = self.list_view.get("1.0", tk.END)

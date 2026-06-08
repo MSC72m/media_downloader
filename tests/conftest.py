@@ -2,6 +2,8 @@
 
 import os
 import sys
+from types import ModuleType
+from typing import Any
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -17,32 +19,32 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 class MockTk:
     """Mock tkinter base class."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         pass
 
 
 class MockTkWidget:
     """Mock tkinter widget base class."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         pass
 
-    def pack(self, **kwargs):
+    def pack(self, **kwargs) -> None:
         pass
 
-    def grid(self, **kwargs):
+    def grid(self, **kwargs) -> None:
         pass
 
-    def place(self, **kwargs):
+    def place(self, **kwargs) -> None:
         pass
 
-    def configure(self, **kwargs):
+    def configure(self, **kwargs) -> None:
         pass
 
-    def cget(self, *args):
+    def cget(self, *args) -> None:
         return None
 
-    def bind(self, *args, **kwargs):
+    def bind(self, *args, **kwargs) -> None:
         return None
 
 
@@ -69,62 +71,62 @@ class MockTkListbox(MockTkWidget):
 class MockCTk:
     """Mock customtkinter base class."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         pass
 
 
 class MockTkWidget2:
     """Mock customtkinter widget base class."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         pass
 
-    def pack(self, **kwargs):
+    def pack(self, **kwargs) -> None:
         pass
 
-    def grid(self, **kwargs):
+    def grid(self, **kwargs) -> None:
         pass
 
-    def place(self, **kwargs):
+    def place(self, **kwargs) -> None:
         pass
 
-    def configure(self, **kwargs):
+    def configure(self, **kwargs) -> None:
         pass
 
-    def cget(self, *args):
+    def cget(self, *args) -> None:
         return None
 
-    def bind(self, *args, **kwargs):
+    def bind(self, *args, **kwargs) -> None:
         return None
 
 
 class MockMessagebox:
     """Mock messagebox functions."""
 
-    def showerror(self, title, message):
+    def showerror(self, title, message) -> None:
         pass
 
-    def showwarning(self, title, message):
+    def showwarning(self, title, message) -> None:
         pass
 
-    def showinfo(self, title, message):
+    def showinfo(self, title, message) -> None:
         pass
 
 
 class MockFiledialog:
     """Mock file dialog functions."""
 
-    def askopenfilename(self, **kwargs):
+    def askopenfilename(self, **kwargs) -> str:
         return ""
 
-    def askdirectory(self, **kwargs):
+    def askdirectory(self, **kwargs) -> str:
         return ""
 
 
 class MockBaseModel:
     """Mock Pydantic BaseModel."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         # Get default values from class attributes that are MockField objects
         for key, value in self.__class__.__dict__.items():
             if not key.startswith("_") and hasattr(value, "value") and key not in kwargs:
@@ -138,21 +140,23 @@ class MockBaseModel:
 class MockField:
     """Mock Pydantic Field."""
 
-    def __init__(self, default=None, default_factory=None, description=None, **kwargs):
+    def __init__(self, default=None, default_factory=None, description=None, **kwargs) -> None:
         # Store the actual value that should be returned when the field is accessed
-        if default_factory is not None:
-            self.value = default_factory() if callable(default_factory) else default_factory
-        else:
-            self.value = default
+        resolved_value = (
+            default_factory() if default_factory is not None and callable(default_factory) else default_factory
+            if default_factory is not None
+            else default
+        )
+        self.value: Any = resolved_value
         self.default = default
         self.default_factory = default_factory
         self.description = description
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Return the default value as string representation."""
         return str(self.value) if self.value is not None else ""
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """Return the default value as representation."""
         return repr(self.value)
 
@@ -208,15 +212,15 @@ class MockField:
         """Reverse true division operation with default value."""
         return other / self.value if self.value is not None and self.value != 0 else 0
 
-    def __int__(self):
+    def __int__(self) -> int:
         """Convert default value to int."""
         return int(self.value) if self.value is not None else 0
 
-    def __float__(self):
+    def __float__(self) -> float:
         """Convert default value to float."""
         return float(self.value) if self.value is not None else 0.0
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         """Convert default value to bool."""
         return bool(self.value) if self.value is not None else False
 
@@ -224,7 +228,7 @@ class MockField:
 class MockYoutubeDL:
     """Mock yt-dlp."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         pass
 
     def __enter__(self):
@@ -241,8 +245,7 @@ class MockYoutubeDL:
 # MOCK MODULES - Set up sys.modules
 # ================================
 
-# Create mock modules
-mock_tk = MockTk()
+mock_tk: Any = ModuleType("tkinter")
 mock_tk.Tk = MockTkWidget
 mock_tk.Frame = MockTkFrame
 mock_tk.Label = MockTkLabel
@@ -252,7 +255,7 @@ mock_tk.Listbox = MockTkListbox
 mock_tk.messagebox = MockMessagebox()
 mock_tk.filedialog = MockFiledialog()
 
-mock_ctk = MockCTk()
+mock_ctk: Any = ModuleType("customtkinter")
 mock_ctk.CTk = MockTkWidget2
 mock_ctk.CTkFrame = MockTkWidget2
 mock_ctk.CTkLabel = MockTkWidget2
@@ -276,23 +279,33 @@ mock_ctk.CTkScrollframe = MockTkWidget2
 # The MockBaseModel and MockField are kept for backward compatibility
 # but pydantic is not mocked in sys.modules since we need the real pydantic
 
-mock_yt_dlp = type(
-    "MockModule",
-    (),
-    {
-        "YoutubeDL": MockYoutubeDL,
-        "utils": type("MockModule", (), {"DownloadError": Exception})(),
-    },
-)()
+mock_yt_dlp_module: Any = ModuleType("yt_dlp")
+mock_yt_dlp_utils: Any = ModuleType("yt_dlp.utils")
+mock_yt_dlp_utils.DownloadError = Exception
+mock_yt_dlp_module.YoutubeDL = MockYoutubeDL
+mock_yt_dlp_module.utils = mock_yt_dlp_utils
 
 # Set up sys.modules to use mocks
 sys.modules["tkinter"] = mock_tk
-sys.modules["tkinter.ttk"] = MockTk
-sys.modules["tkinter.messagebox"] = MockMessagebox()
-sys.modules["tkinter.filedialog"] = MockFiledialog()
+mock_ttk: Any = ModuleType("tkinter.ttk")
+mock_ttk.Frame = MockTkFrame
+mock_ttk.Label = MockTkLabel
+mock_ttk.Button = MockTkButton
+mock_ttk.Entry = MockTkEntry
+sys.modules["tkinter.ttk"] = mock_ttk
+mock_messagebox_module: Any = ModuleType("tkinter.messagebox")
+mock_messagebox_module.showerror = lambda title, message: None
+mock_messagebox_module.showwarning = lambda title, message: None
+mock_messagebox_module.showinfo = lambda title, message: None
+sys.modules["tkinter.messagebox"] = mock_messagebox_module
+
+mock_filedialog_module: Any = ModuleType("tkinter.filedialog")
+mock_filedialog_module.askopenfilename = lambda **kwargs: ""
+mock_filedialog_module.askdirectory = lambda **kwargs: ""
+sys.modules["tkinter.filedialog"] = mock_filedialog_module
 sys.modules["customtkinter"] = mock_ctk
-sys.modules["yt_dlp"] = mock_yt_dlp
-sys.modules["yt_dlp.utils"] = mock_yt_dlp.utils
+sys.modules["yt_dlp"] = mock_yt_dlp_module
+sys.modules["yt_dlp.utils"] = mock_yt_dlp_utils
 # Don't mock pydantic - we use the real pydantic in our code
 # sys.modules["pydantic"] = mock_pydantic
 
@@ -326,9 +339,9 @@ def mock_customtkinter():
 
 
 @pytest.fixture(scope="session")
-def mock_yt_dlp():
+def mock_yt_dlp_fixture():
     """Provide mock yt-dlp for all tests."""
-    return mock_yt_dlp
+    return mock_yt_dlp_module
 
 
 # ================================
@@ -336,7 +349,7 @@ def mock_yt_dlp():
 # ================================
 
 
-def pytest_configure(config):
+def pytest_configure(config) -> None:
     """Configure pytest with custom options."""
     config.addinivalue_line(
         "markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')"

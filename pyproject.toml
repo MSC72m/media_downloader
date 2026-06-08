@@ -1,23 +1,21 @@
 [project]
 name = "media-downloader"
-version = "0.1.0"
-description = "Add your description here"
+version = "1.0.0"
+description = "A cross-platform media downloader supporting YouTube, Spotify, TikTok, Instagram, Twitter, Pinterest, SoundCloud, and RadioJavan"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = [
-    "beautifulsoup4>=4.13.5",
-    "customtkinter>=5.2.2",
-    "instaloader>=4.14.2",
-    "mypy>=1.18.2",
-    "playwright>=1.40.0",
-    "pydantic>=2.11.8",
-    "pydantic-settings>=2.0.0",
-    "pyyaml>=6.0.0",
-    "pytest>=8.4.2",
-    "requests>=2.32.5",
-    "tk>=0.1.0",
-    "urllib3>=2.5.0",
-    "yt-dlp>=2025.11.12",
+    dependencies = [
+        "beautifulsoup4>=4.13.5",
+        "customtkinter>=5.2.2",
+        "instaloader>=4.14.2",
+        "mypy>=1.18.2",
+        "playwright>=1.40.0",
+        "pydantic>=2.11.8",
+        "pydantic-settings>=2.1.0",
+        "pyyaml>=6.0.1",
+        "requests>=2.32.5",
+        "yt-dlp>=2025.11.12",
+        "pillow>=10.0.0",
 ]
 
 [project.optional-dependencies]
@@ -32,6 +30,7 @@ dev = [
     "mypy>=1.18.2",
     "pytest>=8.4.2",
     "pytest-cov>=4.0.0",
+    "pyinstaller>=6.0.0",
 ]
 
 [tool.ruff]

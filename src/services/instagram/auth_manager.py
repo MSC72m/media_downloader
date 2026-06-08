@@ -15,7 +15,7 @@ class InstagramAuthManager:
         self,
         error_handler: IErrorNotifier | None = None,
         config: AppConfig = get_config(),
-    ):
+    ) -> None:
         """Initialize Instagram authentication manager.
 
         Args:

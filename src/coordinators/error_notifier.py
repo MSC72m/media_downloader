@@ -17,7 +17,7 @@ class ErrorNotifier(IErrorNotifier):
     This eliminates duplicate error handling code across coordinators.
     """
 
-    def __init__(self, message_queue: IMessageQueue | None = None):
+    def __init__(self, message_queue: IMessageQueue | None = None) -> None:
         """Initialize with proper dependency injection.
 
         Args:

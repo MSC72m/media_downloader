@@ -13,7 +13,7 @@ class AudioExtractor:
         self,
         config: AppConfig = get_config(),
         error_handler: IErrorNotifier | None = None,
-    ):
+    ) -> None:
         self.config = config
         self.error_handler = error_handler
 

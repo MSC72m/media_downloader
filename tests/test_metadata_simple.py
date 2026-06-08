@@ -148,9 +148,7 @@ def test_metadata_service_direct():
     print("\n1. Testing with Rick Astley video...")
     url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
-    info = simulate_new_metadata_logic(url, browser="chrome")
-
-    if info:
+    if info := simulate_new_metadata_logic(url, browser="chrome"):
         print(f"   ✅ Success: {info.get('title', 'Unknown')}")
         print(f"   Duration: {info.get('duration', 'Unknown')} seconds")
         print(f"   Channel: {info.get('channel', 'Unknown')}")
@@ -159,9 +157,7 @@ def test_metadata_service_direct():
 
     # Test without cookies
     print("\n2. Testing without cookies...")
-    info = simulate_new_metadata_logic(url, browser=None)
-
-    if info:
+    if info := simulate_new_metadata_logic(url, browser=None):
         print(f"   ✅ Success: {info.get('title', 'Unknown')}")
     else:
         print("   ❌ Failed to fetch metadata without cookies")

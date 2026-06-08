@@ -6,7 +6,7 @@ import customtkinter as ctk
 class PathEntryBar(ctk.CTkFrame):
     """Frame for path entry and navigation."""
 
-    def __init__(self, master, initial_path: str, on_path_change: Callable):
+    def __init__(self, master, initial_path: str, on_path_change: Callable) -> None:
         super().__init__(master, fg_color="transparent")
 
         # Configure grid
@@ -34,6 +34,6 @@ class PathEntryBar(ctk.CTkFrame):
         """Get current path."""
         return self.path_var.get()
 
-    def set_path(self, path: str):
+    def set_path(self, path: str) -> None:
         """Set new path."""
         self.path_var.set(path)

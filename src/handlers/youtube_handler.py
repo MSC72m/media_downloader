@@ -1,6 +1,5 @@
 import re
-from collections.abc import Callable
-from typing import Any
+from collections.abc import Mapping
 
 from src.core.config import AppConfig, get_config
 from src.core.enums.message_level import MessageLevel
@@ -10,9 +9,11 @@ from src.core.interfaces import (
     IErrorNotifier,
     IMessageQueue,
     IMetadataService,
+    UIContextProtocol,
 )
 from src.core.models import Download
-from src.services.detection.base_handler import BaseHandler
+from src.core.type_defs import JSONDict, JSONValue
+from src.services.detection.base_handler import BaseHandler, UICallback
 from src.services.detection.link_detector import (
     auto_register_handler,
 )
@@ -41,20 +42,21 @@ class YouTubeHandler(BaseHandler):
         auto_cookie_manager: IAutoCookieManager,
         message_queue: IMessageQueue,
         error_handler: IErrorNotifier | None = None,
-        config: AppConfig = get_config(),
-    ):
-        super().__init__(message_queue, config, service_name="youtube")
+        config: AppConfig | None = None,
+    ) -> None:
+        resolved_config = config or get_config()
+        super().__init__(message_queue, resolved_config, service_name="youtube")
         self.cookie_handler = cookie_handler
         self.metadata_service = metadata_service
         self.auto_cookie_manager = auto_cookie_manager
         self.error_handler = error_handler
 
     @classmethod
-    def get_patterns(cls):
+    def get_patterns(cls) -> list[str]:
         """Get URL patterns for this handler."""
         return get_config().youtube.url_patterns
 
-    def _extract_metadata(self, url: str) -> dict[str, Any]:
+    def _extract_metadata(self, url: str) -> JSONDict:
         """Extract YouTube-specific metadata from URL."""
         return {
             "type": self._detect_youtube_type(url),
@@ -63,7 +65,7 @@ class YouTubeHandler(BaseHandler):
             "is_music": self._is_youtube_music(url),
         }
 
-    def get_metadata(self, url: str) -> dict[str, Any]:
+    def get_metadata(self, url: str) -> JSONDict:
         """Get YouTube metadata for the URL."""
         try:
             video_info = self.metadata_service.fetch_metadata(url)
@@ -81,22 +83,21 @@ class YouTubeHandler(BaseHandler):
             logger.error(f"Error getting YouTube metadata: {e}")
             return {}
 
-    def process_download(self, url: str, options: dict[str, Any]) -> bool:
+    def process_download(self, url: str, options: Mapping[str, JSONValue]) -> bool:
         """Process YouTube download."""
         logger.info(f"[YOUTUBE_HANDLER] Processing YouTube download: {url}")
         logger.debug(f"[YOUTUBE_HANDLER] Options: {options}")
         return True
 
-    def get_ui_callback(self) -> Callable:
+    def get_ui_callback(self) -> UICallback:
         """Get the UI callback for YouTube URLs."""
         logger.info("[YOUTUBE_HANDLER] Getting UI callback")
 
-        def youtube_callback(url: str, ui_context: Any):
+        def youtube_callback(url: str, ui_context: UIContextProtocol) -> None:
             """Callback for handling YouTube URLs."""
             logger.info(f"[YOUTUBE_HANDLER] YouTube callback called with URL: {url}")
 
-            download_callback = get_platform_callback(ui_context, "youtube")
-            if not download_callback:
+            if not (download_callback := get_platform_callback(ui_context, "youtube")):
                 error_msg = "No download callback found"
                 logger.error(f"[YOUTUBE_HANDLER] {error_msg}")
                 if self.error_handler:
@@ -112,18 +113,18 @@ class YouTubeHandler(BaseHandler):
 
             root = get_root(ui_context)
 
-            is_music = self._is_youtube_music(url)
-            if is_music:
+            if self._is_youtube_music(url):
                 logger.info("[YOUTUBE_HANDLER] YouTube Music URL detected - showing name dialog")
 
-                def show_music_name_dialog():
+                def show_music_name_dialog() -> None:
                     try:
                         track_name = "YouTube Music"
                         if self.metadata_service:
                             try:
-                                metadata = self.metadata_service.fetch_metadata(url)
-                                if metadata and metadata.title:
-                                    track_name = metadata.title
+                                if metadata := self.metadata_service.fetch_metadata(url):
+                                    metadata_title = safe_getattr(metadata, "title", "")
+                                    if isinstance(metadata_title, str) and metadata_title:
+                                        track_name = metadata_title
                                     logger.info(
                                         f"[YOUTUBE_HANDLER] Music metadata fetched: {track_name}"
                                     )
@@ -146,9 +147,7 @@ class YouTubeHandler(BaseHandler):
                             dialog._entry.delete(0, "end")
                             dialog._entry.insert(0, track_name)
 
-                        name = dialog.get_input()
-
-                        if not name:
+                        if not (name := dialog.get_input()):
                             logger.info(
                                 "[YOUTUBE_HANDLER] User cancelled YouTube Music name dialog"
                             )
@@ -191,7 +190,7 @@ class YouTubeHandler(BaseHandler):
                 schedule_on_main_thread(root, show_music_name_dialog, immediate=True)
                 return
 
-            def create_youtube_dialog():
+            def create_youtube_dialog() -> None:
                 try:
                     logger.info("[YOUTUBE_HANDLER] Creating YouTubeDownloaderDialog")
 
@@ -261,8 +260,7 @@ class YouTubeHandler(BaseHandler):
             r"(?:youtu\.be\/)([0-9A-Za-z_-]{11})",
         ]
         for pattern in patterns:
-            match = re.search(pattern, url)
-            if match:
+            if match := re.search(pattern, url):
                 return match.group(1)
         return None
 
@@ -282,7 +280,7 @@ class YouTubeHandler(BaseHandler):
         """
         return "music.youtube.com" in url.lower()
 
-    def _is_cookie_generating(self, ui_context: Any) -> bool:
+    def _is_cookie_generating(self, ui_context: UIContextProtocol) -> bool:
         """Check if cookies are currently being generated.
 
         Args:
@@ -291,23 +289,26 @@ class YouTubeHandler(BaseHandler):
         Returns:
             True if cookies are generating, False otherwise
         """
+        if self.auto_cookie_manager.is_ready():
+            return False
+
         if self.auto_cookie_manager.is_generating():
             logger.info("[YOUTUBE_HANDLER] Cookie manager reports cookies are generating")
             return True
 
-        state = self.auto_cookie_manager.get_state()
-        if state is not None and state.is_generating:
+        if (state := self.auto_cookie_manager.get_state()) is not None and state.is_generating:
             logger.info("[YOUTUBE_HANDLER] Cookie state reports cookies are generating")
             return True
 
-        generator_state = self.auto_cookie_manager.generator.get_state()
-        if generator_state and generator_state.is_generating:
+        if (
+            generator_state := self.auto_cookie_manager.generator.get_state()
+        ) and generator_state.is_generating:
             logger.info("[YOUTUBE_HANDLER] Cookie generator reports cookies are generating")
             return True
 
         return False
 
-    def _show_cookie_generating_message(self, ui_context: Any) -> None:
+    def _show_cookie_generating_message(self, ui_context: UIContextProtocol) -> None:
         """Show status bar message when cookies are being generated and reject URL.
 
         Args:
@@ -316,17 +317,14 @@ class YouTubeHandler(BaseHandler):
         logger.info("[YOUTUBE_HANDLER] Showing cookie generating message in status bar")
         message_text = "Generating YouTube cookies, please wait for few seconds and try again"
 
-        ctx = get_ui_context(ui_context)
-        if ctx:
-            downloads = getattr(ctx, "downloads", None)
-            if downloads:
-                status_callback = downloads._get_ui_callback("update_status")
-                if status_callback:
-                    status_callback(message_text, is_error=False)
-                    logger.info(
-                        "[YOUTUBE_HANDLER] Status bar updated with cookie generation message"
-                    )
-                    return
+        if (
+            (ctx := get_ui_context(ui_context))
+            and (downloads := getattr(ctx, "downloads", None))
+            and (status_callback := downloads._get_ui_callback("update_status"))
+        ):
+            status_callback(message_text, is_error=False)
+            logger.info("[YOUTUBE_HANDLER] Status bar updated with cookie generation message")
+            return
 
         if not self.message_queue:
             logger.warning(

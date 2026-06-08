@@ -1,11 +1,12 @@
 import os
 import re
 from collections.abc import Callable
-from typing import Any
+from glob import glob
+from typing import Any, cast
 
 import yt_dlp
 
-from src.core.config import get_config
+from src.core.config import AppConfig, get_config
 from src.core.interfaces import BaseDownloader, IErrorNotifier, IFileService
 
 from ...utils.logger import get_logger
@@ -25,8 +26,9 @@ class SoundCloudDownloader(BaseDownloader):
         retries: int | None = None,
         error_handler: IErrorNotifier | None = None,
         file_service: IFileService | None = None,
-        config=None,
-    ):
+        config: AppConfig = get_config(),
+        cookie_manager: Any = None,
+    ) -> None:
         """Initialize SoundCloud downloader.
 
         Args:
@@ -39,10 +41,9 @@ class SoundCloudDownloader(BaseDownloader):
             retries: Number of retries on failure - uses config default if None
             error_handler: Optional error handler for user notifications
             file_service: Optional file service for file operations
-            config: AppConfig instance (defaults to get_config() if None)
+            config: AppConfig instance (defaults to global app config)
+            cookie_manager: Optional cookie manager (e.g. SoundCloudCookieManager)
         """
-        if config is None:
-            config = get_config()
         super().__init__(error_handler, file_service, config)
         self.audio_format = audio_format or self.config.soundcloud.default_audio_format
         self.audio_quality = audio_quality or self.config.soundcloud.default_audio_quality
@@ -51,7 +52,7 @@ class SoundCloudDownloader(BaseDownloader):
         self.download_thumbnail = download_thumbnail
         self.speed_limit = speed_limit
         self.retries = retries or self.config.soundcloud.default_retries
-        self.error_handler = error_handler
+        self.cookie_manager = cookie_manager
         self.ytdl_opts = self._get_ytdl_options()
 
     def _get_ytdl_options(self) -> dict[str, Any]:
@@ -115,7 +116,16 @@ class SoundCloudDownloader(BaseDownloader):
         # Playlist handling
         if not self.download_playlist:
             options["noplaylist"] = True
-            options["playlist_items"] = "1"
+
+        # Cookie file from cookie_manager
+        if (
+            self.cookie_manager
+            and hasattr(self.cookie_manager, "is_ready")
+            and self.cookie_manager.is_ready()
+        ):
+            cookie_path = self.cookie_manager.get_cookies()
+            if cookie_path:
+                options["cookiefile"] = cookie_path
 
         return options
 
@@ -136,8 +146,7 @@ class SoundCloudDownloader(BaseDownloader):
                 self.error_handler.handle_service_failure("SoundCloud", "download", error_msg, "")
             return False
 
-        save_dir = os.path.dirname(save_path)
-        if save_dir and not os.path.exists(save_dir):
+        if (save_dir := os.path.dirname(save_path)) and not os.path.exists(save_dir):
             error_msg = f"Save directory does not exist: {save_dir}"
             logger.error(f"[SOUNDCLOUD_DOWNLOADER] {error_msg}")
             if self.error_handler:
@@ -155,8 +164,7 @@ class SoundCloudDownloader(BaseDownloader):
             True if premium (should abort), False otherwise
         """
         try:
-            info = self.get_info(url)
-            if info and self._is_premium_track(info):
+            if (info := self.get_info(url)) and self._is_premium_track(info):
                 error_msg = (
                     "This track requires SoundCloud Go+ subscription and cannot be downloaded"
                 )
@@ -190,14 +198,14 @@ class SoundCloudDownloader(BaseDownloader):
         try:
             progress_hook = self._create_progress_hook(progress_callback)
             options = self.ytdl_opts.copy()
-            options["outtmpl"] = f"{save_path}.%(ext)s"
+            # Strip extension from save_path to avoid double-extension (e.g. track.mp3.mp3)
+            stem = os.path.splitext(save_path)[0]
+            options["outtmpl"] = f"{stem}.%(ext)s"
             options["progress_hooks"] = [progress_hook]
 
-            with yt_dlp.YoutubeDL(options) as ydl:
+            with yt_dlp.YoutubeDL(cast(Any, options)) as ydl:
                 logger.info("[SOUNDCLOUD_DOWNLOADER] Extracting info...")
-                info = ydl.extract_info(url, download=True)
-
-                if not info:
+                if not (info := ydl.extract_info(url, download=True)):
                     error_msg = "Failed to extract track information"
                     logger.error(f"[SOUNDCLOUD_DOWNLOADER] {error_msg}")
                     if self.error_handler:
@@ -211,7 +219,16 @@ class SoundCloudDownloader(BaseDownloader):
                     logger.info(f"[SOUNDCLOUD_DOWNLOADER] Downloaded: {info['title']}")
                 if "uploader" in info:
                     logger.info(f"[SOUNDCLOUD_DOWNLOADER] Artist: {info['uploader']}")
-                return True
+                if self._verify_download_output(save_path):
+                    return True
+
+                error_msg = "Download finished but output file is missing or empty"
+                logger.error(f"[SOUNDCLOUD_DOWNLOADER] {error_msg}")
+                if self.error_handler:
+                    self.error_handler.handle_service_failure(
+                        "SoundCloud", "download", error_msg, url
+                    )
+                return False
 
         except Exception as e:
             return self._handle_download_exception(e, url)
@@ -252,6 +269,46 @@ class SoundCloudDownloader(BaseDownloader):
         if self.error_handler:
             self.error_handler.handle_exception(e, "SoundCloud download", "SoundCloud")
         return False
+
+    def _verify_download_output(self, save_path: str) -> bool:
+        """Verify that download produced a non-empty primary media file."""
+        output_candidates = [path for path in glob(f"{save_path}.*") if os.path.isfile(path)]
+        output_candidates.sort(key=os.path.getmtime, reverse=True)
+
+        for path in output_candidates:
+            if self._is_auxiliary_output_file(path):
+                continue
+
+            if (file_size := os.path.getsize(path)) <= 0:
+                continue
+
+            logger.info(
+                "[SOUNDCLOUD_DOWNLOADER] Download verified: %s (%d bytes)",
+                path,
+                file_size,
+            )
+            return True
+
+        return False
+
+    @staticmethod
+    def _is_auxiliary_output_file(path: str) -> bool:
+        if (lowered := path.lower()).endswith((".info.json", ".description")):
+            return True
+        auxiliary_suffixes = {
+            ".part",
+            ".temp",
+            ".ytdl",
+            ".json",
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp",
+            ".vtt",
+            ".srt",
+            ".ass",
+        }
+        return any(lowered.endswith(suffix) for suffix in auxiliary_suffixes)
 
     def download(
         self,
@@ -404,9 +461,7 @@ class SoundCloudDownloader(BaseDownloader):
                     "extract_flat": False,
                 }
             ) as ydl:
-                info = ydl.extract_info(url, download=False)
-
-                if not info:
+                if not (info := ydl.extract_info(url, download=False)):
                     return None
 
                 return {
@@ -419,7 +474,7 @@ class SoundCloudDownloader(BaseDownloader):
                     "view_count": info.get("view_count", 0),
                     "like_count": info.get("like_count", 0),
                     "is_playlist": "entries" in info,
-                    "track_count": len(info.get("entries", [])) if "entries" in info else 1,
+                    "track_count": len(list(info.get("entries", []))) if "entries" in info else 1,  # type: ignore[arg-type]
                     "is_available": info.get("availability") != "premium_only",
                     "policy": info.get("policy", ""),
                 }

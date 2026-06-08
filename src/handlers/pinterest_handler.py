@@ -1,10 +1,10 @@
 import re
-from collections.abc import Callable
-from typing import Any
+from collections.abc import Mapping
 
 from src.core.config import AppConfig, get_config
-from src.core.interfaces import IErrorNotifier, IMessageQueue
-from src.services.detection.base_handler import BaseHandler
+from src.core.interfaces import IErrorNotifier, IMessageQueue, UIContextProtocol
+from src.core.type_defs import JSONDict, JSONValue
+from src.services.detection.base_handler import BaseHandler, UICallback
 from src.services.detection.link_detector import (
     auto_register_handler,
 )
@@ -25,17 +25,18 @@ class PinterestHandler(BaseHandler):
         self,
         error_handler: IErrorNotifier | None = None,
         message_queue: IMessageQueue | None = None,
-        config: AppConfig = get_config(),
-    ):
-        super().__init__(message_queue, config, service_name="pinterest")
+        config: AppConfig | None = None,
+    ) -> None:
+        resolved_config = config or get_config()
+        super().__init__(message_queue, resolved_config, service_name="pinterest")
         self.error_handler = error_handler
 
     @classmethod
-    def get_patterns(cls):
+    def get_patterns(cls) -> list[str]:
         """Get URL patterns for this handler."""
         return get_config().pinterest.url_patterns
 
-    def _extract_metadata(self, url: str) -> dict[str, Any]:
+    def _extract_metadata(self, url: str) -> JSONDict:
         """Extract Pinterest-specific metadata from URL."""
         return {
             "type": self._detect_pinterest_type(url),
@@ -43,7 +44,7 @@ class PinterestHandler(BaseHandler):
             "is_short_url": self._is_short_url(url),
         }
 
-    def get_metadata(self, url: str) -> dict[str, Any]:
+    def get_metadata(self, url: str) -> JSONDict:
         """Get Pinterest metadata for the URL."""
         return {
             "type": self._detect_pinterest_type(url),
@@ -52,16 +53,16 @@ class PinterestHandler(BaseHandler):
             "requires_auth": False,  # Pinterest downloads usually work without auth
         }
 
-    def process_download(self, url: str, options: dict[str, Any]) -> bool:
+    def process_download(self, url: str, options: Mapping[str, JSONValue]) -> bool:
         """Process Pinterest download."""
         logger.info(f"[PINTEREST_HANDLER] Processing Pinterest download: {url}")
         return True
 
-    def get_ui_callback(self) -> Callable:
+    def get_ui_callback(self) -> UICallback:
         """Get the UI callback for Pinterest URLs."""
         logger.info("[PINTEREST_HANDLER] Getting UI callback")
 
-        def pinterest_callback(url: str, ui_context: Any):
+        def pinterest_callback(url: str, ui_context: UIContextProtocol) -> None:
             """Callback for handling Pinterest URLs."""
             logger.info(f"[PINTEREST_HANDLER] Pinterest callback called with URL: {url}")
             logger.info(f"[PINTEREST_HANDLER] UI context: {ui_context}")
@@ -70,19 +71,18 @@ class PinterestHandler(BaseHandler):
 
             logger.info(f"[PINTEREST_HANDLER] Root: {root}")
 
-            download_callback = get_platform_callback(ui_context, "pinterest")
-            if not download_callback:
-                download_callback = get_platform_callback(ui_context, "generic")
-                if not download_callback:
-                    error_msg = "No download callback found"
-                    logger.error(f"[PINTEREST_HANDLER] {error_msg}")
-                    if self.error_handler:
-                        self.error_handler.handle_service_failure(
-                            "Pinterest Handler", "callback", error_msg, url
-                        )
-                    return
+            if not (download_callback := get_platform_callback(ui_context, "pinterest")) and not (
+                download_callback := get_platform_callback(ui_context, "generic")
+            ):
+                error_msg = "No download callback found"
+                logger.error(f"[PINTEREST_HANDLER] {error_msg}")
+                if self.error_handler:
+                    self.error_handler.handle_service_failure(
+                        "Pinterest Handler", "callback", error_msg, url
+                    )
+                return
 
-            def process_pinterest_download():
+            def process_pinterest_download() -> None:
                 try:
                     logger.info(f"[PINTEREST_HANDLER] Calling download callback for: {url}")
                     download_callback(url)
@@ -121,8 +121,7 @@ class PinterestHandler(BaseHandler):
             r"pin\.it/([\w]+)",
         ]
         for pattern in patterns:
-            match = re.search(pattern, url)
-            if match:
+            if match := re.search(pattern, url):
                 return match.group(1)
         return None
 

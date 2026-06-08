@@ -4,6 +4,6 @@ from src.utils.window import WindowCenterMixin
 
 
 class CenteredInputDialog(ctk.CTkInputDialog, WindowCenterMixin):
-    def __init__(self, title: str, text: str):
+    def __init__(self, title: str, text: str) -> None:
         super().__init__(text=text, title=title)
         self.center_window()

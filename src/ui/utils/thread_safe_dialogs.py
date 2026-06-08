@@ -1,17 +1,25 @@
 import threading
 from collections.abc import Callable
 from functools import wraps
-from typing import Any
+from typing import Any, Protocol, cast
 
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
+class _DialogWindowProtocol(Protocol):
+    def after(self, ms: int, func: Callable[[], Any]) -> Any: ...
+
+    def destroy(self) -> None: ...
+
+    def update(self) -> None: ...
+
+
 class ThreadSafeDialogMixin:
     """Mixin class to provide thread-safe operations for dialogs."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._main_thread_id = threading.get_ident()
         self._lock = threading.Lock()
@@ -22,11 +30,12 @@ class ThreadSafeDialogMixin:
 
     def safe_after(self, delay_ms: int, func: Callable, *args, **kwargs):
         """Thread-safe version of after() method."""
+        window = cast(_DialogWindowProtocol, self)
         if self.is_main_thread():
-            return self.after(delay_ms, lambda: self._safe_execute(func, *args, **kwargs))
-        self.after(
+            return window.after(delay_ms, lambda: self._safe_execute(func, *args, **kwargs))
+        window.after(
             0,
-            lambda: self.after(delay_ms, lambda: self._safe_execute(func, *args, **kwargs)),
+            lambda: window.after(delay_ms, lambda: self._safe_execute(func, *args, **kwargs)),
         )
         return None
 
@@ -38,7 +47,7 @@ class ThreadSafeDialogMixin:
         except Exception as e:
             logger.error(f"Error in safe_execute: {e}", exc_info=True)
 
-    def safe_configure(self, widget, **kwargs):
+    def safe_configure(self, widget, **kwargs) -> None:
         """Thread-safe widget configuration."""
         if self.is_main_thread():
             try:
@@ -46,46 +55,48 @@ class ThreadSafeDialogMixin:
             except Exception as e:
                 logger.error(f"Error configuring widget: {e}", exc_info=True)
         else:
-            self.after(0, lambda: self._safe_configure(widget, **kwargs))
+            cast(_DialogWindowProtocol, self).after(
+                0, lambda: self._safe_configure(widget, **kwargs)
+            )
 
-    def _safe_configure(self, widget, **kwargs):
+    def _safe_configure(self, widget, **kwargs) -> None:
         """Internal safe configuration."""
         try:
             widget.configure(**kwargs)
         except Exception as e:
             logger.error(f"Error in safe configure: {e}", exc_info=True)
 
-    def safe_destroy(self):
+    def safe_destroy(self) -> None:
         """Thread-safe window destruction."""
         if self.is_main_thread():
             try:
-                self.destroy()
+                cast(_DialogWindowProtocol, self).destroy()
             except Exception as e:
                 logger.error(f"Error destroying window: {e}", exc_info=True)
         else:
-            self.after(0, self._safe_destroy)
+            cast(_DialogWindowProtocol, self).after(0, self._safe_destroy)
 
-    def _safe_destroy(self):
+    def _safe_destroy(self) -> None:
         """Internal safe destruction."""
         try:
-            self.destroy()
+            cast(_DialogWindowProtocol, self).destroy()
         except Exception as e:
             logger.error(f"Error in safe destroy: {e}", exc_info=True)
 
-    def safe_update(self):
+    def safe_update(self) -> None:
         """Thread-safe UI update."""
         if self.is_main_thread():
             try:
-                self.update()
+                cast(_DialogWindowProtocol, self).update()
             except Exception as e:
                 logger.error(f"Error updating UI: {e}", exc_info=True)
         else:
-            self.after(0, self._safe_update)
+            cast(_DialogWindowProtocol, self).after(0, self._safe_update)
 
-    def _safe_update(self):
+    def _safe_update(self) -> None:
         """Internal safe update."""
         try:
-            self.update()
+            cast(_DialogWindowProtocol, self).update()
         except Exception as e:
             logger.error(f"Error in safe update: {e}", exc_info=True)
 
@@ -116,7 +127,7 @@ class ThreadSafeOperations:
         return None
 
     @staticmethod
-    def safe_widget_state(widget, state: str):
+    def safe_widget_state(widget, state: str) -> None:
         """Safely change widget state."""
         try:
             if widget.winfo_exists():
@@ -125,7 +136,7 @@ class ThreadSafeOperations:
             logger.error(f"Error changing widget state: {e}", exc_info=True)
 
     @staticmethod
-    def safe_widget_config(widget, **kwargs):
+    def safe_widget_config(widget, **kwargs) -> None:
         """Safely configure widget."""
         try:
             if widget.winfo_exists():

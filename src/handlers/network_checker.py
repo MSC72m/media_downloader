@@ -13,7 +13,7 @@ logger = get_logger(__name__)
 class NetworkChecker:
     """Network checker for verifying connectivity to services."""
 
-    def __init__(self, error_handler: IErrorNotifier | None = None):
+    def __init__(self, error_handler: IErrorNotifier | None = None) -> None:
         """Initialize network checker.
 
         Args:
@@ -52,6 +52,6 @@ class NetworkChecker:
                 )
             return False, str(e)
 
-    def get_problem_services(self) -> list[str]:
+    def get_problem_services(self) -> list[ServiceType]:
         """Get list of services with connection issues."""
         return get_problem_services()

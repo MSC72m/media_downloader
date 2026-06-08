@@ -3,16 +3,21 @@ from __future__ import annotations
 import customtkinter as ctk
 
 from src.core.enums.appearance_mode import AppearanceMode
-from src.core.enums.color_theme import ColorTheme
 from src.core.enums.theme_event import ThemeEvent
+from src.core.themes import get_available_themes
 from src.ui.utils.theme_manager import ThemeManager, get_theme_manager
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
+def _build_emoji_map() -> dict[str, str]:
+    """Build a ``{name: emoji}`` mapping from discovered theme files."""
+    return {t["name"]: t["emoji"] for t in get_available_themes()}
+
+
 class ThemeSwitcher(ctk.CTkFrame):
-    def __init__(self, master, theme_manager: ThemeManager | None = None):
+    def __init__(self, master, theme_manager: ThemeManager | None = None) -> None:
         super().__init__(master, fg_color="transparent")
 
         self._theme_manager = theme_manager or get_theme_manager(master.winfo_toplevel())
@@ -40,29 +45,16 @@ class ThemeSwitcher(ctk.CTkFrame):
         self.color_label = ctk.CTkLabel(container, text="Theme:", font=("Roboto", 11))
         self.color_label.grid(row=0, column=1, padx=(0, 5), sticky="w")
 
-        theme_emoji_map = {
-            ColorTheme.BLUE: "🔵",
-            ColorTheme.GREEN: "🟢",
-            ColorTheme.PURPLE: "🟣",
-            ColorTheme.ORANGE: "🟠",
-            ColorTheme.TEAL: "🔷",
-            ColorTheme.PINK: "🌸",
-            ColorTheme.INDIGO: "💙",
-            ColorTheme.AMBER: "🟡",
-            ColorTheme.RED: "🔴",
-            ColorTheme.CYAN: "🔵",
-            ColorTheme.EMERALD: "💚",
-            ColorTheme.ROSE: "🌹",
-            ColorTheme.VIOLET: "🟣",
-            ColorTheme.SLATE: "⚫",
-        }
-
+        # Build dropdown values dynamically from discovered theme JSON files
+        emoji_map = _build_emoji_map()
         color_values = [
-            f"{theme_emoji_map.get(theme, '🔵')} {theme.value.capitalize()}" for theme in ColorTheme
+            f"{emoji_map.get(t['name'], '🔵')} {t['name'].capitalize()}"
+            for t in get_available_themes()
         ]
+
         current_color = self._theme_manager.get_color_theme()
-        current_emoji = theme_emoji_map.get(current_color, "🔵")
-        current_display = f"{current_emoji} {current_color.value.capitalize()}"
+        current_emoji = emoji_map.get(current_color, "🔵")
+        current_display = f"{current_emoji} {current_color.capitalize()}"
 
         self.color_dropdown = ctk.CTkComboBox(
             container,
@@ -80,13 +72,13 @@ class ThemeSwitcher(ctk.CTkFrame):
 
         self._apply_theme_colors()
 
-    def _make_combobox_readonly(self):
-        def prevent_edit(event):
+    def _make_combobox_readonly(self) -> None:
+        def prevent_edit(event) -> str | None:
             if event.keysym not in ("Return", "Escape", "Up", "Down"):
                 return "break"
             return None
 
-        def prevent_selection(_event):
+        def prevent_selection(_event) -> str:
             return "break"
 
         try:
@@ -98,18 +90,21 @@ class ThemeSwitcher(ctk.CTkFrame):
         except Exception:
             pass
 
-    def _apply_theme_colors(self):
+    @staticmethod
+    def _normalize_color(color):
+        """Extract a single color string from a theme color value (may be list/tuple)."""
+        if isinstance(color, list | tuple) and len(color) > 0:
+            return color[0] if isinstance(color[0], str) else str(color[0])
+        if not isinstance(color, str):
+            return str(color)
+        return color
+
+    def _apply_theme_colors(self) -> None:
         theme_json = self._theme_manager.get_theme_json()
 
-        button_config = theme_json.get("CTkButton", {})
-        if button_config:
-            button_color = button_config.get("fg_color")
-            hover_color = button_config.get("hover_color")
-
-            if isinstance(button_color, tuple):
-                button_color = button_color[0] if isinstance(button_color[0], str) else button_color
-            if isinstance(hover_color, tuple):
-                hover_color = hover_color[0] if isinstance(hover_color[0], str) else hover_color
+        if button_config := theme_json.get("CTkButton", {}):
+            button_color = self._normalize_color(button_config.get("fg_color"))
+            hover_color = self._normalize_color(button_config.get("hover_color"))
 
             self.appearance_switch.configure(
                 progress_color=button_color,
@@ -117,26 +112,22 @@ class ThemeSwitcher(ctk.CTkFrame):
                 button_hover_color=hover_color,
             )
 
-        entry_config = theme_json.get("CTkEntry", {})
-        if entry_config and button_config:
-            button_color = button_config.get("fg_color")
-            hover_color = button_config.get("hover_color")
-
-            if isinstance(button_color, tuple):
-                button_color = button_color[0] if isinstance(button_color[0], str) else button_color
-            if isinstance(hover_color, tuple):
-                hover_color = hover_color[0] if isinstance(hover_color[0], str) else hover_color
+        if (entry_config := theme_json.get("CTkEntry", {})) and button_config:
+            fg_color = self._normalize_color(entry_config.get("fg_color"))
+            border_color = self._normalize_color(entry_config.get("border_color"))
+            button_color = self._normalize_color(button_config.get("fg_color"))
+            hover_color = self._normalize_color(button_config.get("hover_color"))
 
             self.color_dropdown.configure(
-                fg_color=entry_config.get("fg_color"),
-                border_color=entry_config.get("border_color"),
+                fg_color=fg_color,
+                border_color=border_color,
                 button_color=button_color,
                 button_hover_color=hover_color,
             )
 
-        label_config = theme_json.get("CTkLabel", {})
-        if label_config:
-            self.color_label.configure(text_color=label_config.get("text_color"))
+        if label_config := theme_json.get("CTkLabel", {}):
+            text_color = self._normalize_color(label_config.get("text_color"))
+            self.color_label.configure(text_color=text_color)
 
     def _on_appearance_toggle(self) -> None:
         is_dark = self.appearance_switch.get()
@@ -149,35 +140,17 @@ class ThemeSwitcher(ctk.CTkFrame):
         self.appearance_switch.configure(text="🌙 Dark" if is_dark else "☀️ Light")
 
     def _on_color_change(self, value: str) -> None:
-        color_name = value.split()[-1].lower()
-        try:
-            color = ColorTheme(color_name)
-            current_appearance = self._theme_manager.get_appearance()
+        color_name = value.rsplit(maxsplit=1)[-1].lower()
+        current_appearance = self._theme_manager.get_appearance()
 
-            logger.info(f"[THEME_SWITCHER] Changing color to {color.value}")
-            self._theme_manager.set_theme(current_appearance, color)
-        except ValueError:
-            logger.error(f"[THEME_SWITCHER] Invalid color theme: {color_name}")
+        logger.info(f"[THEME_SWITCHER] Changing color to {color_name}")
+        self._theme_manager.set_theme(current_appearance, color_name)
 
-    def _on_theme_changed(self, appearance, color):
+    def _on_theme_changed(self, appearance, color) -> None:
         self._apply_theme_colors()
 
-        theme_emoji_map = {
-            ColorTheme.BLUE: "🔵",
-            ColorTheme.GREEN: "🟢",
-            ColorTheme.PURPLE: "🟣",
-            ColorTheme.ORANGE: "🟠",
-            ColorTheme.TEAL: "🔷",
-            ColorTheme.PINK: "🌸",
-            ColorTheme.INDIGO: "💙",
-            ColorTheme.AMBER: "🟡",
-            ColorTheme.RED: "🔴",
-            ColorTheme.CYAN: "🔵",
-            ColorTheme.EMERALD: "💚",
-            ColorTheme.ROSE: "🌹",
-            ColorTheme.VIOLET: "🟣",
-            ColorTheme.SLATE: "⚫",
-        }
-        emoji = theme_emoji_map.get(color, "🔵")
-        current_display = f"{emoji} {color.value.capitalize()}"
+        emoji_map = _build_emoji_map()
+        color_str = str(color)
+        emoji = emoji_map.get(color_str, "🔵")
+        current_display = f"{emoji} {color_str.capitalize()}"
         self.color_dropdown.set(current_display)

@@ -1,10 +1,10 @@
 import re
-from collections.abc import Callable
-from typing import Any
+from collections.abc import Mapping
 
 from src.core.config import AppConfig, get_config
-from src.core.interfaces import IErrorNotifier, IMessageQueue
-from src.services.detection.base_handler import BaseHandler
+from src.core.interfaces import IErrorNotifier, IMessageQueue, UIContextProtocol
+from src.core.type_defs import JSONDict, JSONValue
+from src.services.detection.base_handler import BaseHandler, UICallback
 from src.services.detection.link_detector import (
     auto_register_handler,
 )
@@ -25,17 +25,18 @@ class SoundCloudHandler(BaseHandler):
         self,
         message_queue: IMessageQueue,
         error_handler: IErrorNotifier | None = None,
-        config: AppConfig = get_config(),
-    ):
-        super().__init__(message_queue, config, service_name="soundcloud")
+        config: AppConfig | None = None,
+    ) -> None:
+        resolved_config = config or get_config()
+        super().__init__(message_queue, resolved_config, service_name="soundcloud")
         self.error_handler = error_handler
 
     @classmethod
-    def get_patterns(cls):
+    def get_patterns(cls) -> list[str]:
         """Get URL patterns for this handler."""
         return get_config().soundcloud.url_patterns
 
-    def _extract_metadata(self, url: str) -> dict[str, Any]:
+    def _extract_metadata(self, url: str) -> JSONDict:
         """Extract SoundCloud-specific metadata from URL."""
         return {
             "type": self._detect_soundcloud_type(url),
@@ -43,7 +44,7 @@ class SoundCloudHandler(BaseHandler):
             "track_slug": self._extract_track_slug(url),
         }
 
-    def get_metadata(self, url: str) -> dict[str, Any]:
+    def get_metadata(self, url: str) -> JSONDict:
         """Get SoundCloud metadata for the URL."""
         return {
             "type": self._detect_soundcloud_type(url),
@@ -52,16 +53,16 @@ class SoundCloudHandler(BaseHandler):
             "requires_auth": False,  # SoundCloud downloads usually work without auth
         }
 
-    def process_download(self, url: str, options: dict[str, Any]) -> bool:
+    def process_download(self, url: str, options: Mapping[str, JSONValue]) -> bool:
         """Process SoundCloud download."""
         logger.info(f"[SOUNDCLOUD_HANDLER] Processing SoundCloud download: {url}")
         return True
 
-    def get_ui_callback(self) -> Callable:
+    def get_ui_callback(self) -> UICallback:
         """Get the UI callback for SoundCloud URLs."""
         logger.info("[SOUNDCLOUD_HANDLER] Getting UI callback")
 
-        def soundcloud_callback(url: str, ui_context: Any):
+        def soundcloud_callback(url: str, ui_context: UIContextProtocol) -> None:
             """Callback for handling SoundCloud URLs."""
             logger.info(f"[SOUNDCLOUD_HANDLER] SoundCloud callback called with URL: {url}")
             logger.info(f"[SOUNDCLOUD_HANDLER] UI context: {ui_context}")
@@ -70,19 +71,18 @@ class SoundCloudHandler(BaseHandler):
 
             logger.info(f"[SOUNDCLOUD_HANDLER] Root: {root}")
 
-            download_callback = get_platform_callback(ui_context, "soundcloud")
-            if not download_callback:
-                download_callback = get_platform_callback(ui_context, "generic")
-                if not download_callback:
-                    error_msg = "No download callback found"
-                    logger.error(f"[SOUNDCLOUD_HANDLER] {error_msg}")
-                    if self.error_handler:
-                        self.error_handler.handle_service_failure(
-                            "SoundCloud Handler", "callback", error_msg, url
-                        )
-                    return
+            if not (download_callback := get_platform_callback(ui_context, "soundcloud")) and not (
+                download_callback := get_platform_callback(ui_context, "generic")
+            ):
+                error_msg = "No download callback found"
+                logger.error(f"[SOUNDCLOUD_HANDLER] {error_msg}")
+                if self.error_handler:
+                    self.error_handler.handle_service_failure(
+                        "SoundCloud Handler", "callback", error_msg, url
+                    )
+                return
 
-            def process_soundcloud_download():
+            def process_soundcloud_download() -> None:
                 try:
                     logger.info(f"[SOUNDCLOUD_HANDLER] Calling download callback for: {url}")
                     download_callback(url)

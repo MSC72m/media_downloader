@@ -1,6 +1,8 @@
 import os
 import time
 from collections.abc import Callable
+from typing import Protocol
+from urllib.parse import urlparse
 
 import requests
 
@@ -13,23 +15,27 @@ from .models import DownloadResult
 logger = get_logger(__name__)
 
 
+class _NetworkServiceProtocol(Protocol):
+    def is_service_connected(self, service: ServiceType) -> bool: ...
+
+
 class FileDownloader:
     def __init__(
         self,
         timeout: int | None = None,
         chunk_size: int | None = None,
         config: AppConfig = get_config(),
-    ):
+    ) -> None:
         self.config = config
         self.timeout = timeout or self.config.downloads.default_timeout
         self.chunk_size = chunk_size or self.config.downloads.chunk_size
-        self.network_service = None
+        self.network_service: _NetworkServiceProtocol | None = None
 
-    def set_network_service(self, network_service):
+    def set_network_service(self, network_service: _NetworkServiceProtocol) -> None:
         """Set network service for connectivity checks."""
         self.network_service = network_service
 
-    def download_file(
+    def download_file(  # noqa: PLR0911, PLR0912
         self,
         url: str,
         save_path: str,
@@ -61,8 +67,6 @@ class FileDownloader:
         # Check connectivity if network service is available
         if self.network_service:
             try:
-                from urllib.parse import urlparse
-
                 domain = urlparse(url).netloc
 
                 # Try to match domain to service type
@@ -93,7 +97,11 @@ class FileDownloader:
             response.raise_for_status()
 
             # Get file size if available
-            file_size = int(response.headers.get("content-length", 0))
+            content_length = response.headers.get("content-length", 0)
+            try:
+                file_size = int(content_length)
+            except (TypeError, ValueError):
+                file_size = 0
 
             # Progress tracking
             downloaded = 0
@@ -120,9 +128,22 @@ class FileDownloader:
 
             # Rename temp file to final filename
             os.replace(temp_file, save_path)
+            if not os.path.exists(save_path):
+                return DownloadResult(
+                    success=False,
+                    error_message="Download completed but target file is missing",
+                    download_time=time.time() - start_time,
+                )
+
+            if os.path.getsize(save_path) <= 0:
+                return DownloadResult(
+                    success=False,
+                    error_message="Downloaded file is empty",
+                    download_time=time.time() - start_time,
+                )
 
             if progress_callback:
-                progress_callback(100, 0)  # Final progress update
+                progress_callback(100.0, 0.0)  # Final progress update
 
             download_time = time.time() - start_time
             mb_to_bytes = self.config.downloads.kb_to_bytes * 1024
