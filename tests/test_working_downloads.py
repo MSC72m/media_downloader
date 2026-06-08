@@ -515,14 +515,14 @@ class TestRealWorkingDownloads:
             'details': validation_results
         })
 
-    def test_create_comprehensive_report(self):
+    def test_create_comprehensive_report(self, tmp_path):
         """Create a comprehensive test report with all results."""
         print("\n📋 Creating Comprehensive Test Report")
         print("=" * 50)
 
-        # Create test downloads directory for persistent results
-        test_dir = "/Users/msc8/code/media_downloader/test_downloads"
-        os.makedirs(test_dir, exist_ok=True)
+        # Create test downloads directory in pytest's temp area so CI is platform-safe.
+        test_dir = tmp_path / "test_downloads"
+        test_dir.mkdir(parents=True, exist_ok=True)
 
         # Generate report
         report = {
@@ -555,7 +555,7 @@ class TestRealWorkingDownloads:
         report['summary']['successful_downloads'] = len(successful_downloads)
 
         # Save report
-        report_file = os.path.join(test_dir, "download_test_report.json")
+        report_file = test_dir / "download_test_report.json"
         with open(report_file, 'w') as f:
             json.dump(report, f, indent=2)
 
