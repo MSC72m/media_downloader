@@ -45,6 +45,19 @@ def is_playwright_installed() -> bool:
     return importlib.util.find_spec("playwright") is not None
 
 
+def _playwright_cli_command(*args: str) -> list[str]:
+    """Return a Playwright CLI command that works in normal and frozen builds.
+
+    In a PyInstaller executable, ``sys.executable`` points at MediaDownloader.exe.
+    Running ``sys.executable -m playwright ...`` would recursively launch the app.
+    Playwright ships its own Node driver, so call that directly instead.
+    """
+    from playwright._impl._driver import compute_driver_executable
+
+    node_exe, cli_js = compute_driver_executable()
+    return [str(node_exe), str(cli_js), *args]
+
+
 def is_chromium_installed() -> bool:
     """Check whether Playwright's managed Chromium binary exists on disk.
 
@@ -59,7 +72,7 @@ def is_chromium_installed() -> bool:
         # The canonical way to find it is via the internal registry,
         # but we can also just attempt a lightweight CLI check.
         result = subprocess.run(
-            [sys.executable, "-m", "playwright", "install", "--dry-run", "chromium"],
+            _playwright_cli_command("install", "--dry-run", "chromium"),
             capture_output=True,
             text=True,
             timeout=15,
@@ -166,7 +179,7 @@ def install_chromium_streaming(progress: _InstallProgress) -> None:
         progress.set_phase("Starting Chromium download...")
 
         proc = subprocess.Popen(
-            [sys.executable, "-m", "playwright", "install", "chromium"],
+            _playwright_cli_command("install", "chromium"),
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
