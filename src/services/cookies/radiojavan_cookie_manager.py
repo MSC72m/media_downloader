@@ -1,5 +1,6 @@
 import asyncio
 import json
+import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import Lock
@@ -44,6 +45,7 @@ class RadioJavanCookieManager:
         self._initialization_complete = False
         self._retry_count = 2
         self._backoff_seconds = 2.0
+        self._probe_bg_thread: threading.Thread | None = None
 
     # ------------------------------------------------------------------
     # Initialization
@@ -59,11 +61,14 @@ class RadioJavanCookieManager:
             if self._needs_regeneration(self._state):
                 logger.info("[RJ_COOKIE_MANAGER] Cookies need regeneration")
                 loop = self._get_event_loop()
-                self._state = loop.run_until_complete(self._regenerate_cookies())
+                self._state = loop.run_until_complete(self._regenerate_cookies(fast_mode=True))
+                if self._state and self._state.is_valid:
+                    self._start_background_probe_validation()
             else:
                 logger.info("[RJ_COOKIE_MANAGER] Using existing valid cookies")
                 if not self.state_file.exists():
                     self._save_state(self._state)
+                self._start_background_probe_validation()
 
             self._initialization_complete = True
             return self._state
@@ -75,9 +80,12 @@ class RadioJavanCookieManager:
         self._state = self._load_state()
         if self._needs_regeneration(self._state):
             logger.info("[RJ_COOKIE_MANAGER] Cookies need regeneration")
-            self._state = await self._regenerate_cookies()
+            self._state = await self._regenerate_cookies(fast_mode=True)
+            if self._state and self._state.is_valid:
+                self._start_background_probe_validation()
         else:
             logger.info("[RJ_COOKIE_MANAGER] Using existing valid cookies")
+            self._start_background_probe_validation()
 
         self._initialization_complete = True
         return self._state
@@ -190,7 +198,7 @@ class RadioJavanCookieManager:
             except Exception as exc:
                 logger.warning("[RJ_COOKIE_MANAGER] Failed to delete old cookie file: %s", exc)
 
-    async def _regenerate_cookies(self) -> CookieState:
+    async def _regenerate_cookies(self, fast_mode: bool = False) -> CookieState:
         """Generate cookies with retry + validation probe."""
         logger.info("[RJ_COOKIE_MANAGER] Starting regeneration")
         generating_state = CookieState(is_generating=True, is_valid=False)
@@ -200,7 +208,7 @@ class RadioJavanCookieManager:
         last_state = CookieState(is_valid=False, is_generating=False)
 
         for attempt in range(1, max_attempts + 1):
-            new_state = await self.generator.generate_cookies()
+            new_state = await self.generator.generate_cookies(fast_mode=fast_mode)
             last_state = new_state
 
             if not new_state.is_valid or not new_state.cookie_path:
@@ -213,6 +221,12 @@ class RadioJavanCookieManager:
                     await asyncio.sleep(self._backoff_seconds * attempt)
                     continue
                 self._save_state(new_state)
+                return new_state
+
+            if fast_mode:
+                new_state.error_message = "Generated in fast mode; probe validation pending"
+                self._save_state(new_state)
+                logger.info("[RJ_COOKIE_MANAGER] Fast regeneration complete. Probe deferred")
                 return new_state
 
             # Validate the generated cookies by probing RJ
@@ -240,6 +254,56 @@ class RadioJavanCookieManager:
 
         self._save_state(last_state)
         return last_state
+
+    def _start_background_probe_validation(self) -> None:
+        """Run probe validation in background to keep startup responsive."""
+        if self._probe_bg_thread and self._probe_bg_thread.is_alive():
+            return
+
+        def run() -> None:
+            try:
+                self._background_probe_validation()
+            except Exception as exc:
+                logger.debug(
+                    "[RJ_COOKIE_MANAGER] Background probe validation error: %s",
+                    exc,
+                    exc_info=True,
+                )
+
+        self._probe_bg_thread = threading.Thread(
+            target=run,
+            daemon=True,
+            name="RJProbeValidation",
+        )
+        self._probe_bg_thread.start()
+
+    def _background_probe_validation(self) -> None:
+        with self._lock:
+            state = self._state
+            if not state or not state.is_valid or not state.cookie_path:
+                return
+            cookie_path = state.cookie_path
+
+        probe_ok, reason = self._probe_cookies(cookie_path)
+        if probe_ok:
+            with self._lock:
+                if self._state and self._state.cookie_path == cookie_path:
+                    self._state.error_message = None
+                    self._save_state(self._state)
+            logger.info("[RJ_COOKIE_MANAGER] Background probe passed")
+            return
+
+        logger.warning("[RJ_COOKIE_MANAGER] Background probe failed: %s", reason)
+        with self._lock:
+            if self._state and self._state.cookie_path == cookie_path:
+                details = reason or "probe failed"
+                self._state.error_message = (
+                    f"Generated cookies are fallback-only; probe failed. Reason: {details}"
+                )
+                self._save_state(self._state)
+        logger.info(
+            "[RJ_COOKIE_MANAGER] Keeping current cookies to avoid disruptive background regeneration"
+        )
 
     def _probe_cookies(self, cookie_path: str) -> tuple[bool, str | None]:
         """Probe Radio Javan with the generated cookies to check validity."""

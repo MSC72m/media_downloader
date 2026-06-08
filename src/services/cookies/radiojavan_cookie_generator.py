@@ -167,7 +167,7 @@ class RadioJavanCookieGenerator:
     # Navigation / warm-up
     # ------------------------------------------------------------------
 
-    async def _navigate_and_interact(self, page: Page) -> bool:
+    async def _navigate_and_interact(self, page: Page, fast_mode: bool = False) -> bool:
         """Navigate to Radio Javan, complete Cloudflare challenge, browse pages."""
         rj = self.config.radiojavan
         timeout_ms = rj.cookie_generation_timeout_seconds * 1000
@@ -186,6 +186,10 @@ class RadioJavanCookieGenerator:
 
         await self._handle_cloudflare_challenge(page)
         await self._scroll_page(page)
+
+        if fast_mode:
+            logger.info("[RJ_COOKIE_GENERATOR] Fast mode enabled - skipping warm-up flow")
+            return True
 
         # 2. Visit 1-2 additional pages to look like a real user
         warmup_pages = random.sample(
@@ -315,13 +319,14 @@ class RadioJavanCookieGenerator:
     # Public API
     # ------------------------------------------------------------------
 
-    async def generate_cookies(self) -> CookieState:
+    async def generate_cookies(self, fast_mode: bool = False) -> CookieState:
         """Generate cookies by visiting Radio Javan in a headless browser.
 
         Returns:
             CookieState with generation results.
         """
-        logger.info("[RJ_COOKIE_GENERATOR] Starting cookie generation")
+        mode = "fast" if fast_mode else "full"
+        logger.info(f"[RJ_COOKIE_GENERATOR] Starting cookie generation (mode={mode})")
 
         state = CookieState(is_generating=True, is_valid=False)
         self._update_state(state)
@@ -340,7 +345,7 @@ class RadioJavanCookieGenerator:
 
                 context, page = ctx_result
 
-                if not await self._navigate_and_interact(page):
+                if not await self._navigate_and_interact(page, fast_mode=fast_mode):
                     with contextlib.suppress(Exception):
                         await browser.close()
                     return self._create_error_state("Failed to navigate to Radio Javan")

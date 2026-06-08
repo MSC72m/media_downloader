@@ -1,5 +1,6 @@
 import asyncio
 import json
+import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import Lock
@@ -34,6 +35,7 @@ class CookieManager:
         self._initialization_complete = False
         self._strict_probe_retry_count = 2
         self._strict_probe_backoff_seconds = 1.5
+        self._strict_probe_bg_thread: threading.Thread | None = None
 
     def initialize(self) -> CookieState:
         """Initialize cookie manager - load or generate cookies.
@@ -48,12 +50,16 @@ class CookieManager:
             if self._needs_regeneration(self._state):
                 logger.info("[COOKIE_MANAGER] Cookies need regeneration")
                 loop = self._get_event_loop()
-                self._state = loop.run_until_complete(self._regenerate_cookies())
+                self._state = loop.run_until_complete(self._regenerate_cookies(fast_mode=True))
+                if self._state and self._state.is_valid:
+                    self._start_background_strict_validation()
             elif not self.state_file.exists():
                 logger.info("[COOKIE_MANAGER] Using existing valid cookies")
                 self._save_state(self._state)
+                self._start_background_strict_validation()
             else:
                 logger.info("[COOKIE_MANAGER] Using existing valid cookies")
+                self._start_background_strict_validation()
 
             self._initialization_complete = True
             return self._state
@@ -69,9 +75,12 @@ class CookieManager:
         self._state = self._load_state()
         if self._needs_regeneration(self._state):
             logger.info("[COOKIE_MANAGER] Cookies need regeneration")
-            self._state = await self._regenerate_cookies()
+            self._state = await self._regenerate_cookies(fast_mode=True)
+            if self._state and self._state.is_valid:
+                self._start_background_strict_validation()
         else:
             logger.info("[COOKIE_MANAGER] Using existing valid cookies")
+            self._start_background_strict_validation()
 
         self._initialization_complete = True
         return self._state
@@ -353,7 +362,7 @@ class CookieManager:
             self._state.error_message = "Cookie file validation failed"
         return self._regenerate_and_retry()
 
-    async def _regenerate_cookies(self) -> CookieState:
+    async def _regenerate_cookies(self, fast_mode: bool = False) -> CookieState:
         """Regenerate cookies using the generator.
 
         Returns:
@@ -372,7 +381,7 @@ class CookieManager:
         last_state = CookieState(is_valid=False, is_generating=False)
 
         for attempt in range(1, max_attempts + 1):
-            new_state = await self.generator.generate_cookies()
+            new_state = await self.generator.generate_cookies(fast_mode=fast_mode)
             last_state = new_state
 
             if not new_state.is_valid or not new_state.cookie_path:
@@ -384,6 +393,14 @@ class CookieManager:
                     await self._sleep_before_retry(attempt)
                     continue
                 self._save_state(new_state)
+                return new_state
+
+            if fast_mode:
+                new_state.error_message = "Generated in fast mode; strict validation pending"
+                self._save_state(new_state)
+                logger.info(
+                    "[COOKIE_MANAGER] Fast cookie regeneration complete. Strict validation deferred"
+                )
                 return new_state
 
             strict_valid, reason = self._probe_generated_cookie_strict(new_state.cookie_path)
@@ -424,6 +441,57 @@ class CookieManager:
             )
         except Exception as exc:
             return False, str(exc)
+
+    def _start_background_strict_validation(self) -> None:
+        """Run strict probe validation in background to avoid startup blocking."""
+        if self._strict_probe_bg_thread and self._strict_probe_bg_thread.is_alive():
+            return
+
+        def run() -> None:
+            try:
+                self._background_strict_validation()
+            except Exception as exc:
+                logger.debug(
+                    "[COOKIE_MANAGER] Background strict validation error: %s",
+                    exc,
+                    exc_info=True,
+                )
+
+        self._strict_probe_bg_thread = threading.Thread(
+            target=run,
+            daemon=True,
+            name="YTStrictProbe",
+        )
+        self._strict_probe_bg_thread.start()
+
+    def _background_strict_validation(self) -> None:
+        with self._lock:
+            state = self._state
+            if not state or not state.is_valid or not state.cookie_path:
+                return
+            cookie_path = state.cookie_path
+
+        strict_valid, reason = self._probe_generated_cookie_strict(cookie_path)
+        if strict_valid:
+            with self._lock:
+                if self._state and self._state.cookie_path == cookie_path:
+                    self._state.error_message = None
+                    self._save_state(self._state)
+            logger.info("[COOKIE_MANAGER] Background strict probe passed")
+            return
+
+        logger.warning("[COOKIE_MANAGER] Background strict probe failed: %s", reason)
+        with self._lock:
+            if self._state and self._state.cookie_path == cookie_path:
+                details = reason or "strict probe failed"
+                self._state.error_message = (
+                    "Generated cookies are fallback-only; strict probe failed. "
+                    f"Reason: {details}"
+                )
+                self._save_state(self._state)
+        logger.info(
+            "[COOKIE_MANAGER] Keeping current cookies to avoid disruptive background regeneration"
+        )
 
     async def _sleep_before_retry(self, attempt: int) -> None:
         """Bounded backoff before retrying cookie regeneration."""

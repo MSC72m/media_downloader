@@ -156,7 +156,9 @@ class YouTubeDownloader(BaseDownloader):
 
     def _build_auth_strategies(self) -> list[tuple[str, dict[str, Any]]]:
         """Build ordered auth strategies for YouTube access."""
-        strategies = self.cookie_source_coordinator.build_auth_strategies()
+        strategies = self.cookie_source_coordinator.build_auth_strategies(
+            include_browser_source=False
+        )
         return [(strategy.label, strategy.ytdlp_options) for strategy in strategies]
 
     def _prepare_format_options(self, opts: dict[str, Any], output_template: str) -> str | None:
@@ -245,6 +247,8 @@ class YouTubeDownloader(BaseDownloader):
         self._last_download_error_message = None
         download_succeeded = False
 
+        transient_error_types = {"rate_limit", "network"}
+
         for attempt in range(max_retries):
             try:
                 with yt_dlp.YoutubeDL(cast(Any, opts)) as ydl:
@@ -260,6 +264,9 @@ class YouTubeDownloader(BaseDownloader):
                     break
 
             except Exception as exc:
+                error_type = self._classify_download_error(str(exc))
+                if error_type not in transient_error_types:
+                    max_retries = 1
                 if self._handle_download_exception(
                     exc=exc,
                     attempt=attempt,

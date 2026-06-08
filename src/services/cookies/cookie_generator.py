@@ -239,7 +239,7 @@ class CookieGenerator:
         await asyncio.sleep(watch_seconds)
         return True
 
-    async def _navigate_and_interact(self, page: Page) -> bool:
+    async def _navigate_and_interact(self, page: Page, fast_mode: bool = False) -> bool:
         """Navigate to YouTube, warm up session state, then persist cookies."""
         cookie_config = self.config.cookies
 
@@ -255,6 +255,11 @@ class CookieGenerator:
             await self._wait_for_network_idle(page)
             await self._accept_consent_if_present(page)
             await self._scroll_page(page)
+
+            if fast_mode:
+                logger.info("[COOKIE_GENERATOR] Fast mode enabled - skipping warm-up flow")
+                await asyncio.sleep(cookie_config.wait_after_load)
+                return True
 
             topics = random.sample(
                 _YOUTUBE_WARMUP_SEARCH_TOPICS,
@@ -410,13 +415,14 @@ class CookieGenerator:
 
         return state
 
-    async def generate_cookies(self) -> CookieState:
+    async def generate_cookies(self, fast_mode: bool = False) -> CookieState:
         """Generate cookies by visiting YouTube in headless browser.
 
         Returns:
             CookieState with generation results
         """
-        logger.info("[COOKIE_GENERATOR] Starting cookie generation")
+        mode = "fast" if fast_mode else "full"
+        logger.info(f"[COOKIE_GENERATOR] Starting cookie generation (mode={mode})")
 
         state = CookieState(
             is_generating=True,
@@ -441,7 +447,7 @@ class CookieGenerator:
                 context, page = context_result
                 logger.info("[COOKIE_GENERATOR] Navigating to YouTube")
 
-                if not await self._navigate_and_interact(page):
+                if not await self._navigate_and_interact(page, fast_mode=fast_mode):
                     with contextlib.suppress(Exception):
                         await browser.close()
                     return self._create_error_state("Failed to navigate to YouTube")

@@ -29,6 +29,7 @@ YOUTUBE_EASY_PROBE_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 YOUTUBE_ALL_PROBE_URLS = [*YOUTUBE_STRICT_PROBE_URLS, YOUTUBE_EASY_PROBE_URL]
 
 _BROWSER_PROBE_TTL_HOURS = 12
+_BROWSER_PROBE_FAILURE_COOLDOWN_MINUTES = 45
 
 
 @dataclass(slots=True)
@@ -93,6 +94,37 @@ class YouTubeCookieProbeState:
             expires_at = expires_at.replace(tzinfo=timezone.utc)
 
         return datetime.now(timezone.utc) < expires_at
+
+    def has_recent_probe_failure(self) -> bool:
+        """Return True when the last browser probe failed recently."""
+        if not self.per_browser_result:
+            return False
+
+        has_success = any(
+            bool(result.get("success")) for result in self.per_browser_result.values()
+        )
+        if has_success:
+            return False
+
+        latest_probe_at: datetime | None = None
+        for result in self.per_browser_result.values():
+            timestamp = result.get("last_probe_at")
+            if not isinstance(timestamp, str):
+                continue
+            try:
+                parsed = datetime.fromisoformat(timestamp)
+            except ValueError:
+                continue
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            if latest_probe_at is None or parsed > latest_probe_at:
+                latest_probe_at = parsed
+
+        if latest_probe_at is None:
+            return False
+
+        elapsed = datetime.now(timezone.utc) - latest_probe_at
+        return elapsed < timedelta(minutes=_BROWSER_PROBE_FAILURE_COOLDOWN_MINUTES)
 
 
 @dataclass(slots=True)
@@ -277,6 +309,12 @@ class BrowserCookieSource:
         ):
             return selected
 
+        if not self.force_reprobe and self.coordinator.state.has_recent_probe_failure():
+            logger.info(
+                "[YOUTUBE_COOKIE_COORDINATOR] Skipping browser reprobe due to recent failed probe"
+            )
+            return None
+
         if selected := self.coordinator.probe_browsers(candidates):
             return selected
 
@@ -387,6 +425,7 @@ class YouTubeCookieSourceCoordinator:
         cookie_path_hint: str | None = None,
         preferred_browser: str | None = None,
         force_reprobe: bool = False,
+        include_browser_source: bool = True,
     ) -> list[YouTubeAuthConfig]:
         manual_cookie_path = self._resolve_manual_cookie_hint(cookie_path_hint)
 
@@ -403,9 +442,13 @@ class YouTubeCookieSourceCoordinator:
 
         ordered_sources: list[YouTubeCookieSourceStrategy]
         if explicit_manual:
-            ordered_sources = [manual_source, browser_source, generated_source, no_cookie_source]
+            ordered_sources = [manual_source, generated_source, no_cookie_source]
+            if include_browser_source:
+                ordered_sources.insert(1, browser_source)
         else:
-            ordered_sources = [browser_source, manual_source, generated_source, no_cookie_source]
+            ordered_sources = [generated_source, manual_source, no_cookie_source]
+            if include_browser_source:
+                ordered_sources.insert(0, browser_source)
 
         strategies: list[YouTubeAuthConfig] = []
         seen_signatures: set[tuple[Any, ...]] = set()
@@ -493,27 +536,35 @@ class YouTubeCookieSourceCoordinator:
     def force_reprobe(self) -> list[YouTubeAuthConfig]:
         return self.build_auth_strategies(force_reprobe=True)
 
+    def _get_managed_cookie_path(self) -> str | None:
+        if not self.auto_cookie_manager:
+            return None
+        try:
+            return self.auto_cookie_manager.get_cookies()
+        except Exception:
+            return None
+
+    def _paths_match(self, path_a: str, path_b: str) -> bool:
+        try:
+            return Path(path_a).resolve() == Path(path_b).resolve()
+        except Exception:
+            return False
+
     def _resolve_manual_cookie_hint(self, cookie_path_hint: str | None) -> str | None:
+        managed_path = self._get_managed_cookie_path()
+
         manual_hint: str | None = None
         if cookie_path_hint and self._is_valid_cookie_file(cookie_path_hint):
             manual_hint = cookie_path_hint
-            # If UI passes back the same path already managed by auto cookie manager,
-            # keep it in generated-cookie source instead of manual-cookie source.
-            if self.auto_cookie_manager:
-                try:
-                    managed_path = self.auto_cookie_manager.get_cookies()
-                except Exception:
-                    managed_path = None
+            if managed_path and self._paths_match(cookie_path_hint, managed_path):
+                manual_hint = None
 
-                if managed_path:
-                    try:
-                        if Path(cookie_path_hint).resolve() == Path(managed_path).resolve():
-                            manual_hint = None
-                    except Exception:
-                        pass
         if manual_hint:
             return manual_hint
 
+        return self._resolve_handler_cookie_hint(managed_path)
+
+    def _resolve_handler_cookie_hint(self, managed_path: str | None) -> str | None:
         if not self.cookie_handler:
             return None
 
@@ -527,10 +578,13 @@ class YouTubeCookieSourceCoordinator:
             return None
 
         cookie_file = cookie_info.get("cookiefile")
-        if isinstance(cookie_file, str) and self._is_valid_cookie_file(cookie_file):
-            return cookie_file
+        if not isinstance(cookie_file, str) or not self._is_valid_cookie_file(cookie_file):
+            return None
 
-        return None
+        if managed_path and self._paths_match(cookie_file, managed_path):
+            return None
+
+        return cookie_file
 
     def _is_manual_override(self, cookie_path: str | None) -> bool:
         if not cookie_path:

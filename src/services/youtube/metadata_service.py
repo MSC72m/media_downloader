@@ -1,4 +1,5 @@
 import re
+import threading
 from urllib.parse import parse_qs, urlparse
 
 import requests
@@ -91,9 +92,7 @@ class YouTubeMetadataService(IYouTubeMetadataService):
 
             parsed_info = self.metadata_parser.parse_info(info)
 
-            if subtitle_data := self.subtitle_extractor.extract_subtitles(
-                url, cookie_path, browser
-            ):
+            if subtitle_data := self._extract_subtitles_with_timeout(url, cookie_path, browser):
                 parsed_info["subtitles"] = subtitle_data.get("subtitles", {})
                 parsed_info["automatic_captions"] = subtitle_data.get("automatic_captions", {})
 
@@ -245,3 +244,37 @@ class YouTubeMetadataService(IYouTubeMetadataService):
         except Exception as exc:
             logger.warning(f"[METADATA_SERVICE] oEmbed fallback error: {exc}")
             return None
+
+    def _extract_subtitles_with_timeout(
+        self,
+        url: str,
+        cookie_path: str | None,
+        browser: str | None,
+    ) -> dict[str, object]:
+        """Extract subtitles with a hard timeout to keep metadata UX responsive."""
+        result: dict[str, object] = {}
+        done = threading.Event()
+
+        def worker() -> None:
+            nonlocal result
+            try:
+                extracted = self.subtitle_extractor.extract_subtitles(url, cookie_path, browser)
+                if isinstance(extracted, dict):
+                    result = extracted
+            except Exception as exc:
+                logger.debug("[METADATA_SERVICE] Subtitle extraction error: %s", exc, exc_info=True)
+            finally:
+                done.set()
+
+        thread = threading.Thread(target=worker, daemon=True, name="YTSubtitleExtract")
+        thread.start()
+
+        timeout_seconds = max(1, int(self.config.youtube.subtitle_timeout))
+        if not done.wait(timeout=timeout_seconds):
+            logger.warning(
+                "[METADATA_SERVICE] Subtitle extraction timed out after %ss; continuing without subtitles",
+                timeout_seconds,
+            )
+            return {}
+
+        return result

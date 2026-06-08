@@ -47,7 +47,9 @@ class YouTubeInfoExtractor:
         auth_strategies = self.cookie_source_coordinator.build_auth_strategies(
             cookie_path_hint=cookie_path,
             preferred_browser=browser,
+            include_browser_source=False,
         )
+
         logger.info(
             "[INFO_EXTRACTOR] Auth strategies: "
             + ", ".join(strategy.label for strategy in auth_strategies)
@@ -77,9 +79,10 @@ class YouTubeInfoExtractor:
     def _try_auth_strategy(
         self, url: str, auth_strategy: YouTubeAuthConfig
     ) -> dict[str, Any] | None:
-        clients = ["web", "default"]
+        clients: list[str | None] = [None]
         for client in clients:
-            label = f"{auth_strategy.label}+{client}"
+            client_label = client or "native"
+            label = f"{auth_strategy.label}+{client_label}"
             info = self._extract_single(
                 url,
                 auth_options=auth_strategy.ytdlp_options,

@@ -289,6 +289,9 @@ class YouTubeHandler(BaseHandler):
         Returns:
             True if cookies are generating, False otherwise
         """
+        if self.auto_cookie_manager.is_ready():
+            return False
+
         if self.auto_cookie_manager.is_generating():
             logger.info("[YOUTUBE_HANDLER] Cookie manager reports cookies are generating")
             return True
