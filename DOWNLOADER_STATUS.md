@@ -10,15 +10,15 @@
 
 Tested with real URLs via `test_downloaders_functional.py`:
 
-| Downloader | Status | Output Size | Bug Fixed |
-|------------|--------|-------------|-----------|
-| TikTok | ✅ WORKS | 2 MB | Double-extension bug fixed (`tt.mp4.mp4` → `tt.mp4`) |
-| YouTube | ✅ WORKS | 21 MB | Double-extension bug fixed (`yt.mp4.mp4` → `yt.mp4`) |
-| Twitter | ✅ download()=True | N/A | fxtwitter API returns 404 on test tweets — needs real URL |
-| RadioJavan | ❌ CDN 403 | N/A | Requires Cloudflare cookies |
-| SoundCloud | ❌ HTTP 404 | N/A | Needs real valid URL |
-| Spotify | ❌ YouTube 404 | N/A | Needs real Spotify URL |
-| Instagram | ❌ HTTP 401 | N/A | Requires authentication |
+| Downloader | Status | Output | Fixes Verified |
+|------------|--------|--------|----------------|
+| TikTok | ✅ WORKS | 1.91 MB video | No double-extension (`TikTok.mp4` not `TikTok.mp4.mp4`) |
+| YouTube | ✅ Path construction | Expected `YouTube.mp4` | No double-extension in expected path |
+| SoundCloud | ⚠️ Network-dependent | 6.81 MB MP3 (1st run) / timeout (2nd run) | No double-extension (`SoundCloud.mp3`) |
+| RadioJavan | ✅ WORKS | MP3 saved | Extension appended (`RadioJavan.mp3`), file size verified |
+| Spotify | ⚠️ Network-dependent | Falls through to YouTube | Path correct (`Spotify.mp3`), YouTube 403 when no cookies |
+| Twitter | ⚠️ fxtwitter timeout | N/A | API unreachable from this network |
+| Instagram | ⚠️ Not tested | N/A | Requires instaloader auth |
 
 ---
 
@@ -51,7 +51,7 @@ Tested with real URLs via `test_downloaders_functional.py`:
 - **File:** tests/test_real_downloads.py
 - **Issue:** Non-existent RJ media URL returned True instead of False
 - **Root Cause:** `_construct_download_url` returns best-effort URL without validation failure
-- **Action:** Need to add URL validation before download
+- **Action:** ✅ Fixed — added file size check in `download()`, rejects files < 1024 bytes
 
 ### 3. Network: test_file_validation_and_size_checks
 - **File:** tests/test_actual_downloads.py
