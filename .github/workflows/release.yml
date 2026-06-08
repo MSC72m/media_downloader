@@ -2,6 +2,8 @@ name: Build & Release Windows Installer
 
 on:
   push:
+    branches:
+      - development
     tags:
       - "v*"
 
