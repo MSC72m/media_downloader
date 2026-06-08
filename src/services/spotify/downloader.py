@@ -1,7 +1,7 @@
 import re
 from collections.abc import Callable
 from difflib import SequenceMatcher
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import requests
 import yt_dlp
@@ -12,9 +12,6 @@ from src.core.interfaces import BaseDownloader, IErrorNotifier, IFileService
 
 from ...utils.logger import get_logger
 from ..youtube.downloader import YouTubeDownloader
-
-if TYPE_CHECKING:
-    pass
 
 logger = get_logger(__name__)
 _REQUEST_EXCEPTION = (

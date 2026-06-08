@@ -50,7 +50,6 @@ class SoundCloudDownloader(BaseDownloader):
         self.download_thumbnail = download_thumbnail
         self.speed_limit = speed_limit
         self.retries = retries or self.config.soundcloud.default_retries
-        self.error_handler = error_handler
         self.ytdl_opts = self._get_ytdl_options()
 
     def _get_ytdl_options(self) -> dict[str, Any]:

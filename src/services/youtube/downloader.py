@@ -754,35 +754,40 @@ class YouTubeDownloader(BaseDownloader):
         start_time = time.time()
 
         def hook(d: dict[str, Any]) -> None:
-            status = d.get("status")
+            try:
+                status = d.get("status")
 
-            if status == "downloading":
-                downloaded = d.get("downloaded_bytes", 0)
-                total = d.get("total_bytes") or d.get("total_bytes_estimate", 0)
+                if status == "downloading":
+                    downloaded = d.get("downloaded_bytes", 0)
+                    total = d.get("total_bytes") or d.get("total_bytes_estimate", 0)
 
-                progress = (downloaded / total) * 100 if total > 0 else 0
+                    progress = (downloaded / total) * 100 if total > 0 else 0
 
-                elapsed = time.time() - start_time
-                speed = downloaded / elapsed if elapsed > 0 else 0
+                    elapsed = time.time() - start_time
+                    speed = downloaded / elapsed if elapsed > 0 else 0
 
-                callback(progress, speed)
+                    callback(progress, speed)
 
-            elif status == "finished":
-                # Only report 100% for video files, not subtitles or thumbnails
-                filename = d.get("filename", "")
+                elif status == "finished":
+                    # Only report 100% for video files, not subtitles or thumbnails
+                    filename = d.get("filename", "")
 
-                # Check if this is a subtitle or thumbnail file
-                is_subtitle = filename.endswith((".vtt", ".srt", ".ass", ".sub"))
-                is_thumbnail = filename.endswith((".jpg", ".png", ".webp"))
+                    # Check if this is a subtitle or thumbnail file
+                    is_subtitle = filename.endswith((".vtt", ".srt", ".ass", ".sub"))
+                    is_thumbnail = filename.endswith((".jpg", ".png", ".webp"))
 
-                # Only report completion for the main video/audio file
-                if not is_subtitle and not is_thumbnail:
-                    logger.debug(f"Main download finished: {filename}")
-                    callback(100.0, 0.0)
-                else:
-                    logger.debug(f"Auxiliary file finished: {filename}")
+                    # Only report completion for the main video/audio file
+                    if not is_subtitle and not is_thumbnail:
+                        logger.debug(f"Main download finished: {filename}")
+                        callback(100.0, 0.0)
+                    else:
+                        logger.debug(f"Auxiliary file finished: {filename}")
 
-            elif status == "error":
-                logger.error(f"Download error in progress hook: {d.get('error', 'Unknown error')}")
+                elif status == "error":
+                    logger.error(
+                        f"Download error in progress hook: {d.get('error', 'Unknown error')}"
+                    )
+            except Exception as e:
+                logger.warning(f"Progress callback error: {e}")
 
         return hook

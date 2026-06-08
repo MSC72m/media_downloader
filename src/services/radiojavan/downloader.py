@@ -505,27 +505,27 @@ class RadioJavanDownloader(BaseDownloader):
         hosts = self._candidate_hosts(media_name, media_type)
         paths = self._candidate_paths(media_type)
 
-        first_candidate: str | None = None
+        validated_url: str | None = None
         for host in hosts:
             for path in paths:
                 download_url = f"{host}{path.format(media_name=media_name)}"
-                if first_candidate is None:
-                    first_candidate = download_url
                 if self._validate_url(download_url):
                     logger.debug(f"[RADIOJAVAN_DOWNLOADER] Valid URL found: {download_url}")
-                    return download_url
+                    validated_url = download_url
+                    break
+            if validated_url:
+                break
 
-        if first_candidate:
-            if self._last_access_error:
-                logger.warning(
-                    "[RADIOJAVAN_DOWNLOADER] Returning best-effort URL after transport errors: %s",
-                    self._last_access_error,
-                )
+        if validated_url:
+            return validated_url
+
+        if self._last_access_error:
             logger.warning(
-                "[RADIOJAVAN_DOWNLOADER] No candidate URL validated; returning best-effort URL: "
-                f"{first_candidate}"
+                "[RADIOJAVAN_DOWNLOADER] Returning best-effort URL after transport errors: %s",
+                self._last_access_error,
             )
-            return first_candidate
+            if hosts and paths:
+                return f"{hosts[0]}{paths[0].format(media_name=media_name)}"
 
         logger.warning(f"[RADIOJAVAN_DOWNLOADER] Could not construct valid URL for: {url}")
         return None

@@ -143,7 +143,7 @@ class FileDownloader:
                 )
 
             if progress_callback:
-                progress_callback(100, 0)  # Final progress update
+                progress_callback(100.0, 0.0)  # Final progress update
 
             download_time = time.time() - start_time
             mb_to_bytes = self.config.downloads.kb_to_bytes * 1024

@@ -96,7 +96,7 @@ def _finalize_download(
         return False
 
     if progress_callback:
-        progress_callback(100, 0)
+        progress_callback(100.0, 0.0)
     logger.info(completion_log_message, save_path)
     return True
 
