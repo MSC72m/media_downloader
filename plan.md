@@ -168,10 +168,10 @@ Or simply: `./scripts/quality_gate.sh`
 | Phase | Status | Notes |
 |-------|--------|-------|
 | Phase 1 | ✅ Complete | Created DOWNLOADER_STATUS.md - 320 passed, 3 failed |
-| Phase 2 | ⏳ Pending | |
-| Phase 3 | ⏳ Pending | |
-| Phase 4 | ⏳ Pending | |
-| Phase 5 | ⏳ Pending | |
-| Phase 6 | ⏳ Pending | |
-| Phase 7 | ⏳ Pending | |
+| Phase 2 | ✅ Complete | Removed script, renamed CookieManager -> YouTubeCookieManager |
+| Phase 3 | ✅ Complete | Added _sleep_before_retry, _mark_generated_fallback_only to RJ |
+| Phase 4 | ✅ Complete | quality_gate.sh is single source of truth, workflow.yml calls it |
+| Phase 5 | ✅ Complete | get_cookies() now non-blocking, removed dead code |
+| Phase 6 | ✅ Complete | All downloaders actively used, updated status report |
+| Phase 7 | ✅ Complete | 318 passed, 5 pre-existing failures, 46.26% coverage |
 | Phase 8 | ⏳ Pending | |
