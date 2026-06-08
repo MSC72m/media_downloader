@@ -187,7 +187,9 @@ class SoundCloudDownloader(BaseDownloader):
         try:
             progress_hook = self._create_progress_hook(progress_callback)
             options = self.ytdl_opts.copy()
-            options["outtmpl"] = f"{save_path}.%(ext)s"
+            # Strip extension from save_path to avoid double-extension (e.g. track.mp3.mp3)
+            stem = os.path.splitext(save_path)[0]
+            options["outtmpl"] = f"{stem}.%(ext)s"
             options["progress_hooks"] = [progress_hook]
 
             with yt_dlp.YoutubeDL(cast(Any, options)) as ydl:

@@ -387,7 +387,9 @@ class YouTubeDownloader(BaseDownloader):
             base_filename = os.path.basename(save_path)
             sanitizer = FilenameSanitizer()
             sanitized_name = sanitizer.sanitize_filename(base_filename)
-            output_template = os.path.join(save_dir, sanitized_name)
+            # Strip existing extension so _prepare_format_options can set the correct one
+            stem = os.path.splitext(sanitized_name)[0]
+            output_template = os.path.join(save_dir, stem)
 
             opts = self.ytdl_opts.copy()
             preferred_ext = self._prepare_format_options(opts, output_template)
