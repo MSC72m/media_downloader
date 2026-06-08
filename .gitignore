@@ -479,6 +479,12 @@ fabric.properties
 
 REFACTOR_PLAN.md
 
+# OS and generated test artifacts
+.DS_Store
+test_output/
+test_downloads/
+test_downloaders_functional.py
+
 # Documentation files (keep only README.md)
 /*.md
 !README.md
