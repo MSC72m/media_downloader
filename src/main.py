@@ -375,26 +375,32 @@ if __name__ == "__main__":
         logger.info("[MAIN_APP] Step 1/3: Checking Playwright installation...")
         _check_playwright_installation()
 
-        # Step 2: Create and display the main application window
-        logger.info("[MAIN_APP] Step 2/3: Initializing application window...")
-        app = MediaDownloaderApp()
-
-        # Step 3: Ensure Chromium browser is downloaded (first-run setup).
-        # If Chromium is already installed this returns immediately.
-        # If not, a progress dialog is shown to the user during download.
-        logger.info("[MAIN_APP] Step 3/3: Checking Chromium browser availability...")
+        # Step 2: Ensure Chromium browser is downloaded BEFORE creating the
+        # app. Cookie init threads launch browsers immediately on startup
+        # and fail if Chromium isn't installed yet.
+        logger.info("[MAIN_APP] Step 2/3: Ensuring Chromium browser is available...")
         try:
-            from src.services.cookies.playwright_bootstrap import ensure_playwright_ready
+            from src.services.cookies.playwright_bootstrap import (
+                ensure_playwright_ready,
+                is_chromium_installed,
+            )
 
-            if ensure_playwright_ready(root_window=app):
-                logger.info("[MAIN_APP] Startup complete - all dependencies ready")
+            if not is_chromium_installed():
+                logger.info("[MAIN_APP] Chromium not found - installing now (blocking)...")
+                if not ensure_playwright_ready(root_window=None):
+                    logger.warning(
+                        "[MAIN_APP] Chromium installation failed - cookie generation will not work"
+                    )
+                else:
+                    logger.info("[MAIN_APP] Chromium installed successfully")
             else:
-                logger.warning(
-                    "[MAIN_APP] Startup complete - Chromium unavailable, "
-                    "cookie generation will not work"
-                )
+                logger.info("[MAIN_APP] Chromium already installed")
         except Exception as e:
             logger.warning(f"[MAIN_APP] Playwright bootstrap skipped: {e}")
+
+        # Step 3: Create and display the main application window
+        logger.info("[MAIN_APP] Step 3/3: Initializing application window...")
+        app = MediaDownloaderApp()
 
         app.mainloop()
 
