@@ -22,15 +22,26 @@ from src.services.tiktok.downloader import TikTokDownloader
 
 def _retry_on_network_error(func, retries=3, delay=2):
     """Retry a function on network errors."""
+    import socket
     last_error = None
     for attempt in range(retries):
         try:
             return func()
-        except (requests.ConnectionError, requests.Timeout, OSError) as e:
+        except (socket.error, socket.timeout, OSError) as e:
             last_error = e
             if attempt < retries - 1:
                 time.sleep(delay * (attempt + 1))
     raise last_error
+
+
+def _httpbin_reachable():
+    """Check if httpbin.org is reachable."""
+    import socket
+    try:
+        socket.create_connection(("httpbin.org", 443), timeout=5).close()
+        return True
+    except (socket.error, OSError):
+        return False
 
 
 class MockFileService:
@@ -94,6 +105,7 @@ class MockErrorNotifier:
 class TestActualDownloads:
     """Test actual file downloads with real network requests."""
 
+    @pytest.mark.skipif(not _httpbin_reachable(), reason="httpbin.org not reachable")
     def test_network_download_basic_file(self):
         """Test downloading a real file from the internet."""
         # Use a known working test file
@@ -225,6 +237,7 @@ class TestActualDownloads:
 
         print("✅ Progress callback functionality works")
 
+    @pytest.mark.skipif(not _httpbin_reachable(), reason="httpbin.org not reachable")
     def test_file_validation_and_size_checks(self):
         """Test file validation and size checking."""
         small_file_url = "https://httpbin.org/bytes/1024"
