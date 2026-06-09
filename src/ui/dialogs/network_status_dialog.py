@@ -1,3 +1,4 @@
+import contextlib
 import threading
 
 import customtkinter as ctk
@@ -17,6 +18,7 @@ class NetworkStatusDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         self.parent = parent
         self.service_statuses = dict.fromkeys(ServiceType, NetworkStatus.UNKNOWN)
+        self._is_destroyed = False
 
         self._theme_manager = theme_manager or get_theme_manager()
         self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
@@ -126,7 +128,8 @@ class NetworkStatusDialog(ctk.CTkToplevel, WindowCenterMixin):
                     self.service_statuses[service] = NetworkStatus.ERROR
                     any_error = True
 
-            self.after(0, lambda: self.update_status_display(service_results, any_error))
+            if not self._is_destroyed:
+                self.after(0, lambda: self.update_status_display(service_results, any_error))
 
         threading.Thread(target=check_worker, daemon=True).start()
 
@@ -185,6 +188,9 @@ class NetworkStatusDialog(ctk.CTkToplevel, WindowCenterMixin):
             step_label.pack(anchor="w", padx=20)
 
     def destroy(self) -> None:
+        self._is_destroyed = True
+        with contextlib.suppress(Exception):
+            self.grab_release()
         if self._theme_manager:
             self._theme_manager.unsubscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
         super().destroy()

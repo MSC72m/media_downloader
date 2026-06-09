@@ -413,6 +413,10 @@ class ApplicationOrchestrator:
 
     def cleanup(self) -> None:
         try:
+            if hasattr(self.event_coordinator, "event_bus"):
+                self.event_coordinator.event_bus.stop_processing()
+                self.event_coordinator.event_bus.clear()
+
             if hasattr(self.event_coordinator, "downloads") and hasattr(
                 self.event_coordinator.downloads, "cleanup"
             ):

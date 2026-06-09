@@ -77,13 +77,15 @@ def schedule_on_main_thread(
     func: Callable[[], None],
     immediate: bool = False,
 ) -> None:
+    import threading
+
     if root is not None:
         try:
             root.after(0, func)
             return
         except Exception as e:
             logger.error(f"[TYPE_HELPER] Failed to schedule on main thread: {e}")
-    if immediate:
+    if immediate and threading.current_thread() is threading.main_thread():
         func()
 
 

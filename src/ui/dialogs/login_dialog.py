@@ -1,3 +1,5 @@
+import contextlib
+
 import customtkinter as ctk
 
 from src.core.enums.message_level import MessageLevel
@@ -115,6 +117,8 @@ class LoginDialog(ctk.CTkToplevel, WindowCenterMixin):
         """Handle theme change - CTk widgets auto-update, subscription enables future extensions."""
 
     def destroy(self) -> None:
+        with contextlib.suppress(Exception):
+            self.grab_release()
         if self._theme_manager:
             self._theme_manager.unsubscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
         super().destroy()

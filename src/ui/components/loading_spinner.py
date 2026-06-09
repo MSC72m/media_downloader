@@ -1,3 +1,4 @@
+import contextlib
 import math
 
 import customtkinter as ctk
@@ -30,6 +31,7 @@ class SmallLoadingSpinner(ctk.CTkToplevel, WindowCenterMixin):
         self.size = size
         self.is_running = False
         self.angle = 0
+        self._animation_id = None
 
         self._theme_manager = theme_manager or get_theme_manager()
         self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
@@ -130,7 +132,7 @@ class SmallLoadingSpinner(ctk.CTkToplevel, WindowCenterMixin):
 
             self.canvas.itemconfig(segment, fill=color)
 
-        self.after(50, self._animate)
+        self._animation_id = self.after(50, self._animate)
 
     def set_message(self, message: str) -> None:
         """Update the loading message."""
@@ -161,7 +163,6 @@ class SmallLoadingSpinner(ctk.CTkToplevel, WindowCenterMixin):
 
         self._safe_deiconify()  # Show the window
         self.lift()  # Bring to front
-        self.grab_set()  # Make modal
         self.start()  # Start animation
 
     def hide(self) -> None:
@@ -172,6 +173,8 @@ class SmallLoadingSpinner(ctk.CTkToplevel, WindowCenterMixin):
     def destroy(self) -> None:
         """Clean up the spinner."""
         self.stop()
+        with contextlib.suppress(Exception):
+            self.after_cancel(self._animation_id)
         if self._theme_manager:
             self._theme_manager.unsubscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
         super().destroy()
@@ -268,6 +271,9 @@ class LoadingOverlay(ctk.CTkFrame):
 
     def destroy(self) -> None:
         """Clean up the overlay."""
+        if self.spinner:
+            with contextlib.suppress(Exception):
+                self.spinner.destroy()
         if self._theme_manager:
             self._theme_manager.unsubscribe(
                 ThemeEvent.THEME_CHANGED, self._on_overlay_theme_changed

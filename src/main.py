@@ -161,6 +161,7 @@ class MediaDownloaderApp(ctk.CTk):
         self.geometry("1000x700")
 
         self.thread_queue = queue.Queue(maxsize=100)
+        self._queue_processor_running = True
         self.after(100, self._process_thread_queue)
 
         application_orchestrator = cast(
@@ -187,6 +188,8 @@ class MediaDownloaderApp(ctk.CTk):
         self.after(100, self.orchestrator.check_connectivity)
 
     def _process_thread_queue(self) -> None:
+        if not self._queue_processor_running:
+            return
         try:
             max_tasks_per_cycle = 10
             tasks_processed = 0
@@ -203,7 +206,8 @@ class MediaDownloaderApp(ctk.CTk):
         except Exception as e:
             logger.error(f"[MAIN_APP] Error in event loop: {e}", exc_info=True)
         finally:
-            self.after(33, self._process_thread_queue)
+            if self._queue_processor_running:
+                self.after(33, self._process_thread_queue)
 
     def run_on_main_thread(self, func: Callable[[], None]) -> None:
         try:
@@ -360,6 +364,7 @@ class MediaDownloaderApp(ctk.CTk):
 
     def _on_closing(self) -> None:
         logger.info("[MAIN_APP] Application closing - cleaning up")
+        self._queue_processor_running = False
         self._graceful_shutdown()
 
         try:

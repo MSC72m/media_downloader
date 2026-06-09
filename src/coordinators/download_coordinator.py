@@ -442,4 +442,7 @@ class DownloadCoordinator:
     def cleanup(self) -> None:
         """Clean up resources."""
         logger.info("[DOWNLOAD_COORDINATOR] Cleaning up")
-        # The event bus and other services are managed by the orchestrator
+        if self.event_bus:
+            self.event_bus.unsubscribe(DownloadEvent.PROGRESS, self._on_progress_event)
+            self.event_bus.unsubscribe(DownloadEvent.COMPLETED, self._on_completed_event)
+            self.event_bus.unsubscribe(DownloadEvent.FAILED, self._on_failed_event)

@@ -60,6 +60,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         self._metadata_handler_called = False
         self._metadata_ready = False
         self.selected_subtitles = []
+        self._poll_after_id = None
 
         self._theme_manager = theme_manager or get_theme_manager()
         self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
@@ -107,7 +108,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             except Exception as e:
                 logger.error(f"Error in metadata handler: {e}", exc_info=True)
         elif not self._metadata_handler_called:
-            self.after(100, self._poll_metadata_completion)
+            self._poll_after_id = self.after(100, self._poll_metadata_completion)
 
     def _safe_deiconify(self) -> None:
         """Safely deiconify the window, handling CustomTkinter race conditions."""
@@ -971,6 +972,13 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             )
 
     def destroy(self) -> None:
+        with contextlib.suppress(Exception):
+            self.after_cancel(self._poll_after_id)
+        if self.loading_overlay:
+            with contextlib.suppress(Exception):
+                self.loading_overlay.close()
+        with contextlib.suppress(Exception):
+            self.grab_release()
         if self._theme_manager:
             self._theme_manager.unsubscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
         super().destroy()

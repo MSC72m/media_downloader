@@ -1,3 +1,4 @@
+import contextlib
 import queue
 import threading
 from collections.abc import Callable
@@ -126,7 +127,8 @@ class EventBus(Generic[EventType]):
             logger.error(f"[EVENT_BUS] Error processing events: {e}", exc_info=True)
         finally:
             if self._processing:
-                self._root.after(50, self._process_events)
+                with contextlib.suppress(Exception):
+                    self._root.after(50, self._process_events)
             else:
                 logger.warning("[EVENT_BUS] Processing stopped, not scheduling next cycle")
 
