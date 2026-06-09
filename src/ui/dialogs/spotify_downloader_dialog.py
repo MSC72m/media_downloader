@@ -536,52 +536,64 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         type_label.pack(anchor="w")
 
     def _add_thumbnail_preview(self, parent_frame) -> None:
-        """Add thumbnail preview (YouTube pattern)."""
+        """Add thumbnail preview (YouTube pattern).
+
+        Thumbnail is fetched on a background thread to avoid blocking the UI.
+        """
         if not self.spotify_metadata or not self.spotify_metadata.get("thumbnail"):
             return
 
         logger.debug("[SPOTIFY_DIALOG] Adding thumbnail preview")
+        thumbnail_url = self.spotify_metadata["thumbnail"]
 
-        try:
-            thumbnail_url = self.spotify_metadata["thumbnail"]
-            response = requests.get(thumbnail_url, timeout=10)
-            response.raise_for_status()
+        def _fetch_and_display() -> None:
+            try:
+                response = requests.get(thumbnail_url, timeout=10)
+                response.raise_for_status()
 
-            image = PIL.Image.open(io.BytesIO(response.content))
-            image.thumbnail((200, 200))
-            ctk_image = ctk.CTkImage(
-                light_image=image,
-                dark_image=image,
-                size=image.size,
-            )
+                image = PIL.Image.open(io.BytesIO(response.content))
+                image.thumbnail((200, 200))
+                ctk_image = ctk.CTkImage(
+                    light_image=image,
+                    dark_image=image,
+                    size=image.size,
+                )
 
-            colors = self._theme_manager.get_colors()
-            surface = colors.get("surface", "#2b2b2b")
-            border_color = colors.get("border_color", ["#007BFF", "#0056b3"])
+                def _update_ui() -> None:
+                    try:
+                        colors = self._theme_manager.get_colors()
+                        surface = colors.get("surface", "#2b2b2b")
+                        border_color = colors.get("border_color", ["#007BFF", "#0056b3"])
 
-            thumbnail_container = ctk.CTkFrame(
-                parent_frame,
-                corner_radius=12,
-                fg_color=surface,
-                border_width=2,
-                border_color=border_color,
-            )
-            thumbnail_container.pack(side="left", padx=(0, 15))
+                        thumbnail_container = ctk.CTkFrame(
+                            parent_frame,
+                            corner_radius=12,
+                            fg_color=surface,
+                            border_width=2,
+                            border_color=border_color,
+                        )
+                        thumbnail_container.pack(side="left", padx=(0, 15))
 
-            thumbnail_label = ctk.CTkLabel(
-                thumbnail_container,
-                image=ctk_image,
-                text="",
-            )
-            thumbnail_label.pack(padx=10, pady=10)
-            thumbnail_label_any = cast(Any, thumbnail_label)
-            thumbnail_label_any.image = ctk_image
-            self._thumbnail_image = ctk_image
+                        thumbnail_label = ctk.CTkLabel(
+                            thumbnail_container,
+                            image=ctk_image,
+                            text="",
+                        )
+                        thumbnail_label.pack(padx=10, pady=10)
+                        thumbnail_label_any = cast(Any, thumbnail_label)
+                        thumbnail_label_any.image = ctk_image
+                        self._thumbnail_image = ctk_image
 
-            logger.debug("[SPOTIFY_DIALOG] Thumbnail preview added successfully")
+                        logger.debug("[SPOTIFY_DIALOG] Thumbnail preview added successfully")
+                    except Exception as e:
+                        logger.warning(f"[SPOTIFY_DIALOG] Failed to display thumbnail: {e}")
 
-        except Exception as e:
-            logger.warning(f"[SPOTIFY_DIALOG] Failed to load thumbnail: {e}")
+                self.after(0, _update_ui)
+
+            except Exception as e:
+                logger.warning(f"[SPOTIFY_DIALOG] Failed to load thumbnail: {e}")
+
+        threading.Thread(target=_fetch_and_display, daemon=True).start()
 
     def _add_single_track_section(self) -> None:
         """Add single track YouTube search results section (YouTube pattern)."""
@@ -779,7 +791,11 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             self._show_error("Please select a YouTube video to download")
             return
 
-        youtube_url = self.selected_youtube_result.get("webpage_url")
+        youtube_url = SpotifyDownloader._extract_youtube_url(self.selected_youtube_result)
+        if not youtube_url:
+            self._show_error("Selected YouTube result has no valid URL")
+            return
+
         title = self.selected_youtube_result.get("title", "Spotify Track")
         filename = f"{title}.mp3"
 
@@ -813,9 +829,10 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         youtube_url = None
         title = None
-        if track_data.get("best_match"):
-            youtube_url = track_data["best_match"].get("webpage_url")
-            title = track_data["best_match"].get("title", track_data.get("title", "Spotify Track"))
+        best_match = track_data.get("best_match")
+        if best_match:
+            youtube_url = SpotifyDownloader._extract_youtube_url(best_match)
+            title = best_match.get("title", track_data.get("title", "Spotify Track"))
 
         if not youtube_url:
             self._show_error("No YouTube match found for selected track")

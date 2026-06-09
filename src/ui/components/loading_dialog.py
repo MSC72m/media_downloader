@@ -66,9 +66,6 @@ class LoadingDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         self.update_idletasks()
 
-        self.grab_set()
-        self.focus_set()
-
         self.start_animation()
 
         if timeout > 0:

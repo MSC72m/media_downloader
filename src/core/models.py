@@ -88,6 +88,8 @@ class Download(BaseModel):
     model_config = {"arbitrary_types_allowed": True}
 
     def __init__(self, **kwargs: object) -> None:
+        if "url" in kwargs and kwargs["url"] is None:
+            raise ValueError("Download URL cannot be None")
         super().__init__(**kwargs)
         if hasattr(self, "url") and self.url:
             self._validate_url(self.url)

@@ -13,11 +13,9 @@ import yt_dlp
 
 from src.core.config import AppConfig, get_config
 from src.services.cookies import YouTubeCookieSourceCoordinator
-from src.services.network.checker import check_site_connection
 from src.services.ytdlp_logger import YTDLPLoggerBridge
 from src.utils.logger import get_logger
 
-from ...core.enums import ServiceType
 from ...core.interfaces import (
     BaseDownloader,
     IAutoCookieManager,
@@ -371,11 +369,6 @@ class YouTubeDownloader(BaseDownloader):
         Returns:
             True if download was successful, False otherwise
         """
-        connected, error_msg = check_site_connection(ServiceType.YOUTUBE)
-        if not connected:
-            logger.error(f"Cannot download from YouTube: {error_msg}")
-            return False
-
         if (normalized_url := self._canonicalize_video_url(url)) != url:
             logger.info("[YOUTUBE_DOWNLOADER] Normalized YouTube URL for download")
             url = normalized_url

@@ -878,6 +878,8 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
     def _add_thumbnail_preview(self, thumbnail_url: str) -> None:
         """Add thumbnail preview to dialog.
 
+        Thumbnail is fetched on a background thread to avoid blocking the UI.
+
         Args:
             thumbnail_url: URL of the thumbnail image
         """
@@ -886,47 +888,58 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         logger.debug(f"[YOUTUBE_DIALOG] Adding thumbnail preview from: {thumbnail_url}")
 
-        try:
-            response = requests.get(thumbnail_url, timeout=10)
-            response.raise_for_status()
+        def _fetch_and_display() -> None:
+            try:
+                response = requests.get(thumbnail_url, timeout=10)
+                response.raise_for_status()
 
-            image = PIL.Image.open(io.BytesIO(response.content))
-            image.thumbnail((320, 180))
+                image = PIL.Image.open(io.BytesIO(response.content))
+                image.thumbnail((320, 180))
 
-            ctk_image = ctk.CTkImage(
-                light_image=image,
-                dark_image=image,
-                size=image.size,
-            )
+                ctk_image = ctk.CTkImage(
+                    light_image=image,
+                    dark_image=image,
+                    size=image.size,
+                )
 
-            thumbnail_outer_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
-            thumbnail_outer_frame.pack(fill="x", pady=(0, 20))
+                def _update_ui() -> None:
+                    try:
+                        thumbnail_outer_frame = ctk.CTkFrame(
+                            self.main_frame, fg_color="transparent"
+                        )
+                        thumbnail_outer_frame.pack(fill="x", pady=(0, 20))
 
-            colors = self._theme_manager.get_colors()
-            surface = colors.get("surface", "#2b2b2b")
-            card_border = colors.get("card_border", "#4a4a4a")
+                        colors = self._theme_manager.get_colors()
+                        surface = colors.get("surface", "#2b2b2b")
+                        card_border = colors.get("card_border", "#4a4a4a")
 
-            thumbnail_container = ctk.CTkFrame(
-                thumbnail_outer_frame,
-                corner_radius=12,
-                fg_color=surface,
-                border_width=2,
-                border_color=card_border,
-            )
-            thumbnail_container.pack(pady=10)
+                        thumbnail_container = ctk.CTkFrame(
+                            thumbnail_outer_frame,
+                            corner_radius=12,
+                            fg_color=surface,
+                            border_width=2,
+                            border_color=card_border,
+                        )
+                        thumbnail_container.pack(pady=10)
 
-            thumbnail_label = ctk.CTkLabel(
-                thumbnail_container,
-                image=ctk_image,
-                text="",
-            )
-            thumbnail_label.pack(padx=10, pady=10)
-            self._thumbnail_ctk_image = ctk_image
+                        thumbnail_label = ctk.CTkLabel(
+                            thumbnail_container,
+                            image=ctk_image,
+                            text="",
+                        )
+                        thumbnail_label.pack(padx=10, pady=10)
+                        self._thumbnail_ctk_image = ctk_image
 
-            logger.debug("[YOUTUBE_DIALOG] Thumbnail preview added successfully")
+                        logger.debug("[YOUTUBE_DIALOG] Thumbnail preview added successfully")
+                    except Exception as e:
+                        logger.warning(f"[YOUTUBE_DIALOG] Failed to display thumbnail: {e}")
 
-        except Exception as e:
-            logger.warning(f"[YOUTUBE_DIALOG] Failed to load thumbnail: {e}")
+                self.after(0, _update_ui)
+
+            except Exception as e:
+                logger.warning(f"[YOUTUBE_DIALOG] Failed to load thumbnail: {e}")
+
+        threading.Thread(target=_fetch_and_display, daemon=True).start()
 
     def _show_error(self, message: str) -> None:
         """Show error message temporarily."""

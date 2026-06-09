@@ -126,40 +126,50 @@ class SoundCloudDialogHandler(DialogHandler):
     )
 
     def show_dialog(self, url: str, on_download_callback: Callable) -> None:
-        """Show SoundCloud download dialog with track info."""
-        try:
-            downloader = SoundCloudDownloader(error_handler=self.error_handler)
-            if not (info := downloader.get_info(url)):
+        """Show SoundCloud download dialog with track info.
+
+        Metadata is fetched on a background thread to avoid blocking the UI.
+        """
+        import threading
+
+        def _fetch_and_create() -> None:
+            try:
+                downloader = SoundCloudDownloader(error_handler=self.error_handler)
+                info = downloader.get_info(url)
+
+                if info and downloader._is_premium_track(info):
+                    error_msg = "This SoundCloud track requires a Go+ subscription. Premium tracks cannot be downloaded."
+                    self.error_handler.handle_service_failure(
+                        "SoundCloud", "download", error_msg, url
+                    )
+                    return
+
+                if info:
+                    track_name = f"{info.get('artist', 'Unknown')} - {info.get('title', 'Unknown')}"
+                else:
+                    track_name = os.path.basename(url) or "soundcloud_download"
+
                 download = Download(
                     url=url,
-                    name=os.path.basename(url) or "soundcloud_download",
+                    name=track_name,
                     service_type="soundcloud",
                 )
                 on_download_callback(download)
-                return
+                logger.info(f"[SOUNDCLOUD_DIALOG] Download added: {track_name}")
 
-            if downloader._is_premium_track(info):
-                error_msg = "This SoundCloud track requires a Go+ subscription. Premium tracks cannot be downloaded."
-                self.error_handler.handle_service_failure("SoundCloud", "download", error_msg, url)
-                return
+            except Exception as e:
+                error_str = str(e)
+                if self._PREMIUM_KEYWORD_PATTERN.search(error_str):
+                    error_msg = "This SoundCloud track requires a Go+ subscription. Premium tracks cannot be downloaded."
+                    self.error_handler.handle_service_failure(
+                        "SoundCloud", "download", error_msg, url
+                    )
+                    return
 
-            track_name = f"{info.get('artist', 'Unknown')} - {info.get('title', 'Unknown')}"
-            download = Download(
-                url=url,
-                name=track_name,
-                service_type="soundcloud",
-            )
-            on_download_callback(download)
-            logger.info(f"[SOUNDCLOUD_DIALOG] Download added: {track_name}")
-        except Exception as e:
-            error_str = str(e)
-            if self._PREMIUM_KEYWORD_PATTERN.search(error_str):
-                error_msg = "This SoundCloud track requires a Go+ subscription. Premium tracks cannot be downloaded."
-                self.error_handler.handle_service_failure("SoundCloud", "download", error_msg, url)
-                return
+                logger.error(f"[SOUNDCLOUD_DIALOG] Error: {e}", exc_info=True)
+                self.error_handler.handle_exception(e, "SoundCloud dialog", "SoundCloud")
 
-            logger.error(f"[SOUNDCLOUD_DIALOG] Error: {e}", exc_info=True)
-            self.error_handler.handle_exception(e, "SoundCloud dialog", "SoundCloud")
+        threading.Thread(target=_fetch_and_create, daemon=True).start()
 
 
 class RadioJavanDialogHandler(DialogHandler):

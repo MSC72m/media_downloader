@@ -241,11 +241,9 @@ class TestSoundCloudDownloaderOutputVerification:
 class TestYouTubeDownloaderFormatFallback:
     """Test YouTube downloader format fallback functionality."""
 
-    @patch("src.services.youtube.downloader.check_site_connection")
     @patch("src.services.youtube.downloader.yt_dlp.YoutubeDL")
-    def test_youtube_format_fallback_on_info_extraction_failure(self, mock_ydl_class, mock_check):
+    def test_youtube_format_fallback_on_info_extraction_failure(self, mock_ydl_class):
         """Test YouTube downloader tries format fallback when info extraction fails."""
-        mock_check.return_value = (True, None)
 
         mock_ydl = MagicMock()
         mock_ydl.extract_info.side_effect = [None, {"id": "test"}]
@@ -267,11 +265,9 @@ class TestYouTubeDownloaderFormatFallback:
         calls = mock_ydl.extract_info.call_args_list
         assert len(calls) >= 1
 
-    @patch("src.services.youtube.downloader.check_site_connection")
     @patch("src.services.youtube.downloader.yt_dlp.YoutubeDL")
-    def test_youtube_format_fallback_uses_best_then_worst(self, mock_ydl_class, mock_check):
+    def test_youtube_format_fallback_uses_best_then_worst(self, mock_ydl_class):
         """Test YouTube downloader tries 'best' then 'worst' format on failure."""
-        mock_check.return_value = (True, None)
 
         mock_ydl = MagicMock()
         mock_ydl.extract_info.return_value = None
@@ -287,11 +283,9 @@ class TestYouTubeDownloaderFormatFallback:
 
         assert mock_ydl.extract_info.call_count >= 2
 
-    @patch("src.services.youtube.downloader.check_site_connection")
     @patch("src.services.youtube.downloader.yt_dlp.YoutubeDL")
-    def test_youtube_handles_format_error_with_fallback(self, mock_ydl_class, mock_check):
+    def test_youtube_handles_format_error_with_fallback(self, mock_ydl_class):
         """Test YouTube downloader handles format errors with fallback."""
-        mock_check.return_value = (True, None)
 
         class DownloadError(Exception):
             pass
