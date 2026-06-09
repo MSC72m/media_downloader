@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import contextlib
+
 import customtkinter as ctk
 
 from src.core.enums.appearance_mode import AppearanceMode
@@ -81,14 +83,12 @@ class ThemeSwitcher(ctk.CTkFrame):
         def prevent_selection(_event) -> str:
             return "break"
 
-        try:
+        with contextlib.suppress(Exception):
             entry = self.color_dropdown._entry
             entry.bind("<Key>", prevent_edit)
             entry.bind("<Button-1>", lambda _e: self.color_dropdown._open_dropdown_menu())
             entry.bind("<Control-a>", prevent_selection)
             entry.bind("<Button-3>", prevent_selection)
-        except Exception:
-            pass
 
     @staticmethod
     def _normalize_color(color):
@@ -154,3 +154,8 @@ class ThemeSwitcher(ctk.CTkFrame):
         emoji = emoji_map.get(color_str, "🔵")
         current_display = f"{emoji} {color_str.capitalize()}"
         self.color_dropdown.set(current_display)
+
+    def destroy(self) -> None:
+        if self._theme_manager:
+            self._theme_manager.unsubscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
+        super().destroy()

@@ -146,11 +146,9 @@ class SmallLoadingSpinner(ctk.CTkToplevel, WindowCenterMixin):
             self.update_idletasks()
             self.deiconify()
         except Exception:
-            try:
+            with contextlib.suppress(Exception):
                 self.update()
                 self.deiconify()
-            except Exception:
-                pass
 
     def show(self, parent=None) -> None:
         """Show the spinner centered on parent or screen."""

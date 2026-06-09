@@ -68,4 +68,6 @@ class OptionsBar(ctk.CTkFrame):
 
     def destroy(self) -> None:
         self._running = False
+        if self._theme_manager:
+            self._theme_manager.unsubscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
         super().destroy()

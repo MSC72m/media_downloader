@@ -177,3 +177,8 @@ class DownloadListView(ctk.CTkFrame):
 
     def has_completed_downloads(self) -> bool:
         return any(download.status == DownloadStatus.COMPLETED for download in self._downloads)
+
+    def destroy(self) -> None:
+        if self._theme_manager:
+            self._theme_manager.unsubscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
+        super().destroy()

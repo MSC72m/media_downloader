@@ -182,3 +182,8 @@ class ActionButtonBar(ctk.CTkFrame):
 
     def _on_theme_changed(self, appearance, color) -> None:
         self._apply_theme_colors()
+
+    def destroy(self) -> None:
+        if self._theme_manager:
+            self._theme_manager.unsubscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
+        super().destroy()

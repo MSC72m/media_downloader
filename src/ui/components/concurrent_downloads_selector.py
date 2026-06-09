@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import contextlib
+
 import customtkinter as ctk
 
 from src.core.config import AppConfig, get_config
@@ -54,6 +56,11 @@ class ConcurrentDownloadsSelector(ctk.CTkFrame):
 
         self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
 
+    def destroy(self) -> None:
+        if self._theme_manager:
+            self._theme_manager.unsubscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
+        super().destroy()
+
     def _make_combobox_readonly(self) -> None:
         def prevent_edit(event) -> str | None:
             if event.keysym not in ("Return", "Escape", "Up", "Down"):
@@ -63,14 +70,12 @@ class ConcurrentDownloadsSelector(ctk.CTkFrame):
         def prevent_selection(_event) -> str:
             return "break"
 
-        try:
+        with contextlib.suppress(Exception):
             entry = self.dropdown._entry
             entry.bind("<Key>", prevent_edit)
             entry.bind("<Button-1>", lambda _e: self.dropdown._open_dropdown_menu())
             entry.bind("<Control-a>", prevent_selection)
             entry.bind("<Button-3>", prevent_selection)
-        except Exception:
-            pass
 
     def _apply_theme_colors(self) -> None:
         theme_json = self._theme_manager.get_theme_json()

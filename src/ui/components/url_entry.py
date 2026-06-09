@@ -110,3 +110,8 @@ class URLEntryFrame(ctk.CTkFrame):
 
     def clear(self) -> None:
         self.url_entry.delete(0, tk.END)
+
+    def destroy(self) -> None:
+        if self._theme_manager:
+            self._theme_manager.unsubscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
+        super().destroy()

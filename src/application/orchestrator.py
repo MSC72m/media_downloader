@@ -390,7 +390,7 @@ class ApplicationOrchestrator:
             if status_bar:
                 status_bar.show_warning(f"Network issue: {error_message or 'Connection failed'}")
             if self.container.has(IMessageQueue):
-                try:
+                with contextlib.suppress(Exception):
                     if message_queue := self.container.get(IMessageQueue):
                         message_queue.add_message(
                             Message(
@@ -399,8 +399,6 @@ class ApplicationOrchestrator:
                                 title="Network Status",
                             )
                         )
-                except Exception:
-                    pass
 
             if self.event_coordinator:
                 self.event_coordinator.show_network_status()

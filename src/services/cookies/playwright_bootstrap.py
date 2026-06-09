@@ -416,7 +416,8 @@ def install_chromium_with_dialog(root_window: tk.Tk | None = None) -> bool:
             progress_bar.set(0)
             status_label.configure(text=f"Installation failed:\n{error}")
             detail_label.configure(text="The app will continue but cookie generation may not work.")
-            # Allow the user to dismiss
+            with contextlib.suppress(Exception):
+                dialog.grab_release()
             dialog.protocol("WM_DELETE_WINDOW", dialog.destroy)
             close_btn = ctk.CTkButton(frame, text="Continue", command=dialog.destroy, width=120)
             close_btn.pack(pady=(4, 0))
