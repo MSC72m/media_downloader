@@ -35,8 +35,12 @@ def _retry_on_network_error(func, retries=3, delay=2):
 
 
 def _httpbin_reachable():
-    """Check if httpbin.org is reachable."""
+    """Check if httpbin.org is reachable and requests is not mocked."""
     import socket
+    # Skip if requests module is mocked by conftest
+    import requests as _req
+    if not getattr(_req, "__file__", None):
+        return False
     try:
         socket.create_connection(("httpbin.org", 443), timeout=5).close()
         return True
