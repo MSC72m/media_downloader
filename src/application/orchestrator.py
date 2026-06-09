@@ -107,10 +107,7 @@ class ApplicationOrchestrator:
         self._register_coordinators()
         self._register_detectors()
 
-        try:
-            self.container.validate_dependencies()
-        except Exception:
-            raise
+        self.container.validate_dependencies()
 
     def _register_core_services(self) -> None:
         self.container.register_factory(IMessageQueue, lambda: None)

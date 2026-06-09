@@ -4,21 +4,33 @@ These tests bypass the mocking in conftest to test real downloads.
 """
 
 import os
-import sys
 import tempfile
-from pathlib import Path
+import time
 import unittest.mock
+
+import pytest
 
 # Import real requests before conftest can mock it
 import requests
-import pytest
 
 # Now import our modules
 from src.core.config import get_config
-from src.core.interfaces import IErrorNotifier, IFileService
+from src.services.network.downloader import download_file
 from src.services.radiojavan.downloader import RadioJavanDownloader
 from src.services.tiktok.downloader import TikTokDownloader
-from src.services.network.downloader import download_file
+
+
+def _retry_on_network_error(func, retries=3, delay=2):
+    """Retry a function on network errors."""
+    last_error = None
+    for attempt in range(retries):
+        try:
+            return func()
+        except (requests.ConnectionError, requests.Timeout, OSError) as e:
+            last_error = e
+            if attempt < retries - 1:
+                time.sleep(delay * (attempt + 1))
+    raise last_error
 
 
 class MockFileService:
@@ -87,30 +99,22 @@ class TestActualDownloads:
         # Use a known working test file
         test_url = "https://httpbin.org/json"
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            save_path = os.path.join(temp_dir, "test_download.json")
+        def _do_download():
+            with tempfile.TemporaryDirectory() as temp_dir:
+                save_path = os.path.join(temp_dir, "test_download.json")
+                print(f"Testing download from: {test_url}")
+                result = download_file(url=test_url, save_path=save_path, config=get_config())
+                assert result is True, "Download should succeed"
+                assert os.path.exists(save_path), "File should be created"
+                file_size = os.path.getsize(save_path)
+                assert file_size > 0, "File should have content"
+                print(f"Successfully downloaded {file_size} bytes")
+                with open(save_path) as f:
+                    content = f.read()
+                    assert "slideshow" in content, "Content should be valid"
+                    print(f"Content verified: {content[:50]}...")
 
-            print(f"Testing download from: {test_url}")
-
-            # Perform actual download
-            result = download_file(url=test_url, save_path=save_path, config=get_config())
-
-            # Verify download was successful
-            assert result is True, "Download should succeed"
-
-            # Check that file was created
-            assert os.path.exists(save_path), "File should be created"
-
-            # Verify file size and content
-            file_size = os.path.getsize(save_path)
-            assert file_size > 0, "File should have content"
-            print(f"✅ Successfully downloaded {file_size} bytes")
-
-            # Verify content is valid JSON
-            with open(save_path, "r") as f:
-                content = f.read()
-                assert "slideshow" in content, "Content should be valid"
-                print(f"✅ Content verified: {content[:50]}...")
+        _retry_on_network_error(_do_download)
 
     def test_radiojavan_url_construction_logic(self):
         """Test RadioJavan URL construction logic without network."""
@@ -223,21 +227,19 @@ class TestActualDownloads:
 
     def test_file_validation_and_size_checks(self):
         """Test file validation and size checking."""
-        # Test with a small file
-        small_file_url = "https://httpbin.org/bytes/1024"  # 1KB file
+        small_file_url = "https://httpbin.org/bytes/1024"
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            save_path = os.path.join(temp_dir, "small_file.bin")
+        def _do_download():
+            with tempfile.TemporaryDirectory() as temp_dir:
+                save_path = os.path.join(temp_dir, "small_file.bin")
+                result = download_file(url=small_file_url, save_path=save_path, config=get_config())
+                assert result is True, "Download should succeed"
+                assert os.path.exists(save_path), "File should exist"
+                file_size = os.path.getsize(save_path)
+                assert file_size == 1024, f"Expected 1024 bytes, got {file_size}"
+                print(f"Small file download verified: {file_size} bytes")
 
-            result = download_file(url=small_file_url, save_path=save_path, config=get_config())
-
-            assert result is True, "Download should succeed"
-            assert os.path.exists(save_path), "File should exist"
-
-            file_size = os.path.getsize(save_path)
-            assert file_size == 1024, f"Expected 1024 bytes, got {file_size}"
-
-            print(f"✅ Small file download verified: {file_size} bytes")
+        _retry_on_network_error(_do_download)
 
     def test_download_error_handling(self):
         """Test download error handling with invalid URLs."""

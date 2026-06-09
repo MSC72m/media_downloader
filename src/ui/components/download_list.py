@@ -171,8 +171,8 @@ class DownloadListView(ctk.CTkFrame):
             logger.debug("[DOWNLOAD_LIST] No completed downloads to remove")
             return 0
 
-            logger.info(f"[DOWNLOAD_LIST] Removing {len(completed_indices)} completed downloads")
-            self.remove_downloads(completed_indices)
+        logger.info(f"[DOWNLOAD_LIST] Removing {len(completed_indices)} completed downloads")
+        self.remove_downloads(completed_indices)
         return len(completed_indices)
 
     def has_completed_downloads(self) -> bool:
