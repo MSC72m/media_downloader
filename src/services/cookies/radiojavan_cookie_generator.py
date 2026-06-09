@@ -76,6 +76,12 @@ class RadioJavanCookieGenerator:
     # ------------------------------------------------------------------
 
     async def _launch_browser(self, playwright: Playwright) -> Browser | None:
+        from src.services.cookies.playwright_bootstrap import wait_for_chromium
+
+        if not wait_for_chromium(timeout=120):
+            logger.error("[RJ_COOKIE_GENERATOR] Chromium not available after waiting")
+            return None
+
         rj = self.config.radiojavan
         try:
             return await playwright.chromium.launch(

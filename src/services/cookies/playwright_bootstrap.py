@@ -26,6 +26,21 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+# Module-level event that signals when Chromium is ready for use.
+# Cookie generators should wait on this before attempting to launch browsers.
+_chromium_ready = threading.Event()
+_chromium_check_done = threading.Event()
+
+
+def wait_for_chromium(timeout: float = 120.0) -> bool:
+    """Block until Chromium install is complete or timeout.
+
+    Returns True if Chromium is available.
+    """
+    _chromium_check_done.wait(timeout=timeout)
+    return _chromium_ready.is_set()
+
+
 # Regex patterns to extract progress from ``playwright install`` output.
 # Playwright CLI emits lines like:
 #   "Downloading Chromium 120.0.6099.28 (playwright build v1091) - 150.2 Mb"
@@ -444,16 +459,28 @@ def ensure_playwright_ready(root_window: tk.Tk | None = None) -> bool:
     automatically install it (with a progress dialog if a GUI window is
     provided).
 
+    Signals the ``_chromium_ready`` event when complete so that cookie
+    generator threads can wait before launching browsers.
+
     Returns:
         True if Playwright and Chromium are both available.
     """
-    if not is_playwright_installed():
-        logger.warning("[PLAYWRIGHT_BOOTSTRAP] Playwright Python package not available")
-        return False
+    try:
+        if not is_playwright_installed():
+            logger.warning("[PLAYWRIGHT_BOOTSTRAP] Playwright Python package not available")
+            _chromium_check_done.set()
+            return False
 
-    if is_chromium_installed():
-        logger.info("[PLAYWRIGHT_BOOTSTRAP] Chromium is already installed")
-        return True
+        if is_chromium_installed():
+            logger.info("[PLAYWRIGHT_BOOTSTRAP] Chromium is already installed")
+            _chromium_ready.set()
+            _chromium_check_done.set()
+            return True
 
-    logger.info("[PLAYWRIGHT_BOOTSTRAP] Chromium not found, starting installation...")
-    return install_chromium_with_dialog(root_window)
+        logger.info("[PLAYWRIGHT_BOOTSTRAP] Chromium not found, starting installation...")
+        result = install_chromium_with_dialog(root_window)
+        if result:
+            _chromium_ready.set()
+        return result
+    finally:
+        _chromium_check_done.set()

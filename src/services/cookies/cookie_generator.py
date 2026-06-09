@@ -86,12 +86,21 @@ class CookieGenerator:
     async def _launch_browser(self, playwright: Playwright) -> Browser | None:
         """Launch Chromium browser.
 
+        Waits for Chromium to be installed if a first-run download is in
+        progress, then attempts to launch.
+
         Args:
             playwright: Playwright instance
 
         Returns:
             Browser instance or None if launch fails
         """
+        from src.services.cookies.playwright_bootstrap import wait_for_chromium
+
+        if not wait_for_chromium(timeout=120):
+            logger.error("[COOKIE_GENERATOR] Chromium not available after waiting")
+            return None
+
         try:
             return await playwright.chromium.launch(
                 headless=True,
