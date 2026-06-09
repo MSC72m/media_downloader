@@ -662,6 +662,7 @@ class RadioJavanDownloader(BaseDownloader):
             config=self.config,
             headers=headers,
             cookies=cookies,
+            timeout=self.default_timeout,
         ):
             return False
 

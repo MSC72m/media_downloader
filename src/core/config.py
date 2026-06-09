@@ -449,7 +449,7 @@ class SoundCloudConfig(BaseModel):
     """SoundCloud-specific configuration."""
 
     default_retries: int = Field(default=3, description="Default number of retries")
-    socket_timeout: int = Field(default=15, description="Socket timeout in seconds")
+    socket_timeout: int = Field(default=30, description="Socket timeout in seconds")
     default_audio_format: str = Field(default="mp3", description="Default audio format")
     default_audio_quality: str = Field(default="best", description="Default audio quality")
     url_patterns: list[str] = Field(
@@ -558,7 +558,7 @@ class RadioJavanConfig(BaseModel):
 class TikTokConfig(BaseModel):
     """TikTok-specific configuration."""
 
-    default_timeout: int = Field(default=10, description="Default request timeout in seconds")
+    default_timeout: int = Field(default=30, description="Default request timeout in seconds")
     max_retries: int = Field(default=3, description="Maximum number of retries")
     url_patterns: list[str] = Field(
         default_factory=lambda: [

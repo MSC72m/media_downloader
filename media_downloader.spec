@@ -19,16 +19,29 @@ Environment Variables:
 """
 
 import os
-import sys
-from pathlib import Path
 
 import customtkinter
+import tkinter
 
 block_cipher = None
 
 # Paths
 PROJECT_ROOT = os.path.abspath(".")
 CTK_PATH = os.path.dirname(customtkinter.__file__)
+
+# Collect Tcl/Tk library directories for the runtime hook
+_tcl_data = None
+_tk_data = None
+_tcl_dir = os.path.dirname(tkinter.__file__)
+for _entry in os.listdir(_tcl_dir):
+    _full = os.path.join(_tcl_dir, _entry)
+    if not os.path.isdir(_full):
+        continue
+    _lower = _entry.lower()
+    if _lower.startswith("tcl") and _tcl_data is None:
+        _tcl_data = _full
+    elif _lower.startswith("tk") and _tk_data is None:
+        _tk_data = _full
 
 # Check if we should bundle Chromium
 BUNDLE_CHROMIUM = os.environ.get("BUNDLE_CHROMIUM", "0") == "1"
@@ -37,9 +50,17 @@ BUNDLE_CHROMIUM = os.environ.get("BUNDLE_CHROMIUM", "0") == "1"
 datas = [
     # Bundle the themes directory
     (os.path.join(PROJECT_ROOT, "themes"), "themes"),
-    # CustomTkinter needs its own assets bundled
-    (CTK_PATH, "customtkinter"),
+    # CustomTkinter assets only (fonts, themes, icons)
+    (os.path.join(CTK_PATH, "assets"), "customtkinter/assets"),
 ]
+
+# Bundle Tcl/Tk libraries
+if _tcl_data and os.path.isdir(_tcl_data):
+    print(f"[PyInstaller] Bundling Tcl library: {_tcl_data}")
+    datas.append((_tcl_data, "tcl"))
+if _tk_data and os.path.isdir(_tk_data):
+    print(f"[PyInstaller] Bundling Tk library: {_tk_data}")
+    datas.append((_tk_data, "tk"))
 
 # Check for ffmpeg - bundle it if available
 FFMPEG_PATH = os.path.join(PROJECT_ROOT, "bin", "ffmpeg.exe")
@@ -170,9 +191,9 @@ a = Analysis(
         "queue",
         "logging",
     ],
-    hookspath=[],
+    hookspath=["hooks"],
     hooksconfig={},
-    runtime_hooks=[],
+    runtime_hooks=["hooks/runtime_hook_tcl.py"],
     excludes=[
         # Exclude dev/test dependencies
         "pytest",

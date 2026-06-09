@@ -294,13 +294,8 @@ class TestRealTikTokDownloads:
         assert options["ignoreerrors"] is True, "Should ignore errors"
 
         # Verify TikTok-specific options
-        assert "extractor_args" in options, "Should have extractor args"
-        assert "tiktok" in options["extractor_args"], "Should have TikTok args"
-
-        tiktok_args = options["extractor_args"]["tiktok"]
-        assert tiktok_args["enable_download"] is True, "Should enable download"
-        assert tiktok_args["enable_music"] is True, "Should enable music"
-        assert tiktok_args["download_thumbnail"] is True, "Should download thumbnail"
+        assert "http_headers" in options, "Should have HTTP headers"
+        assert "User-Agent" in options["http_headers"], "Should have User-Agent header"
 
     def test_validate_download_inputs_valid(self):
         """Test download input validation with valid inputs."""
@@ -420,8 +415,8 @@ class TestDownloadIntegration:
         assert downloader.max_retries > 0, "Should have positive retry count"
 
         options = downloader._get_ytdl_options()
-        assert "extractor_args" in options, "Should have extractor arguments"
-        assert "tiktok" in options["extractor_args"], "Should have TikTok-specific arguments"
+        assert "http_headers" in options, "Should have HTTP headers"
+        assert "User-Agent" in options["http_headers"], "Should have User-Agent header"
 
     def test_file_extension_detection(self):
         """Test that downloaded files have appropriate extensions."""

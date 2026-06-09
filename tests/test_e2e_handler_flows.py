@@ -1069,7 +1069,10 @@ class TestE2EDownloadWorkerPipeline:
         handler._download_worker(dl, _TEST_DOWNLOAD_DIR, None, None)
 
         handler.service_factory.detect_service_type.assert_called_with("https://soundcloud.com/artist/track")
-        handler.service_factory.get_downloader.assert_called_with("https://soundcloud.com/artist/track")
+        handler.service_factory.get_downloader.assert_called_with(
+            "https://soundcloud.com/artist/track",
+            service_type=ServiceType.YOUTUBE,
+        )
 
     def test_download_worker_passes_correct_args_to_downloader(self) -> None:
         mock_downloader = MagicMock()

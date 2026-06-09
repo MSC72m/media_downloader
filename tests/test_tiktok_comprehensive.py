@@ -129,11 +129,8 @@ class TestTikTokDownloader:
         assert options["quiet"] is True
         assert options["no_warnings"] is True
         assert options["ignoreerrors"] is True
-        assert "extractor_args" in options
-        assert "tiktok" in options["extractor_args"]
-        assert options["extractor_args"]["tiktok"]["enable_download"] is True
-        assert options["extractor_args"]["tiktok"]["enable_music"] is True
-        assert options["extractor_args"]["tiktok"]["download_thumbnail"] is True
+        assert "http_headers" in options
+        assert "User-Agent" in options["http_headers"]
 
     def test_validate_download_inputs_valid(self):
         """Test validation with valid inputs."""

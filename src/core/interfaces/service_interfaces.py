@@ -150,7 +150,9 @@ class IErrorNotifier(Protocol):
 
 @runtime_checkable
 class IServiceFactory(Protocol):
-    def get_downloader(self, url: str) -> BaseDownloader | None: ...
+    def get_downloader(
+        self, url: str, service_type: ServiceType | None = None
+    ) -> BaseDownloader | None: ...
 
     def detect_service_type(self, url: str) -> ServiceType: ...
 

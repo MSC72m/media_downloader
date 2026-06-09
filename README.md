@@ -2,6 +2,7 @@
 
 Cross-platform desktop application for downloading media content from social media platforms.
 
+[![Version](https://img.shields.io/badge/Version-1.0.0-green.svg)](https://github.com/MSC72m/media_downloader/releases)
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)]()
@@ -171,6 +172,25 @@ Make it executable:
 chmod +x ~/.local/share/applications/media_downloader.desktop
 ```
 
+### macOS
+
+Create an Automator application:
+
+1. Open **Automator** → New Application
+2. Add a "Run Shell Script" action with:
+
+```bash
+cd /path/to/media_downloader && source venv/bin/activate && python -m src.main
+```
+
+3. Save as `Media Downloader.app` to `/Applications/`
+
+Alternatively, create a shell alias:
+
+```bash
+alias media-downloader='cd /path/to/media_downloader && source venv/bin/activate && python -m src.main'
+```
+
 ## Usage
 
 ### Basic Workflow
@@ -284,6 +304,14 @@ Configuration files are automatically created in `~/.media_downloader/` on first
 - **Platform-specific**: YouTube, Spotify, TikTok, Instagram, Twitter/X, Pinterest, SoundCloud, and RadioJavan settings
 
 Edit the config file directly or use the application's UI to change settings. Changes take effect on next launch (some settings may require restart).
+
+## Known Limitations
+
+- **Twitter Spaces** — Audio spaces are not currently supported
+- **SoundCloud Premium** — Only free tracks can be downloaded (Go+ subscription tracks are blocked by SoundCloud)
+- **Spotify Audio** — Audio is sourced from YouTube, so quality depends on YouTube availability
+- **Instagram Auth** — First Instagram download requires browser-based authentication
+- **macOS Desktop Shortcut** — No `.app` bundle provided; see [Creating Desktop Shortcuts](#creating-desktop-shortcuts) for manual setup
 
 ## Troubleshooting
 

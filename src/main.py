@@ -20,6 +20,10 @@ from tkinter import Menu  # noqa: E402
 
 import customtkinter as ctk  # noqa: E402
 
+# Initialize CTK's built-in theme so ThemeManager.theme is populated.
+# This MUST happen before any CTk widget is created.
+ctk.set_default_color_theme("blue")
+
 from src.core import get_application_orchestrator  # noqa: E402
 from src.core.config import AppConfig, get_config  # noqa: E402
 from src.core.interfaces import DynamicUIContextProtocol  # noqa: E402
@@ -65,7 +69,7 @@ def _check_playwright_installation() -> None:
 
         title_label = ctk.CTkLabel(
             error_frame,
-            text="⚠️  PLAYWRIGHT NOT INSTALLED  ⚠️",
+            text="PLAYWRIGHT NOT INSTALLED",
             font=("Arial", 20, "bold"),
             text_color="red",
         )

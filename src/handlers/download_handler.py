@@ -134,7 +134,11 @@ class DownloadHandler(IDownloadHandler):
             logger.info(f"[DOWNLOAD_HANDLER] Using service factory: {self.service_factory}")
 
             # Create a downloader with the download's specific options
-            service_type = self.service_factory.detect_service_type(download.url)
+            # Use download.service_type as primary signal (set correctly at URL detection time)
+            # Fall back to URL-based detection if service_type is not set
+            service_type = download.service_type or self.service_factory.detect_service_type(
+                download.url
+            )
             logger.info(f"[DOWNLOAD_HANDLER] Detected service type: {service_type}")
 
             # Debug: Log all download attributes
@@ -143,7 +147,11 @@ class DownloadHandler(IDownloadHandler):
             if hasattr(download, "cookie_path"):
                 logger.info(f"[DOWNLOAD_HANDLER] cookie_path value: {download.cookie_path}")
 
-            if not (downloader := self.service_factory.get_downloader(download.url)):
+            if not (
+                downloader := self.service_factory.get_downloader(
+                    download.url, service_type=service_type
+                )
+            ):
                 error_msg = f"No downloader available for URL: {download.url}"
                 if self.error_handler:
                     self.error_handler.handle_service_failure(
@@ -176,6 +184,10 @@ class DownloadHandler(IDownloadHandler):
             # Prepare download
             output_path = self._prepare_download_path(download, download_dir)
             progress_wrapper = self._create_progress_wrapper(download, progress_callback)
+
+            # Send initial progress event so UI shows activity from the start
+            if progress_wrapper:
+                progress_wrapper(0.0, 0.0)
 
             # Execute download
             logger.info("[DOWNLOAD_HANDLER] Starting download...")

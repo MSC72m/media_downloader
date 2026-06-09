@@ -223,6 +223,8 @@ class StatusBar(ctk.CTkFrame):
                     self._message_timeout = None
                 else:
                     self.status_label.configure(text=f"Downloading... {progress:.1f}%")
+                    self._current_message = f"Downloading... {progress:.1f}%"
+                    self._message_timeout = time.time() + 30
             except Exception as e:
                 logger.error(f"[STATUS_BAR] Error updating progress: {e}", exc_info=True)
 

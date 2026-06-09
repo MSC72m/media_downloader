@@ -90,8 +90,11 @@ class ServiceFactory:
             )
         return ServiceType.GENERIC
 
-    def get_downloader(self, url: str) -> BaseDownloader | None:
-        service_type = self.detect_service_type(url)
+    def get_downloader(
+        self, url: str, service_type: ServiceType | None = None
+    ) -> BaseDownloader | None:
+        if service_type is None:
+            service_type = self.detect_service_type(url)
         logger.info(f"[SERVICE_FACTORY] Getting downloader for service: {service_type}")
 
         downloader_map = {

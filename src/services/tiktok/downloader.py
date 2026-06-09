@@ -32,14 +32,8 @@ class TikTokDownloader(BaseDownloader):
             "ignoreerrors": True,
             "retries": self.max_retries,
             "socket_timeout": self.default_timeout,
-            "extractor_args": {
-                "tiktok": {
-                    "enable_download": True,
-                    "enable_music": True,
-                    "enable_subtitles": True,
-                    "enable_metadata": True,
-                    "download_thumbnail": True,
-                }
+            "http_headers": {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             },
         }
 

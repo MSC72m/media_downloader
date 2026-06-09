@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import sys
 
 import customtkinter as ctk
 
@@ -11,6 +12,8 @@ from src.ui.utils.theme_manager import ThemeManager, get_theme_manager
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+_IS_WINDOWS = sys.platform == "win32"
 
 
 def _build_emoji_map() -> dict[str, str]:
@@ -35,7 +38,7 @@ class ThemeSwitcher(ctk.CTkFrame):
 
         self.appearance_switch = ctk.CTkSwitch(
             container,
-            text="🌙 Dark" if is_dark else "☀️ Light",
+            text="Dark" if is_dark else "Light",
             command=self._on_appearance_toggle,
             font=("Roboto", 11),
             width=90,
@@ -49,14 +52,20 @@ class ThemeSwitcher(ctk.CTkFrame):
 
         # Build dropdown values dynamically from discovered theme JSON files
         emoji_map = _build_emoji_map()
-        color_values = [
-            f"{emoji_map.get(t['name'], '🔵')} {t['name'].capitalize()}"
-            for t in get_available_themes()
-        ]
+        if _IS_WINDOWS:
+            color_values = [t["name"].capitalize() for t in get_available_themes()]
+        else:
+            color_values = [
+                f"{emoji_map.get(t['name'], '🔵')} {t['name'].capitalize()}"
+                for t in get_available_themes()
+            ]
 
         current_color = self._theme_manager.get_color_theme()
-        current_emoji = emoji_map.get(current_color, "🔵")
-        current_display = f"{current_emoji} {current_color.capitalize()}"
+        if _IS_WINDOWS:
+            current_display = current_color.capitalize()
+        else:
+            current_emoji = emoji_map.get(current_color, "🔵")
+            current_display = f"{current_emoji} {current_color.capitalize()}"
 
         self.color_dropdown = ctk.CTkComboBox(
             container,
@@ -137,7 +146,7 @@ class ThemeSwitcher(ctk.CTkFrame):
         logger.info(f"[THEME_SWITCHER] Changing appearance to {appearance.value}")
         self._theme_manager.set_theme(appearance, current_color)
 
-        self.appearance_switch.configure(text="🌙 Dark" if is_dark else "☀️ Light")
+        self.appearance_switch.configure(text="Dark" if is_dark else "Light")
 
     def _on_color_change(self, value: str) -> None:
         color_name = value.rsplit(maxsplit=1)[-1].lower()
@@ -149,10 +158,13 @@ class ThemeSwitcher(ctk.CTkFrame):
     def _on_theme_changed(self, appearance, color) -> None:
         self._apply_theme_colors()
 
-        emoji_map = _build_emoji_map()
         color_str = str(color)
-        emoji = emoji_map.get(color_str, "🔵")
-        current_display = f"{emoji} {color_str.capitalize()}"
+        if _IS_WINDOWS:
+            current_display = color_str.capitalize()
+        else:
+            emoji_map = _build_emoji_map()
+            emoji = emoji_map.get(color_str, "🔵")
+            current_display = f"{emoji} {color_str.capitalize()}"
         self.color_dropdown.set(current_display)
 
     def destroy(self) -> None:

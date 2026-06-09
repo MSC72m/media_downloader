@@ -108,6 +108,7 @@ def _download_with_http_client(
     chunk_size: int,
     config: AppConfig,
     headers: dict[str, str] | None,
+    timeout: int | None = None,
 ) -> bool:
     request_headers = {"User-Agent": _safe_user_agent(config)}
     if headers:
@@ -121,10 +122,11 @@ def _download_with_http_client(
     connection_class = (
         http.client.HTTPSConnection if parsed.scheme == "https" else http.client.HTTPConnection
     )
+    effective_timeout = timeout if timeout is not None else config.network.default_timeout
     connection = connection_class(
         parsed.hostname,
         parsed.port,
-        timeout=config.network.default_timeout,
+        timeout=effective_timeout,
     )
 
     path = parsed.path or "/"
@@ -177,6 +179,7 @@ def download_file(
     config: AppConfig | None = None,
     headers: dict[str, str] | None = None,
     cookies: object | None = None,
+    timeout: int | None = None,
 ) -> bool:
     """Download a file from URL.
 
@@ -186,6 +189,7 @@ def download_file(
         progress_callback: Optional callback for progress updates
         chunk_size: Chunk size in bytes (uses config if not provided)
         config: AppConfig instance (defaults to get_config() if None)
+        timeout: Override timeout in seconds (uses config.network.default_timeout if None)
     """
     if config is None:
         config = get_config()
@@ -203,6 +207,7 @@ def download_file(
             chunk_size=chunk_size,
             config=config,
             headers=headers,
+            timeout=timeout,
         )
 
     session = requests.Session()
@@ -213,12 +218,13 @@ def download_file(
         if headers:
             request_headers.update(headers)
 
+        effective_timeout = timeout if timeout is not None else config.network.default_timeout
         response = session.get(
             url,
             stream=True,
             headers=request_headers,
             cookies=cast(Any, _normalize_cookies(cookies)),
-            timeout=config.network.default_timeout,
+            timeout=effective_timeout,
         )
         response.raise_for_status()
 

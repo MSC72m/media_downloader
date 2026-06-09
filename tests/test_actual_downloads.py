@@ -175,11 +175,8 @@ class TestActualDownloads:
             options = downloader._get_ytdl_options()
             assert options["format"] == "best", "Should select best quality"
             assert options["quiet"] is True, "Should be in quiet mode"
-            assert "extractor_args" in options, "Should have extractor args"
-
-            tiktok_args = options["extractor_args"]["tiktok"]
-            assert tiktok_args["enable_download"] is True, "Should enable downloads"
-            assert tiktok_args["download_thumbnail"] is True, "Should download thumbnails"
+            assert "http_headers" in options, "Should have HTTP headers"
+            assert "User-Agent" in options["http_headers"], "Should have User-Agent header"
 
             print("✅ TikTok downloader properly configured")
 

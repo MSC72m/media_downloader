@@ -232,7 +232,7 @@ class TestRealWorkingDownloads:
         # Test yt-dlp options
         options = downloader._get_ytdl_options()
         print(f"   Format: {options.get('format', 'Unknown')}")
-        print(f"   TikTok extraction enabled: {options.get('extractor_args', {}).get('tiktok', {}).get('enable_download', 'Unknown')}")
+        print(f"   TikTok User-Agent configured: {'User-Agent' in options.get('http_headers', {})}")
 
         # Try some public TikTok URLs
         test_urls = [

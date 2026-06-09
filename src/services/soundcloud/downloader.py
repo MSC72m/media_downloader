@@ -69,6 +69,9 @@ class SoundCloudDownloader(BaseDownloader):
             "nocheckcertificate": True,
             "writethumbnail": self.download_thumbnail,
             "embedmetadata": self.embed_metadata,
+            "http_headers": {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            },
             "postprocessors": [],
         }
 
@@ -459,6 +462,10 @@ class SoundCloudDownloader(BaseDownloader):
                     "quiet": True,
                     "no_warnings": True,
                     "extract_flat": False,
+                    "socket_timeout": self.config.soundcloud.socket_timeout,
+                    "http_headers": {
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    },
                 }
             ) as ydl:
                 if not (info := ydl.extract_info(url, download=False)):
