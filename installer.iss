@@ -1,17 +1,7 @@
 ; Inno Setup Script for Media Downloader
 ; ========================================
 ;
-; Prerequisites:
-;   1. Build the app with PyInstaller first:
-;      pyinstaller media_downloader.spec
-;   2. Install Inno Setup: https://jrsoftware.org/isinfo.php
-;   3. Open this file in Inno Setup Compiler and click Build
-;
-; This produces:
-;   installers/MediaDownloaderSetup-{version}.exe
-;
-; The installer downloads ffmpeg during setup so it is NOT shipped
-; inside the .exe — keeps licensing clean.
+; ffmpeg is downloaded by the installer at install time (not shipped in .exe).
 
 #define MyAppName "Media Downloader"
 #define MyAppVersion "1.1.1"
@@ -61,7 +51,6 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked; OnlyBelowVersion: 6.1; Check: not IsAdminInstallMode
 
 [Files]
-; App bundle from PyInstaller (no ffmpeg bundled)
 Source: "dist\MediaDownloader\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
@@ -73,23 +62,19 @@ Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#MyAppName}"; Fil
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
-[UninstallDelete]
-Type: files; Name: "{app}\bin\ffmpeg.exe"
-
 [Messages]
 WelcomeLabel2=This will install [name/ver] on your computer.%n%nThe application allows you to download media from YouTube, Instagram, SoundCloud, TikTok, Twitter, Pinterest, RadioJavan, and Spotify.%n%nIt is recommended that you close all other applications before continuing.
 
 [Code]
-// ── ffmpeg download during install ──────────────────────────────
 var
   FfmpegDownloadPage: TDownloadWizardPage;
 
-procedure OnFfmpegDownloadProgress(Sender: TObject; const URL, FileName: String;
+procedure OnFfmpegDownloadProgress(Sender: TObject; const URL, FileName: WideString;
   const Progress, ProgressMax: Int64);
 begin
   if ProgressMax > 0 then
     WizardForm.StatusLabel.Caption :=
-      Format('Downloading ffmpeg... %d%%', [MulDiv(Progress, 100, ProgressMax)]);
+      'Downloading ffmpeg... ' + IntToStr(MulDiv(Progress, 100, ProgressMax)) + '%';
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
@@ -97,9 +82,7 @@ var
   ResultCode: Integer;
   BinDir: String;
   ZipFile: String;
-  TmpDir: String;
-  FindRec: TFindRec;
-  ZipEntry: String;
+  PowerShellCmd: String;
 begin
   Result := '';
 
@@ -107,7 +90,6 @@ begin
   if not DirExists(BinDir) then
     CreateDir(BinDir);
 
-  // Skip download if ffmpeg already exists
   if FileExists(BinDir + '\ffmpeg.exe') then
   begin
     WizardForm.StatusLabel.Caption := 'ffmpeg already installed, skipping download.';
@@ -134,9 +116,7 @@ begin
       Exit;
     end;
 
-    // Extract ffmpeg.exe from the downloaded zip
-    TmpDir := ExpandConstant('{tmp}');
-    ZipFile := TmpDir + '\ffmpeg.zip';
+    ZipFile := ExpandConstant('{tmp}') + '\ffmpeg.zip';
 
     if not FileExists(ZipFile) then
     begin
@@ -146,19 +126,19 @@ begin
 
     WizardForm.StatusLabel.Caption := 'Extracting ffmpeg...';
 
-    // Use PowerShell to extract only ffmpeg.exe from the zip
-    Exec('powershell.exe',
-      '-NoProfile -ExecutionPolicy Bypass -Command "' +
+    PowerShellCmd :=
       'Add-Type -AssemblyName System.IO.Compression.FileSystem; ' +
-      '$zip = [System.IO.Compression.ZipFile]::OpenRead(''' + ZipFile + '''); ' +
+      '$zip = [System.IO.Compression.ZipFile]::OpenRead(''' + StringReplace(ZipFile, '''', '''''', [rfReplaceAll]) + '''); ' +
       'try { ' +
       '  foreach ($entry in $zip.Entries) { ' +
-      '    if ($entry.FullName -like ''*/bin/ffmpeg.exe'') { ' +
-      '      [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, ''' + BinDir + '\ffmpeg.exe'', $true); ' +
+      '    if ($entry.FullName -like ''*bin/ffmpeg.exe'') { ' +
+      '      [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, ''' + StringReplace(BinDir + '\ffmpeg.exe', '''', '''''', [rfReplaceAll]) + ''', $true); ' +
       '      break; ' +
       '    } ' +
       '  } ' +
-      '} finally { $zip.Dispose() }"',
+      '} finally { $zip.Dispose() }';
+
+    Exec('powershell.exe', '-NoProfile -ExecutionPolicy Bypass -Command "' + PowerShellCmd + '"',
       '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
     if ResultCode <> 0 then
@@ -176,21 +156,16 @@ begin
     WizardForm.StatusLabel.Caption := 'ffmpeg installed successfully.';
 
   finally
-    // Cleanup temp zip
     if FileExists(ZipFile) then
       DeleteFile(ZipFile);
   end;
 end;
 
 procedure CurPageChanged(CurPageID: Integer);
-var
-  chromiumPath: String;
 begin
   if CurPageID = wpFinished then
   begin
-    chromiumPath := ExpandConstant('{app}\chromium');
-
-    if DirExists(chromiumPath) then
+    if DirExists(ExpandConstant('{app}\chromium')) then
     begin
       WizardForm.FinishedLabel.Caption :=
         'Setup has finished installing {#MyAppName} on your computer.' + #13#10 + #13#10 +
@@ -198,7 +173,7 @@ begin
         '  - Media Downloader application' + #13#10 +
         '  - ffmpeg for video processing' + #13#10 +
         '  - Chromium browser for cookie generation' + #13#10 + #13#10 +
-        'The application is ready to use immediately. No additional downloads are required.';
+        'The application is ready to use immediately.';
     end
     else
     begin
@@ -208,16 +183,12 @@ begin
         '  - Media Downloader application' + #13#10 +
         '  - ffmpeg for video processing' + #13#10 + #13#10 +
         'IMPORTANT - First Launch:' + #13#10 +
-        'On the first run, the application will download a browser ' +
-        'component (~150 MB) required for cookie generation. This is ' +
-        'needed to access age-restricted or login-protected content.' + #13#10 + #13#10 +
-        'What to expect:' + #13#10 +
-        '  - A progress dialog will appear showing the download status' + #13#10 +
+        'On the first run, the app will download a browser ' +
+        'component (~150 MB) required for cookie generation.' + #13#10 + #13#10 +
+        '  - A progress dialog will appear' + #13#10 +
         '  - This download only happens once' + #13#10 +
-        '  - An internet connection is required' + #13#10 +
-        '  - The download takes 1-3 minutes depending on your connection' + #13#10 + #13#10 +
-        'The browser component is stored in your user profile and does ' +
-        'not require reinstallation when updating the application.';
+        '  - An internet connection is required' + #13#10 + #13#10 +
+        'The browser component is stored in your user profile.';
     end;
   end;
 end;
