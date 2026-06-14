@@ -69,6 +69,7 @@ class TestRealDownload:
         )
 
         assert download.download_subtitles is True
+        assert download.selected_subtitles is not None
         assert len(download.selected_subtitles) == 2
         assert download.selected_subtitles[0]["language_code"] == "en"
         assert download.selected_subtitles[1]["language_code"] == "es"

@@ -13,7 +13,7 @@ _TLANG_PARAM_PATTERN = re.compile(r'[?&]tlang=([^&"\']+?)(?:[&"\']|$)', re.IGNOR
 
 
 class YouTubeSubtitleParser(IParser):
-    def __init__(self, config: AppConfig = get_config()):
+    def __init__(self, config: AppConfig = get_config()) -> None:
         self.config = config
 
     def validate(self, url: str, context: dict[str, Any] | None = None) -> bool:
@@ -184,5 +184,5 @@ class YouTubeSubtitleParser(IParser):
         Returns full language name from config if available,
         otherwise returns the language code itself (not uppercase).
         """
-        base_code = lang_code.split("-")[0].lower()
+        base_code = lang_code.split("-", 1)[0].lower()
         return self.config.youtube.supported_languages.get(base_code, lang_code)

@@ -18,9 +18,13 @@ class CookieHandler(ICookieHandler):
     - Manual cookie file selection (this handler)
     """
 
-    def __init__(self, config: AppConfig):
+    def __init__(
+        self,
+        config: AppConfig,
+        service_detector: ServiceDetector | None = None,
+    ) -> None:
         self.config = config
-        self._service_detector = ServiceDetector()
+        self._service_detector = service_detector or ServiceDetector(config=config)
         self._current_cookie_path: str | None = None
         self._initialized = False
 
@@ -89,12 +93,11 @@ class CookieHandler(ICookieHandler):
     def should_show_cookie_option(self, url: str) -> bool:
         """Check if cookie option should be shown for this URL."""
         service_type = self._service_detector.detect_service(url)
-        return service_type and service_type.value == "youtube"
+        return bool(service_type and service_type.value == "youtube")
 
     def get_cookie_info_for_ytdlp(self) -> dict | None:
         """Get cookie information for yt-dlp integration."""
-        cookie_path = self.get_current_cookie_path()
-        if not cookie_path:
+        if not (cookie_path := self.get_current_cookie_path()):
             return None
 
         return {"cookiefile": cookie_path}

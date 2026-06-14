@@ -24,7 +24,7 @@ class StatusBar(ctk.CTkFrame):
         master,
         config: AppConfig = get_config(),
         theme_manager: ThemeManager | None = None,
-    ):
+    ) -> None:
         super().__init__(master, fg_color="transparent")
 
         self._root_window = self._get_root_window()
@@ -72,7 +72,7 @@ class StatusBar(ctk.CTkFrame):
             logger.error(f"[STATUS_BAR] Error getting root window: {e}")
             return self
 
-    def _process_queue(self):
+    def _process_queue(self) -> None:
         if not self._running:
             return
 
@@ -98,7 +98,7 @@ class StatusBar(ctk.CTkFrame):
             except Exception as e:
                 logger.error(f"[STATUS_BAR] Error scheduling next queue check: {e}")
 
-    def _queue_update(self, update_func):
+    def _queue_update(self, update_func) -> None:
         try:
             if self._update_queue.full():
                 with contextlib.suppress(queue.Empty):
@@ -109,24 +109,22 @@ class StatusBar(ctk.CTkFrame):
         except Exception as e:
             logger.error(f"[STATUS_BAR] Error queuing update: {e}", exc_info=True)
 
-    def show_message(self, message: str):
+    def show_message(self, message: str) -> None:
         self._add_message(message)
 
-    def show_error(self, message: str):
+    def show_error(self, message: str) -> None:
         error_text = f"Error: {message}"
         self._add_message(error_text, is_error=True)
 
-    def show_warning(self, message: str):
+    def show_warning(self, message: str) -> None:
         warning_text = f"Warning: {message}"
         self._add_message(warning_text)
 
     def _add_message(self, message: str, is_error: bool = False) -> None:
-        def _update():
+        def _update() -> None:
             try:
                 is_success_message = bool(self._SUCCESS_MESSAGE_PATTERN.search(message))
-                is_connection_confirmed = bool(self._CONNECTION_CONFIRMED_PATTERN.search(message))
-
-                if is_connection_confirmed:
+                if self._CONNECTION_CONFIRMED_PATTERN.search(message):
                     self._connection_confirmed_shown = True
 
                 if not self._current_message:
@@ -196,7 +194,7 @@ class StatusBar(ctk.CTkFrame):
             if hasattr(self, "_connection_confirmed_shown"):
                 self._connection_confirmed_shown = False
 
-    def _process_messages(self):
+    def _process_messages(self) -> None:
         if not self._running:
             return
 
@@ -215,8 +213,8 @@ class StatusBar(ctk.CTkFrame):
             except Exception as e:
                 logger.error(f"[STATUS_BAR] Error scheduling message check: {e}")
 
-    def update_progress(self, progress: float):
-        def _update():
+    def update_progress(self, progress: float) -> None:
+        def _update() -> None:
             try:
                 self.progress_bar.set(progress / 100)
                 if progress >= 100:
@@ -225,6 +223,8 @@ class StatusBar(ctk.CTkFrame):
                     self._message_timeout = None
                 else:
                     self.status_label.configure(text=f"Downloading... {progress:.1f}%")
+                    self._current_message = f"Downloading... {progress:.1f}%"
+                    self._message_timeout = time.time() + 30
             except Exception as e:
                 logger.error(f"[STATUS_BAR] Error updating progress: {e}", exc_info=True)
 
@@ -238,8 +238,8 @@ class StatusBar(ctk.CTkFrame):
         else:
             self._queue_update(_update)
 
-    def reset(self):
-        def _update():
+    def reset(self) -> None:
+        def _update() -> None:
             try:
                 self.progress_bar.set(0)
                 self.status_label.configure(text="Ready")
@@ -248,23 +248,32 @@ class StatusBar(ctk.CTkFrame):
 
         self._queue_update(_update)
 
-    def _on_theme_changed(self, appearance, color):
+    def _on_theme_changed(self, appearance, color) -> None:
         self._apply_theme_colors()
 
-    def _apply_theme_colors(self):
+    def _apply_theme_colors(self) -> None:
         if not hasattr(self, "progress_bar"):
             return
 
         self._theme_manager.get_colors()
         theme_json = self._theme_manager.get_theme_json()
 
-        button_config = theme_json.get("CTkButton", {})
-        if button_config:
-            progress_color = button_config.get("fg_color")
-            if progress_color:
-                self.progress_bar.configure(progress_color=progress_color)
+        if (button_config := theme_json.get("CTkButton", {})) and (
+            progress_color := button_config.get("fg_color")
+        ):
+            # Handle progress_color - extract first element if it's a list or tuple
+            if isinstance(progress_color, list | tuple) and len(progress_color) > 0:
+                progress_color = (
+                    progress_color[0]
+                    if isinstance(progress_color[0], str)
+                    else str(progress_color[0])
+                )
+            elif not isinstance(progress_color, str):
+                progress_color = str(progress_color)
 
-    def destroy(self):
+            self.progress_bar.configure(progress_color=progress_color)
+
+    def destroy(self) -> None:
         self._running = False
         if self._theme_manager:
             self._theme_manager.unsubscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import StrEnum
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
@@ -16,18 +17,31 @@ if TYPE_CHECKING:
 
 
 class CookieState(BaseModel):
-    generated_at: datetime = Field(default_factory=datetime.now)
-    expires_at: datetime = Field(default_factory=lambda: datetime.now() + timedelta(hours=8))
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    expires_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc) + timedelta(hours=8)
+    )
     is_valid: bool = Field(default=False)
     is_generating: bool = Field(default=False)
     cookie_path: str | None = None
     error_message: str | None = None
 
     def is_expired(self) -> bool:
-        return datetime.now() >= self.expires_at
+        now = datetime.now(timezone.utc)
+        if (expires_at := self.expires_at).tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        return now >= expires_at
 
     def should_regenerate(self) -> bool:
-        if not self.is_valid or not self.cookie_path:
+        # If no cookie path, check if file exists from config
+        if not self.cookie_path:
+            config = get_config()
+            cookie_file = config.cookies.storage_dir / config.cookies.netscape_file_name
+            # No cookie file exists -> regenerate; cookie file exists but path not set -> OK
+            return not cookie_file.exists()
+
+        # Check if the actual cookie file exists
+        if not Path(self.cookie_path).exists():
             return True
 
         if self.is_expired():
@@ -35,8 +49,10 @@ class CookieState(BaseModel):
 
         config = get_config()
         if self.generated_at:
-            age_hours = (datetime.now() - self.generated_at).total_seconds() / 3600
-            if age_hours >= config.cookies.cookie_expiry_hours:
+            now = datetime.now(timezone.utc)
+            if (generated_at := self.generated_at).tzinfo is None:
+                generated_at = generated_at.replace(tzinfo=timezone.utc)
+            if (now - generated_at).total_seconds() / 3600 >= config.cookies.cookie_expiry_hours:
                 return True
 
         return False
@@ -71,7 +87,9 @@ class Download(BaseModel):
 
     model_config = {"arbitrary_types_allowed": True}
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: object) -> None:
+        if "url" in kwargs and kwargs["url"] is None:
+            raise ValueError("Download URL cannot be None")
         super().__init__(**kwargs)
         if hasattr(self, "url") and self.url:
             self._validate_url(self.url)
@@ -79,11 +97,11 @@ class Download(BaseModel):
     def set_event_bus(self, event_bus: IEventBus) -> None:
         self._event_bus = event_bus
 
-    def _validate_url(self, v):
+    def _validate_url(self, v: str) -> None:
         if not v.startswith(("http://", "https://")):
             raise ValueError("URL must start with http:// or https://")
 
-    def update_progress(self, progress: float, speed: float):
+    def update_progress(self, progress: float, speed: float) -> None:
         self.progress = progress
         self.speed = speed
 
@@ -100,7 +118,7 @@ class Download(BaseModel):
                 self.completed_at = datetime.now()
             self._event_bus.publish(DownloadEvent.COMPLETED, download=self)
 
-    def mark_failed(self, error_message: str):
+    def mark_failed(self, error_message: str) -> None:
         self.status = DownloadStatus.FAILED
         self.error_message = error_message
         self.completed_at = datetime.now()
@@ -118,7 +136,7 @@ class UIState(BaseModel):
     show_options_panel: bool = Field(default=False)
     selected_indices: list = Field(default_factory=list)
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: object) -> None:
         super().__init__(**kwargs)
 
 

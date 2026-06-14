@@ -1,76 +1,91 @@
+from __future__ import annotations
+
 from collections.abc import Callable
-from typing import Any, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
+
+from src.core.enums.instagram_auth_status import InstagramAuthStatus
+from src.core.models import Download
+from src.core.type_defs import JSONValue
+
+
+@runtime_checkable
+class DownloadsCoordinatorProtocol(Protocol):
+    def add_download(self, download: Download) -> None: ...
+    def remove_downloads(self, indices: list[int]) -> None: ...
+    def get_downloads(self) -> list[Download]: ...
+
+
+@runtime_checkable
+class PlatformDialogsProtocol(Protocol):
+    def authenticate_instagram(
+        self,
+        parent_window: TkRootProtocol,
+        callback: Callable[[InstagramAuthStatus], None] | None = None,
+    ) -> None: ...
 
 
 @runtime_checkable
 class UIContextProtocol(Protocol):
-    """Protocol for UI context objects."""
+    root: TkRootProtocol
+    downloads: DownloadsCoordinatorProtocol
+    platform_dialogs: PlatformDialogsProtocol
 
-    container: Any
-    root: Any
-
-    def youtube_download(self, url: str, **kwargs) -> None: ...
-
-    def twitter_download(self, url: str, **kwargs) -> None: ...
-
-    def instagram_download(self, url: str, **kwargs) -> None: ...
-
-    def pinterest_download(self, url: str, **kwargs) -> None: ...
-
+    def youtube_download(self, url: str, **kwargs: JSONValue) -> None: ...
+    def twitter_download(self, url: str, **kwargs: JSONValue) -> None: ...
+    def instagram_download(self, url: str, **kwargs: JSONValue) -> None: ...
+    def pinterest_download(self, url: str, **kwargs: JSONValue) -> None: ...
+    def spotify_download(self, url: str, **kwargs: JSONValue) -> None: ...
+    def tiktok_download(self, url: str, **kwargs: JSONValue) -> None: ...
+    def radiojavan_download(self, url: str, **kwargs: JSONValue) -> None: ...
+    def soundcloud_download(self, url: str, **kwargs: JSONValue) -> None: ...
     def generic_download(self, url: str, name: str | None = None) -> None: ...
 
 
 @runtime_checkable
 class HasEventCoordinatorProtocol(Protocol):
-    """Protocol for objects with event_coordinator attribute."""
-
     event_coordinator: UIContextProtocol
 
 
 @runtime_checkable
-class HandlerWithPatternsProtocol(Protocol):
-    """Protocol for link handlers with URL patterns."""
+class DynamicUIContextProtocol(Protocol):
+    root: TkRootProtocol
+    downloads: DownloadsCoordinatorProtocol
+    platform_dialogs: PlatformDialogsProtocol
 
+    def platform_download(self, platform: str, url: str, name: str | None = None) -> None: ...
+
+
+@runtime_checkable
+class HandlerWithPatternsProtocol(Protocol):
     @classmethod
     def get_patterns(cls) -> list[str]: ...
 
 
 @runtime_checkable
 class HasCleanupProtocol(Protocol):
-    """Protocol for objects with cleanup method."""
-
     def cleanup(self) -> None: ...
 
 
 @runtime_checkable
 class HasClearProtocol(Protocol):
-    """Protocol for UI components that can be cleared."""
-
     def clear(self) -> None: ...
 
 
 @runtime_checkable
 class HasCompletedDownloadsProtocol(Protocol):
-    """Protocol for download lists tracking completed downloads."""
-
     def has_completed_downloads(self) -> bool: ...
-
     def remove_completed_downloads(self) -> int: ...
 
 
 @runtime_checkable
 class TkRootProtocol(Protocol):
-    """Protocol for Tk root window."""
-
-    def after(self, ms: int, func: Callable[[], Any]) -> str: ...
-
+    def after(self, ms: int | str, func: Callable[..., None], *args: JSONValue) -> str: ...
     def winfo_exists(self) -> bool: ...
+    def run_on_main_thread(self, func: Callable[[], None]) -> None: ...
 
 
 @runtime_checkable
 class DownloadAttributesProtocol(Protocol):
-    """Protocol for download objects with optional attributes."""
-
     cookie_path: str | None
     quality: str
     download_playlist: bool

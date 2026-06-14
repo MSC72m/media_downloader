@@ -59,6 +59,7 @@ class TestDownloadComprehensive:
         assert download.video_only is False
         assert download.download_playlist is True
         assert download.download_subtitles is True
+        assert download.selected_subtitles is not None
         assert len(download.selected_subtitles) == 2
         assert download.download_thumbnail is True
         assert download.embed_metadata is True
@@ -196,10 +197,12 @@ class TestAuthStateComprehensive:
 
     def test_auth_state_with_fields(self):
         """Test AuthState with various fields."""
-        auth_state = AuthState(is_authenticated=True, service="youtube", username="testuser")
+        auth_state = AuthState(
+            is_authenticated=True, service=ServiceType.YOUTUBE, username="testuser"
+        )
 
         assert auth_state.is_authenticated is True
-        assert auth_state.service == "youtube"
+        assert auth_state.service == ServiceType.YOUTUBE
         assert auth_state.username == "testuser"
 
 

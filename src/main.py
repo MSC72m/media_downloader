@@ -1,7 +1,11 @@
+import atexit
 import contextlib
+import importlib.util
 import queue
 import sys
+from collections.abc import Callable
 from pathlib import Path
+from typing import TYPE_CHECKING, cast
 
 from src.utils.common import ensure_gui_available
 from src.utils.logger import get_logger
@@ -16,8 +20,16 @@ from tkinter import Menu  # noqa: E402
 
 import customtkinter as ctk  # noqa: E402
 
+# Initialize CTK's built-in theme so ThemeManager.theme is populated.
+# This MUST happen before any CTk widget is created.
+ctk.set_default_color_theme("blue")
+
 from src.core import get_application_orchestrator  # noqa: E402
-from src.core.config import get_config  # noqa: E402
+from src.core.config import AppConfig, get_config  # noqa: E402
+from src.core.interfaces import DynamicUIContextProtocol  # noqa: E402
+from src.ui.components.concurrent_downloads_selector import (  # noqa: E402
+    ConcurrentDownloadsSelector,
+)
 from src.ui.components.download_list import DownloadListView  # noqa: E402
 from src.ui.components.main_action_buttons import ActionButtonBar  # noqa: E402
 from src.ui.components.options_bar import OptionsBar  # noqa: E402
@@ -26,11 +38,14 @@ from src.ui.components.theme_switcher import ThemeSwitcher  # noqa: E402
 from src.ui.components.url_entry import URLEntryFrame  # noqa: E402
 from src.ui.utils.theme_manager import get_theme_manager  # noqa: E402
 
+if TYPE_CHECKING:
+    from src.application.orchestrator import ApplicationOrchestrator
 
-def _check_playwright_installation():
+
+def _check_playwright_installation() -> None:
     try:
-        import playwright  # noqa: F401
-
+        if not importlib.util.find_spec("playwright"):
+            raise ImportError("playwright module not found")
         logger.info("[MAIN_APP] Playwright is installed")
     except ImportError as original_error:
         logger.error("[MAIN_APP] Playwright is NOT installed - showing critical error")
@@ -54,7 +69,7 @@ def _check_playwright_installation():
 
         title_label = ctk.CTkLabel(
             error_frame,
-            text="⚠️  PLAYWRIGHT NOT INSTALLED  ⚠️",
+            text="PLAYWRIGHT NOT INSTALLED",
             font=("Arial", 20, "bold"),
             text_color="red",
         )
@@ -81,11 +96,11 @@ def _check_playwright_installation():
         # Track which button was clicked
         exit_clicked = {"value": False}
 
-        def continue_anyway():
+        def continue_anyway() -> None:
             logger.warning("[MAIN_APP] User chose to continue without Playwright")
             error_window.destroy()
 
-        def exit_app():
+        def exit_app() -> None:
             logger.info("[MAIN_APP] User chose to exit and install Playwright")
             exit_clicked["value"] = True
 
@@ -141,21 +156,25 @@ def _check_playwright_installation():
 
 
 class MediaDownloaderApp(ctk.CTk):
-    def __init__(self):
+    def __init__(self, config: AppConfig | None = None) -> None:
         super().__init__()
 
-        self.config = get_config()
+        self.config = config or get_config()
 
         self.title(self.config.ui.app_title)
         self.geometry("1000x700")
 
         self.thread_queue = queue.Queue(maxsize=100)
+        self._queue_processor_running = True
         self.after(100, self._process_thread_queue)
 
-        application_orchestrator = get_application_orchestrator()
-        self.orchestrator = application_orchestrator(self)
+        application_orchestrator = cast(
+            type["ApplicationOrchestrator"],
+            get_application_orchestrator(),
+        )
+        self.orchestrator = application_orchestrator(self, config=self.config)
 
-        self.theme_manager = get_theme_manager(self)
+        self.theme_manager = get_theme_manager(self, config=self.config)
 
         self.update()
 
@@ -166,15 +185,15 @@ class MediaDownloaderApp(ctk.CTk):
 
         self.protocol("WM_DELETE_WINDOW", self._on_closing)
 
-        import atexit
-
         atexit.register(self._graceful_shutdown)
 
         logger.info("Media Downloader initialized")
 
         self.after(100, self.orchestrator.check_connectivity)
 
-    def _process_thread_queue(self):
+    def _process_thread_queue(self) -> None:
+        if not self._queue_processor_running:
+            return
         try:
             max_tasks_per_cycle = 10
             tasks_processed = 0
@@ -191,9 +210,10 @@ class MediaDownloaderApp(ctk.CTk):
         except Exception as e:
             logger.error(f"[MAIN_APP] Error in event loop: {e}", exc_info=True)
         finally:
-            self.after(33, self._process_thread_queue)
+            if self._queue_processor_running:
+                self.after(33, self._process_thread_queue)
 
-    def run_on_main_thread(self, func):
+    def run_on_main_thread(self, func: Callable[[], None]) -> None:
         try:
             if self.thread_queue.full():
                 with contextlib.suppress(queue.Empty):
@@ -202,10 +222,11 @@ class MediaDownloaderApp(ctk.CTk):
         except queue.Full:
             pass
 
-    def _create_ui(self):
+    def _create_ui(self) -> None:
         self.header_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent", corner_radius=0)
         self.header_frame.grid_columnconfigure(0, weight=1)
         self.header_frame.grid_columnconfigure(1, weight=0)
+        self.header_frame.grid_columnconfigure(2, weight=0)
 
         app_title = self.config.ui.app_title
         self.title_label = ctk.CTkLabel(
@@ -213,20 +234,32 @@ class MediaDownloaderApp(ctk.CTk):
         )
         self.title_label.grid(row=0, column=0, sticky="w", pady=8)
 
-        self.theme_switcher = ThemeSwitcher(self.header_frame, self.theme_manager)
-        self.theme_switcher.grid(row=0, column=1, sticky="e", pady=8, padx=(20, 0))
+        controls_frame = ctk.CTkFrame(self.header_frame, fg_color="transparent")
+        controls_frame.grid(row=0, column=1, sticky="e", pady=8)
+
+        self.theme_switcher = ThemeSwitcher(controls_frame, self.theme_manager)
+        self.theme_switcher.grid(row=0, column=0, sticky="e", pady=8, padx=(20, 0))
+
+        self.concurrent_selector = ConcurrentDownloadsSelector(
+            controls_frame,
+            theme_manager=self.theme_manager,
+            config=self.config,
+        )
+        self.concurrent_selector.grid(row=0, column=1, sticky="e", pady=8, padx=(10, 0))
 
         coord = self.orchestrator.event_coordinator
 
         def on_add_url(url: str, name: str) -> None:
-            handler_found = self.orchestrator.link_detector.detect_and_handle(url, coord)
-
-            if not handler_found:
+            if not self.orchestrator.link_detector.detect_and_handle(
+                url, cast(DynamicUIContextProtocol, coord)
+            ):
                 logger.info(f"[MAIN_APP] No handler found for {url}, treating as generic download")
                 coord.platform_download("generic", url, name)
 
         def on_youtube_detected(url: str) -> None:
-            self.orchestrator.link_detector.detect_and_handle(url, coord)
+            self.orchestrator.link_detector.detect_and_handle(
+                url, cast(DynamicUIContextProtocol, coord)
+            )
 
         self.url_entry = URLEntryFrame(
             self.main_frame,
@@ -284,7 +317,7 @@ class MediaDownloaderApp(ctk.CTk):
         )
         logger.info("[MAIN_APP] UI components passed to orchestrator successfully")
 
-    def _setup_layout(self):
+    def _setup_layout(self) -> None:
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
@@ -299,7 +332,7 @@ class MediaDownloaderApp(ctk.CTk):
         self.action_buttons.grid(row=4, column=0, sticky="ew", pady=(0, 10))
         self.status_bar.grid(row=5, column=0, sticky="ew", pady=(0, 0))
 
-    def _setup_menu(self):
+    def _setup_menu(self) -> None:
         menubar = Menu(self)
         self.configure(menu=menubar)
 
@@ -310,7 +343,7 @@ class MediaDownloaderApp(ctk.CTk):
         )
         menubar.add_cascade(label="Tools", menu=tools_menu)
 
-    def _graceful_shutdown(self):
+    def _graceful_shutdown(self) -> None:
         try:
             logger.info("[MAIN_APP] Graceful shutdown - persisting settings")
 
@@ -333,8 +366,9 @@ class MediaDownloaderApp(ctk.CTk):
         except Exception as e:
             logger.error(f"[MAIN_APP] Error during graceful shutdown: {e}", exc_info=True)
 
-    def _on_closing(self):
+    def _on_closing(self) -> None:
         logger.info("[MAIN_APP] Application closing - cleaning up")
+        self._queue_processor_running = False
         self._graceful_shutdown()
 
         try:
@@ -346,9 +380,37 @@ class MediaDownloaderApp(ctk.CTk):
 
 if __name__ == "__main__":
     try:
+        # Step 1: Verify Playwright Python package is available
+        logger.info("[MAIN_APP] Step 1/3: Checking Playwright installation...")
         _check_playwright_installation()
-        logger.info("[MAIN_APP] Starting Media Downloader application")
+
+        # Step 2: Ensure Chromium browser is downloaded BEFORE creating the
+        # app. Cookie init threads launch browsers immediately on startup
+        # and fail if Chromium isn't installed yet.
+        logger.info("[MAIN_APP] Step 2/3: Ensuring Chromium browser is available...")
+        try:
+            from src.services.cookies.playwright_bootstrap import (
+                ensure_playwright_ready,
+                is_chromium_installed,
+            )
+
+            if not is_chromium_installed():
+                logger.info("[MAIN_APP] Chromium not found - installing now (blocking)...")
+                if not ensure_playwright_ready(root_window=None):
+                    logger.warning(
+                        "[MAIN_APP] Chromium installation failed - cookie generation will not work"
+                    )
+                else:
+                    logger.info("[MAIN_APP] Chromium installed successfully")
+            else:
+                logger.info("[MAIN_APP] Chromium already installed")
+        except Exception as e:
+            logger.warning(f"[MAIN_APP] Playwright bootstrap skipped: {e}")
+
+        # Step 3: Create and display the main application window
+        logger.info("[MAIN_APP] Step 3/3: Initializing application window...")
         app = MediaDownloaderApp()
+
         app.mainloop()
 
     except (SystemExit, ImportError) as e:

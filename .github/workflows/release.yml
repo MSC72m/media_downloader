@@ -1,0 +1,231 @@
+name: Build & Release Windows Installer
+
+on:
+  push:
+    branches:
+      - development
+    tags:
+      - "v*"
+
+  # Allow manual triggering for testing the workflow
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: "Create a GitHub release"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-windows:
+    name: build-windows-${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-latest
+            python-architecture: x64
+            inno-architectures-allowed: x64compatible
+          - arch: arm64
+            runner: windows-11-arm
+            python-architecture: arm64
+            inno-architectures-allowed: arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python 3.12 (${{ matrix.arch }})
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+          architecture: ${{ matrix.python-architecture }}
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Run tests
+        run: uv run pytest --cov-fail-under=25
+
+      # ── PyInstaller Build ──────────────────────────────────────────
+      - name: Build with PyInstaller
+        run: uv run pyinstaller media_downloader.spec --noconfirm
+
+      - name: Verify PyInstaller output
+        run: |
+          if (!(Test-Path "dist\MediaDownloader\MediaDownloader.exe")) {
+            Write-Error "MediaDownloader.exe not found in dist\MediaDownloader\"
+            exit 1
+          }
+          Write-Host "Build successful: dist\MediaDownloader\MediaDownloader.exe"
+          $size = (Get-Item "dist\MediaDownloader\MediaDownloader.exe").Length / 1MB
+          Write-Host "Executable size: $([math]::Round($size, 2)) MB"
+
+      # ── Code Signing (optional) ────────────────────────────────────
+      - name: Sign executable
+        if: env.CODE_SIGNING_CERT != ''
+        env:
+          CODE_SIGNING_CERT: ${{ secrets.CODE_SIGNING_CERT }}
+          CODE_SIGNING_PASSWORD: ${{ secrets.CODE_SIGNING_PASSWORD }}
+        run: |
+          # Decode certificate from base64
+          $certBytes = [Convert]::FromBase64String($env:CODE_SIGNING_CERT)
+          $certPath = Join-Path $env:RUNNER_TEMP "code_signing.pfx"
+          [IO.File]::WriteAllBytes($certPath, $certBytes)
+
+          # Find signtool
+          $signtool = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits" -Recurse -Filter "signtool.exe" | Select-Object -First 1
+
+          if ($signtool) {
+            & $signtool.FullName sign /f $certPath /p $env:CODE_SIGNING_PASSWORD /tr http://timestamp.digicert.com /td sha256 /fd sha256 "dist\MediaDownloader\MediaDownloader.exe"
+          } else {
+            Write-Warning "signtool.exe not found, skipping code signing"
+          }
+
+          # Clean up certificate
+          Remove-Item $certPath -Force
+
+      # ── Inno Setup Installer ───────────────────────────────────────
+      - name: Build installer with Inno Setup
+        run: |
+          # Inno Setup is pre-installed on windows-latest runners
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $iscc)) {
+            # Try alternative path
+            $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
+          }
+          if (!$iscc -or !(Test-Path $iscc)) {
+            Write-Host "Inno Setup not found; installing with Chocolatey..."
+            choco install innosetup --no-progress -y
+            $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+            if (!(Test-Path $iscc)) {
+              $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
+            }
+          }
+          if (!$iscc -or !(Test-Path $iscc)) {
+            Write-Error "Inno Setup not found. Install it or check the runner image."
+            exit 1
+          }
+          & $iscc /DMyAppArchLabel=${{ matrix.arch }} /DMyAppArchitecturesAllowed=${{ matrix.inno-architectures-allowed }} installer.iss
+
+      - name: Verify installer output
+        id: installer
+        run: |
+          $version = "1.0.0"
+          $arch = "${{ matrix.arch }}"
+          $installerPath = "installers\MediaDownloaderSetup-$version-$arch.exe"
+          if (!(Test-Path $installerPath)) {
+            Write-Error "Installer not found at $installerPath"
+            exit 1
+          }
+          $size = (Get-Item $installerPath).Length / 1MB
+          Write-Host "Installer size: $([math]::Round($size, 2)) MB"
+          echo "installer_path=$installerPath" >> $env:GITHUB_OUTPUT
+          echo "installer_name=MediaDownloaderSetup-$version-$arch.exe" >> $env:GITHUB_OUTPUT
+
+      # ── Sign Installer (optional) ──────────────────────────────────
+      - name: Sign installer
+        if: env.CODE_SIGNING_CERT != ''
+        env:
+          CODE_SIGNING_CERT: ${{ secrets.CODE_SIGNING_CERT }}
+          CODE_SIGNING_PASSWORD: ${{ secrets.CODE_SIGNING_PASSWORD }}
+        run: |
+          $certBytes = [Convert]::FromBase64String($env:CODE_SIGNING_CERT)
+          $certPath = Join-Path $env:RUNNER_TEMP "code_signing.pfx"
+          [IO.File]::WriteAllBytes($certPath, $certBytes)
+
+          $signtool = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits" -Recurse -Filter "signtool.exe" | Select-Object -First 1
+
+          if ($signtool) {
+            & $signtool.FullName sign /f $certPath /p $env:CODE_SIGNING_PASSWORD /tr http://timestamp.digicert.com /td sha256 /fd sha256 "${{ steps.installer.outputs.installer_path }}"
+          }
+
+          Remove-Item $certPath -Force
+
+      # ── Upload Artifacts ───────────────────────────────────────────
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer-${{ matrix.arch }}
+          path: ${{ steps.installer.outputs.installer_path }}
+          retention-days: 30
+
+      - name: Upload portable build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-portable-${{ matrix.arch }}
+          path: dist/MediaDownloader/
+          retention-days: 30
+
+  # ── GitHub Release ───────────────────────────────────────────────
+  release:
+    needs: build-windows
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.create_release == 'true')
+
+    steps:
+      - name: Download installer artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: windows-installer-*
+          path: artifacts/
+          merge-multiple: true
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION="${{ github.ref_name }}"
+          else
+            VERSION="dev-$(date +%Y%m%d-%H%M%S)"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Version: $VERSION"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: "Media Downloader ${{ steps.version.outputs.version }}"
+          body: |
+            ## Media Downloader ${{ steps.version.outputs.version }}
+
+            ### Installation
+
+            1. Download the installer for your Windows architecture below:
+               - `MediaDownloaderSetup-1.0.0-x64.exe` for Intel/AMD Windows PCs
+               - `MediaDownloaderSetup-1.0.0-arm64.exe` for Windows on ARM devices
+            2. Run the installer and follow the setup wizard
+            3. On first launch, the app will download a browser component (~150 MB) for cookie generation -- this only happens once
+
+            ### Requirements
+
+            - Windows 10 or later
+            - Internet connection (for first-run browser download)
+
+            ### Notes
+
+            - If Windows SmartScreen shows a warning, click "More info" then "Run anyway"
+            - The browser component is stored in your user profile and persists across app updates
+          files: artifacts/*
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, 'dev') || contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'rc') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

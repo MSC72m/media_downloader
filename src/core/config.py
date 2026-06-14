@@ -1,14 +1,14 @@
 import json
+from collections.abc import Callable
 from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import yaml
-from pydantic import BaseModel, Field, field_serializer, field_validator
+from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from src.core.enums.appearance_mode import AppearanceMode
-from src.core.enums.color_theme import ColorTheme
 from src.utils.logger import get_logger
 
 if TYPE_CHECKING:
@@ -54,7 +54,7 @@ class PathConfig(BaseModel):
 
     @field_validator("downloads_dir", "config_dir", mode="before")
     @classmethod
-    def validate_path(cls, v):
+    def validate_path(cls, v: str | Path) -> Path:
         """Convert string paths to Path objects."""
         if isinstance(v, str):
             return Path(v).expanduser()
@@ -64,7 +64,7 @@ class PathConfig(BaseModel):
 class DownloadConfig(BaseModel):
     """Download-related configuration."""
 
-    max_concurrent_downloads: int = Field(default=3, description="Maximum concurrent downloads")
+    max_concurrent_downloads: int = Field(default=1, description="Maximum concurrent downloads")
     retry_count: int = Field(default=3, description="Number of retries for failed downloads")
     retry_delay: float = Field(default=3.0, description="Delay between retries in seconds")
     socket_timeout: int = Field(default=15, description="Socket timeout in seconds")
@@ -94,13 +94,16 @@ class NetworkConfig(BaseModel):
     )
     service_domains: dict[str, list[str]] = Field(
         default_factory=lambda: {
-            "youtube": ["youtube.com", "youtu.be", "www.youtube.com"],
-            "twitter": ["twitter.com", "x.com", "api.x.com", "mobile.x.com"],
-            "instagram": ["instagram.com", "www.instagram.com", "m.instagram.com"],
-            "pinterest": ["pinterest.com", "www.pinterest.com"],
+            "youtube": ["youtube.com", "youtu.be", "www.youtube.com", "music.youtube.com"],
+            "twitter": ["twitter.com", "x.com", "www.twitter.com", "www.x.com"],
+            "instagram": ["instagram.com", "www.instagram.com"],
+            "pinterest": ["pinterest.com", "www.pinterest.com", "pin.it"],
             "soundcloud": ["soundcloud.com", "www.soundcloud.com"],
+            "tiktok": ["tiktok.com", "www.tiktok.com", "vm.tiktok.com"],
+            "radiojavan": ["play.radiojavan.com", "radiojavan.com", "rj.app"],
+            "spotify": ["open.spotify.com", "spotify.com", "spotify.link"],
         },
-        description="Service domain mappings",
+        description="Service domain mappings (deprecated - use services.service_types)",
     )
 
 
@@ -175,6 +178,49 @@ class NotificationTemplatesConfig(BaseModel):
             }
         },
         description="SoundCloud notification templates",
+    )
+
+    radiojavan: dict[str, dict[str, Any]] = Field(
+        default_factory=lambda: {
+            "service_unavailable": {
+                "text": "Radio Javan service is temporarily unavailable. Please try again later.",
+                "title": "Radio Javan Service Unavailable",
+                "level": "ERROR",
+            }
+        },
+        description="Radio Javan notification templates",
+    )
+
+    tiktok: dict[str, dict[str, Any]] = Field(
+        default_factory=lambda: {
+            "service_unavailable": {
+                "text": "TikTok service is temporarily unavailable. Please try again later.",
+                "title": "TikTok Service Unavailable",
+                "level": "ERROR",
+            }
+        },
+        description="TikTok notification templates",
+    )
+
+    spotify: dict[str, dict[str, Any]] = Field(
+        default_factory=lambda: {
+            "no_match_found": {
+                "text": "Could not find a matching video on YouTube. Try searching manually.",
+                "title": "No YouTube Match Found",
+                "level": "WARNING",
+            },
+            "metadata_extraction_failed": {
+                "text": "Failed to extract Spotify metadata. Check URL and try again.",
+                "title": "Metadata Extraction Failed",
+                "level": "ERROR",
+            },
+            "playlist_processing": {
+                "text": "Processing {count} tracks from playlist...",
+                "title": "Processing Playlist",
+                "level": "INFO",
+            },
+        },
+        description="Spotify notification templates",
     )
 
 
@@ -403,7 +449,7 @@ class SoundCloudConfig(BaseModel):
     """SoundCloud-specific configuration."""
 
     default_retries: int = Field(default=3, description="Default number of retries")
-    socket_timeout: int = Field(default=15, description="Socket timeout in seconds")
+    socket_timeout: int = Field(default=30, description="Socket timeout in seconds")
     default_audio_format: str = Field(default="mp3", description="Default audio format")
     default_audio_quality: str = Field(default="best", description="Default audio quality")
     url_patterns: list[str] = Field(
@@ -418,291 +464,377 @@ class SoundCloudConfig(BaseModel):
     )
 
 
+class RadioJavanConfig(BaseModel):
+    """Radio Javan-specific configuration."""
+
+    default_timeout: int = Field(default=30, description="Default request timeout in seconds")
+    max_retries: int = Field(default=3, description="Maximum number of retries")
+    cookie_enabled: bool = Field(
+        default=True,
+        description="Enable browser-backed cookie caching for Cloudflare-protected endpoints",
+    )
+    cookie_storage_dir: Path = Field(
+        default_factory=lambda: Path.home() / ".media_downloader",
+        description="Directory to store RadioJavan cookie state and data files",
+    )
+    cookie_state_file_name: str = Field(
+        default="radiojavan_cookie_state.json",
+        description="State filename for RadioJavan cookie manager",
+    )
+    cookie_data_file_name: str = Field(
+        default="radiojavan_cookies.json",
+        description="Cookie data filename for RadioJavan cookie manager",
+    )
+    cookie_ttl_hours: int = Field(
+        default=4,
+        description="How long RadioJavan browser cookies stay valid before refresh",
+    )
+    cookie_refresh_margin_minutes: int = Field(
+        default=20,
+        description="Refresh cookies this many minutes before TTL expiry",
+    )
+    cookie_headless: bool = Field(
+        default=True,
+        description="Use headless browser for RadioJavan cookie generation",
+    )
+    cookie_generation_timeout_seconds: int = Field(
+        default=45,
+        description="Timeout per browser navigation during cookie generation",
+    )
+    cookie_wait_after_load_seconds: float = Field(
+        default=6.0,
+        description="Wait window after page loads to allow challenge completion",
+    )
+    cookie_retry_cooldown_seconds: int = Field(
+        default=180,
+        description=(
+            "Cooldown after failed cookie generation before attempting a new browser session"
+        ),
+    )
+    cookie_bootstrap_url: str = Field(
+        default="https://www.radiojavan.com/",
+        description="Initial page to open for browser-backed cookie extraction",
+    )
+    cookie_validation_url: str = Field(
+        default="https://www.radiojavan.com/mp3s/mp3_host?id=shadmehr-asteni",
+        description="Endpoint used to validate that stored cookies can pass challenge",
+    )
+    url_patterns: list[str] = Field(
+        default_factory=lambda: [
+            r"^https?://(?:www\.)?play\.radiojavan\.com/(?:mp3|mp4|song)/[\w-]+",
+            r"^https?://(?:www\.)?radiojavan\.com/artist/[\w-]+/songs",
+            r"^https?://(?:www\.)?radiojavan\.com/mp3s/mp3/[\w-]+",
+            r"^https?://(?:www\.)?radiojavan\.com/videos/video/[\w-]+",
+            r"^https?://rj\.app/[\w-]+",
+            r"^https?://(?:www\.)?radiojavan\.com/(?:mp3|mp4|song)/[\w-]+",
+        ],
+        description="Radio Javan URL validation patterns",
+    )
+
+    # These config options map to real API and CDN patterns
+    api_base_url: str = Field(
+        default="https://www.radiojavan.com/api2", description="Radio Javan API base URL"
+    )
+    cdn_hosts: list[str] = Field(
+        default_factory=lambda: [
+            "www.radiojavan.com",
+            "rj1.media",
+            "rj2.media",
+            "rj3.media",
+            "rjmedia.app",
+            "rj.app",
+        ],
+        description="Available CDN hosts",
+    )
+    media_type_paths: dict[str, str] = Field(
+        default_factory=lambda: {
+            "mp3": "/mp3/{media_name}",
+            "mp4": "/mp4/{media_name}",
+        },
+        description="Media type URL path patterns",
+    )
+
+
+class TikTokConfig(BaseModel):
+    """TikTok-specific configuration."""
+
+    default_timeout: int = Field(default=30, description="Default request timeout in seconds")
+    max_retries: int = Field(default=3, description="Maximum number of retries")
+    url_patterns: list[str] = Field(
+        default_factory=lambda: [
+            r"^https?://(?:www\.)?tiktok\.com/[@\w]+/video/[\d]+",
+            r"^https?://(?:vm\.)?tiktok\.com/[\w-]+",
+            r"^https?://(?:www\.)?tiktok\.com/t/[\w-]+",
+        ],
+        description="TikTok URL validation patterns",
+    )
+
+
+class SpotifyConfig(BaseModel):
+    """Spotify-specific configuration."""
+
+    default_timeout: int = Field(default=10, description="Default request timeout in seconds")
+    oembed_timeout: int = Field(default=10, description="OEmbed API timeout in seconds")
+    max_search_results: int = Field(default=5, description="Maximum YouTube search results")
+    min_similarity_threshold: float = Field(
+        default=0.5, description="Minimum similarity score (0-1)"
+    )
+    youtube_search_format: str = Field(
+        default="ytsearch{max}:{artist} - {track}", description="YouTube search query format"
+    )
+    default_audio_quality: str = Field(default="best", description="Default audio quality")
+    url_patterns: list[str] = Field(
+        default_factory=lambda: [
+            r"^https?://(?:open\.)?spotify\.com/track/[\w-]+",
+            r"^https?://(?:open\.)?spotify\.com/album/[\w-]+",
+            r"^https?://(?:open\.)?spotify\.com/playlist/[\w-]+",
+            r"^https?://(?:open\.)?spotify\.com/artist/[\w-]+",
+            r"^spotify:(track|album|playlist|artist|episode|show):[\w-]+$",
+            r"^https?://(?:spotify\.link|song\.link|album\.link|playlist\.link)/[\w-]+",
+        ],
+        description="Spotify URL validation patterns",
+    )
+
+
+class ServiceConfig(BaseModel):
+    """Centralized service configuration for agnostic service handling.
+
+    This configuration:
+    - Centralizes all service data (URL patterns, domains, handler/downloader paths)
+    - Enables dynamic service registration and detection
+    - Follows Open/Closed Principle (adding services only requires config update)
+    """
+
+    youtube: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "service_type": "youtube",
+            "url_patterns": [
+                r"^https?://(?:www\.)?youtube\.com/watch\?v=[\w-]+",
+                r"^https?://(?:www\.)?youtube\.com/playlist\?list=[\w-]+",
+                r"^https?://(?:www\.)?youtu\.be/[\w-]+",
+                r"^https?://(?:www\.)?youtube\.com/embed/[\w-]+",
+                r"^https?://(?:www\.)?youtube\.com/v/[\w-]+",
+                r"^https?://(?:www\.)?youtube\.com/shorts/[\w-]+",
+                r"^https?://music\.youtube\.com/watch\?v=[\w-]+",
+                r"^https?://music\.youtube\.com/playlist\?list=[\w-]+",
+            ],
+            "domains": ["youtube.com", "youtu.be", "www.youtube.com"],
+            "downloader_module": "src.services.youtube.downloader",
+            "downloader_class": "YouTubeDownloader",
+            "handler_module": "src.handlers.youtube_handler",
+            "handler_class": "YouTubeHandler",
+        },
+        description="YouTube service configuration",
+    )
+
+    twitter: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "service_type": "twitter",
+            "url_patterns": [
+                r"^https?://(?:www\.)?twitter\.com/[\w]+/status/[\d]+",
+                r"^https?://(?:www\.)?x\.com/[\w]+/status/[\d]+",
+                r"^https?://(?:www\.)?twitter\.com/i/spaces/[\w]+",
+                r"^https?://(?:www\.)?x\.com/i/spaces/[\w]+",
+                r"^https?://(?:mobile\.)?twitter\.com/[\w]+/status/[\d]+",
+                r"^https?://(?:mobile\.)?x\.com/[\w]+/status/[\d]+",
+            ],
+            "domains": ["twitter.com", "x.com", "api.x.com", "mobile.x.com"],
+            "downloader_module": "src.services.twitter.downloader",
+            "downloader_class": "TwitterDownloader",
+            "handler_module": "src.handlers.twitter_handler",
+            "handler_class": "TwitterHandler",
+        },
+        description="Twitter/X service configuration",
+    )
+
+    instagram: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "service_type": "instagram",
+            "url_patterns": [
+                r"^https?://(?:www\.)?instagram\.com/p/[\w-]+",
+                r"^https?://(?:www\.)?instagram\.com/reel/[\w-]+",
+                r"^https?://(?:www\.)?instagram\.com/stories/[\w-]+",
+                r"^https?://(?:www\.)?instagram\.com/tv/[\w-]+",
+                r"^https?://(?:www\.)?instagram\.com/[\w]+/p/[\w-]+",
+                r"^https?://(?:www\.)?instagram\.com/[\w]+/reel/[\w-]+",
+            ],
+            "domains": ["instagram.com", "www.instagram.com", "m.instagram.com"],
+            "downloader_module": "src.services.instagram.downloader",
+            "downloader_class": "InstagramDownloader",
+            "handler_module": "src.handlers.instagram_handler",
+            "handler_class": "InstagramHandler",
+        },
+        description="Instagram service configuration",
+    )
+
+    pinterest: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "service_type": "pinterest",
+            "url_patterns": [
+                r"^https?://(?:www\.)?pinterest\.com/pin/[\d]+",
+                r"^https?://(?:www\.)?pinterest\.com/[\w]+/[\w-]+/[\d]+",
+                r"^https?://(?:www\.)?pin\.it/[\w-]+",
+                r"^https?://(?:www\.)?pinterest\.com\.au/pin/[\d]+",
+                r"^https?://(?:www\.)?pinterest\.ca/pin/[\d]+",
+                r"^https?://(?:www\.)?pinterest\.co\.uk/pin/[\d]+",
+                r"^https?://(?:www\.)?pinterest\.de/pin/[\d]+",
+                r"^https?://(?:www\.)?pinterest\.fr/pin/[\d]+",
+            ],
+            "domains": ["pinterest.com", "www.pinterest.com"],
+            "downloader_module": "src.services.pinterest.downloader",
+            "downloader_class": "PinterestDownloader",
+            "handler_module": "src.handlers.pinterest_handler",
+            "handler_class": "PinterestHandler",
+        },
+        description="Pinterest service configuration",
+    )
+
+    soundcloud: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "service_type": "soundcloud",
+            "url_patterns": [
+                r"^https?://(?:www\.)?soundcloud\.com/[\w-]+/[\w-]+",
+                r"^https?://(?:www\.)?soundcloud\.com/[\w-]+/sets/[\w-]+",
+                r"^https?://(?:m\.)?soundcloud\.com/[\w-]+/[\w-]+",
+                r"^https?://(?:m\.)?soundcloud\.com/[\w-]+/sets/[\w-]+",
+                r"^https?://soundcloud\.app\.goo\.gl/[\w]+",
+            ],
+            "domains": ["soundcloud.com", "www.soundcloud.com"],
+            "downloader_module": "src.services.soundcloud.downloader",
+            "downloader_class": "SoundCloudDownloader",
+            "handler_module": "src.handlers.soundcloud_handler",
+            "handler_class": "SoundCloudHandler",
+        },
+        description="SoundCloud service configuration",
+    )
+
+    tiktok: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "service_type": "tiktok",
+            "url_patterns": [
+                r"^https?://(?:www\.)?tiktok\.com/[@\w]+/video/[\d]+",
+                r"^https?://(?:vm\.)?tiktok\.com/[\w-]+",
+                r"^https?://(?:www\.)?tiktok\.com/t/[\w-]+",
+            ],
+            "domains": ["tiktok.com", "vm.tiktok.com", "www.tiktok.com"],
+            "downloader_module": "src.services.tiktok.downloader",
+            "downloader_class": "TikTokDownloader",
+            "handler_module": "src.handlers.tiktok_handler",
+            "handler_class": "TikTokHandler",
+        },
+        description="TikTok service configuration",
+    )
+
+    radiojavan: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "service_type": "radiojavan",
+            "url_patterns": [
+                r"^https?://(?:www\.)?play\.radiojavan\.com/(?:mp3|mp4)/[\w-]+",
+                r"^https?://(?:www\.)?radiojavan\.com/artist/[\w-]+/songs",
+                r"^https?://(?:www\.)?radiojavan\.com/mp3s/mp3/[\w-]+",
+                r"^https?://(?:www\.)?radiojavan\.com/videos/video/[\w-]+",
+                r"^https?://rj\.app/[\w-]+",
+                r"^https?://(?:www\.)?radiojavan\.com/(?:mp3|mp4)/[\w-]+",
+            ],
+            "domains": ["play.radiojavan.com", "radiojavan.com", "rj.app"],
+            "downloader_module": "src.services.radiojavan.downloader",
+            "downloader_class": "RadioJavanDownloader",
+            "handler_module": "src.handlers.radiojavan_handler",
+            "handler_class": "RadioJavanHandler",
+        },
+        description="Radio Javan service configuration",
+    )
+
+    spotify: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "service_type": "spotify",
+            "url_patterns": [
+                r"^https?://(?:open\.)?spotify\.com/track/[\w-]+",
+                r"^https?://(?:open\.)?spotify\.com/album/[\w-]+",
+                r"^https?://(?:open\.)?spotify\.com/playlist/[\w-]+",
+                r"^https?://(?:open\.)?spotify\.com/artist/[\w-]+",
+                r"^spotify:(track|album|playlist|artist|episode|show):[\w-]+$",
+                r"^https?://(?:spotify\.link|song\.link|album\.link|playlist\.link)/[\w-]+",
+            ],
+            "domains": ["open.spotify.com", "spotify.com", "spotify.link"],
+            "downloader_module": "src.services.spotify.downloader",
+            "downloader_class": "SpotifyDownloader",
+            "handler_module": "src.handlers.spotify_handler",
+            "handler_class": "SpotifyHandler",
+        },
+        description="Spotify service configuration",
+    )
+
+    @property
+    def all_services(self) -> dict[str, dict[str, Any]]:
+        """Get all service configurations as a dictionary."""
+        return {
+            "youtube": self.youtube,
+            "twitter": self.twitter,
+            "instagram": self.instagram,
+            "pinterest": self.pinterest,
+            "soundcloud": self.soundcloud,
+            "tiktok": self.tiktok,
+            "radiojavan": self.radiojavan,
+            "spotify": self.spotify,
+        }
+
+    @property
+    def service_types(self) -> dict[str, str]:
+        """Map domain to service type."""
+        return {
+            **dict.fromkeys(self.youtube["domains"], "youtube"),
+            **dict.fromkeys(self.twitter["domains"], "twitter"),
+            **dict.fromkeys(self.instagram["domains"], "instagram"),
+            **dict.fromkeys(self.pinterest["domains"], "pinterest"),
+            **dict.fromkeys(self.soundcloud["domains"], "soundcloud"),
+            **dict.fromkeys(self.tiktok["domains"], "tiktok"),
+            **dict.fromkeys(self.radiojavan["domains"], "radiojavan"),
+            **dict.fromkeys(self.spotify["domains"], "spotify"),
+        }
+
+
 class ThemeConfig(BaseModel):
-    """Theme-related configuration with color schemes."""
+    """Theme configuration for the application UI."""
 
-    appearance_mode: AppearanceMode = Field(
-        default=AppearanceMode.DARK, description="Appearance mode (dark/light)"
-    )
-    color_theme: ColorTheme = Field(default=ColorTheme.BLUE, description="Color theme selection")
-    theme_persistence: bool = Field(
-        default=True, description="Whether to persist theme preference to config file"
-    )
+    appearance_mode: str = Field(default="dark", description="Appearance mode (light/dark/system)")
+    color_theme: str = Field(default="blue", description="Color theme (blue/green/red/purple)")
+    theme_persistence: bool = Field(default=True, description="Whether to persist theme changes")
 
-    @field_serializer("appearance_mode", "color_theme", mode="plain")
-    def serialize_enums(self, value):
-        """Serialize enum values to strings to avoid Pydantic warnings."""
-        return value.value if hasattr(value, "value") else value
+    @field_validator("appearance_mode", mode="before")
+    @classmethod
+    def validate_appearance_mode(cls, v: AppearanceMode | str) -> str:
+        """Validate appearance mode value."""
+        if isinstance(v, AppearanceMode):
+            return v.value
+        return v
 
-    def __init__(self, **data):
-        """Initialize with enum conversion."""
-        if "appearance_mode" in data and isinstance(data["appearance_mode"], str):
-            data["appearance_mode"] = AppearanceMode(data["appearance_mode"])
-        if "appearance_mode" not in data:
-            data["appearance_mode"] = AppearanceMode.DARK
+    @field_validator("color_theme", mode="before")
+    @classmethod
+    def validate_color_theme(cls, v: str | object) -> str:
+        """Validate color theme value.
 
-        if "color_theme" in data and isinstance(data["color_theme"], str):
-            data["color_theme"] = ColorTheme(data["color_theme"])
-        if "color_theme" not in data:
-            data["color_theme"] = ColorTheme.BLUE
-
-        super().__init__(**data)
+        Accepts any string (or StrEnum which ``str()`` converts correctly).
+        """
+        return str(v)
 
     @property
     def appearance_mode_enum(self) -> AppearanceMode:
         """Get appearance mode as enum."""
-        if isinstance(self.appearance_mode, str):
-            return AppearanceMode(self.appearance_mode)
-        return self.appearance_mode
-
-    @property
-    def color_theme_enum(self) -> ColorTheme:
-        """Get color theme as enum."""
-        if isinstance(self.color_theme, str):
-            return ColorTheme(self.color_theme)
-        return self.color_theme
+        return AppearanceMode(self.appearance_mode)
 
     @staticmethod
-    @cache
     def get_color_schemes() -> dict[str, dict[str, Any]]:
-        """Get all color schemes for themes (cached for performance)."""
-        return {
-            # Dark themes - with refined visible borders
-            "dark_blue": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#505050", "#606060"],
-                "button_color": "#1f538d",
-                "button_hover_color": "#14375e",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            "dark_green": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#505050", "#606060"],
-                "button_color": "#2d8659",
-                "button_hover_color": "#1f5c3f",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            "dark_purple": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#505050", "#606060"],
-                "button_color": "#7b2cbf",
-                "button_hover_color": "#5a1f8f",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            "dark_orange": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#505050", "#606060"],
-                "button_color": "#d97706",
-                "button_hover_color": "#92400e",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            "dark_teal": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#505050", "#606060"],
-                "button_color": "#0d9488",
-                "button_hover_color": "#0f766e",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            "dark_pink": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#505050", "#606060"],
-                "button_color": "#db2777",
-                "button_hover_color": "#be185d",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            "dark_indigo": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#505050", "#606060"],
-                "button_color": "#4f46e5",
-                "button_hover_color": "#4338ca",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            "dark_amber": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#505050", "#606060"],
-                "button_color": "#f59e0b",
-                "button_hover_color": "#d97706",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            # Light themes - with refined visible borders
-            "light_blue": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#909090", "#a0a0a0"],
-                "button_color": "#3b82f6",
-                "button_hover_color": "#2563eb",
-                "text_color": ["#000000", "#000000"],
-            },
-            "light_green": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#909090", "#a0a0a0"],
-                "button_color": "#10b981",
-                "button_hover_color": "#059669",
-                "text_color": ["#000000", "#000000"],
-            },
-            "light_purple": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#909090", "#a0a0a0"],
-                "button_color": "#8b5cf6",
-                "button_hover_color": "#7c3aed",
-                "text_color": ["#000000", "#000000"],
-            },
-            "light_orange": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#909090", "#a0a0a0"],
-                "button_color": "#f97316",
-                "button_hover_color": "#ea580c",
-                "text_color": ["#000000", "#000000"],
-            },
-            "light_teal": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#909090", "#a0a0a0"],
-                "button_color": "#14b8a6",
-                "button_hover_color": "#0d9488",
-                "text_color": ["#000000", "#000000"],
-            },
-            "light_pink": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#909090", "#a0a0a0"],
-                "button_color": "#ec4899",
-                "button_hover_color": "#db2777",
-                "text_color": ["#000000", "#000000"],
-            },
-            "light_indigo": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#909090", "#a0a0a0"],
-                "button_color": "#6366f1",
-                "button_hover_color": "#4f46e5",
-                "text_color": ["#000000", "#000000"],
-            },
-            "light_amber": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#909090", "#a0a0a0"],
-                "button_color": "#fbbf24",
-                "button_hover_color": "#f59e0b",
-                "text_color": ["#000000", "#000000"],
-            },
-            # Additional dark themes - with better visible borders
-            "dark_red": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#4a4a4a", "#5a5a5a"],
-                "button_color": "#dc2626",
-                "button_hover_color": "#b91c1c",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            "dark_cyan": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#4a4a4a", "#5a5a5a"],
-                "button_color": "#06b6d4",
-                "button_hover_color": "#0891b2",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            "dark_emerald": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#4a4a4a", "#5a5a5a"],
-                "button_color": "#10b981",
-                "button_hover_color": "#059669",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            "dark_rose": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#4a4a4a", "#5a5a5a"],
-                "button_color": "#f43f5e",
-                "button_hover_color": "#e11d48",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            "dark_violet": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#4a4a4a", "#5a5a5a"],
-                "button_color": "#8b5cf6",
-                "button_hover_color": "#7c3aed",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            "dark_slate": {
-                "fg_color": ["#1a1a1a", "#2b2b2b"],
-                "hover_color": ["#3a3a3a", "#4a4a4a"],
-                "border_color": ["#4a4a4a", "#5a5a5a"],
-                "button_color": "#64748b",
-                "button_hover_color": "#475569",
-                "text_color": ["#ffffff", "#ffffff"],
-            },
-            # Additional light themes - with visible borders
-            "light_red": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#909090", "#a0a0a0"],
-                "button_color": "#ef4444",
-                "button_hover_color": "#dc2626",
-                "text_color": ["#000000", "#000000"],
-            },
-            "light_cyan": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#909090", "#a0a0a0"],
-                "button_color": "#06b6d4",
-                "button_hover_color": "#0891b2",
-                "text_color": ["#000000", "#000000"],
-            },
-            "light_emerald": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#909090", "#a0a0a0"],
-                "button_color": "#10b981",
-                "button_hover_color": "#059669",
-                "text_color": ["#000000", "#000000"],
-            },
-            "light_rose": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#909090", "#a0a0a0"],
-                "button_color": "#f43f5e",
-                "button_hover_color": "#e11d48",
-                "text_color": ["#000000", "#000000"],
-            },
-            "light_violet": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#909090", "#a0a0a0"],
-                "button_color": "#8b5cf6",
-                "button_hover_color": "#7c3aed",
-                "text_color": ["#000000", "#000000"],
-            },
-            "light_slate": {
-                "fg_color": ["#f0f0f0", "#ffffff"],
-                "hover_color": ["#e0e0e0", "#f5f5f5"],
-                "border_color": ["#909090", "#a0a0a0"],
-                "button_color": "#64748b",
-                "button_hover_color": "#475569",
-                "text_color": ["#000000", "#000000"],
-            },
-        }
+        """Get all color schemes, loaded from JSON theme files in ``themes/``."""
+        from src.core.themes import load_color_schemes
+
+        return load_color_schemes()
 
     @staticmethod
-    @cache
-    def get_theme_json(appearance: AppearanceMode, color: ColorTheme) -> dict[str, Any]:
-        """Get CTK theme JSON structure for appearance and color combination (cached)."""
+    def get_theme_json(appearance: AppearanceMode, color: str) -> dict[str, Any]:
+        """Get CTK theme JSON structure for appearance and color combination."""
         schemes = ThemeConfig.get_color_schemes()
-        key = f"{appearance.value}_{color.value}"
+        key = f"{appearance.value}_{color}"
         scheme = schemes.get(key, schemes[f"{appearance.value}_blue"])
 
         # Extract colors - handle both list and string formats
@@ -763,6 +895,14 @@ class ThemeConfig(BaseModel):
             },
         }
 
+    def serialize_enums(self) -> dict[str, Any]:
+        """Serialize enum values for JSON storage."""
+        return {
+            "appearance_mode": self.appearance_mode,
+            "color_theme": self.color_theme,
+            "theme_persistence": self.theme_persistence,
+        }
+
 
 class UIConfig(BaseModel):
     """UI-related configuration."""
@@ -800,6 +940,14 @@ class UIConfig(BaseModel):
         default=5,
         description="Number of subtitles to load per batch in UI to prevent freezing",
     )
+    thumbnail_cache_max_mb: int = Field(
+        default=100,
+        description="Maximum thumbnail cache size in megabytes",
+    )
+    thumbnail_cache_max_age_days: int = Field(
+        default=30,
+        description="Maximum age of cached thumbnails in days",
+    )
     theme: ThemeConfig = Field(default_factory=ThemeConfig, description="Theme configuration")
 
 
@@ -832,15 +980,19 @@ class AppConfig(BaseSettings):
     downloads: DownloadConfig = Field(default_factory=DownloadConfig)
     network: NetworkConfig = Field(default_factory=NetworkConfig)
     notifications: NotificationTemplatesConfig = Field(default_factory=NotificationTemplatesConfig)
+    services: ServiceConfig = Field(default_factory=ServiceConfig)
     youtube: YouTubeConfig = Field(default_factory=YouTubeConfig)
     twitter: TwitterConfig = Field(default_factory=TwitterConfig)
     instagram: InstagramConfig = Field(default_factory=InstagramConfig)
     pinterest: PinterestConfig = Field(default_factory=PinterestConfig)
     soundcloud: SoundCloudConfig = Field(default_factory=SoundCloudConfig)
+    radiojavan: RadioJavanConfig = Field(default_factory=RadioJavanConfig)
+    tiktok: TikTokConfig = Field(default_factory=TikTokConfig)
+    spotify: SpotifyConfig = Field(default_factory=SpotifyConfig)
     ui: UIConfig = Field(default_factory=UIConfig)
 
     @classmethod
-    def _load_config_file(cls) -> dict | None:
+    def _load_config_file(cls) -> dict[str, Any] | None:
         """Load configuration from a single YAML or JSON file.
 
         Priority order:
@@ -869,7 +1021,7 @@ class AppConfig(BaseSettings):
                     with open(config_file, encoding="utf-8") as f:
                         if config_file.suffix in {".yaml", ".yml"}:
                             return yaml.safe_load(f)
-                            return json.load(f)
+                        return json.load(f)
                 except Exception as e:
                     logger.debug(f"Error loading config file: {e}")
                     continue
@@ -877,19 +1029,19 @@ class AppConfig(BaseSettings):
         return None
 
     @classmethod
-    def _settings_customise_sources(
+    def settings_customise_sources(
         cls,
-        _settings_cls,
-        init_settings,
-        env_settings,
-        dotenv_settings,
-        file_secret_settings,
-    ):
+        _settings_cls: type[BaseSettings],
+        init_settings: Callable[..., dict[str, object]],
+        env_settings: Callable[..., dict[str, object]],
+        dotenv_settings: Callable[..., dict[str, object]],
+        file_secret_settings: Callable[..., dict[str, object]],
+    ) -> tuple[Callable[..., dict[str, object]], ...]:
         """Customize settings sources to include YAML/JSON file."""
         config_dict = cls._load_config_file()
 
         # Create a settings source from the config file
-        def file_settings(_):
+        def file_settings() -> dict[str, object]:
             return config_dict or {}
 
         return (
@@ -931,7 +1083,7 @@ class AppConfig(BaseSettings):
         config_dict = self.model_dump(mode="json", exclude_none=True, by_alias=False)
 
         # Convert Path objects to strings
-        def convert_paths(obj):
+        def convert_paths(obj: object) -> object:
             if isinstance(obj, dict):
                 return {k: convert_paths(v) for k, v in obj.items()}
             if isinstance(obj, list):

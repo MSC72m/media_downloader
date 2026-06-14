@@ -1,20 +1,28 @@
 import asyncio
 import json
-from datetime import datetime
+import threading
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import Lock
+from typing import Any, cast
 
 from src.core.config import AppConfig, get_config
+from src.core.interfaces import IAutoCookieManager
 from src.core.models import CookieState
 from src.utils.logger import get_logger
 
 from .cookie_generator import CookieGenerator
+from .youtube_cookie_sources import (
+    YOUTUBE_STRICT_PROBE_URLS,
+    YouTubeCookieSourceCoordinator,
+    probe_youtube_cookie_file,
+)
 
 logger = get_logger(__name__)
 
 
-class CookieManager:
-    def __init__(self, storage_dir: Path | None = None, config: AppConfig = get_config()):
+class YouTubeCookieManager:
+    def __init__(self, storage_dir: Path | None = None, config: AppConfig = get_config()) -> None:
         self.config = config
         self.storage_dir = storage_dir or self.config.cookies.storage_dir
         self.storage_dir.mkdir(parents=True, exist_ok=True)
@@ -25,6 +33,9 @@ class CookieManager:
         self._state: CookieState | None = None
         self._lock = Lock()
         self._initialization_complete = False
+        self._strict_probe_retry_count = 2
+        self._strict_probe_backoff_seconds = 1.5
+        self._strict_probe_bg_thread: threading.Thread | None = None
 
     def initialize(self) -> CookieState:
         """Initialize cookie manager - load or generate cookies.
@@ -35,51 +46,20 @@ class CookieManager:
         logger.info("[COOKIE_MANAGER] Initializing cookie manager")
 
         with self._lock:
-            # Load existing state
             self._state = self._load_state()
-
-            # Check if we need to regenerate
-            needs_regeneration = self._state.should_regenerate()
-
-            # Also validate the actual file if it exists
-            if not needs_regeneration and self._state.cookie_path:
-                cookie_path = Path(self._state.cookie_path)
-                if cookie_path.exists():
-                    # File exists, but validate it
-                    if not self.generator.validate_netscape_file(str(cookie_path)):
-                        logger.warning(
-                            "[COOKIE_MANAGER] Cookie file exists but is invalid, marking for regeneration"
-                        )
-                        needs_regeneration = True
-                        self._state.is_valid = False
-                        self._state.error_message = "Cookie file validation failed"
-                    # Also check if cookie age exceeds configured expiry
-                    elif self._state.generated_at:
-                        age_hours = (
-                            datetime.now() - self._state.generated_at
-                        ).total_seconds() / 3600
-                        if age_hours >= self.config.cookies.cookie_expiry_hours:
-                            logger.warning(
-                                f"[COOKIE_MANAGER] Cookie age ({age_hours:.1f}h) exceeds configured expiry ({self.config.cookies.cookie_expiry_hours}h), marking for regeneration"
-                            )
-                            needs_regeneration = True
-                            self._state.is_valid = False
-                            self._state.error_message = (
-                                f"Cookie age ({age_hours:.1f}h) exceeds expiry time"
-                            )
-
-            if needs_regeneration:
+            if self._needs_regeneration(self._state):
                 logger.info("[COOKIE_MANAGER] Cookies need regeneration")
-                # Run async generation in sync context
-                try:
-                    loop = asyncio.get_event_loop()
-                except RuntimeError:
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-
-                self._state = loop.run_until_complete(self._regenerate_cookies())
+                loop = self._get_event_loop()
+                self._state = loop.run_until_complete(self._regenerate_cookies(fast_mode=True))
+                if self._state and self._state.is_valid:
+                    self._start_background_strict_validation()
+            elif not self.state_file.exists():
+                logger.info("[COOKIE_MANAGER] Using existing valid cookies")
+                self._save_state(self._state)
+                self._start_background_strict_validation()
             else:
                 logger.info("[COOKIE_MANAGER] Using existing valid cookies")
+                self._start_background_strict_validation()
 
             self._initialization_complete = True
             return self._state
@@ -92,47 +72,65 @@ class CookieManager:
         """
         logger.info("[COOKIE_MANAGER] Initializing cookie manager (async)")
 
-        # Load existing state
         self._state = self._load_state()
-
-        # Check if we need to regenerate
-        if self._state.should_regenerate():
+        if self._needs_regeneration(self._state):
             logger.info("[COOKIE_MANAGER] Cookies need regeneration")
-            self._state = await self._regenerate_cookies()
+            self._state = await self._regenerate_cookies(fast_mode=True)
+            if self._state and self._state.is_valid:
+                self._start_background_strict_validation()
         else:
             logger.info("[COOKIE_MANAGER] Using existing valid cookies")
+            self._start_background_strict_validation()
 
         self._initialization_complete = True
         return self._state
 
+    def _needs_regeneration(self, state: CookieState) -> bool:
+        """Determine whether cookies must be regenerated."""
+        if not state.is_valid:
+            return True
+
+        if state.is_expired() or state.should_regenerate():
+            return True
+
+        if not state.cookie_path:
+            return True
+
+        cookie_path = Path(state.cookie_path)
+        if not cookie_path.exists():
+            return True
+
+        if not self.generator.validate_netscape_file(str(cookie_path)):
+            logger.warning("[COOKIE_MANAGER] Existing cookie file is invalid, forcing regeneration")
+            return True
+
+        return False
+
     def get_cookies(self) -> str | None:
         """Get path to cookie file for use with yt-dlp.
 
-        If no valid cookies exist, triggers generation automatically.
+        If not initialized, returns None immediately (background init handles it).
+        If cookies need regeneration, triggers it in a background thread.
 
         Returns:
             Path to Netscape format cookie file, or None if not available
         """
         if not self._initialization_complete:
-            logger.info("[COOKIE_MANAGER] Manager not initialized, initializing now")
-            self.initialize()
+            logger.info("[COOKIE_MANAGER] Manager still initializing, returning None")
+            return None
 
         with self._lock:
-            self._ensure_cookies_regenerated()
-
             if not self._state or not self._state.is_valid:
-                logger.warning("[COOKIE_MANAGER] Cookie generation failed")
+                logger.warning("[COOKIE_MANAGER] No valid cookies available")
                 return None
 
-            cookie_path = self._ensure_cookie_file_exists()
-            if not cookie_path:
+            if not (cookie_path := self._ensure_cookie_file_exists()):
                 return None
 
-            cookie_path = self._validate_and_regenerate_if_needed(cookie_path)
-            if cookie_path:
-                logger.info(f"[COOKIE_MANAGER] Returning validated cookie file: {cookie_path}")
+            if self.generator.validate_netscape_file(cookie_path):
                 return cookie_path
-            return None
+
+        return None
 
     def get_state(self) -> CookieState:
         """Get current cookie state.
@@ -148,6 +146,11 @@ class CookieManager:
             if self._state:
                 return self._state
             return CookieState(is_valid=False, is_generating=False)
+
+    def get_cookie_file_path(self, domain: str | None = None) -> str | None:
+        """Compatibility helper for callers expecting domain-based cookie path."""
+        _ = domain
+        return self.get_cookies()
 
     def refresh_if_needed(self) -> bool:
         """Check if cookies need refresh and regenerate if necessary.
@@ -241,8 +244,7 @@ class CookieManager:
             True if generation is in progress
         """
         # Check generator state first for real-time updates
-        generator_state = self.generator.get_state()
-        if generator_state and generator_state.is_generating:
+        if (generator_state := self.generator.get_state()) and generator_state.is_generating:
             return True
 
         with self._lock:
@@ -263,17 +265,18 @@ class CookieManager:
 
     def _delete_old_cookie_files(self) -> None:
         """Delete old cookie files before regeneration."""
-        if self._state and self._state.cookie_path:
-            old_cookie_path = Path(self._state.cookie_path)
-            if old_cookie_path.exists():
-                try:
-                    old_cookie_path.unlink()
-                    logger.info(f"[COOKIE_MANAGER] Deleted expired cookie file: {old_cookie_path}")
-                except Exception as e:
-                    logger.warning(f"[COOKIE_MANAGER] Failed to delete old cookie file: {e}")
+        if (
+            self._state
+            and self._state.cookie_path
+            and (old_cookie_path := Path(self._state.cookie_path)).exists()
+        ):
+            try:
+                old_cookie_path.unlink()
+                logger.info(f"[COOKIE_MANAGER] Deleted expired cookie file: {old_cookie_path}")
+            except Exception as e:
+                logger.warning(f"[COOKIE_MANAGER] Failed to delete old cookie file: {e}")
 
-        json_cookie_file = self.storage_dir / self.config.cookies.cookie_file_name
-        if json_cookie_file.exists():
+        if (json_cookie_file := self.storage_dir / self.config.cookies.cookie_file_name).exists():
             try:
                 json_cookie_file.unlink()
                 logger.info(
@@ -282,22 +285,15 @@ class CookieManager:
             except Exception as e:
                 logger.warning(f"[COOKIE_MANAGER] Failed to delete JSON cookie file: {e}")
 
-    def _ensure_cookies_regenerated(self) -> None:
-        """Ensure cookies are regenerated if needed."""
-        if not self._state or not self._state.is_valid or self._state.should_regenerate():
-            self._delete_old_cookie_files()
-            logger.info("[COOKIE_MANAGER] No valid cookies available, triggering generation")
-            loop = self._get_event_loop()
-            self._state = loop.run_until_complete(self._regenerate_cookies())
-
     def _try_convert_netscape(self) -> str | None:
         """Try to convert JSON cookies to Netscape format.
 
         Returns:
             Netscape file path if conversion succeeds, None otherwise
         """
-        netscape_path = self.generator.convert_to_netscape_text()
-        if netscape_path and Path(netscape_path).exists():
+        if (netscape_path := self.generator.convert_to_netscape_text()) and Path(
+            netscape_path
+        ).exists():
             return netscape_path
         return None
 
@@ -328,8 +324,7 @@ class CookieManager:
         cookie_path = self._state.cookie_path if self._state else None
         if not cookie_path or not Path(cookie_path).exists():
             logger.warning(f"[COOKIE_MANAGER] Cookie file does not exist: {cookie_path}")
-            netscape_path = self._try_convert_netscape()
-            if netscape_path:
+            if netscape_path := self._try_convert_netscape():
                 return netscape_path
 
             logger.warning(
@@ -358,7 +353,7 @@ class CookieManager:
             self._state.error_message = "Cookie file validation failed"
         return self._regenerate_and_retry()
 
-    async def _regenerate_cookies(self) -> CookieState:
+    async def _regenerate_cookies(self, fast_mode: bool = False) -> CookieState:
         """Regenerate cookies using the generator.
 
         Returns:
@@ -373,15 +368,171 @@ class CookieManager:
         )
         self._save_state(generating_state)
 
-        # Generate cookies
-        new_state = await self.generator.generate_cookies()
+        max_attempts = self._strict_probe_retry_count + 1
+        last_state = CookieState(is_valid=False, is_generating=False)
 
-        # Save new state
-        self._save_state(new_state)
+        for attempt in range(1, max_attempts + 1):
+            new_state = await self.generator.generate_cookies(fast_mode=fast_mode)
+            last_state = new_state
 
-        logger.info(f"[COOKIE_MANAGER] Cookie regeneration complete. Valid: {new_state.is_valid}")
+            if not new_state.is_valid or not new_state.cookie_path:
+                logger.warning(
+                    "[COOKIE_MANAGER] Cookie generation attempt "
+                    f"{attempt}/{max_attempts} returned invalid state"
+                )
+                if attempt < max_attempts:
+                    await self._sleep_before_retry(attempt)
+                    continue
+                self._save_state(new_state)
+                return new_state
 
-        return new_state
+            if fast_mode:
+                new_state.error_message = "Generated in fast mode; strict validation pending"
+                self._save_state(new_state)
+                logger.info(
+                    "[COOKIE_MANAGER] Fast cookie regeneration complete. Strict validation deferred"
+                )
+                return new_state
+
+            strict_valid, reason = self._probe_generated_cookie_strict(new_state.cookie_path)
+            if strict_valid:
+                new_state.error_message = None
+                self._save_state(new_state)
+                logger.info(
+                    "[COOKIE_MANAGER] Cookie regeneration complete. "
+                    f"Valid: {new_state.is_valid}, strict_probe=True"
+                )
+                return new_state
+
+            logger.warning(
+                "[COOKIE_MANAGER] Strict probe failed for generated cookies "
+                f"(attempt {attempt}/{max_attempts}): {reason}"
+            )
+            if attempt < max_attempts:
+                await self._sleep_before_retry(attempt)
+                continue
+
+            fallback_state = self._mark_generated_fallback_only(new_state, reason)
+            self._save_state(fallback_state)
+            return fallback_state
+
+        self._save_state(last_state)
+        return last_state
+
+    def _probe_generated_cookie_strict(self, cookie_path: str) -> tuple[bool, str | None]:
+        """Run strict YouTube probe validation on a generated cookie file."""
+        if not self.generator.validate_netscape_file(cookie_path):
+            return False, "Generated file failed Netscape validation"
+
+        try:
+            return probe_youtube_cookie_file(
+                cookie_path=cookie_path,
+                probe_urls=list(YOUTUBE_STRICT_PROBE_URLS),
+                config=self.config,
+            )
+        except Exception as exc:
+            return False, str(exc)
+
+    def _start_background_strict_validation(self) -> None:
+        """Run strict probe validation in background to avoid startup blocking."""
+        if self._strict_probe_bg_thread and self._strict_probe_bg_thread.is_alive():
+            return
+
+        def run() -> None:
+            try:
+                self._background_strict_validation()
+            except Exception as exc:
+                logger.debug(
+                    "[COOKIE_MANAGER] Background strict validation error: %s",
+                    exc,
+                    exc_info=True,
+                )
+
+        self._strict_probe_bg_thread = threading.Thread(
+            target=run,
+            daemon=True,
+            name="YTStrictProbe",
+        )
+        self._strict_probe_bg_thread.start()
+
+    def _background_strict_validation(self) -> None:
+        with self._lock:
+            state = self._state
+            if not state or not state.is_valid or not state.cookie_path:
+                return
+            cookie_path = state.cookie_path
+
+        strict_valid, reason = self._probe_generated_cookie_strict(cookie_path)
+        if strict_valid:
+            with self._lock:
+                if self._state and self._state.cookie_path == cookie_path:
+                    self._state.error_message = None
+                    self._save_state(self._state)
+            logger.info("[COOKIE_MANAGER] Background strict probe passed")
+            return
+
+        logger.warning("[COOKIE_MANAGER] Background strict probe failed: %s", reason)
+        with self._lock:
+            if self._state and self._state.cookie_path == cookie_path:
+                details = reason or "strict probe failed"
+                self._state.error_message = (
+                    f"Generated cookies are fallback-only; strict probe failed. Reason: {details}"
+                )
+                self._save_state(self._state)
+        logger.info(
+            "[COOKIE_MANAGER] Keeping current cookies to avoid disruptive background regeneration"
+        )
+
+    async def _sleep_before_retry(self, attempt: int) -> None:
+        """Bounded backoff before retrying cookie regeneration."""
+        wait_seconds = self._strict_probe_backoff_seconds * attempt
+        logger.info(
+            f"[COOKIE_MANAGER] Waiting {wait_seconds:.1f}s before cookie regeneration retry"
+        )
+        await asyncio.sleep(wait_seconds)
+
+    def _mark_generated_fallback_only(
+        self,
+        state: CookieState,
+        reason: str | None,
+    ) -> CookieState:
+        """Mark generated cookies as fallback-only when strict probes keep failing."""
+        state.is_generating = False
+        state.is_valid = True
+        details = reason or "Strict YouTube probe validation failed"
+        state.error_message = (
+            "Generated cookies are fallback-only; browser source should be preferred. "
+            f"Reason: {details}"
+        )
+        return state
+
+    def force_youtube_reprobe(self) -> list[dict[str, Any]]:
+        """Force a browser reprobe and return resolved strategy metadata."""
+        auto_cookie_manager = cast(IAutoCookieManager, self)
+        coordinator = YouTubeCookieSourceCoordinator(
+            auto_cookie_manager=auto_cookie_manager,
+            storage_dir=self.storage_dir,
+            config=self.config,
+        )
+        strategies = coordinator.force_reprobe()
+        return [
+            {
+                "label": strategy.label,
+                "source": strategy.source,
+                "browser": strategy.browser,
+            }
+            for strategy in strategies
+        ]
+
+    def reset_youtube_probe_state(self) -> None:
+        """Reset persisted YouTube browser probe state."""
+        auto_cookie_manager = cast(IAutoCookieManager, self)
+        coordinator = YouTubeCookieSourceCoordinator(
+            auto_cookie_manager=auto_cookie_manager,
+            storage_dir=self.storage_dir,
+            config=self.config,
+        )
+        coordinator.reset_probe_state()
 
     def _load_state(self) -> CookieState:
         """Load cookie state from file.
@@ -391,6 +542,20 @@ class CookieManager:
         """
         if not self.state_file.exists():
             logger.info("[COOKIE_MANAGER] No existing state file found")
+            # Check if cookies file exists - if so, create state with valid cookies
+            if (cookie_file := self.storage_dir / self.config.cookies.netscape_file_name).exists():
+                logger.info(f"[COOKIE_MANAGER] Found existing cookie file: {cookie_file}")
+                # Create a state that reflects the existing cookie file
+                return CookieState(
+                    is_valid=True,
+                    is_generating=False,
+                    cookie_path=str(cookie_file),
+                    generated_at=datetime.fromtimestamp(
+                        cookie_file.stat().st_mtime, tz=timezone.utc
+                    ),
+                    expires_at=datetime.fromtimestamp(cookie_file.stat().st_mtime, tz=timezone.utc)
+                    + timedelta(hours=self.config.cookies.cookie_expiry_hours),
+                )
             return CookieState(is_valid=False, is_generating=False)
 
         try:

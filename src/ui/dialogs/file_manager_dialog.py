@@ -1,11 +1,14 @@
+import contextlib
 import os
 from collections.abc import Callable
 
 import customtkinter as ctk
 
 from src.core.enums.message_level import MessageLevel
+from src.core.enums.theme_event import ThemeEvent
 from src.core.interfaces import IErrorNotifier, IMessageQueue
 from src.services.events.queue import Message
+from src.ui.utils.theme_manager import ThemeManager, get_theme_manager
 from src.utils.logger import get_logger
 from src.utils.window import WindowCenterMixin
 
@@ -26,8 +29,12 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
         show_status: Callable[[str], None],
         error_handler: IErrorNotifier | None = None,
         message_queue: IMessageQueue | None = None,
-    ):
+        theme_manager: ThemeManager | None = None,
+    ) -> None:
         super().__init__(parent)
+
+        self._theme_manager = theme_manager or get_theme_manager()
+        self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
 
         self.title("File Browser")
         self.geometry("600x400")
@@ -61,7 +68,7 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.grab_set()
         self.focus_set()
 
-    def create_widgets(self):
+    def create_widgets(self) -> None:
         """Create and arrange all widgets."""
         # Path entry bar
         self.path_entry = PathEntryBar(self, self.current_path, self.update_file_list)
@@ -77,7 +84,7 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
         )
         self.action_buttons.grid(row=2, column=0, columnspan=2, padx=20, pady=(0, 20), sticky="ew")
 
-    def update_file_list(self):
+    def update_file_list(self) -> None:
         """Update the file list with current directory contents."""
         try:
             self.current_path = os.path.expanduser(self.path_entry.get_path())
@@ -87,10 +94,9 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
             if self.show_status:
                 self.show_status("Error: Unable to access the specified directory.")
 
-    def on_item_double_click(self, event):
+    def on_item_double_click(self, event) -> None:
         """Handle double-click on file/directory."""
-        item = self.file_list.get_selected_item()
-        if not item:
+        if not (item := self.file_list.get_selected_item()):
             return
 
         # Handle parent directory
@@ -107,7 +113,7 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
             self.path_entry.set_path(new_path)
             self.update_file_list()
 
-    def change_directory(self):
+    def change_directory(self) -> None:
         """Change the download directory."""
         if os.path.exists(self.current_path) and os.path.isdir(self.current_path):
             self.on_directory_change(self.current_path)
@@ -130,12 +136,10 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
             elif self.show_status:
                 self.show_status(error_msg)
 
-    def create_folder(self):
+    def create_folder(self) -> None:
         """Create a new folder."""
         dialog = CenteredInputDialog(title="Create Folder", text="Enter folder name:")
-        folder_name = dialog.get_input()
-
-        if folder_name:
+        if folder_name := dialog.get_input():
             new_folder_path = os.path.join(self.current_path, folder_name)
             try:
                 os.mkdir(new_folder_path)
@@ -156,3 +160,13 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
                     )
                 elif self.show_status:
                     self.show_status(f"Error: {error_msg}")
+
+    def _on_theme_changed(self, appearance, color) -> None:
+        """Handle theme change - CTk widgets auto-update, subscription enables future extensions."""
+
+    def destroy(self) -> None:
+        with contextlib.suppress(Exception):
+            self.grab_release()
+        if self._theme_manager:
+            self._theme_manager.unsubscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
+        super().destroy()

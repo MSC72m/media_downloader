@@ -2,7 +2,7 @@ import http.client
 import socket
 import time
 from abc import ABC, abstractmethod
-from typing import ClassVar, Protocol
+from typing import ClassVar, Protocol, TypedDict
 
 from pydantic import BaseModel, Field
 
@@ -27,6 +27,13 @@ class NetworkChecker(Protocol):
     def check_all_services(self) -> dict[ServiceType, ConnectionResult]: ...
 
 
+class ServiceConnectivityConfig(TypedDict):
+    requires_js: bool
+    fallback_urls: list[str]
+    user_agent: str
+    check_endpoints: list[str]
+
+
 class BaseNetworkChecker(ABC):
     """Abstract base class for network checkers."""
 
@@ -47,7 +54,7 @@ class HTTPNetworkChecker(BaseNetworkChecker):
         timeout: int | None = None,
         error_handler: IErrorNotifier | None = None,
         config: AppConfig = get_config(),
-    ):
+    ) -> None:
         """Initialize network checker.
 
         Args:
@@ -61,7 +68,7 @@ class HTTPNetworkChecker(BaseNetworkChecker):
         self.user_agent = self.config.network.user_agent
         self._service_configs = self._get_service_configs()
 
-    def _get_service_configs(self):
+    def _get_service_configs(self) -> dict[ServiceType, ServiceConnectivityConfig]:
         """Get service-specific configurations using config."""
         return {
             ServiceType.TWITTER: {
@@ -96,20 +103,21 @@ class HTTPNetworkChecker(BaseNetworkChecker):
         ServiceType.GOOGLE: "www.google.com",
         ServiceType.YOUTUBE: "www.youtube.com",
         ServiceType.INSTAGRAM: "www.instagram.com",
-        ServiceType.TWITTER: "x.com",  # Updated to current Twitter domain
+        ServiceType.TWITTER: "x.com",
         ServiceType.PINTEREST: "www.pinterest.com",
+        ServiceType.SOUNDCLOUD: "soundcloud.com",
+        ServiceType.TIKTOK: "www.tiktok.com",
+        ServiceType.RADIOJAVAN: "www.radiojavan.com",
+        ServiceType.SPOTIFY: "open.spotify.com",
     }
 
     def check_connectivity(self) -> ConnectionResult:
-        """Check basic internet connectivity using Google DNS."""
+        """Check basic internet connectivity using YouTube DNS."""
         start_time = time.time()
 
         try:
-            # Check basic DNS connectivity
             socket.create_connection(("8.8.8.8", 53), timeout=self.timeout)
-
-            # Check HTTP connectivity to Google
-            return self.check_service(ServiceType.GOOGLE)
+            return self.check_service(ServiceType.YOUTUBE)
 
         except OSError as e:
             response_time = time.time() - start_time
@@ -255,38 +263,41 @@ class HTTPNetworkChecker(BaseNetworkChecker):
                 service_type=service,
             )
 
-        specialized_result = self._check_specialized_service(service, start_time)
-        if specialized_result:
+        if specialized_result := self._check_specialized_service(service, start_time):
             return specialized_result
 
         url = self.SERVICE_URLS[service]
 
-        dns_result = self._check_dns(url, service, start_time)
-        if dns_result:
+        if dns_result := self._check_dns(url, service, start_time):
             return dns_result
 
-        socket_result = self._check_socket(url, service, start_time)
-        if socket_result:
+        if socket_result := self._check_socket(url, service, start_time):
             return socket_result
 
         return self._check_http(url, service, start_time)
 
     def _check_twitter_connectivity(self, start_time: float) -> ConnectionResult:
         """Specialized connectivity checking for Twitter/X."""
-        config = self._service_configs.get(ServiceType.TWITTER, {})
+        config = self._service_configs.get(
+            ServiceType.TWITTER,
+            ServiceConnectivityConfig(
+                requires_js=False,
+                fallback_urls=[],
+                user_agent=self.config.network.minimal_user_agent,
+                check_endpoints=["/"],
+            ),
+        )
         primary_url = self.SERVICE_URLS[ServiceType.TWITTER]
 
         # Try primary domain first
-        result = self._try_twitter_urls([primary_url], start_time, config)
-        if result.is_connected:
+        if (result := self._try_twitter_urls([primary_url], start_time, config)).is_connected:
             return result
 
         # Try fallback URLs if primary fails
-        fallback_urls = config.get("fallback_urls", [])
-        if fallback_urls:
-            result = self._try_twitter_urls(fallback_urls, start_time, config)
-            if result.is_connected:
-                return result
+        if (fallback_urls := config.get("fallback_urls", [])) and (
+            result := self._try_twitter_urls(fallback_urls, start_time, config)
+        ).is_connected:
+            return result
 
         # If all else fails, try a more lenient check
         return self._lenient_twitter_check(start_time)
@@ -295,7 +306,7 @@ class HTTPNetworkChecker(BaseNetworkChecker):
         self,
         urls: list[str],
         start_time: float,
-        config: dict,
+        config: ServiceConnectivityConfig,
         service_type: ServiceType,
     ) -> ConnectionResult:
         """Generic method to try multiple URLs for any service connectivity."""
@@ -389,7 +400,10 @@ class HTTPNetworkChecker(BaseNetworkChecker):
         )
 
     def _try_twitter_urls(
-        self, urls: list[str], start_time: float, config: dict
+        self,
+        urls: list[str],
+        start_time: float,
+        config: ServiceConnectivityConfig,
     ) -> ConnectionResult:
         """Try multiple URLs for Twitter connectivity."""
         return self._try_service_urls(urls, start_time, config, ServiceType.TWITTER)
@@ -426,52 +440,70 @@ class HTTPNetworkChecker(BaseNetworkChecker):
 
     def _check_youtube_connectivity(self, start_time: float) -> ConnectionResult:
         """Specialized connectivity checking for YouTube."""
-        config = self._service_configs.get(ServiceType.YOUTUBE, {})
+        config = self._service_configs.get(
+            ServiceType.YOUTUBE,
+            ServiceConnectivityConfig(
+                requires_js=False,
+                fallback_urls=[],
+                user_agent=self.config.network.minimal_user_agent,
+                check_endpoints=["/"],
+            ),
+        )
         primary_url = self.SERVICE_URLS[ServiceType.YOUTUBE]
 
         # Try primary domain first
-        result = self._try_youtube_urls([primary_url], start_time, config)
-        if result.is_connected:
+        if (result := self._try_youtube_urls([primary_url], start_time, config)).is_connected:
             return result
 
         # Try fallback URLs if primary fails
-        fallback_urls = config.get("fallback_urls", [])
-        if fallback_urls:
-            result = self._try_youtube_urls(fallback_urls, start_time, config)
-            if result.is_connected:
-                return result
+        if (fallback_urls := config.get("fallback_urls", [])) and (
+            result := self._try_youtube_urls(fallback_urls, start_time, config)
+        ).is_connected:
+            return result
 
         # If all else fails, try a more lenient check
         return self._lenient_youtube_check(start_time)
 
     def _check_instagram_connectivity(self, start_time: float) -> ConnectionResult:
         """Specialized connectivity checking for Instagram."""
-        config = self._service_configs.get(ServiceType.INSTAGRAM, {})
+        config = self._service_configs.get(
+            ServiceType.INSTAGRAM,
+            ServiceConnectivityConfig(
+                requires_js=False,
+                fallback_urls=[],
+                user_agent=self.config.network.minimal_user_agent,
+                check_endpoints=["/"],
+            ),
+        )
         primary_url = self.SERVICE_URLS[ServiceType.INSTAGRAM]
 
         # Try primary domain first
-        result = self._try_instagram_urls([primary_url], start_time, config)
-        if result.is_connected:
+        if (result := self._try_instagram_urls([primary_url], start_time, config)).is_connected:
             return result
 
         # Try fallback URLs if primary fails
-        fallback_urls = config.get("fallback_urls", [])
-        if fallback_urls:
-            result = self._try_instagram_urls(fallback_urls, start_time, config)
-            if result.is_connected:
-                return result
+        if (fallback_urls := config.get("fallback_urls", [])) and (
+            result := self._try_instagram_urls(fallback_urls, start_time, config)
+        ).is_connected:
+            return result
 
         # If all else fails, try a more lenient check
         return self._lenient_instagram_check(start_time)
 
     def _try_youtube_urls(
-        self, urls: list[str], start_time: float, config: dict
+        self,
+        urls: list[str],
+        start_time: float,
+        config: ServiceConnectivityConfig,
     ) -> ConnectionResult:
         """Try multiple URLs for YouTube connectivity."""
         return self._try_service_urls(urls, start_time, config, ServiceType.YOUTUBE)
 
     def _try_instagram_urls(
-        self, urls: list[str], start_time: float, config: dict
+        self,
+        urls: list[str],
+        start_time: float,
+        config: ServiceConnectivityConfig,
     ) -> ConnectionResult:
         """Try multiple URLs for Instagram connectivity."""
         return self._try_service_urls(urls, start_time, config, ServiceType.INSTAGRAM)
@@ -508,7 +540,7 @@ class NetworkService:
         self,
         checker: NetworkChecker | None = None,
         error_handler: IErrorNotifier | None = None,
-    ):
+    ) -> None:
         self.checker = checker or HTTPNetworkChecker(error_handler=error_handler)
 
     def check_internet_connection(self) -> tuple[bool, str]:
@@ -540,31 +572,29 @@ class NetworkService:
         return result.is_connected
 
 
+_DEFAULT_NETWORK_SERVICE = NetworkService()
+
+
 def check_internet_connection() -> tuple[bool, str]:
     """Legacy function for backward compatibility."""
-    service = NetworkService()
-    return service.check_internet_connection()
+    return _DEFAULT_NETWORK_SERVICE.check_internet_connection()
 
 
 def check_site_connection(service: ServiceType) -> tuple[bool, str]:
     """Legacy function for backward compatibility."""
-    network_service = NetworkService()
-    return network_service.check_site_connection(service)
+    return _DEFAULT_NETWORK_SERVICE.check_site_connection(service)
 
 
 def check_all_services() -> dict[ServiceType, tuple[bool, str]]:
     """Legacy function for backward compatibility."""
-    service = NetworkService()
-    return service.check_all_services()
+    return _DEFAULT_NETWORK_SERVICE.check_all_services()
 
 
 def get_problem_services() -> list[ServiceType]:
     """Legacy function for backward compatibility."""
-    service = NetworkService()
-    return service.get_problem_services()
+    return _DEFAULT_NETWORK_SERVICE.get_problem_services()
 
 
 def is_service_connected(service: ServiceType) -> bool:
     """Legacy function for backward compatibility."""
-    service_obj = NetworkService()
-    return service_obj.is_service_connected(service)
+    return _DEFAULT_NETWORK_SERVICE.is_service_connected(service)

@@ -1,8 +1,13 @@
 import re
+import threading
 from urllib.parse import parse_qs, urlparse
+
+import requests
 
 from src.core.config import AppConfig, get_config
 from src.core.interfaces import (
+    IAutoCookieManager,
+    ICookieHandler,
     IErrorNotifier,
     IYouTubeMetadataService,
     SubtitleInfo,
@@ -24,14 +29,24 @@ class YouTubeMetadataService(IYouTubeMetadataService):
     def __init__(
         self,
         error_handler: IErrorNotifier | None = None,
+        auto_cookie_manager: IAutoCookieManager | None = None,
+        cookie_handler: ICookieHandler | None = None,
         config: AppConfig = get_config(),
-    ):
+    ) -> None:
         self.config = config
         self.error_handler = error_handler
-        self.info_extractor = YouTubeInfoExtractor(error_handler=error_handler, config=config)
+        self.info_extractor = YouTubeInfoExtractor(
+            error_handler=error_handler,
+            auto_cookie_manager=auto_cookie_manager,
+            cookie_handler=cookie_handler,
+            config=config,
+        )
         self.metadata_parser = YouTubeMetadataParser(config=config)
         self.subtitle_extractor = YouTubeSubtitleExtractor(
-            error_handler=error_handler, config=config
+            error_handler=error_handler,
+            auto_cookie_manager=auto_cookie_manager,
+            cookie_handler=cookie_handler,
+            config=config,
         )
 
     def fetch_metadata(
@@ -61,8 +76,13 @@ class YouTubeMetadataService(IYouTubeMetadataService):
                     )
                 return YouTubeMetadata(error=error_msg)
 
-            info = self.info_extractor.extract_info(url, cookie_path, browser)
-            if not info:
+            if not (info := self.info_extractor.extract_info(url, cookie_path, browser)):
+                if oembed_fallback := self._fetch_oembed_metadata(url):
+                    logger.warning(
+                        "[METADATA_SERVICE] Falling back to YouTube oEmbed metadata due to yt-dlp extraction failure"
+                    )
+                    return oembed_fallback
+
                 error_msg = "Failed to fetch video information"
                 if self.error_handler:
                     self.error_handler.handle_service_failure(
@@ -72,8 +92,7 @@ class YouTubeMetadataService(IYouTubeMetadataService):
 
             parsed_info = self.metadata_parser.parse_info(info)
 
-            subtitle_data = self.subtitle_extractor.extract_subtitles(url, cookie_path, browser)
-            if subtitle_data:
+            if subtitle_data := self._extract_subtitles_with_timeout(url, cookie_path, browser):
                 parsed_info["subtitles"] = subtitle_data.get("subtitles", {})
                 parsed_info["automatic_captions"] = subtitle_data.get("automatic_captions", {})
 
@@ -134,37 +153,128 @@ class YouTubeMetadataService(IYouTubeMetadataService):
             if not metadata or not metadata.available_subtitles:
                 return []
 
-            return [
-                SubtitleInfo(
-                    language_code=sub["language_code"],
-                    language_name=sub["language_name"],
-                    is_auto_generated=sub["is_auto_generated"],
-                    url=sub["url"],
+            subtitles: list[SubtitleInfo] = []
+            for sub in metadata.available_subtitles:
+                language_code = sub.get("language_code")
+                language_name = sub.get("language_name")
+                is_auto_generated = sub.get("is_auto_generated")
+                subtitle_url = sub.get("url")
+
+                if not isinstance(language_code, str):
+                    continue
+                if not isinstance(language_name, str):
+                    continue
+                if not isinstance(is_auto_generated, bool):
+                    continue
+                if not isinstance(subtitle_url, str):
+                    continue
+
+                subtitles.append(
+                    SubtitleInfo(
+                        language_code=language_code,
+                        language_name=language_name,
+                        is_auto_generated=is_auto_generated,
+                        url=subtitle_url,
+                    )
                 )
-                for sub in metadata.available_subtitles
-            ]
+            return subtitles
         except Exception as e:
             logger.error(f"[METADATA_SERVICE] Error fetching subtitles: {e!s}")
             return []
 
     def validate_url(self, url: str) -> bool:
         """Validate if URL is a valid YouTube URL."""
-        return any(re.match(pattern, url) for pattern in self.config.youtube.url_patterns)
+        if any(re.match(pattern, url) for pattern in self.config.youtube.url_patterns):
+            return True
+        return self.extract_video_id(url) is not None
 
     def extract_video_id(self, url: str) -> str | None:
         """Extract video ID from YouTube URL."""
         try:
             parsed_url = urlparse(url)
+            hostname = (parsed_url.hostname or "").lower()
 
-            if parsed_url.hostname in self.config.youtube.youtube_domains:
+            if hostname in {"www.youtube.com", "youtube.com", "music.youtube.com", "m.youtube.com"}:
                 if parsed_url.path == "/watch":
                     query = parse_qs(parsed_url.query)
                     return query.get("v", [None])[0]
                 if parsed_url.path.startswith("/embed/") or parsed_url.path.startswith("/v/"):
                     return parsed_url.path.split("/")[2]
-            elif parsed_url.hostname == "youtu.be":
+            if hostname == "youtu.be":
                 return parsed_url.path[1:]  # Remove leading slash
 
             return None
         except Exception:
             return None
+
+    def _fetch_oembed_metadata(self, url: str) -> YouTubeMetadata | None:
+        """Fetch minimal metadata via YouTube oEmbed as a resilient fallback."""
+        if not (video_id := self.extract_video_id(url)):
+            return None
+
+        canonical_url = f"https://www.youtube.com/watch?v={video_id}"
+        timeout = self.config.network.default_timeout
+        try:
+            response = requests.get(
+                "https://www.youtube.com/oembed",
+                params={"url": canonical_url, "format": "json"},
+                timeout=timeout,
+            )
+            if response.status_code != 200:
+                logger.warning(
+                    f"[METADATA_SERVICE] oEmbed fallback failed with status {response.status_code}"
+                )
+                return None
+
+            data = response.json()
+            return YouTubeMetadata(
+                title=str(data.get("title", "")),
+                duration="Unknown",
+                view_count="N/A",
+                upload_date="Unknown",
+                channel=str(data.get("author_name", "")),
+                description="",
+                thumbnail=str(data.get("thumbnail_url", "")),
+                available_qualities=list(self.config.youtube.video_qualities),
+                available_formats=["video", "audio"],
+                available_subtitles=[],
+                is_playlist=False,
+                playlist_count=0,
+            )
+        except Exception as exc:
+            logger.warning(f"[METADATA_SERVICE] oEmbed fallback error: {exc}")
+            return None
+
+    def _extract_subtitles_with_timeout(
+        self,
+        url: str,
+        cookie_path: str | None,
+        browser: str | None,
+    ) -> dict[str, object]:
+        """Extract subtitles with a hard timeout to keep metadata UX responsive."""
+        result: dict[str, object] = {}
+        done = threading.Event()
+
+        def worker() -> None:
+            nonlocal result
+            try:
+                extracted = self.subtitle_extractor.extract_subtitles(url, cookie_path, browser)
+                if isinstance(extracted, dict):
+                    result = extracted
+            except Exception as exc:
+                logger.debug("[METADATA_SERVICE] Subtitle extraction error: %s", exc, exc_info=True)
+            finally:
+                done.set()
+
+        thread = threading.Thread(target=worker, daemon=True, name="YTSubtitleExtract")
+        thread.start()
+
+        timeout_seconds = max(1, int(self.config.youtube.subtitle_timeout))
+        if not done.wait(timeout=timeout_seconds):
+            logger.warning(
+                "[METADATA_SERVICE] Subtitle extraction timed out after %ss; continuing without subtitles",
+                timeout_seconds,
+            )
+            return {}
+
+        return result

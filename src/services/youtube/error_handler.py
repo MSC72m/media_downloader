@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import re
 import time
 
 import yt_dlp
 
+from src.core.enums.compat import StrEnum
 from src.core.enums.download_error_type import DownloadErrorType
 from src.core.interfaces import IErrorNotifier
 from src.utils.logger import get_logger
@@ -10,73 +13,98 @@ from src.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+class YouTubeErrorBucket(StrEnum):
+    LOGIN_REQUIRED = "login_required"
+    FORMAT = "format"
+    NETWORK = "network"
+    BROWSER_UNAVAILABLE = "browser_unavailable"
+    KEYCHAIN = "keychain"
+    OTHER = "other"
+
+
 class YouTubeErrorHandler:
-    """Handles YouTube-specific download errors with classification and recovery strategies."""
+    """Handles YouTube-specific errors with bucketed classification and routing."""
 
     _RATE_LIMIT_PATTERN = re.compile(r"HTTP Error 429", re.IGNORECASE)
     _NETWORK_PATTERN = re.compile(
-        r"(Connection refused|Network Error|Unable to download|Errno 111)",
+        r"(Connection refused|Network Error|Unable to download|Errno 111|timed? out)",
         re.IGNORECASE,
     )
     _FORMAT_PATTERN = re.compile(
-        r"(Requested format is not available|No video formats found)", re.IGNORECASE
+        r"(Requested format is not available|No video formats found)",
+        re.IGNORECASE,
     )
 
-    def __init__(self, error_handler: IErrorNotifier | None = None):
-        """Initialize YouTube error handler.
+    _LOGIN_REQUIRED_INDICATORS = (
+        "sign in to confirm",
+        "login required",
+        "authentication",
+        "use --cookies",
+        "age-restricted",
+    )
+    _BROWSER_UNAVAILABLE_INDICATORS = (
+        "could not find firefox",
+        "could not find chrome",
+        "browser not found",
+        "failed to load cookies from browser",
+        "could not find cookies database",
+    )
+    _KEYCHAIN_INDICATORS = (
+        "keyring",
+        "keychain",
+        "secretstorage",
+        "failed to decrypt",
+        "password store",
+    )
 
-        Args:
-            error_handler: Optional general error handler for UI notifications
-        """
+    def __init__(self, error_handler: IErrorNotifier | None = None) -> None:
         self.error_handler = error_handler
 
+    def classify_ytdlp_error(self, error_msg: str) -> YouTubeErrorBucket:
+        """Classify yt-dlp error into stable fallback buckets."""
+        lower_msg = error_msg.lower()
+
+        match True:
+            case _ if any(token in lower_msg for token in self._LOGIN_REQUIRED_INDICATORS):
+                return YouTubeErrorBucket.LOGIN_REQUIRED
+            case _ if any(token in lower_msg for token in self._BROWSER_UNAVAILABLE_INDICATORS):
+                return YouTubeErrorBucket.BROWSER_UNAVAILABLE
+            case _ if any(token in lower_msg for token in self._KEYCHAIN_INDICATORS):
+                return YouTubeErrorBucket.KEYCHAIN
+            case _ if self._NETWORK_PATTERN.search(error_msg):
+                return YouTubeErrorBucket.NETWORK
+            case _ if self._FORMAT_PATTERN.search(error_msg):
+                return YouTubeErrorBucket.FORMAT
+            case _:
+                return YouTubeErrorBucket.OTHER
+
     def classify_error(self, error_msg: str) -> DownloadErrorType:
-        """Classify the type of download error using pattern matching.
+        """Classify into generic download error categories (backward compatible)."""
+        bucket = self.classify_ytdlp_error(error_msg)
 
-        Args:
-            error_msg: Error message to classify
-
-        Returns:
-            DownloadErrorType enum value
-        """
-        if self._RATE_LIMIT_PATTERN.search(error_msg):
-            return DownloadErrorType.RATE_LIMIT
-        if self._NETWORK_PATTERN.search(error_msg):
-            return DownloadErrorType.NETWORK
-        if self._FORMAT_PATTERN.search(error_msg):
-            return DownloadErrorType.FORMAT
-
-        return DownloadErrorType.OTHER
+        match bucket:
+            case YouTubeErrorBucket.NETWORK:
+                return DownloadErrorType.NETWORK
+            case YouTubeErrorBucket.FORMAT:
+                return DownloadErrorType.FORMAT
+            case _ if self._RATE_LIMIT_PATTERN.search(error_msg):
+                return DownloadErrorType.RATE_LIMIT
+            case _:
+                return DownloadErrorType.OTHER
 
     def handle_rate_limit_error(self, attempt: int, retry_wait: int) -> bool:
-        """Handle rate limit error with exponential backoff.
-
-        Args:
-            attempt: Current attempt number (0-indexed)
-            retry_wait: Base wait time in seconds
-
-        Returns:
-            True to continue retrying
-        """
         wait_time = retry_wait * (2**attempt)
         logger.warning(f"YouTube rate limit hit, waiting {wait_time} seconds before retry")
         time.sleep(wait_time)
         return True
 
     def handle_network_error(
-        self, attempt: int, max_retries: int, retry_wait: int, error_msg: str
+        self,
+        attempt: int,
+        max_retries: int,
+        retry_wait: int,
+        error_msg: str,
     ) -> bool:
-        """Handle network error with linear backoff.
-
-        Args:
-            attempt: Current attempt number (0-indexed)
-            max_retries: Maximum number of retries
-            retry_wait: Base wait time in seconds
-            error_msg: Error message for logging
-
-        Returns:
-            True to continue retrying, False if max retries reached
-        """
         if attempt >= max_retries - 1:
             logger.error(f"Failed to download after {max_retries} attempts: {error_msg}")
             return False
@@ -87,19 +115,12 @@ class YouTubeErrorHandler:
         return True
 
     def handle_format_error(
-        self, attempt: int, opts: dict, url: str, quality_format_map: dict[str, str]
+        self,
+        attempt: int,
+        opts: dict,
+        url: str,
+        quality_format_map: dict[str, str],
     ) -> bool:
-        """Handle format error using fallback strategy.
-
-        Args:
-            attempt: Current attempt number (0-indexed)
-            opts: yt-dlp options dictionary (modified in place)
-            url: Video URL for format listing
-            quality_format_map: Quality format mapping from config
-
-        Returns:
-            True to continue retrying, False if all fallbacks exhausted
-        """
         fallback_strategies = {
             0: (
                 quality_format_map.get("best", "best"),
@@ -111,8 +132,7 @@ class YouTubeErrorHandler:
             ),
         }
 
-        strategy = fallback_strategies.get(attempt)
-        if not strategy:
+        if not (strategy := fallback_strategies.get(attempt)):
             self._log_format_failure(opts, url)
             return False
 
@@ -122,12 +142,6 @@ class YouTubeErrorHandler:
         return True
 
     def _log_format_failure(self, opts: dict, url: str) -> None:
-        """Log detailed information about format failure.
-
-        Args:
-            opts: yt-dlp options dictionary
-            url: Video URL for format listing
-        """
         logger.error("All format attempts failed. This may be due to:")
         logger.error("  1. Outdated yt-dlp version (run: pip install -U yt-dlp)")
         logger.error("  2. YouTube access restrictions or region-locking")
@@ -137,30 +151,28 @@ class YouTubeErrorHandler:
             logger.info("Attempting to list available formats...")
             list_opts = opts.copy()
             list_opts.pop("format", None)
-            with yt_dlp.YoutubeDL(list_opts) as ydl:  # type: ignore
+            with yt_dlp.YoutubeDL(list_opts) as ydl:  # type: ignore[arg-type]
                 info = ydl.extract_info(url, download=False)
-                if info and isinstance(info, dict) and "formats" in info:
-                    logger.info(f"Available formats for {url}:")
-                    formats = info.get("formats", [])
-                    if isinstance(formats, list):
-                        for fmt in formats[:10]:
-                            logger.info(
-                                f"  Format {fmt.get('format_id', 'unknown')}: "
-                                f"{fmt.get('format_note', 'N/A')} - "
-                                f"{fmt.get('ext', 'unknown')} - "
-                                f"height={fmt.get('height', 'N/A')}"
-                            )
-                    else:
-                        logger.warning("Formats is not a list")
+                if not (info and isinstance(info, dict) and "formats" in info):
+                    return
+
+                logger.info(f"Available formats for {url}:")
+                formats = info.get("formats", [])
+                if not isinstance(formats, list):
+                    logger.warning("Formats is not a list")
+                    return
+
+                for fmt in formats[:10]:
+                    logger.info(
+                        f"  Format {fmt.get('format_id', 'unknown')}: "
+                        f"{fmt.get('format_note', 'N/A')} - "
+                        f"{fmt.get('ext', 'unknown')} - "
+                        f"height={fmt.get('height', 'N/A')}"
+                    )
         except Exception as list_err:
             logger.warning(f"Could not list formats: {list_err}")
 
     def log_specific_error(self, error_msg: str) -> None:
-        """Log specific error messages based on error content.
-
-        Args:
-            error_msg: Error message to analyze
-        """
         error_messages = {
             "This video is unavailable": "This YouTube video is unavailable or private",
             "Video unavailable": "This YouTube video has been removed or is private",

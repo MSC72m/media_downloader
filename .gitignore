@@ -269,6 +269,7 @@ MANIFEST
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
+!media_downloader.spec
 
 # Installer logs
 pip-log.txt
@@ -478,6 +479,13 @@ fabric.properties
 
 REFACTOR_PLAN.md
 
+# OS and generated test artifacts
+.DS_Store
+test_output/
+test_downloads/
+test_downloaders_functional.py
+
 # Documentation files (keep only README.md)
 /*.md
 !README.md
+!CHANGELOG.md

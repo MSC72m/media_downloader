@@ -1,7 +1,9 @@
+import contextlib
 import os
 import threading
+from collections.abc import Callable
 from functools import partial
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, ParamSpec, Protocol, cast
 
 from src.coordinators.main_coordinator import EventCoordinator
 from src.core.config import AppConfig, get_config
@@ -17,8 +19,27 @@ from src.core.interfaces import (
     IServiceFactory,
     IUIState,
 )
+from src.core.models import Download
+from src.handlers import (
+    instagram_handler,
+    pinterest_handler,
+    radiojavan_handler,
+    soundcloud_handler,
+    spotify_handler,
+    tiktok_handler,
+    twitter_handler,
+    youtube_handler,
+)
 from src.handlers.service_detector import ServiceDetector
-from src.services.cookies import CookieManager as AutoCookieManager
+from src.services.cookies import (
+    SoundCloudCookieManager,
+    SpotifyCookieManager,
+)
+from src.services.cookies import (
+    YouTubeCookieManager as AutoCookieManager,
+)
+from src.services.cookies.radiojavan_cookie_manager import RadioJavanCookieManager
+from src.services.detection.base_handler import BaseHandler
 from src.services.detection.link_detector import LinkDetector
 from src.services.events.queue import Message, MessageLevel, MessageQueue
 from src.services.file import FileService
@@ -35,11 +56,31 @@ from src.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+class _DownloadListProtocol(Protocol):
+    def refresh_items(self, items: list[Download]) -> None: ...
+    def update_item_progress(self, item: Download, progress: float) -> None: ...
+
+
+class _ActionButtonsProtocol(Protocol):
+    def set_enabled(self, enabled: bool = True) -> None: ...
+
+
+class _StatusBarProtocol(Protocol):
+    def show_error(self, message: str) -> None: ...
+    def show_message(self, message: str) -> None: ...
+    def show_warning(self, message: str) -> None: ...
+    def update_progress(self, progress: float) -> None: ...
+
+
+class _UIComponentProtocol(Protocol): ...
+
+
+P = ParamSpec("P")
+
+
 class ApplicationOrchestrator:
-    def __init__(self, root_window: "ctk.CTk", config: AppConfig | None = None):
-        if config is None:
-            config = get_config()
-        self.config: AppConfig = config
+    def __init__(self, root_window: "ctk.CTk", config: AppConfig | None = None) -> None:
+        self.config: AppConfig = config or get_config()
         self.root = root_window
         self.downloads_folder = str(self.config.paths.downloads_dir)
         os.makedirs(self.downloads_folder, exist_ok=True)
@@ -55,7 +96,7 @@ class ApplicationOrchestrator:
         self.link_detector = LinkDetector(handler_factory=self._create_handler_factory())
         self._initialize_cookies_background()
 
-        self.ui_components: dict[str, Any] = {}
+        self.ui_components: dict[str, _UIComponentProtocol] = {}
 
     def _configure_dependencies(self) -> None:
         self.container.register_instance(AppConfig, self.config)
@@ -66,15 +107,15 @@ class ApplicationOrchestrator:
         self._register_coordinators()
         self._register_detectors()
 
-        try:
-            self.container.validate_dependencies()
-        except Exception:
-            raise
+        self.container.validate_dependencies()
 
     def _register_core_services(self) -> None:
         self.container.register_factory(IMessageQueue, lambda: None)
         self.container.register_singleton(IFileService, FileService)
         self.container.register_singleton(IAutoCookieManager, AutoCookieManager)
+        self.container.register_singleton(RadioJavanCookieManager, RadioJavanCookieManager)
+        self.container.register_singleton(SoundCloudCookieManager, SoundCloudCookieManager)
+        self.container.register_singleton(SpotifyCookieManager, SpotifyCookieManager)
         self.container.register_singleton(
             InstagramAuthManager, self.factory_registry.create_instagram_auth_manager
         )
@@ -113,37 +154,42 @@ class ApplicationOrchestrator:
     def _register_detectors(self) -> None:
         self.container.register_singleton(LinkDetector, LinkDetector)
 
-    def _create_handler_factory(self) -> callable:
-        def handler_factory(handler_class: type) -> Any:
+    def _create_handler_factory(self) -> Callable[[type[BaseHandler]], BaseHandler]:
+        def instantiate_directly(handler_class: type[BaseHandler]) -> BaseHandler:
+            return cast(Callable[[], BaseHandler], handler_class)()
+
+        def handler_factory(handler_class: type[BaseHandler]) -> BaseHandler:
             try:
-                return self.container.create_with_injection(handler_class)
+                return cast(BaseHandler, self.container.create_with_injection(handler_class))
             except ValueError:
-                try:
-                    return handler_class()
-                except Exception:
-                    raise
+                return instantiate_directly(handler_class)
             except Exception:
-                try:
-                    return handler_class()
-                except Exception:
-                    raise
+                return instantiate_directly(handler_class)
 
         return handler_factory
 
-    def _import_link_handlers(self) -> None:
-        import contextlib
+    def _run_on_main_thread(self, callback: Callable[[], None]) -> None:
+        runner = getattr(self.root, "run_on_main_thread", None)
+        if callable(runner):
+            runner(callback)
+            return
+        self.root.after(0, callback)
 
+    def _import_link_handlers(self) -> None:
         with contextlib.suppress(Exception):
-            from src.handlers import (
-                instagram_handler,  # noqa: F401
-                pinterest_handler,  # noqa: F401
-                soundcloud_handler,  # noqa: F401
-                twitter_handler,  # noqa: F401
-                youtube_handler,  # noqa: F401
+            _ = (
+                instagram_handler,
+                pinterest_handler,
+                radiojavan_handler,
+                soundcloud_handler,
+                spotify_handler,
+                tiktok_handler,
+                twitter_handler,
+                youtube_handler,
             )
 
     def _initialize_cookies_background(self) -> None:
-        def init_cookies():
+        def init_youtube_cookies() -> None:
             try:
                 state = self.auto_cookie_manager.initialize()
 
@@ -167,10 +213,64 @@ class ApplicationOrchestrator:
                         ),
                     )
             except Exception as e:
-                logger.debug(f"Error in cookie initialization: {e}")
+                logger.debug(f"Error in YouTube cookie initialization: {e}")
 
-        thread = threading.Thread(target=init_cookies, daemon=True, name="CookieInit")
-        thread.start()
+        def init_rj_cookies() -> None:
+            try:
+                rj_config = self.config.radiojavan
+                if not rj_config.cookie_enabled:
+                    logger.info("[ORCHESTRATOR] RadioJavan cookies disabled by config")
+                    return
+                rj_manager = self.container.get(RadioJavanCookieManager)
+                state = rj_manager.initialize()
+                if state.is_valid:
+                    logger.info("[ORCHESTRATOR] RadioJavan cookies initialized successfully")
+                else:
+                    logger.warning(
+                        "[ORCHESTRATOR] RadioJavan cookie init issue: %s",
+                        state.error_message,
+                    )
+            except Exception as e:
+                logger.debug(f"Error in RadioJavan cookie initialization: {e}")
+
+        def init_soundcloud_cookies() -> None:
+            try:
+                sc_manager = self.container.get(SoundCloudCookieManager)
+                state = sc_manager.initialize()
+                if state.is_valid:
+                    logger.info("[ORCHESTRATOR] SoundCloud cookies initialized successfully")
+                else:
+                    logger.warning(
+                        "[ORCHESTRATOR] SoundCloud cookie init issue: %s",
+                        state.error_message,
+                    )
+            except Exception as e:
+                logger.debug(f"Error in SoundCloud cookie initialization: {e}")
+
+        def init_spotify_cookies() -> None:
+            try:
+                sp_manager = self.container.get(SpotifyCookieManager)
+                state = sp_manager.initialize()
+                if state.is_valid:
+                    logger.info("[ORCHESTRATOR] Spotify cookies initialized successfully")
+                else:
+                    logger.warning(
+                        "[ORCHESTRATOR] Spotify cookie init issue: %s",
+                        state.error_message,
+                    )
+            except Exception as e:
+                logger.debug(f"Error in Spotify cookie initialization: {e}")
+
+        yt_thread = threading.Thread(target=init_youtube_cookies, daemon=True, name="YTCookieInit")
+        rj_thread = threading.Thread(target=init_rj_cookies, daemon=True, name="RJCookieInit")
+        sc_thread = threading.Thread(
+            target=init_soundcloud_cookies, daemon=True, name="SCCookieInit"
+        )
+        sp_thread = threading.Thread(target=init_spotify_cookies, daemon=True, name="SPCookieInit")
+        yt_thread.start()
+        rj_thread.start()
+        sc_thread.start()
+        sp_thread.start()
 
     @property
     def auto_cookie_manager(self) -> IAutoCookieManager:
@@ -184,11 +284,12 @@ class ApplicationOrchestrator:
     def event_coordinator(self) -> EventCoordinator:
         return self.container.get(EventCoordinator)
 
-    def set_ui_components(self, **components) -> None:
+    def set_ui_components(self, **components: _UIComponentProtocol) -> None:
         self.ui_components.update(components)
 
         if "status_bar" in components:
-            message_queue = MessageQueue(components["status_bar"])
+            status_bar = cast(_StatusBarProtocol, components["status_bar"])
+            message_queue = MessageQueue(status_bar)
             self.container.register_instance(IMessageQueue, message_queue)
 
             if self.container.has(IErrorNotifier):
@@ -213,25 +314,32 @@ class ApplicationOrchestrator:
             self.event_coordinator.set_ui_callbacks(callbacks)
             self.event_coordinator.refresh_handlers()
 
-    def _create_ui_callbacks(self, components: dict) -> dict:
-        callbacks = {}
+    def _create_ui_callbacks(
+        self,
+        components: dict[str, _UIComponentProtocol],
+    ) -> dict[str, Callable[..., None]]:
+        callbacks: dict[str, Callable[..., None]] = {}
 
-        def safe_ui_update(func, *args, **kwargs):
-            self.root.run_on_main_thread(partial(func, *args, **kwargs))
+        def safe_ui_update(
+            func: Callable[P, None],
+            *args: P.args,
+            **kwargs: P.kwargs,
+        ) -> None:
+            self._run_on_main_thread(partial(func, *args, **kwargs))
 
         if "download_list" in components:
-            dl_list = components["download_list"]
+            dl_list = cast(_DownloadListProtocol, components["download_list"])
             callbacks["refresh_download_list"] = partial(safe_ui_update, dl_list.refresh_items)
             callbacks["update_download_progress"] = partial(
                 safe_ui_update, dl_list.update_item_progress
             )
 
         if "action_buttons" in components:
-            buttons = components["action_buttons"]
+            buttons = cast(_ActionButtonsProtocol, components["action_buttons"])
             callbacks["set_action_buttons_enabled"] = partial(safe_ui_update, buttons.set_enabled)
 
         if "status_bar" in components:
-            sb = components["status_bar"]
+            sb = cast(_StatusBarProtocol, components["status_bar"])
 
             def update_status_wrapper(msg: str, is_error: bool = False) -> None:
                 if is_error:
@@ -250,31 +358,30 @@ class ApplicationOrchestrator:
         return callbacks
 
     def check_connectivity(self) -> None:
-        status_bar = self.ui_components.get("status_bar")
-        if status_bar:
+        if status_bar := cast(_StatusBarProtocol | None, self.ui_components.get("status_bar")):
             status_bar.show_message("Checking network connection...")
 
-        def check_in_background():
+        def check_in_background() -> None:
             try:
                 is_connected, error_message = self.network_checker.check_connectivity()
 
-                def update_ui():
+                def update_ui() -> None:
                     self._handle_connectivity_result(is_connected, error_message)
 
-                self.root.run_on_main_thread(update_ui)
+                self._run_on_main_thread(update_ui)
             except Exception as e:
                 error_msg = str(e)
 
-                def update_ui_error():
+                def update_ui_error() -> None:
                     self._handle_connectivity_result(False, error_msg)
 
-                self.root.run_on_main_thread(update_ui_error)
+                self._run_on_main_thread(update_ui_error)
 
         thread = threading.Thread(target=check_in_background, daemon=True)
         thread.start()
 
     def _handle_connectivity_result(self, is_connected: bool, error_message: str) -> None:
-        status_bar = self.ui_components.get("status_bar")
+        status_bar = cast(_StatusBarProtocol | None, self.ui_components.get("status_bar"))
 
         if is_connected:
             if status_bar:
@@ -283,9 +390,8 @@ class ApplicationOrchestrator:
             if status_bar:
                 status_bar.show_warning(f"Network issue: {error_message or 'Connection failed'}")
             if self.container.has(IMessageQueue):
-                try:
-                    message_queue = self.container.get(IMessageQueue)
-                    if message_queue:
+                with contextlib.suppress(Exception):
+                    if message_queue := self.container.get(IMessageQueue):
                         message_queue.add_message(
                             Message(
                                 text=error_message or "Network connection failed",
@@ -293,8 +399,6 @@ class ApplicationOrchestrator:
                                 title="Network Status",
                             )
                         )
-                except Exception:
-                    pass
 
             if self.event_coordinator:
                 self.event_coordinator.show_network_status()
@@ -304,8 +408,14 @@ class ApplicationOrchestrator:
 
     def cleanup(self) -> None:
         try:
-            if hasattr(self.event_coordinator, "cleanup"):
-                self.event_coordinator.cleanup()
+            if hasattr(self.event_coordinator, "event_bus"):
+                self.event_coordinator.event_bus.stop_processing()
+                self.event_coordinator.event_bus.clear()
+
+            if hasattr(self.event_coordinator, "downloads") and hasattr(
+                self.event_coordinator.downloads, "cleanup"
+            ):
+                self.event_coordinator.downloads.cleanup()
 
             self.container.clear()
         except Exception:

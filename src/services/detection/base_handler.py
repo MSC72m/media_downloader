@@ -1,89 +1,48 @@
+from __future__ import annotations
+
 import re
 from abc import ABC, abstractmethod
-from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from collections.abc import Callable, Mapping
 
 from src.core.config import AppConfig, get_config
-from src.core.interfaces import IMessageQueue, INotifier
+from src.core.interfaces import IMessageQueue, INotifier, UIContextProtocol
+from src.core.type_defs import JSONDict, JSONValue
 from src.services.notifications.notifier import NotifierService
 
-if TYPE_CHECKING:
-    from .link_detector import DetectionResult
-else:
-    DetectionResult = None
+from .models import DetectionResult
+
+UICallback = Callable[[str, UIContextProtocol], None]
 
 
 class BaseHandler(ABC):
-    """Base class for link handlers with shared dependencies.
-
-    Provides:
-    - config: AppConfig instance
-    - message_queue: IMessageQueue for notifications
-    - notifier: INotifier instance with service-specific templates
-    - Polymorphic can_handle() using get_patterns()
-    """
-
     def __init__(
         self,
-        message_queue: IMessageQueue,
-        config: AppConfig = get_config(),
+        message_queue: IMessageQueue | None,
+        config: AppConfig | None = None,
         service_name: str = "",
-    ):
-        """Initialize base handler with shared dependencies.
-
-        Args:
-            message_queue: Message queue for notifications
-            config: Application configuration
-            service_name: Service name for loading templates (e.g., 'youtube', 'instagram')
-        """
-        self.config = config
+    ) -> None:
+        self.config = config or get_config()
         self.message_queue = message_queue
         self.service_name = service_name
 
         templates = self._get_service_templates(service_name)
         self.notifier: INotifier = NotifierService(message_queue, custom_templates=templates)
 
-    def _get_service_templates(self, service_name: str) -> dict[str, dict[str, Any]]:
-        """Get notification templates for the service from config.
-
-        Args:
-            service_name: Service name (e.g., 'youtube', 'instagram')
-
-        Returns:
-            Dictionary of notification templates
-        """
+    def _get_service_templates(self, service_name: str) -> dict[str, JSONDict]:
         if not service_name:
             return {}
 
         templates_attr = getattr(self.config.notifications, service_name, None)
-        return templates_attr if templates_attr else {}
+        if isinstance(templates_attr, dict):
+            return templates_attr
+        return {}
 
     @classmethod
     @abstractmethod
-    def get_patterns(cls) -> list[str]:
-        """Get URL patterns for this handler.
+    def get_patterns(cls) -> list[str]: ...
 
-        Returns:
-            List of regex patterns to match URLs
-        """
-        ...
-
-    def can_handle(self, url: str) -> "DetectionResult":
-        """Polymorphic URL detection using patterns from get_patterns().
-
-        Subclasses can override _extract_metadata() to provide custom metadata.
-
-        Args:
-            url: URL to check
-
-        Returns:
-            DetectionResult with service_type, confidence, and metadata
-        """
-        from .link_detector import DetectionResult
-
-        patterns = self.get_patterns()
-
-        for pattern in patterns:
+    def can_handle(self, url: str) -> DetectionResult:
+        for pattern in self.get_patterns():
             if re.match(pattern, url):
                 metadata = self._extract_metadata(url)
                 return DetectionResult(
@@ -94,28 +53,14 @@ class BaseHandler(ABC):
 
         return DetectionResult(service_type="unknown", confidence=0.0)
 
-    def _extract_metadata(self, url: str) -> dict[str, Any]:
-        """Extract metadata from URL. Override in subclasses for custom extraction.
-
-        Args:
-            url: URL to extract metadata from
-
-        Returns:
-            Dictionary of metadata
-        """
+    def _extract_metadata(self, url: str) -> JSONDict:
         return {}
 
     @abstractmethod
-    def get_metadata(self, url: str) -> dict[str, Any]:
-        """Get metadata for the URL."""
-        ...
+    def get_metadata(self, url: str) -> JSONDict: ...
 
     @abstractmethod
-    def process_download(self, url: str, options: dict[str, Any]) -> bool:
-        """Process the download with given options."""
-        ...
+    def process_download(self, url: str, options: Mapping[str, JSONValue]) -> bool: ...
 
     @abstractmethod
-    def get_ui_callback(self) -> Callable:
-        """Get the UI callback for handling this link type."""
-        ...
+    def get_ui_callback(self) -> UICallback: ...

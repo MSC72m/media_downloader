@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 
 
 class OptionsBar(ctk.CTkFrame):
-    def __init__(self, master, theme_manager: ThemeManager | None = None):
+    def __init__(self, master, theme_manager: ThemeManager | None = None) -> None:
         super().__init__(master, fg_color="transparent")
 
         self._update_queue = queue.Queue()
@@ -28,7 +28,7 @@ class OptionsBar(ctk.CTkFrame):
 
         self._process_queue()
 
-    def _on_theme_changed(self, appearance, color):
+    def _on_theme_changed(self, appearance, color) -> None:
         pass
 
     def _get_root_window(self):
@@ -38,7 +38,7 @@ class OptionsBar(ctk.CTkFrame):
             logger.error(f"[OPTIONS_BAR] Error getting root window: {e}")
             return self
 
-    def _process_queue(self):
+    def _process_queue(self) -> None:
         if not self._running:
             return
 
@@ -60,12 +60,14 @@ class OptionsBar(ctk.CTkFrame):
             except Exception as e:
                 logger.error(f"[OPTIONS_BAR] Error scheduling next queue check: {e}")
 
-    def _queue_update(self, update_func):
+    def _queue_update(self, update_func) -> None:
         try:
             self._update_queue.put(update_func)
         except Exception as e:
             logger.error(f"[OPTIONS_BAR] Error queuing update: {e}", exc_info=True)
 
-    def destroy(self):
+    def destroy(self) -> None:
         self._running = False
+        if self._theme_manager:
+            self._theme_manager.unsubscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
         super().destroy()

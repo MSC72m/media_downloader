@@ -7,7 +7,7 @@ import requests
 from bs4 import BeautifulSoup
 from bs4.element import Tag
 
-from src.core.config import get_config
+from src.core.config import AppConfig, get_config
 from src.core.enums import ServiceType
 from src.core.interfaces import BaseDownloader, IErrorNotifier, IFileService
 
@@ -25,20 +25,17 @@ class PinterestDownloader(BaseDownloader):
         self,
         error_handler: IErrorNotifier | None = None,
         file_service: IFileService | None = None,
-        config=None,
-    ):
+        config: AppConfig = get_config(),
+    ) -> None:
         """Initialize Pinterest downloader.
 
         Args:
             error_handler: Optional error handler for user notifications
             file_service: Optional file service for file operations
-            config: AppConfig instance (defaults to get_config() if None)
+            config: AppConfig instance (defaults to global app config)
         """
-        if config is None:
-            config = get_config()
         super().__init__(error_handler, file_service, config)
-        if not self.file_service:
-            self.file_service = FileService()
+        self.file_service = file_service or FileService()
 
     def download(
         self,
@@ -67,8 +64,7 @@ class PinterestDownloader(BaseDownloader):
                     )
                 return False
 
-            media_url = self._get_media_url(url)
-            if not media_url:
+            if not (media_url := self._get_media_url(url)):
                 error_msg = "Could not retrieve media URL from Pinterest"
                 logger.error(error_msg)
                 if self.error_handler:
@@ -78,14 +74,13 @@ class PinterestDownloader(BaseDownloader):
                 return False
 
             save_dir = os.path.dirname(save_path) if os.path.dirname(save_path) else "."
-            file_service = FileService()
             self.file_service.ensure_directory(save_dir)
 
             filename = self.file_service.sanitize_filename(os.path.basename(save_path))
 
             ext = self._get_extension_from_url(media_url) or ".jpg"
             full_path = os.path.join(save_dir, filename + ext)
-            result = file_service.download_file(media_url, full_path, progress_callback)
+            result = self.file_service.download_file(media_url, full_path, progress_callback)
 
             if not result.success:
                 error_msg = "Failed to download media file"
@@ -93,8 +88,23 @@ class PinterestDownloader(BaseDownloader):
                     self.error_handler.handle_service_failure(
                         "Pinterest", "download", error_msg, url
                     )
+                return False
 
-            return result.success
+            if not os.path.exists(full_path) or os.path.getsize(full_path) == 0:
+                error_msg = "Downloaded Pinterest file is missing or empty"
+                logger.error(f"[PINTEREST_DOWNLOADER] {error_msg}: {full_path}")
+                if self.error_handler:
+                    self.error_handler.handle_service_failure(
+                        "Pinterest", "download", error_msg, url
+                    )
+                return False
+
+            logger.info(
+                "[PINTEREST_DOWNLOADER] Download verified: %s (%d bytes)",
+                full_path,
+                os.path.getsize(full_path),
+            )
+            return True
 
         except Exception as e:
             logger.error(f"Error downloading from Pinterest: {e!s}", exc_info=True)
@@ -107,8 +117,7 @@ class PinterestDownloader(BaseDownloader):
         """Extract file extension from URL."""
         try:
             # Get the path from URL and extract extension
-            match = re.search(r"\.([a-zA-Z0-9]+)(?:\?|$)", url)
-            if match:
+            if match := re.search(r"\.([a-zA-Z0-9]+)(?:\?|$)", url):
                 ext = match.group(1).lower()
                 # Common image/video extensions
                 # Use set for O(1) membership check instead of O(n) list check
@@ -157,16 +166,20 @@ class PinterestDownloader(BaseDownloader):
             Image URL if found, None otherwise
         """
         og_image = soup.find("meta", property="og:image")
-        if isinstance(og_image, Tag):
-            content = og_image.get("content")
-            if content and isinstance(content, str):
-                return content
+        if (
+            isinstance(og_image, Tag)
+            and (content := og_image.get("content"))
+            and isinstance(content, str)
+        ):
+            return content
 
         pin_image = soup.find("meta", attrs={"name": "pinterest:image"})
-        if isinstance(pin_image, Tag):
-            content = pin_image.get("content")
-            if content and isinstance(content, str):
-                return content
+        if (
+            isinstance(pin_image, Tag)
+            and (content := pin_image.get("content"))
+            and isinstance(content, str)
+        ):
+            return content
         return None
 
     def _extract_from_structured_data(self, soup: BeautifulSoup) -> str | None:
@@ -202,24 +215,26 @@ class PinterestDownloader(BaseDownloader):
     def _get_media_url(self, url: str) -> str | None:
         """Get media URL from Pinterest pin URL."""
         try:
-            oembed_result = self._try_oembed(url)
-            if oembed_result:
-                return oembed_result
-
+            media_url = self._try_oembed(url)
             headers = {"User-Agent": self.config.network.user_agent}
-            response = requests.get(
-                url, headers=headers, timeout=self.config.pinterest.default_timeout
-            )
-            if response.status_code != 200:
-                return None
+            if not media_url:
+                response = requests.get(
+                    url, headers=headers, timeout=self.config.pinterest.default_timeout
+                )
+                if response.status_code != 200:
+                    return None
 
-            soup = BeautifulSoup(response.content, "html.parser")
+                soup = BeautifulSoup(response.content, "html.parser")
+                if not (media_url := self._extract_from_meta_tags(soup)):
+                    media_url = self._extract_from_structured_data(soup)
+                if not media_url:
+                    raw_matches = re.findall(
+                        r"https://i\.pinimg\.com/[^\"]+?\.(?:jpg|jpeg|png|webp)",
+                        response.text,
+                    )
+                    media_url = raw_matches[0] if raw_matches else None
 
-            meta_result = self._extract_from_meta_tags(soup)
-            if meta_result:
-                return meta_result
-
-            return self._extract_from_structured_data(soup)
+            return media_url
 
         except Exception as e:
             logger.error(f"Error getting Pinterest media URL: {e}", exc_info=True)

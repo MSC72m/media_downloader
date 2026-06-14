@@ -2,8 +2,9 @@
 
 Cross-platform desktop application for downloading media content from social media platforms.
 
+[![Version](https://img.shields.io/badge/Version-1.0.0-green.svg)](https://github.com/MSC72m/media_downloader/releases)
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)]()
 
 ## Supported Platforms
@@ -13,24 +14,31 @@ Cross-platform desktop application for downloading media content from social med
 [![Twitter](https://img.shields.io/badge/Twitter-1DA1F2?style=for-the-badge&logo=twitter&logoColor=white)](https://twitter.com)
 [![Pinterest](https://img.shields.io/badge/Pinterest-%23E60023.svg?&style=for-the-badge&logo=Pinterest&logoColor=white)](https://pinterest.com)
 [![SoundCloud](https://img.shields.io/badge/SoundCloud-FF5500?style=for-the-badge&logo=soundcloud&logoColor=white)](https://soundcloud.com)
+[![Spotify](https://img.shields.io/badge/Spotify-1DB954?style=for-the-badge&logo=spotify&logoColor=white)](https://spotify.com)
+[![TikTok](https://img.shields.io/badge/TikTok-000000?style=for-the-badge&logo=tiktok&logoColor=white)](https://tiktok.com)
+[![RadioJavan](https://img.shields.io/badge/RadioJavan-00AEEF?style=for-the-badge&logo=musicbrainz&logoColor=white)](https://radiojavan.com)
 
 ### Platform Capabilities
 
 | Platform | Content Types | Features |
 |----------|--------------|----------|
 | **YouTube** | Videos, Playlists, Shorts, Music | Quality selection (144p-8K), audio extraction, subtitle support, auto-cookie generation for age-restricted content |
-| **Instagram** | Posts, Reels, Stories, TV | Authentication required, caption preservation, carousel handling |
+| **Instagram** | Posts, Reels | Authentication required, caption preservation, carousel handling |
 | **Twitter/X** | Tweets | Image and video extraction from tweets |
-| **Pinterest** | Pins, Boards | High-quality image retrieval, automated file naming |
-| **SoundCloud** | Tracks, Sets | Downloads at best available quality, free tracks only (premium/Go+ tracks not supported) |
+| **Pinterest** | Pins | High-quality image retrieval, automated file naming |
+| **SoundCloud** | Tracks, Sets | Best available audio, metadata and thumbnail support, free tracks only (premium/Go+ tracks not supported) |
+| **Spotify** | Tracks, Albums, Playlists, Artists | Metadata extraction and YouTube-backed audio downloads with match selection |
+| **TikTok** | Videos | Best available video downloads with metadata and thumbnail support |
+| **RadioJavan** | Songs, Videos | Direct MP3/MP4 downloads with session cookie generation and CDN fallback |
 
 ## Features
 
-- Multi-platform support for YouTube, Instagram, Twitter, Pinterest, and SoundCloud
+- Multi-platform support for YouTube, Spotify, TikTok, Instagram, Twitter/X, Pinterest, SoundCloud, and RadioJavan
 - Bulk download queue with concurrent processing
 - Video quality selection (144p to 8K) and audio-only extraction
-- Real-time theme switching between dark/light modes with 14 color themes
-- Automatic YouTube cookie generation using Playwright for age-restricted content
+- Real-time theme switching between dark/light modes with 18 color themes
+- Custom themes — drop a JSON file into `themes/` and it appears in the UI (see [docs/themes.md](docs/themes.md))
+- Automatic cookie generation using Playwright for YouTube, SoundCloud, Spotify, and RadioJavan
 - Live progress tracking with status indicators and speed metrics
 - Network connectivity monitoring and validation
 - Configurable retry mechanisms and error handling
@@ -41,6 +49,27 @@ Cross-platform desktop application for downloading media content from social med
 - Python 3.10 or higher
 - Playwright (for YouTube cookie generation)
 - Internet connection
+
+### Development Requirements (Linting + LSP)
+
+The local quality gates in this repo require these tools:
+- `ruff` for linting (`uv run ruff check .`)
+- `basedpyright` for strict editor/LSP parity (`npx basedpyright --outputjson` and `npx basedpyright tests --outputjson`)
+- `pytest` for test validation (`uv run pytest -q`)
+
+Install development dependencies with:
+
+```bash
+pip install -r requirements-dev.txt
+```
+
+If you use `uv`, the project dependencies are managed from `pyproject.toml` and `uv.lock`:
+
+```bash
+uv sync
+```
+
+For `npx basedpyright ...`, install Node.js 18+ if it is not already available.
 
 ## Installation
 
@@ -143,6 +172,25 @@ Make it executable:
 chmod +x ~/.local/share/applications/media_downloader.desktop
 ```
 
+### macOS
+
+Create an Automator application:
+
+1. Open **Automator** → New Application
+2. Add a "Run Shell Script" action with:
+
+```bash
+cd /path/to/media_downloader && source venv/bin/activate && python -m src.main
+```
+
+3. Save as `Media Downloader.app` to `/Applications/`
+
+Alternatively, create a shell alias:
+
+```bash
+alias media-downloader='cd /path/to/media_downloader && source venv/bin/activate && python -m src.main'
+```
+
 ## Usage
 
 ### Basic Workflow
@@ -180,7 +228,7 @@ chmod +x ~/.local/share/applications/media_downloader.desktop
 
 - **Authentication required**: First Instagram URL will prompt authentication window
 - After successful authentication, session is saved and reused for subsequent downloads
-- Supports posts, reels, stories, and TV content
+- Supports posts and reels
 - Captions are preserved when available
 
 #### Twitter/X
@@ -191,7 +239,7 @@ chmod +x ~/.local/share/applications/media_downloader.desktop
 
 #### Pinterest
 
-- Paste pin or board URL
+- Paste pin URL
 - High-quality images are retrieved automatically
 
 #### SoundCloud
@@ -200,12 +248,30 @@ chmod +x ~/.local/share/applications/media_downloader.desktop
 - Downloads at best available quality automatically (no format/quality selection)
 - Only free tracks are supported (premium/Go+ subscription tracks cannot be downloaded)
 
+#### Spotify
+
+- Paste track, album, playlist, or artist URLs
+- Spotify metadata is resolved first, then matching audio is downloaded from YouTube
+- Track selection is available when multiple matches are found
+
+#### TikTok
+
+- Paste video URLs
+- Downloads best available video quality automatically
+- Metadata and thumbnails are preserved when available
+
+#### RadioJavan
+
+- Paste song or video URLs
+- Downloads direct MP3 or MP4 media when available
+- Session cookies are generated automatically using Playwright when needed
+
 ### Theme Customization
 
 The theme switcher is located in the header:
 
 - **Appearance toggle**: Switch between Dark and Light modes
-- **Color theme dropdown**: Select from 14 color themes (Blue, Green, Purple, Orange, Teal, Pink, Indigo, Amber, Red, Cyan, Emerald, Rose, Violet, Slate)
+- **Color theme dropdown**: Select from 18 color themes (Amber, Blue, Coral, Cyan, Emerald, Gold, Green, Indigo, Lime, Navy, Orange, Pink, Purple, Red, Rose, Slate, Teal, Violet)
 - Changes apply instantly without restart
 - Preferences are saved automatically to config file
 
@@ -235,9 +301,17 @@ Configuration files are automatically created in `~/.media_downloader/` on first
 - **Network**: Timeouts, user agents, service domains
 - **YouTube**: Default quality, supported qualities, subtitle languages
 - **Theme**: Appearance mode, color theme, persistence
-- **Platform-specific**: Instagram, Twitter, Pinterest, SoundCloud settings
+- **Platform-specific**: YouTube, Spotify, TikTok, Instagram, Twitter/X, Pinterest, SoundCloud, and RadioJavan settings
 
 Edit the config file directly or use the application's UI to change settings. Changes take effect on next launch (some settings may require restart).
+
+## Known Limitations
+
+- **Twitter Spaces** — Audio spaces are not currently supported
+- **SoundCloud Premium** — Only free tracks can be downloaded (Go+ subscription tracks are blocked by SoundCloud)
+- **Spotify Audio** — Audio is sourced from YouTube, so quality depends on YouTube availability
+- **Instagram Auth** — First Instagram download requires browser-based authentication
+- **macOS Desktop Shortcut** — No `.app` bundle provided; see [Creating Desktop Shortcuts](#creating-desktop-shortcuts) for manual setup
 
 ## Troubleshooting
 
@@ -271,11 +345,11 @@ playwright install chromium
 - Check application logs for detailed error messages
 - Verify URL is valid and accessible
 - Ensure sufficient disk space in download directory
-- For YouTube: Wait for cookie generation to complete if prompted
+- For YouTube, SoundCloud, Spotify, or RadioJavan: Wait for cookie generation to complete if prompted
 
 ## License
 
-MIT License - See [LICENSE](LICENSE) file for details.
+GNU General Public License v3.0 - See [LICENSE](LICENSE) file for details.
 
 ## Disclaimer
 

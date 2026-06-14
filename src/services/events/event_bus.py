@@ -1,8 +1,9 @@
+import contextlib
 import queue
 import threading
 from collections.abc import Callable
 from enum import Enum
-from typing import Any, Generic, TypeVar
+from typing import Generic, Literal, Protocol, TypeVar
 
 from src.core.enums.events import DownloadEvent
 from src.utils.logger import get_logger
@@ -12,6 +13,16 @@ logger = get_logger(__name__)
 EventType = TypeVar("EventType", bound=Enum)
 
 
+class _EventLoopRoot(Protocol):
+    def after(
+        self,
+        ms: int | Literal["idle"],
+        func: Callable[..., object],
+        *args: object,
+    ) -> str: ...
+    def update(self) -> None: ...
+
+
 class EventBus(Generic[EventType]):
     """Generic thread-safe event bus using queue-based dispatch.
 
@@ -19,7 +30,7 @@ class EventBus(Generic[EventType]):
     internally with queue-based processing on the main thread.
     """
 
-    def __init__(self, event_enum: type[EventType], root: Any | None = None):
+    def __init__(self, event_enum: type[EventType], root: _EventLoopRoot | None = None) -> None:
         """Initialize event bus with event enum type.
 
         Args:
@@ -27,7 +38,9 @@ class EventBus(Generic[EventType]):
             root: Optional root window for main thread processing
         """
         self._event_enum = event_enum
-        self._listeners: dict[EventType, list[Callable]] = {event: [] for event in event_enum}
+        self._listeners: dict[EventType, list[Callable[..., None]]] = {
+            event: [] for event in event_enum
+        }
         self._event_queue: queue.Queue = queue.Queue()
         self._root = root
         self._processing = False
@@ -41,13 +54,13 @@ class EventBus(Generic[EventType]):
         else:
             logger.warning("[EVENT_BUS] No root provided - event processing NOT started")
 
-    def set_root(self, root: Any) -> None:
+    def set_root(self, root: _EventLoopRoot) -> None:
         """Set the root window and start processing."""
         logger.info(f"[EVENT_BUS] set_root called, processing: {self._processing}")
         self._root = root
         self._start_processing()
 
-    def subscribe(self, event: EventType, callback: Callable) -> None:
+    def subscribe(self, event: EventType, callback: Callable[..., None]) -> None:
         """Subscribe to an event."""
         with self._lock:
             if event not in self._listeners:
@@ -57,14 +70,14 @@ class EventBus(Generic[EventType]):
                 f"[EVENT_BUS] Subscribed to {event.name}, total listeners: {len(self._listeners[event])}"
             )
 
-    def unsubscribe(self, event: EventType, callback: Callable) -> None:
+    def unsubscribe(self, event: EventType, callback: Callable[..., None]) -> None:
         """Unsubscribe from an event."""
         with self._lock:
             if event in self._listeners and callback in self._listeners[event]:
                 self._listeners[event].remove(callback)
                 logger.debug(f"[EVENT_BUS] Unsubscribed from {event.name}")
 
-    def publish(self, event: EventType, **kwargs) -> None:
+    def publish(self, event: EventType, **kwargs: object) -> None:
         """Publish an event - adds to queue for processing on main thread."""
         self._event_queue.put((event, kwargs))
         logger.debug(
@@ -114,11 +127,12 @@ class EventBus(Generic[EventType]):
             logger.error(f"[EVENT_BUS] Error processing events: {e}", exc_info=True)
         finally:
             if self._processing:
-                self._root.after(50, self._process_events)
+                with contextlib.suppress(Exception):
+                    self._root.after(50, self._process_events)
             else:
                 logger.warning("[EVENT_BUS] Processing stopped, not scheduling next cycle")
 
-    def _dispatch_event(self, event: EventType, kwargs: dict[str, Any]) -> None:
+    def _dispatch_event(self, event: EventType, kwargs: dict[str, object]) -> None:
         """Dispatch event to all subscribers."""
         with self._lock:
             listeners = self._listeners.get(event, []).copy()
@@ -165,6 +179,6 @@ class EventBus(Generic[EventType]):
 class DownloadEventBus(EventBus[DownloadEvent]):
     """Thread-safe event bus for download events - backward compatibility wrapper."""
 
-    def __init__(self, root: Any | None = None):
+    def __init__(self, root: _EventLoopRoot | None = None) -> None:
         """Initialize download event bus."""
         super().__init__(DownloadEvent, root)

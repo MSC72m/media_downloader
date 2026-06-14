@@ -1,19 +1,9 @@
 import re
-from enum import Enum
 
+from src.core.enums import ErrorType
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
-
-
-class ErrorType(Enum):
-    """Error type classification."""
-
-    NETWORK = "network"
-    AUTHENTICATION = "authentication"
-    SERVICE = "service"
-    VALIDATION = "validation"
-    UNKNOWN = "unknown"
 
 
 def extract_error_context(

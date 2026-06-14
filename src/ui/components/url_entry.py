@@ -19,7 +19,7 @@ class URLEntryFrame(ctk.CTkFrame):
         on_add: Callable[[str, str], None],  # Callback signature: (url: str, name: str) -> None
         on_youtube_detected: Callable[[str], None] | None = None,
         theme_manager: ThemeManager | None = None,
-    ):
+    ) -> None:
         super().__init__(master, fg_color="transparent")
 
         self.on_add = on_add
@@ -57,36 +57,33 @@ class URLEntryFrame(ctk.CTkFrame):
 
         self._apply_theme_colors()
 
-    def _apply_theme_colors(self):
+    @staticmethod
+    def _normalize_color(color):
+        """Extract a single color string from a theme color value (may be list/tuple)."""
+        if isinstance(color, list | tuple) and len(color) > 0:
+            return color[0] if isinstance(color[0], str) else str(color[0])
+        if not isinstance(color, str):
+            return str(color)
+        return color
+
+    def _apply_theme_colors(self) -> None:
         theme_json = self._theme_manager.get_theme_json()
 
-        entry_config = theme_json.get("CTkEntry", {})
-        if entry_config:
+        if entry_config := theme_json.get("CTkEntry", {}):
+            fg_color = self._normalize_color(entry_config.get("fg_color"))
+            border_color = self._normalize_color(entry_config.get("border_color"))
+            text_color = self._normalize_color(entry_config.get("text_color"))
+
             self.url_entry.configure(
-                fg_color=entry_config.get("fg_color"),
-                border_color=entry_config.get("border_color"),
-                text_color=entry_config.get("text_color"),
+                fg_color=fg_color,
+                border_color=border_color,
+                text_color=text_color,
             )
 
-        button_config = theme_json.get("CTkButton", {})
-        if button_config:
-            button_color = button_config.get("fg_color")
-            hover_color = button_config.get("hover_color")
-            text_color = button_config.get("text_color")
-
-            if isinstance(button_color, tuple):
-                button_color = (
-                    button_color[0] if isinstance(button_color[0], str) else str(button_color[0])
-                )
-            elif not isinstance(button_color, str):
-                button_color = str(button_color)
-
-            if isinstance(hover_color, tuple):
-                hover_color = (
-                    hover_color[0] if isinstance(hover_color[0], str) else str(hover_color[0])
-                )
-            elif not isinstance(hover_color, str):
-                hover_color = str(hover_color)
+        if button_config := theme_json.get("CTkButton", {}):
+            button_color = self._normalize_color(button_config.get("fg_color"))
+            hover_color = self._normalize_color(button_config.get("hover_color"))
+            text_color = self._normalize_color(button_config.get("text_color"))
 
             self.add_button.configure(
                 fg_color=button_color,
@@ -94,12 +91,11 @@ class URLEntryFrame(ctk.CTkFrame):
                 text_color=text_color,
             )
 
-    def _on_theme_changed(self, appearance, color):
+    def _on_theme_changed(self, appearance, color) -> None:
         self._apply_theme_colors()
 
-    def handle_add(self):
-        url = self.url_entry.get().strip()
-        if not url:
+    def handle_add(self) -> None:
+        if not (url := self.url_entry.get().strip()):
             return
 
         if self.on_youtube_detected and _YOUTUBE_DOMAIN_PATTERN.search(url):
@@ -108,11 +104,14 @@ class URLEntryFrame(ctk.CTkFrame):
             return
 
         dialog = CenteredInputDialog(text="Enter a name for this link:", title="Link Name")
-        name = dialog.get_input()
-
-        if name:
+        if name := dialog.get_input():
             self.on_add(url, name)
             self.clear()
 
-    def clear(self):
+    def clear(self) -> None:
         self.url_entry.delete(0, tk.END)
+
+    def destroy(self) -> None:
+        if self._theme_manager:
+            self._theme_manager.unsubscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
+        super().destroy()
