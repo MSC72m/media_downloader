@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.1.1 - 2026-06-14
+
+Hotfix release fixing Windows installer and PyInstaller build issues.
+
+### Fixed
+
+- Fixed Windows installer crash: `{app}` constant was expanded before install directory was initialized in `CurPageChanged`
+- Fixed PyInstaller build: added Tcl/Tk runtime hook so tkinter initializes correctly in frozen app
+- Fixed PyInstaller build: bundled Tcl/Tk libraries and CustomTkinter assets properly
+- Fixed PyInstaller build: configured `hookspath` and `runtime_hooks` in spec file
+- Fixed Twitter/X downloader: graceful handling of 404 errors from FixTweet API instead of crashing
+- Fixed Spotify routing: downloads now correctly use SpotifyDownloader instead of accidentally routing through YouTubeDownloader
+- Fixed RadioJavan file download timeout: added `timeout` parameter to `download_file()` for per-service timeout control
+- Fixed SoundCloud and TikTok timeouts: increased defaults and added User-Agent headers to prevent API blocking
+
 ## 1.0.0 - 2026-06-08
 
 ### Added
