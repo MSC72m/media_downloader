@@ -407,6 +407,16 @@ if __name__ == "__main__":
         except Exception as e:
             logger.warning(f"[MAIN_APP] Playwright bootstrap check skipped: {e}")
 
+        # Step 2b: Ensure ffmpeg is available (non-blocking background download).
+        logger.info("[MAIN_APP] Step 2b: Checking ffmpeg availability...")
+        try:
+            from src.utils.ffmpeg import ensure_ffmpeg_available, is_ffmpeg_available
+
+            if not is_ffmpeg_available():
+                logger.info("[MAIN_APP] ffmpeg not found - will download in background")
+        except Exception as e:
+            logger.warning(f"[MAIN_APP] ffmpeg check skipped: {e}")
+
         # Step 3: Create and display the main application window
         logger.info("[MAIN_APP] Step 3/3: Initializing application window...")
         app = MediaDownloaderApp()
@@ -447,6 +457,18 @@ if __name__ == "__main__":
 
                 _chromium_ready.set()
                 logger.info("[MAIN_APP] Browser already available")
+        except Exception:
+            pass
+
+        # Start ffmpeg download in background if not found
+        try:
+            from src.utils.ffmpeg import ensure_ffmpeg_available, is_ffmpeg_available
+
+            if not is_ffmpeg_available():
+                app.status_bar.show_message("Downloading ffmpeg for video processing...")
+                ensure_ffmpeg_available(root_window=app)
+            else:
+                logger.info("[MAIN_APP] ffmpeg already available")
         except Exception:
             pass
 

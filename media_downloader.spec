@@ -153,6 +153,7 @@ a = Analysis(
         "src.utils",
         "src.utils.logger",
         "src.utils.common",
+        "src.utils.ffmpeg",
         "src.utils.window",
         "src.utils.error_helpers",
         "src.utils.type_helpers",
