@@ -14,7 +14,7 @@
 ;   /DBUNDLE_CHROMIUM - Indicates Chromium is bundled in the installer
 
 #define MyAppName "Media Downloader"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.1.1"
 #ifndef MyAppArchLabel
 #define MyAppArchLabel "x64"
 #endif
@@ -99,12 +99,12 @@ var
   chromiumBundled: Boolean;
   chromiumPath: String;
 begin
-  // Check if Chromium is bundled in the installer
-  chromiumPath := ExpandConstant('{app}\chromium');
-  chromiumBundled := DirExists(chromiumPath);
-
   if CurPageID = wpFinished then
   begin
+    // Only check for Chromium after install directory is set
+    chromiumPath := ExpandConstant('{app}\chromium');
+    chromiumBundled := DirExists(chromiumPath);
+
     if chromiumBundled then
     begin
       // Chromium is bundled - app is ready immediately
