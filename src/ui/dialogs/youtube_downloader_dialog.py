@@ -71,6 +71,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.minsize(600, 700)
 
         self.transient(parent)
+        self.withdraw()  # Hide immediately — shown only after metadata fetch
 
         self.attributes("-topmost", True)
         try:

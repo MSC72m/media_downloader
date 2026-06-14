@@ -79,6 +79,7 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.minsize(700, 800)
 
         self.transient(parent)
+        self.withdraw()  # Hide immediately — shown only after metadata fetch
 
         self.attributes("-topmost", True)
         try:
