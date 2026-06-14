@@ -1,4 +1,5 @@
 import logging
+import logging.handlers
 import sys
 from pathlib import Path
 
@@ -25,10 +26,15 @@ def get_logger(name: str) -> logging.Logger:
             console_handler.setFormatter(formatter)
             root_logger.addHandler(console_handler)
 
-            # File handler
+            # Rotating file handler — 5 MB per file, keep 5 backups
             try:
                 log_file = _get_log_dir() / "media_downloader.log"
-                file_handler = logging.FileHandler(log_file, encoding="utf-8")
+                file_handler = logging.handlers.RotatingFileHandler(
+                    log_file,
+                    maxBytes=5 * 1024 * 1024,
+                    backupCount=5,
+                    encoding="utf-8",
+                )
                 file_handler.setFormatter(formatter)
                 root_logger.addHandler(file_handler)
             except Exception:
