@@ -231,17 +231,15 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=os.path.join(PROJECT_ROOT, "assets", "media_downloader.ico"),
-    manifest="""
-<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
-  <application xmlns="urn:schemas-microsoft-com:asm.v3">
-    <windowsSettings>
-      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true</dpiAware>
-      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">system</dpiAwareness>
-    </windowsSettings>
-  </application>
-</assembly>
-""",
+    manifest='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    '<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">'
+    '<application xmlns="urn:schemas-microsoft-com:asm.v3">'
+    "<windowsSettings>"
+    '<dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true</dpiAware>'
+    '<dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">system</dpiAwareness>'
+    "</windowsSettings>"
+    "</application>"
+    "</assembly>",
 )
 
 coll = COLLECT(
