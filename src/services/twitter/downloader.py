@@ -152,13 +152,17 @@ class TwitterDownloader(BaseDownloader):
         headers = {"User-Agent": self.config.network.user_agent}
         try:
             for endpoint in endpoints:
-                response = requests.get(
-                    endpoint,
-                    headers=headers,
-                    verify=True,
-                    timeout=self.config.network.twitter_api_timeout,
-                )
-                response.raise_for_status()
+                try:
+                    response = requests.get(
+                        endpoint,
+                        headers=headers,
+                        verify=True,
+                        timeout=self.config.network.twitter_api_timeout,
+                    )
+                    response.raise_for_status()
+                except requests.exceptions.HTTPError:
+                    logger.debug("[TWITTER_DOWNLOADER] Endpoint returned HTTP error: %s", endpoint)
+                    continue
 
                 content_type = response.headers.get("content-type", "")
                 match content_type:
