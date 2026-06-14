@@ -128,7 +128,8 @@ jobs:
       - name: Verify installer output
         id: installer
         run: |
-          $version = "1.0.0"
+          $tag = "${{ github.ref_name }}"
+          $version = $tag -replace '^v', ''
           $arch = "${{ matrix.arch }}"
           $installerPath = "installers\MediaDownloaderSetup-$version-$arch.exe"
           if (!(Test-Path $installerPath)) {
@@ -210,8 +211,8 @@ jobs:
             ### Installation
 
             1. Download the installer for your Windows architecture below:
-               - `MediaDownloaderSetup-1.0.0-x64.exe` for Intel/AMD Windows PCs
-               - `MediaDownloaderSetup-1.0.0-arm64.exe` for Windows on ARM devices
+               - `MediaDownloaderSetup-${{ steps.version.outputs.version }}-x64.exe` for Intel/AMD Windows PCs
+               - `MediaDownloaderSetup-${{ steps.version.outputs.version }}-arm64.exe` for Windows on ARM devices
             2. Run the installer and follow the setup wizard
             3. On first launch, the app will download a browser component (~150 MB) for cookie generation -- this only happens once
 
