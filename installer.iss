@@ -2,6 +2,7 @@
 ; ========================================
 ;
 ; ffmpeg is downloaded during install so the app is ready on first launch.
+; Uses curl.exe (built into Windows 10+) to download from BtbN FFmpeg-Builds.
 
 #define MyAppName "Media Downloader"
 #define MyAppVersion "1.1.1"
@@ -72,8 +73,6 @@ var
   FfmpegExe: String;
   TmpDir: String;
   ZipFile: String;
-  DlScript: String;
-  ExScript: String;
 begin
   Result := '';
   BinDir := ExpandConstant('{app}\bin');
@@ -88,18 +87,12 @@ begin
   end;
 
   CreateDir(BinDir);
-  WizardForm.StatusLabel.Caption := 'Downloading ffmpeg for video processing...';
+  WizardForm.StatusLabel.Caption := 'Downloading ffmpeg (this may take a minute)...';
 
-  DlScript :=
-    '[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;' +
-    'Invoke-WebRequest' +
-    ' -Uri "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"' +
-    ' -OutFile "' + ZipFile + '"' +
-    ' -UseBasicParsing;' +
-    'Write-Host "Download complete.";';
-
-  Exec('powershell.exe',
-    '-NoProfile -ExecutionPolicy Bypass -Command ' + DlScript,
+  { Use curl.exe (built into Windows 10+) to download from BtbN builds }
+  Exec('curl.exe',
+    '-L --progress-bar -o "' + ZipFile + '"' +
+    ' "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"',
     '', SW_SHOW, ewWaitUntilTerminated, ResultCode);
 
   if ResultCode <> 0 then
@@ -116,19 +109,18 @@ begin
 
   WizardForm.StatusLabel.Caption := 'Extracting ffmpeg...';
 
-  ExScript :=
-    'Add-Type -AssemblyName System.IO.Compression.FileSystem;' +
-    '$z = [System.IO.Compression.ZipFile]::OpenRead("' + ZipFile + '");' +
-    'try { foreach ($e in $z.Entries) {' +
-    '  if ($e.FullName -match "bin/ffmpeg.exe$") {' +
-    '    [System.IO.Compression.ZipFileExtensions]::ExtractToFile($e, "' + FfmpegExe + '", $true);' +
-    '    break;' +
-    '  }}} finally { $z.Dispose() };' +
-    'Remove-Item "' + ZipFile + '" -Force -ErrorAction SilentlyContinue;';
-
+  { Use PowerShell to extract only ffmpeg.exe from the zip }
   Exec('powershell.exe',
-    '-NoProfile -ExecutionPolicy Bypass -Command ' + ExScript,
+    '-NoProfile -ExecutionPolicy Bypass -Command ' +
+    '"Add-Type -AssemblyName System.IO.Compression.FileSystem;' +
+    '$z=[System.IO.Compression.ZipFile]::OpenRead(''' + ZipFile + ''');' +
+    'try{foreach($e in $z.Entries){if($e.FullName -match ''bin/ffmpeg.exe$''){' +
+    '[System.IO.Compression.ZipFileExtensions]::ExtractToFile($e,''' + FfmpegExe + ''',$true);break}}}finally{$z.Dispose()}"',
     '', SW_SHOW, ewWaitUntilTerminated, ResultCode);
+
+  { Clean up zip }
+  if FileExists(ZipFile) then
+    DeleteFile(ZipFile);
 
   if ResultCode <> 0 then
   begin
