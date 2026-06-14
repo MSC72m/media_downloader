@@ -1,8 +1,36 @@
 import importlib.util
+import sys
+from pathlib import Path
 
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def resource_path(relative_path: str) -> Path:
+    """Return absolute path to a resource, works for dev and PyInstaller bundle."""
+    if getattr(sys, "frozen", False):
+        base_path = Path(sys._MEIPASS)  # type: ignore[attr-defined]
+    else:
+        base_path = Path(__file__).resolve().parent.parent.parent
+    return base_path / relative_path
+
+
+def set_windows_dpi_awareness() -> None:
+    """Enable Windows DPI awareness so the UI renders at native resolution."""
+    if sys.platform != "win32":
+        return
+    try:
+        from ctypes import windll
+
+        windll.shcore.SetProcessDpiAwareness(1)
+    except Exception:
+        try:
+            from ctypes import windll
+
+            windll.user32.SetProcessDPIAware()
+        except Exception:
+            pass
 
 
 def ensure_gui_available() -> bool:

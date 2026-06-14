@@ -1,5 +1,7 @@
 # Media Downloader
 
+![Media Downloader](assets/media_downloader.ico)
+
 Cross-platform desktop application for downloading media content from social media platforms.
 
 [![Version](https://img.shields.io/badge/Version-1.0.0-green.svg)](https://github.com/MSC72m/media_downloader/releases)
@@ -144,7 +146,7 @@ Replace `C:\path\to\media_downloader` with your actual installation path.
 2. Create a shortcut:
    - Right-click the batch file → "Create shortcut"
    - Move shortcut to Desktop or Start Menu
-   - Optional: Right-click shortcut → Properties → Change icon
+   - Right-click shortcut → Properties → Change Icon → Browse to `assets/media_downloader.ico`
 
 ### Linux
 
@@ -160,7 +162,7 @@ Add the following content (adjust paths as needed):
 [Desktop Entry]
 Name=Media Downloader
 Exec=/path/to/venv/bin/python /path/to/media_downloader/src/main.py
-Icon=/path/to/media_downloader/icon.png
+Icon=/path/to/media_downloader/assets/media_downloader.ico
 Type=Application
 Categories=Utility;
 Terminal=false
@@ -174,7 +176,7 @@ chmod +x ~/.local/share/applications/media_downloader.desktop
 
 ### macOS
 
-Create an Automator application:
+#### Option A: Automator App (Recommended)
 
 1. Open **Automator** → New Application
 2. Add a "Run Shell Script" action with:
@@ -184,12 +186,44 @@ cd /path/to/media_downloader && source venv/bin/activate && python -m src.main
 ```
 
 3. Save as `Media Downloader.app` to `/Applications/`
+4. Set the app icon:
+   - Right-click the `.app` → Get Info
+   - Drag `assets/media_downloader.ico` onto the icon in the top-left corner
 
-Alternatively, create a shell alias:
+#### Option B: Shell Alias
 
 ```bash
 alias media-downloader='cd /path/to/media_downloader && source venv/bin/activate && python -m src.main'
 ```
+
+Add this to your `~/.zshrc` or `~/.bash_profile` for persistence.
+
+#### Option C: macOS Launch Agent
+
+Create `~/Library/LaunchAgents/com.msc72m.mediadownloader.plist`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.msc72m.mediadownloader</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/path/to/venv/bin/python</string>
+        <string>-m</string>
+        <string>src.main</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/path/to/media_downloader</string>
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>
+```
+
+Launch with: `launchctl load ~/Library/LaunchAgents/com.msc72m.mediadownloader.plist`
 
 ## Usage
 

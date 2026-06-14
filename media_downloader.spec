@@ -23,6 +23,8 @@ import os
 import customtkinter
 import tkinter
 
+from PyInstaller.utils.hooks import collect_data_files
+
 block_cipher = None
 
 # Paths
@@ -52,6 +54,8 @@ datas = [
     (os.path.join(PROJECT_ROOT, "themes"), "themes"),
     # CustomTkinter assets only (fonts, themes, icons)
     (os.path.join(CTK_PATH, "assets"), "customtkinter/assets"),
+    # App assets (icon, etc.)
+    (os.path.join(PROJECT_ROOT, "assets"), "assets"),
 ]
 
 # Bundle Tcl/Tk libraries
@@ -226,8 +230,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    # Uncomment and set path if you have an icon file:
-    # icon="assets/icon.ico",
+    icon=os.path.join(PROJECT_ROOT, "assets", "media_downloader.ico"),
 )
 
 coll = COLLECT(

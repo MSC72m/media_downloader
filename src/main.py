@@ -7,13 +7,15 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
-from src.utils.common import ensure_gui_available
+from src.utils.common import ensure_gui_available, resource_path, set_windows_dpi_awareness
 from src.utils.logger import get_logger
 
 sys.path.append(str(Path(__file__).parent.parent))
 
 logger = get_logger(__name__)
 
+# Windows DPI awareness must be set before ANY tkinter/CTk window is created
+set_windows_dpi_awareness()
 
 ensure_gui_available()
 from tkinter import Menu  # noqa: E402
@@ -163,6 +165,11 @@ class MediaDownloaderApp(ctk.CTk):
 
         self.title(self.config.ui.app_title)
         self.geometry("1000x700")
+
+        # Set window icon
+        icon_path = resource_path("assets/media_downloader.ico")
+        if icon_path.exists():
+            self.after(100, lambda: self.iconbitmap(str(icon_path)))
 
         self.thread_queue = queue.Queue(maxsize=100)
         self._queue_processor_running = True
@@ -384,10 +391,24 @@ if __name__ == "__main__":
         logger.info("[MAIN_APP] Step 1/3: Checking Playwright installation...")
         _check_playwright_installation()
 
-        # Step 2: Ensure Chromium browser is downloaded BEFORE creating the
-        # app. Cookie init threads launch browsers immediately on startup
-        # and fail if Chromium isn't installed yet.
-        logger.info("[MAIN_APP] Step 2/3: Ensuring Chromium browser is available...")
+        # Step 2: Ensure Chromium browser is available (non-blocking).
+        # Cookie init threads will wait on _chromium_ready event before launching browsers.
+        logger.info("[MAIN_APP] Step 2/3: Checking Chromium availability...")
+        try:
+            from src.services.cookies.playwright_bootstrap import (
+                is_chromium_installed,
+            )
+
+            if not is_chromium_installed():
+                logger.info("[MAIN_APP] Chromium not found - will install on first launch")
+        except Exception as e:
+            logger.warning(f"[MAIN_APP] Playwright bootstrap check skipped: {e}")
+
+        # Step 3: Create and display the main application window
+        logger.info("[MAIN_APP] Step 3/3: Initializing application window...")
+        app = MediaDownloaderApp()
+
+        # Start Chromium install in background after window is visible
         try:
             from src.services.cookies.playwright_bootstrap import (
                 ensure_playwright_ready,
@@ -395,21 +416,15 @@ if __name__ == "__main__":
             )
 
             if not is_chromium_installed():
-                logger.info("[MAIN_APP] Chromium not found - installing now (blocking)...")
-                if not ensure_playwright_ready(root_window=None):
-                    logger.warning(
-                        "[MAIN_APP] Chromium installation failed - cookie generation will not work"
-                    )
-                else:
-                    logger.info("[MAIN_APP] Chromium installed successfully")
-            else:
-                logger.info("[MAIN_APP] Chromium already installed")
-        except Exception as e:
-            logger.warning(f"[MAIN_APP] Playwright bootstrap skipped: {e}")
 
-        # Step 3: Create and display the main application window
-        logger.info("[MAIN_APP] Step 3/3: Initializing application window...")
-        app = MediaDownloaderApp()
+                def _bg_install():
+                    ensure_playwright_ready(root_window=app)
+
+                import threading
+
+                threading.Thread(target=_bg_install, daemon=True).start()
+        except Exception:
+            pass
 
         app.mainloop()
 

@@ -53,7 +53,7 @@ PrivilegesRequiredOverridesAllowed=dialog
 ; Visual settings
 WizardStyle=modern
 ; Uncomment when you have an icon:
-; SetupIconFile=assets\icon.ico
+SetupIconFile=assets\media_downloader.ico
 ; Uninstaller
 UninstallDisplayName={#MyAppName}
 ; Minimum Windows version (Windows 10)
