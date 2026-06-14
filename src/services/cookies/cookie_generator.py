@@ -84,7 +84,7 @@ class CookieGenerator:
         return state
 
     async def _launch_browser(self, playwright: Playwright) -> Browser | None:
-        """Launch Chromium browser.
+        """Launch browser, preferring system Chrome/Edge over Playwright Chromium.
 
         Waits for Chromium to be installed if a first-run download is in
         progress, then attempts to launch.
@@ -95,21 +95,41 @@ class CookieGenerator:
         Returns:
             Browser instance or None if launch fails
         """
-        from src.services.cookies.playwright_bootstrap import wait_for_chromium
+        from src.services.cookies.playwright_bootstrap import get_browser_channel, wait_for_chromium
 
         if not wait_for_chromium(timeout=120):
             logger.error("[COOKIE_GENERATOR] Chromium not available after waiting")
             return None
 
+        channel = get_browser_channel()
+        launch_kwargs: dict[str, object] = {
+            "headless": True,
+            "args": [
+                "--incognito",
+                "--disable-blink-features=AutomationControlled",
+            ],
+        }
+        if channel:
+            launch_kwargs["channel"] = channel
+            logger.info("[COOKIE_GENERATOR] Using system browser channel: %s", channel)
+
         try:
-            return await playwright.chromium.launch(
-                headless=True,
-                args=[
-                    "--incognito",
-                    "--disable-blink-features=AutomationControlled",
-                ],
-            )
+            return await playwright.chromium.launch(**launch_kwargs)
         except Exception as browser_error:
+            # If system browser failed, retry without channel (use Playwright Chromium)
+            if channel:
+                logger.warning(
+                    "[COOKIE_GENERATOR] System browser launch failed, retrying with Playwright Chromium"
+                )
+                try:
+                    return await playwright.chromium.launch(
+                        headless=True,
+                        args=["--incognito", "--disable-blink-features=AutomationControlled"],
+                    )
+                except Exception as retry_error:
+                    error_msg = f"Failed to launch browser: {retry_error!s}"
+                    logger.error(f"[COOKIE_GENERATOR] {error_msg}")
+                    return None
             error_msg = f"Failed to launch browser: {browser_error!s}"
             logger.error(f"[COOKIE_GENERATOR] {error_msg}")
             return None

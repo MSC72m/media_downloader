@@ -60,6 +60,80 @@ def is_playwright_installed() -> bool:
     return importlib.util.find_spec("playwright") is not None
 
 
+def detect_system_chrome() -> str | None:
+    """Detect a system-installed Chrome or Edge browser.
+
+    Returns the Playwright channel name ("chrome" or "msedge") if found,
+    otherwise None.  This allows Playwright to reuse an existing browser
+    instead of downloading Chromium.
+    """
+    if sys.platform == "win32":
+        return _detect_browser_windows()
+    if sys.platform == "darwin":
+        return _detect_browser_macos()
+    return _detect_browser_linux()
+
+
+def _detect_browser_windows() -> str | None:
+    """Detect Chrome/Edge on Windows."""
+    chrome_paths = [
+        Path.home() / "AppData" / "Local" / "Google" / "Chrome" / "Application" / "chrome.exe",
+        Path("C:/Program Files/Google/Chrome/Application/chrome.exe"),
+        Path("C:/Program Files (x86)/Google/Chrome/Application/chrome.exe"),
+    ]
+    for p in chrome_paths:
+        if p.exists():
+            return "chrome"
+
+    edge_paths = [
+        Path("C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"),
+        Path("C:/Program Files/Microsoft/Edge/Application/msedge.exe"),
+    ]
+    for p in edge_paths:
+        if p.exists():
+            return "msedge"
+    return None
+
+
+def _detect_browser_macos() -> str | None:
+    """Detect Chrome/Edge on macOS."""
+    chrome_paths = [
+        Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+        Path.home() / "Applications" / "Google Chrome.app" / "Contents" / "MacOS" / "Google Chrome",
+    ]
+    for p in chrome_paths:
+        if p.exists():
+            return "chrome"
+
+    edge_path = Path("/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge")
+    if edge_path.exists():
+        return "msedge"
+    return None
+
+
+def _detect_browser_linux() -> str | None:
+    """Detect Chrome/Edge on Linux."""
+    import shutil
+
+    for name in ("google-chrome", "google-chrome-stable", "chrome", "chromium"):
+        if shutil.which(name):
+            return "chrome"
+
+    for name in ("microsoft-edge", "microsoft-edge-stable"):
+        if shutil.which(name):
+            return "msedge"
+    return None
+
+
+def get_browser_channel() -> str | None:
+    """Return the best available browser channel.
+
+    Prefers system Chrome/Edge over Playwright-managed Chromium to avoid
+    a large download on first launch.
+    """
+    return detect_system_chrome()
+
+
 def _playwright_cli_command(*args: str) -> list[str]:
     """Return a Playwright CLI command that works in normal and frozen builds.
 
@@ -74,11 +148,15 @@ def _playwright_cli_command(*args: str) -> list[str]:
 
 
 def is_chromium_installed() -> bool:
-    """Check whether Playwright's managed Chromium binary exists on disk.
+    """Check whether a usable browser is available.
 
-    This avoids launching a full browser just to check -- instead it
-    inspects the Playwright browser registry path directly.
+    Returns True if either Playwright's managed Chromium or a system
+    Chrome/Edge browser is found.
     """
+    # System Chrome/Edge can be used directly via Playwright channel
+    if detect_system_chrome() is not None:
+        return True
+
     if not is_playwright_installed():
         return False
 

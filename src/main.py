@@ -411,18 +411,39 @@ if __name__ == "__main__":
         # Start Chromium install in background after window is visible
         try:
             from src.services.cookies.playwright_bootstrap import (
+                detect_system_chrome,
                 ensure_playwright_ready,
                 is_chromium_installed,
             )
 
             if not is_chromium_installed():
+                system_chrome = detect_system_chrome()
+                if system_chrome:
+                    from src.services.cookies.playwright_bootstrap import _chromium_ready
 
-                def _bg_install():
-                    ensure_playwright_ready(root_window=app)
+                    _chromium_ready.set()
+                    logger.info(f"[MAIN_APP] Using system browser: {system_chrome}")
+                else:
+                    app.status_bar.show_message("Setting up browser (first time only)...")
+                    logger.info("[MAIN_APP] Chromium not found - installing in background...")
 
-                import threading
+                    def _bg_install():
+                        from src.services.cookies.playwright_bootstrap import _chromium_ready
 
-                threading.Thread(target=_bg_install, daemon=True).start()
+                        ensure_playwright_ready(root_window=app)
+                        if _chromium_ready.is_set():
+                            app.run_on_main_thread(
+                                lambda: app.status_bar.show_message("Browser ready")
+                            )
+
+                    import threading
+
+                    threading.Thread(target=_bg_install, daemon=True).start()
+            else:
+                from src.services.cookies.playwright_bootstrap import _chromium_ready
+
+                _chromium_ready.set()
+                logger.info("[MAIN_APP] Browser already available")
         except Exception:
             pass
 

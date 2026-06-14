@@ -76,22 +76,40 @@ class RadioJavanCookieGenerator:
     # ------------------------------------------------------------------
 
     async def _launch_browser(self, playwright: Playwright) -> Browser | None:
-        from src.services.cookies.playwright_bootstrap import wait_for_chromium
+        from src.services.cookies.playwright_bootstrap import get_browser_channel, wait_for_chromium
 
         if not wait_for_chromium(timeout=120):
             logger.error("[RJ_COOKIE_GENERATOR] Chromium not available after waiting")
             return None
 
         rj = self.config.radiojavan
+        channel = get_browser_channel()
+        launch_kwargs: dict[str, object] = {
+            "headless": rj.cookie_headless,
+            "args": [
+                "--incognito",
+                "--disable-blink-features=AutomationControlled",
+            ],
+        }
+        if channel:
+            launch_kwargs["channel"] = channel
+            logger.info("[RJ_COOKIE_GENERATOR] Using system browser channel: %s", channel)
+
         try:
-            return await playwright.chromium.launch(
-                headless=rj.cookie_headless,
-                args=[
-                    "--incognito",
-                    "--disable-blink-features=AutomationControlled",
-                ],
-            )
+            return await playwright.chromium.launch(**launch_kwargs)
         except Exception as exc:
+            if channel:
+                logger.warning(
+                    "[RJ_COOKIE_GENERATOR] System browser launch failed, retrying with Playwright Chromium"
+                )
+                try:
+                    return await playwright.chromium.launch(
+                        headless=rj.cookie_headless,
+                        args=["--incognito", "--disable-blink-features=AutomationControlled"],
+                    )
+                except Exception as retry_exc:
+                    logger.error("[RJ_COOKIE_GENERATOR] Failed to launch browser: %s", retry_exc)
+                    return None
             logger.error("[RJ_COOKIE_GENERATOR] Failed to launch browser: %s", exc)
             return None
 
