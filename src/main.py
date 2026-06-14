@@ -25,6 +25,9 @@ import customtkinter as ctk  # noqa: E402
 # Initialize CTK's built-in theme so ThemeManager.theme is populated.
 # This MUST happen before any CTk widget is created.
 ctk.set_default_color_theme("blue")
+ctk.set_appearance_mode("System")
+ctk.set_widget_scaling(1.0)
+ctk.set_window_scaling(1.0)
 
 from src.core import get_application_orchestrator  # noqa: E402
 from src.core.config import AppConfig, get_config  # noqa: E402
