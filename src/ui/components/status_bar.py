@@ -221,7 +221,7 @@ class StatusBar(ctk.CTkFrame):
                     self.status_label.configure(text="Download Complete")
                     self._current_message = None
                     self._message_timeout = None
-                else:
+                elif not self._is_error_message:
                     self.status_label.configure(text=f"Downloading... {progress:.1f}%")
                     self._current_message = f"Downloading... {progress:.1f}%"
                     self._message_timeout = time.time() + 30

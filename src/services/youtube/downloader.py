@@ -14,6 +14,7 @@ import yt_dlp
 from src.core.config import AppConfig, get_config
 from src.services.cookies import YouTubeCookieSourceCoordinator
 from src.services.ytdlp_logger import YTDLPLoggerBridge
+from src.utils.ffmpeg import get_ffmpeg_dir, is_ffmpeg_available
 from src.utils.logger import get_logger
 
 from ...core.interfaces import (
@@ -90,6 +91,9 @@ class YouTubeDownloader(BaseDownloader):
 
     def _get_simple_ytdl_options(self) -> dict[str, Any]:
         """Generate simple yt-dlp options without format specifications."""
+        # Ensure ffmpeg path is resolved before building options
+        is_ffmpeg_available()
+
         options: dict[str, Any] = {
             "quiet": True,
             "no_warnings": True,
@@ -112,6 +116,10 @@ class YouTubeDownloader(BaseDownloader):
         if shutil.which("node"):
             options["js_runtimes"] = {"node": {}}
             options["remote_components"] = "ejs:github"
+
+        # Point yt-dlp at bundled or system ffmpeg
+        if ffmpeg_dir := get_ffmpeg_dir():
+            options["ffmpeg_location"] = ffmpeg_dir
 
         # Add speed limit if specified
         if self.speed_limit:
@@ -172,16 +180,18 @@ class YouTubeDownloader(BaseDownloader):
         if self.format == "audio" or self.audio_only:
             opts["format"] = "bestaudio/best"
             opts["outtmpl"] = {"default": output_template}
-            if "postprocessors" not in opts:
-                opts["postprocessors"] = []
-            opts["postprocessors"].append(
-                {
-                    "key": "FFmpegExtractAudio",
-                    "preferredcodec": "mp3",
-                    "preferredquality": "192",
-                }
-            )
-            return ".mp3"
+            if is_ffmpeg_available():
+                if "postprocessors" not in opts:
+                    opts["postprocessors"] = []
+                opts["postprocessors"].append(
+                    {
+                        "key": "FFmpegExtractAudio",
+                        "preferredcodec": "mp3",
+                        "preferredquality": "192",
+                    }
+                )
+                return ".mp3"
+            return None
 
         if self.format == "video_only" or self.video_only:
             max_height = self._parse_quality_height(self.quality)
@@ -191,7 +201,19 @@ class YouTubeDownloader(BaseDownloader):
             return None
 
         # Default: video + audio
-        if self.quality == "lowest":
+        if not is_ffmpeg_available():
+            # Without ffmpeg, use single-stream format to avoid merge errors
+            max_height = self._parse_quality_height(self.quality)
+            if max_height:
+                opts["format"] = (
+                    f"bestvideo*[height<={max_height}][vcodec!=none]/best[height<={max_height}]/best"
+                )
+            else:
+                opts["format"] = "bestvideo*[vcodec!=none]/best"
+            logger.info(
+                f"[YOUTUBE_DOWNLOADER] ffmpeg not available, using single-stream format: {opts['format']}"
+            )
+        elif self.quality == "lowest":
             opts["format"] = "worst"
         else:
             max_height = self._parse_quality_height(self.quality)
@@ -535,6 +557,7 @@ class YouTubeDownloader(BaseDownloader):
                 "Errno 111",
             ],
             "format": ["Requested format is not available", "No video formats found"],
+            "ffmpeg": ["ffmpeg is not installed", "ffmpeg not found"],
         }
 
         for error_type, patterns in error_patterns.items():
@@ -728,6 +751,10 @@ class YouTubeDownloader(BaseDownloader):
                 "YouTube's anti-bot protection is blocking download. "
                 "Try: 1) Update yt-dlp to latest version, 2) Use browser cookies, "
                 "3) Wait and try again later"
+            ),
+            "ffmpeg is not installed": (
+                "ffmpeg is required to merge video and audio streams. "
+                "Install ffmpeg or choose a lower quality format that doesn't require merging."
             ),
         }
 

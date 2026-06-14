@@ -370,23 +370,31 @@ class TestDownloadCoordinator:
         download_handler = MockDownloadHandler()
         error_handler = MockErrorHandler()
         message_queue = MockMessageQueue()
+        status_messages: list[str] = []
 
         coordinator = DownloadCoordinator(
             event_bus=event_bus,
             download_handler=download_handler,
             error_handler=error_handler,
             message_queue=message_queue,
+            ui_callbacks={
+                "update_status": lambda msg, _is_error=False: status_messages.append(msg),
+            },
         )
 
         # Simulate a failed download event
         download = Download(url="https://test.com/video", name="test")
         error_message = "Download failed"
 
-        # This should add a message to the queue
+        # This should add a message to the queue (error dialog)
         coordinator._on_failed_event(download, error_message)
 
         assert len(message_queue.messages) == 1
         assert "Download failed" in message_queue.messages[0].text
+
+        # Status bar should also be updated
+        assert len(status_messages) == 1
+        assert "Failed: test" in status_messages[0]
 
 
 class TestEventCoordinator:

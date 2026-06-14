@@ -10,8 +10,8 @@
 ; This produces:
 ;   installers/MediaDownloaderSetup-{version}.exe
 ;
-; Compile-time defines (passed via ISCC.exe command line):
-;   /DBUNDLE_CHROMIUM - Indicates Chromium is bundled in the installer
+; The installer downloads ffmpeg during setup so it is NOT shipped
+; inside the .exe — keeps licensing clean.
 
 #define MyAppName "Media Downloader"
 #define MyAppVersion "1.1.1"
@@ -25,6 +25,7 @@
 #define MyAppExeName "MediaDownloader.exe"
 #define MyAppURL "https://github.com/MSC72m/media_downloader"
 #define MyAppDescription "Download media from YouTube, Spotify, TikTok, Instagram, Twitter/X, Pinterest, SoundCloud, RadioJavan, and more"
+#define FfmpegUrl "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
 
 [Setup]
 AppId={{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}
@@ -39,26 +40,17 @@ AppUpdatesURL={#MyAppURL}/releases
 AppComments={#MyAppDescription}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
-; Allow user to choose install dir
 AllowNoIcons=yes
-; Output installer to installers/ directory
 OutputDir=installers
 OutputBaseFilename=MediaDownloaderSetup-{#MyAppVersion}-{#MyAppArchLabel}
-; Compression
 Compression=lzma2/ultra64
 SolidCompression=yes
-; Require admin for Program Files install
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
-; Visual settings
 WizardStyle=modern
-; Uncomment when you have an icon:
 SetupIconFile=assets\media_downloader.ico
-; Uninstaller
 UninstallDisplayName={#MyAppName}
-; Minimum Windows version (Windows 10)
 MinVersion=10.0
-; Show "Setup will install..." on the ready page
 DisableReadyPage=no
 
 [Languages]
@@ -69,9 +61,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked; OnlyBelowVersion: 6.1; Check: not IsAdminInstallMode
 
 [Files]
-; Include everything from the PyInstaller dist output
+; App bundle from PyInstaller (no ffmpeg bundled)
 Source: "dist\MediaDownloader\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
@@ -80,34 +71,127 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: quicklaunchicon
 
 [Run]
-; Option to launch after install
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
-; Clean up user data directory on uninstall (optional)
-; Uncomment the next line if you want to remove user data on uninstall:
-; Type: filesandirs; Name: "{userappdata}\.media_downloader"
+Type: filesandirs; Name: "{app}\bin"
 
 [Messages]
-; Customize the welcome page text
 WelcomeLabel2=This will install [name/ver] on your computer.%n%nThe application allows you to download media from YouTube, Instagram, SoundCloud, TikTok, Twitter, Pinterest, RadioJavan, and Spotify.%n%nIt is recommended that you close all other applications before continuing.
 
 [Code]
-// Display information about what's included and what to expect
+// ── ffmpeg download during install ──────────────────────────────
+var
+  FfmpegDownloadPage: TDownloadWizardPage;
+
+procedure OnFfmpegDownloadProgress(Sender: TObject; const URL, FileName: String;
+  const Progress, ProgressMax: Int64);
+begin
+  if ProgressMax > 0 then
+    WizardForm.StatusLabel.Caption :=
+      Format('Downloading ffmpeg... %d%%', [MulDiv(Progress, 100, ProgressMax)]);
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+  BinDir: String;
+  ZipFile: String;
+  TmpDir: String;
+  FindRec: TFindRec;
+  ZipEntry: String;
+begin
+  Result := '';
+
+  BinDir := ExpandConstant('{app}\bin');
+  if not DirExists(BinDir) then
+    CreateDir(BinDir);
+
+  // Skip download if ffmpeg already exists
+  if FileExists(BinDir + '\ffmpeg.exe') then
+  begin
+    WizardForm.StatusLabel.Caption := 'ffmpeg already installed, skipping download.';
+    Exit;
+  end;
+
+  WizardForm.StatusLabel.Caption := 'Downloading ffmpeg for video processing...';
+
+  FfmpegDownloadPage := CreateDownloadPage(
+    'Downloading ffmpeg',
+    'ffmpeg is required for video/audio processing.' + #13#10 +
+    'This is a one-time download (~80 MB) from gyan.dev.',
+    @OnFfmpegDownloadProgress
+  );
+  FfmpegDownloadPage.Clear;
+  FfmpegDownloadPage.Add('{#FfmpegUrl}', 'ffmpeg.zip', '');
+  FfmpegDownloadPage.Show;
+
+  try
+    try
+      FfmpegDownloadPage.Download;
+    except
+      Result := 'Failed to download ffmpeg. The app will work but video merging may fail.';
+      Exit;
+    end;
+
+    // Extract ffmpeg.exe from the downloaded zip
+    TmpDir := ExpandConstant('{tmp}');
+    ZipFile := TmpDir + '\ffmpeg.zip';
+
+    if not FileExists(ZipFile) then
+    begin
+      Result := 'ffmpeg download completed but file not found.';
+      Exit;
+    end;
+
+    WizardForm.StatusLabel.Caption := 'Extracting ffmpeg...';
+
+    // Use PowerShell to extract only ffmpeg.exe from the zip
+    Exec('powershell.exe',
+      '-NoProfile -ExecutionPolicy Bypass -Command "' +
+      'Add-Type -AssemblyName System.IO.Compression.FileSystem; ' +
+      '$zip = [System.IO.Compression.ZipFile]::OpenRead(''' + ZipFile + '''); ' +
+      'try { ' +
+      '  foreach ($entry in $zip.Entries) { ' +
+      '    if ($entry.FullName -like ''*/bin/ffmpeg.exe'') { ' +
+      '      [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, ''' + BinDir + '\ffmpeg.exe'', $true); ' +
+      '      break; ' +
+      '    } ' +
+      '  } ' +
+      '} finally { $zip.Dispose() }"',
+      '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
+    if ResultCode <> 0 then
+    begin
+      Result := 'Failed to extract ffmpeg. The app will work but video merging may fail.';
+      Exit;
+    end;
+
+    if not FileExists(BinDir + '\ffmpeg.exe') then
+    begin
+      Result := 'ffmpeg extraction completed but ffmpeg.exe not found.';
+      Exit;
+    end;
+
+    WizardForm.StatusLabel.Caption := 'ffmpeg installed successfully.';
+
+  finally
+    // Cleanup temp zip
+    if FileExists(ZipFile) then
+      DeleteFile(ZipFile);
+  end;
+end;
+
 procedure CurPageChanged(CurPageID: Integer);
 var
-  chromiumBundled: Boolean;
   chromiumPath: String;
 begin
   if CurPageID = wpFinished then
   begin
-    // Only check for Chromium after install directory is set
     chromiumPath := ExpandConstant('{app}\chromium');
-    chromiumBundled := DirExists(chromiumPath);
 
-    if chromiumBundled then
+    if DirExists(chromiumPath) then
     begin
-      // Chromium is bundled - app is ready immediately
       WizardForm.FinishedLabel.Caption :=
         'Setup has finished installing {#MyAppName} on your computer.' + #13#10 + #13#10 +
         'What was installed:' + #13#10 +
@@ -118,7 +202,6 @@ begin
     end
     else
     begin
-      // Chromium will be downloaded on first launch
       WizardForm.FinishedLabel.Caption :=
         'Setup has finished installing {#MyAppName} on your computer.' + #13#10 + #13#10 +
         'What was installed:' + #13#10 +

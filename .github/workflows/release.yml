@@ -77,6 +77,7 @@ jobs:
           Write-Host "Build successful: dist\MediaDownloader\MediaDownloader.exe"
           $size = (Get-Item "dist\MediaDownloader\MediaDownloader.exe").Length / 1MB
           Write-Host "Executable size: $([math]::Round($size, 2)) MB"
+          Write-Host "Note: ffmpeg is downloaded by the installer at install time"
 
       # ── Code Signing (optional) ────────────────────────────────────
       - name: Sign executable
@@ -214,16 +215,18 @@ jobs:
                - `MediaDownloaderSetup-${{ steps.version.outputs.version }}-x64.exe` for Intel/AMD Windows PCs
                - `MediaDownloaderSetup-${{ steps.version.outputs.version }}-arm64.exe` for Windows on ARM devices
             2. Run the installer and follow the setup wizard
-            3. On first launch, the app will download a browser component (~150 MB) for cookie generation -- this only happens once
+            3. During install, ffmpeg (~80 MB) will be downloaded for video/audio processing
+            4. On first launch, the app will download a browser component (~150 MB) for cookie generation -- this only happens once
 
             ### Requirements
 
             - Windows 10 or later
-            - Internet connection (for first-run browser download)
+            - Internet connection (for ffmpeg download during install and first-run browser download)
 
             ### Notes
 
             - If Windows SmartScreen shows a warning, click "More info" then "Run anyway"
+            - ffmpeg is downloaded during install, not bundled in the installer itself
             - The browser component is stored in your user profile and persists across app updates
           files: artifacts/*
           draft: false

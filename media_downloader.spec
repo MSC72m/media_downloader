@@ -9,7 +9,7 @@ This produces:
 
 Architecture:
     - Python interpreter + all packages bundled in _internal/
-    - ffmpeg bundled for video processing
+    - ffmpeg: downloaded by installer at install time (not bundled in .exe)
     - Chromium browser: EITHER bundled OR downloaded on first launch
       (controlled by BUNDLE_CHROMIUM environment variable)
 
@@ -66,15 +66,7 @@ if _tk_data and os.path.isdir(_tk_data):
     print(f"[PyInstaller] Bundling Tk library: {_tk_data}")
     datas.append((_tk_data, "tk"))
 
-# Check for ffmpeg - bundle it if available
-FFMPEG_PATH = os.path.join(PROJECT_ROOT, "bin", "ffmpeg.exe")
-if os.path.exists(FFMPEG_PATH):
-    print(f"[PyInstaller] Bundling ffmpeg: {FFMPEG_PATH}")
-    datas.append((FFMPEG_PATH, "bin"))
-else:
-    print("[PyInstaller] WARNING: ffmpeg.exe not found at bin/ffmpeg.exe")
-    print("[PyInstaller] Video processing may not work without ffmpeg")
-    print("[PyInstaller] Run: python scripts/download_ffmpeg.py")
+# ffmpeg is downloaded by the installer at install time (not bundled in .exe)
 
 # Check for bundled Chromium
 if BUNDLE_CHROMIUM:

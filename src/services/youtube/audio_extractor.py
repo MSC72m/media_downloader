@@ -3,6 +3,7 @@ import subprocess
 
 from src.core.config import AppConfig, get_config
 from src.core.interfaces import IErrorNotifier
+from src.utils.ffmpeg import get_ffmpeg_path
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -30,9 +31,10 @@ class AudioExtractor:
         Returns:
             CompletedProcess result
         """
+        ffmpeg = get_ffmpeg_path() or "ffmpeg"
         if use_copy:
             cmd = [
-                "ffmpeg",
+                ffmpeg,
                 "-i",
                 video_path,
                 "-vn",
@@ -43,7 +45,7 @@ class AudioExtractor:
             ]
         else:
             cmd = [
-                "ffmpeg",
+                ffmpeg,
                 "-i",
                 video_path,
                 "-vn",

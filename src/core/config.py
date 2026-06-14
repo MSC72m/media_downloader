@@ -42,23 +42,82 @@ class CookieConfig(BaseModel):
     )
 
 
+def _default_base_dir() -> Path:
+    r"""Return the platform-specific default base directory for app data.
+
+    Windows: %USERPROFILE%\Documents\MediaDownloader
+    macOS:   ~/Documents/MediaDownloader
+    Linux:   ~/Documents/MediaDownloader
+    """
+    return Path.home() / "Documents" / "MediaDownloader"
+
+
 class PathConfig(BaseModel):
+    """Path configuration for all application data."""
+
+    base_dir: Path = Field(
+        default_factory=_default_base_dir,
+        description="Base directory for all app data (logs, cookies, config, themes)",
+    )
     downloads_dir: Path = Field(
         default_factory=lambda: Path.home() / "Downloads",
         description="Default downloads directory",
     )
-    config_dir: Path = Field(
-        default_factory=lambda: Path.home() / ".media_downloader",
-        description="Application configuration directory",
-    )
 
-    @field_validator("downloads_dir", "config_dir", mode="before")
+    @field_validator("base_dir", "downloads_dir", mode="before")
     @classmethod
     def validate_path(cls, v: str | Path) -> Path:
         """Convert string paths to Path objects."""
         if isinstance(v, str):
             return Path(v).expanduser()
         return v
+
+    @property
+    def config_dir(self) -> Path:
+        return self.base_dir
+
+    @property
+    def logs_dir(self) -> Path:
+        return self.base_dir / "logs"
+
+    @property
+    def cookies_dir(self) -> Path:
+        return self.base_dir / "cookies"
+
+    @property
+    def themes_dir(self) -> Path:
+        return self.base_dir / "themes"
+
+    @property
+    def config_file(self) -> Path:
+        """Return the config file path (YAML preferred, JSON fallback)."""
+        yaml_path = self.base_dir / "config.yaml"
+        json_path = self.base_dir / "config.json"
+        if json_path.exists() and not yaml_path.exists():
+            return json_path
+        return yaml_path
+
+    def ensure_dirs(self) -> None:
+        """Create all required directories."""
+        for d in [self.base_dir, self.logs_dir, self.cookies_dir, self.themes_dir]:
+            d.mkdir(parents=True, exist_ok=True)
+
+
+class LogConfig(BaseModel):
+    """Logging configuration."""
+
+    max_bytes: int = Field(
+        default=5 * 1024 * 1024,
+        description="Max log file size in bytes before rotation (default 5MB)",
+    )
+    backup_count: int = Field(
+        default=5,
+        description="Number of rotated log backups to keep",
+    )
+    level: str = Field(
+        default="INFO",
+        description="Log level (DEBUG, INFO, WARNING, ERROR)",
+    )
 
 
 class DownloadConfig(BaseModel):

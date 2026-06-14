@@ -250,6 +250,7 @@ class DownloadCoordinator:
         has_active = self.has_active_downloads()
         logger.debug(f"[DOWNLOAD_COORDINATOR] Failed: {download.name}, has_active: {has_active}")
         self._refresh_ui_after_event(enable_buttons=not has_active)
+        self._update_status(f"Failed: {download.name}", is_error=True)
 
     # Public API Methods
     def add_download(self, download: Download) -> None:

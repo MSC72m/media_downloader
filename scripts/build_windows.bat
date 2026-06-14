@@ -66,11 +66,11 @@ if "%FULL_MODE%"=="1" (
     echo.
 )
 
-REM Check if ffmpeg exists (warn if not)
+REM Check if ffmpeg exists (info only - installer downloads it)
 if not exist "%~dp0..\bin\ffmpeg.exe" (
-    echo WARNING: ffmpeg.exe not found at bin\ffmpeg.exe
-    echo          Video processing may not work correctly.
-    echo          Run: python scripts/download_ffmpeg.py
+    echo NOTE: ffmpeg.exe not found at bin\ffmpeg.exe
+    echo       This is OK - the installer downloads ffmpeg during install.
+    echo       For local dev/testing, run: python scripts/download_ffmpeg.py
     echo.
 )
 
@@ -112,12 +112,8 @@ if not exist "%~dp0..\dist\MediaDownloader\MediaDownloader.exe" (
 )
 echo       MediaDownloader.exe found.
 
-REM Check for ffmpeg in bundle
-if exist "%~dp0..\dist\MediaDownloader\_internal\bin\ffmpeg.exe" (
-    echo       ffmpeg.exe bundled.
-) else (
-    echo WARNING: ffmpeg.exe not found in bundle.
-)
+REM ffmpeg is downloaded by installer, not bundled in exe
+echo       ffmpeg: handled by installer (not bundled).
 
 echo.
 
