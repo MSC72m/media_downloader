@@ -70,12 +70,16 @@ var
   ResultCode: Integer;
   BinDir: String;
   FfmpegExe: String;
-  DownloadPs: String;
-  ExtractPs: String;
+  TmpDir: String;
+  ZipFile: String;
+  DlScript: String;
+  ExScript: String;
 begin
   Result := '';
   BinDir := ExpandConstant('{app}\bin');
   FfmpegExe := BinDir + '\ffmpeg.exe';
+  TmpDir := ExpandConstant('{tmp}');
+  ZipFile := TmpDir + '\ffmpeg.zip';
 
   if FileExists(FfmpegExe) then
   begin
@@ -86,15 +90,16 @@ begin
   CreateDir(BinDir);
   WizardForm.StatusLabel.Caption := 'Downloading ffmpeg for video processing...';
 
-  DownloadPs :=
-    '[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; ' +
-    '$url = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"; ' +
-    '$out = "' + ExpandConstant('{tmp}') + '\ffmpeg.zip"; ' +
-    'Write-Host "Downloading ffmpeg..."; ' +
-    'Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing; ' +
-    'Write-Host "Download complete.";
+  DlScript :=
+    '[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12;' +
+    'Invoke-WebRequest' +
+    ' -Uri "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"' +
+    ' -OutFile "' + ZipFile + '"' +
+    ' -UseBasicParsing;' +
+    'Write-Host "Download complete.";';
 
-  Exec('powershell.exe', '-NoProfile -ExecutionPolicy Bypass -Command "' + DownloadPs + '"',
+  Exec('powershell.exe',
+    '-NoProfile -ExecutionPolicy Bypass -Command ' + DlScript,
     '', SW_SHOW, ewWaitUntilTerminated, ResultCode);
 
   if ResultCode <> 0 then
@@ -103,26 +108,26 @@ begin
     Exit;
   end;
 
+  if not FileExists(ZipFile) then
+  begin
+    Result := 'ffmpeg download failed (file not found).';
+    Exit;
+  end;
+
   WizardForm.StatusLabel.Caption := 'Extracting ffmpeg...';
 
-  ExtractPs :=
-    'Add-Type -AssemblyName System.IO.Compression.FileSystem; ' +
-    '$zipPath = "' + ExpandConstant('{tmp}') + '\ffmpeg.zip"; ' +
-    '$destDir = "' + BinDir + '"; ' +
-    '$zip = [System.IO.Compression.ZipFile]::OpenRead($zipPath); ' +
-    'try { ' +
-    '  foreach ($entry in $zip.Entries) { ' +
-    '    if ($entry.FullName -match "bin/ffmpeg.exe$") { ' +
-    '      $destFile = Join-Path $destDir "ffmpeg.exe"; ' +
-    '      [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $destFile, $true); ' +
-    '      Write-Host "Extracted ffmpeg.exe"; ' +
-    '      break; ' +
-    '    } ' +
-    '  } ' +
-    '} finally { $zip.Dispose() }; ' +
-    'Remove-Item $zipPath -Force -ErrorAction SilentlyContinue';
+  ExScript :=
+    'Add-Type -AssemblyName System.IO.Compression.FileSystem;' +
+    '$z = [System.IO.Compression.ZipFile]::OpenRead("' + ZipFile + '");' +
+    'try { foreach ($e in $z.Entries) {' +
+    '  if ($e.FullName -match "bin/ffmpeg.exe$") {' +
+    '    [System.IO.Compression.ZipFileExtensions]::ExtractToFile($e, "' + FfmpegExe + '", $true);' +
+    '    break;' +
+    '  }}} finally { $z.Dispose() };' +
+    'Remove-Item "' + ZipFile + '" -Force -ErrorAction SilentlyContinue;';
 
-  Exec('powershell.exe', '-NoProfile -ExecutionPolicy Bypass -Command "' + ExtractPs + '"',
+  Exec('powershell.exe',
+    '-NoProfile -ExecutionPolicy Bypass -Command ' + ExScript,
     '', SW_SHOW, ewWaitUntilTerminated, ResultCode);
 
   if ResultCode <> 0 then
@@ -158,9 +163,6 @@ begin
     begin
       WizardForm.FinishedLabel.Caption :=
         'Setup has finished installing {#MyAppName} on your computer.' + #13#10 + #13#10 +
-        'What was installed:' + #13#10 +
-        '  - Media Downloader application' + #13#10 +
-        '  - ffmpeg for video processing' + #13#10 + #13#10 +
         'IMPORTANT - First Launch:' + #13#10 +
         'On the first run, the app will download a browser ' +
         'component (~150 MB) required for cookie generation.' + #13#10 + #13#10 +
