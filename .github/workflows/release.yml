@@ -129,18 +129,20 @@ jobs:
       - name: Verify installer output
         id: installer
         run: |
-          $tag = "${{ github.ref_name }}"
-          $version = $tag -replace '^v', ''
           $arch = "${{ matrix.arch }}"
-          $installerPath = "installers\MediaDownloaderSetup-$version-$arch.exe"
-          if (!(Test-Path $installerPath)) {
-            Write-Error "Installer not found at $installerPath"
+          # Find the installer - filename comes from installer.iss MyAppVersion
+          $matches = Get-ChildItem -Path "installers" -Filter "MediaDownloaderSetup-*-$arch.exe" | Sort-Object LastWriteTime -Descending
+          if ($matches.Count -eq 0) {
+            Write-Error "No installer found in installers\ for arch $arch"
             exit 1
           }
+          $installerPath = $matches[0].FullName
+          $installerName = $matches[0].Name
+          Write-Host "Found installer: $installerPath"
           $size = (Get-Item $installerPath).Length / 1MB
           Write-Host "Installer size: $([math]::Round($size, 2)) MB"
           echo "installer_path=$installerPath" >> $env:GITHUB_OUTPUT
-          echo "installer_name=MediaDownloaderSetup-$version-$arch.exe" >> $env:GITHUB_OUTPUT
+          echo "installer_name=$installerName" >> $env:GITHUB_OUTPUT
 
       # ── Sign Installer (optional) ──────────────────────────────────
       - name: Sign installer
