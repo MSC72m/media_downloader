@@ -3,6 +3,8 @@
 ;
 ; ffmpeg is downloaded during install so the app is ready on first launch.
 ; Uses curl.exe (built into Windows 10+) to download from BtbN FFmpeg-Builds.
+; If ffmpeg download fails, installation continues silently — app handles
+; missing ffmpeg gracefully with single-stream fallback.
 
 #define MyAppName "Media Downloader"
 #define MyAppVersion "1.1.1"
@@ -74,6 +76,7 @@ var
   TmpDir: String;
   ZipFile: String;
 begin
+  { Never block installation — return empty string to always continue }
   Result := '';
   BinDir := ExpandConstant('{app}\bin');
   FfmpegExe := BinDir + '\ffmpeg.exe';
@@ -81,60 +84,39 @@ begin
   ZipFile := TmpDir + '\ffmpeg.zip';
 
   if FileExists(FfmpegExe) then
-  begin
-    WizardForm.StatusLabel.Caption := 'ffmpeg already installed.';
     Exit;
-  end;
 
   CreateDir(BinDir);
-  WizardForm.StatusLabel.Caption := 'Downloading ffmpeg (this may take a minute)...';
+  WizardForm.StatusLabel.Caption := 'Downloading ffmpeg...';
 
-  { Use curl.exe (built into Windows 10+) to download from BtbN builds }
+  { curl.exe is built into Windows 10+; -sS = silent but show errors }
   Exec('curl.exe',
-    '-L --progress-bar -o "' + ZipFile + '"' +
+    '-sS -L -o "' + ZipFile + '"' +
     ' "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"',
-    '', SW_SHOW, ewWaitUntilTerminated, ResultCode);
+    '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
-  if ResultCode <> 0 then
-  begin
-    Result := 'Failed to download ffmpeg. Video/audio merging may not work.';
+  if (ResultCode <> 0) or not FileExists(ZipFile) then
     Exit;
-  end;
-
-  if not FileExists(ZipFile) then
-  begin
-    Result := 'ffmpeg download failed (file not found).';
-    Exit;
-  end;
 
   WizardForm.StatusLabel.Caption := 'Extracting ffmpeg...';
 
-  { Use PowerShell to extract only ffmpeg.exe from the zip }
+  { Extract only ffmpeg.exe by matching entry Name (not FullName — BtbN zips
+    have a subdirectory prefix like "ffmpeg-master-latest-win64-gpl/bin/") }
   Exec('powershell.exe',
     '-NoProfile -ExecutionPolicy Bypass -Command ' +
     '"Add-Type -AssemblyName System.IO.Compression.FileSystem;' +
     '$z=[System.IO.Compression.ZipFile]::OpenRead(''' + ZipFile + ''');' +
-    'try{foreach($e in $z.Entries){if($e.FullName -match ''bin/ffmpeg.exe$''){' +
+    'try{foreach($e in $z.Entries){if($e.Name -eq ''ffmpeg.exe''){' +
     '[System.IO.Compression.ZipFileExtensions]::ExtractToFile($e,''' + FfmpegExe + ''',$true);break}}}finally{$z.Dispose()}"',
-    '', SW_SHOW, ewWaitUntilTerminated, ResultCode);
+    '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
-  { Clean up zip }
   if FileExists(ZipFile) then
     DeleteFile(ZipFile);
 
-  if ResultCode <> 0 then
-  begin
-    Result := 'Failed to extract ffmpeg. Video/audio merging may not work.';
-    Exit;
-  end;
-
-  if not FileExists(FfmpegExe) then
-  begin
-    Result := 'ffmpeg extraction completed but ffmpeg.exe was not found.';
-    Exit;
-  end;
-
-  WizardForm.StatusLabel.Caption := 'ffmpeg installed successfully.';
+  if FileExists(FfmpegExe) then
+    WizardForm.StatusLabel.Caption := 'ffmpeg installed successfully.'
+  else
+    WizardForm.StatusLabel.Caption := 'ffmpeg installation skipped (will use app fallback).';
 end;
 
 procedure CurPageChanged(CurPageID: Integer);
