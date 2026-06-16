@@ -68,6 +68,9 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChang
 WelcomeLabel2=This will install [name/ver] on your computer.%n%nThe application allows you to download media from YouTube, Instagram, SoundCloud, TikTok, Twitter, Pinterest, RadioJavan, and Spotify.%n%nIt is recommended that you close all other applications before continuing.
 
 [Code]
+var
+  DownloadPage: TDownloadPage;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   ResultCode: Integer;
@@ -76,7 +79,6 @@ var
   TmpDir: String;
   ZipFile: String;
 begin
-  { Never block installation — return empty string to always continue }
   Result := '';
   BinDir := ExpandConstant('{app}\bin');
   FfmpegExe := BinDir + '\ffmpeg.exe';
@@ -87,36 +89,50 @@ begin
     Exit;
 
   CreateDir(BinDir);
-  WizardForm.StatusLabel.Caption := 'Downloading ffmpeg...';
 
-  { curl.exe is built into Windows 10+; -sS = silent but show errors }
-  Exec('curl.exe',
-    '-sS -L -o "' + ZipFile + '"' +
-    ' "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"',
-    '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  DownloadPage := CreateDownloadPage(
+    'Downloading ffmpeg',
+    'ffmpeg is required for video/audio processing in Media Downloader.');
+  DownloadPage.Show;
+  try
+    DownloadPage.Msg2Label.Caption := 'Downloading ffmpeg (~30 MB, this may take a minute)...';
+    DownloadPage.SetProgress(0, 100);
 
-  if (ResultCode <> 0) or not FileExists(ZipFile) then
-    Exit;
+    { curl.exe is built into Windows 10+; --progress-bar shows progress in the
+      console window; -L follows redirects }
+    Exec('curl.exe',
+      '-L --progress-bar -o "' + ZipFile + '"' +
+      ' "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"',
+      '', SW_SHOW, ewWaitUntilTerminated, ResultCode);
 
-  WizardForm.StatusLabel.Caption := 'Extracting ffmpeg...';
+    if (ResultCode <> 0) or not FileExists(ZipFile) then
+      Exit;
 
-  { Extract only ffmpeg.exe by matching entry Name (not FullName — BtbN zips
-    have a subdirectory prefix like "ffmpeg-master-latest-win64-gpl/bin/") }
-  Exec('powershell.exe',
-    '-NoProfile -ExecutionPolicy Bypass -Command ' +
-    '"Add-Type -AssemblyName System.IO.Compression.FileSystem;' +
-    '$z=[System.IO.Compression.ZipFile]::OpenRead(''' + ZipFile + ''');' +
-    'try{foreach($e in $z.Entries){if($e.Name -eq ''ffmpeg.exe''){' +
-    '[System.IO.Compression.ZipFileExtensions]::ExtractToFile($e,''' + FfmpegExe + ''',$true);break}}}finally{$z.Dispose()}"',
-    '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    DownloadPage.Msg2Label.Caption := 'Extracting ffmpeg...';
+    DownloadPage.SetProgress(70, 100);
 
-  if FileExists(ZipFile) then
-    DeleteFile(ZipFile);
+    { Extract only ffmpeg.exe by matching entry Name (not FullName — BtbN zips
+      have a subdirectory prefix like "ffmpeg-master-latest-win64-gpl/bin/") }
+    Exec('powershell.exe',
+      '-NoProfile -ExecutionPolicy Bypass -Command ' +
+      '"Add-Type -AssemblyName System.IO.Compression.FileSystem;' +
+      '$z=[System.IO.Compression.ZipFile]::OpenRead(''' + ZipFile + ''');' +
+      'try{foreach($e in $z.Entries){if($e.Name -eq ''ffmpeg.exe''){' +
+      '[System.IO.Compression.ZipFileExtensions]::ExtractToFile($e,''' + FfmpegExe + ''',$true);break}}}finally{$z.Dispose()}"',
+      '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
-  if FileExists(FfmpegExe) then
-    WizardForm.StatusLabel.Caption := 'ffmpeg installed successfully.'
-  else
-    WizardForm.StatusLabel.Caption := 'ffmpeg installation skipped (will use app fallback).';
+    if FileExists(ZipFile) then
+      DeleteFile(ZipFile);
+
+    if FileExists(FfmpegExe) then
+    begin
+      DownloadPage.SetProgress(100, 100);
+      DownloadPage.Msg2Label.Caption := 'ffmpeg installed successfully.';
+      Sleep(1000);
+    end;
+  finally
+    DownloadPage.Hide;
+  end;
 end;
 
 procedure CurPageChanged(CurPageID: Integer);
