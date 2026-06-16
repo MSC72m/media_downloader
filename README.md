@@ -80,9 +80,9 @@ For `npx basedpyright ...`, install Node.js 18+ if it is not already available.
 
 The easiest way to run Media Downloader on Windows. No Python installation required.
 
-1. **Download** the latest installer from the [Releases page](https://github.com/MSC72m/media_downloader/releases/latest)
-   - `MediaDownloaderSetup-x64.exe` for 64-bit Intel/AMD PCs
-   - `MediaDownloaderSetup-arm64.exe` for Windows on ARM devices
+1. **Download** the latest installer from the [Releases page](https://github.com/MSC72m/media_downloader/releases/tag/v1.1.1)
+   - `MediaDownloaderSetup-1.1.1-x64.exe` for 64-bit Intel/AMD PCs
+   - `MediaDownloaderSetup-1.1.1-arm64.exe` for Windows on ARM devices
 
 2. **Run** the installer — it will install:
    - The application (`MediaDownloader.exe`) with a Start Menu shortcut
