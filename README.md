@@ -4,10 +4,11 @@
 
 Cross-platform desktop application for downloading media content from social media platforms.
 
-[![Version](https://img.shields.io/badge/Version-1.0.0-green.svg)](https://github.com/MSC72m/media_downloader/releases)
+[![Version](https://img.shields.io/badge/Version-1.1.1-green.svg)](https://github.com/MSC72m/media_downloader/releases)
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)]()
+[![Windows Installer](https://img.shields.io/badge/Windows-Installer-blue?logo=windows)](https://github.com/MSC72m/media_downloader/releases/latest)
 
 ## Supported Platforms
 
@@ -48,7 +49,7 @@ Cross-platform desktop application for downloading media content from social med
 
 ## Requirements
 
-- Python 3.10 or higher
+- Python 3.10 or higher _(Windows users: use the installer below — no Python needed)_
 - Playwright (for YouTube cookie generation)
 - Internet connection
 
@@ -75,7 +76,26 @@ For `npx basedpyright ...`, install Node.js 18+ if it is not already available.
 
 ## Installation
 
-### Option 1: Using uv (Recommended)
+### Option 1: Windows Installer (Windows Only — Recommended)
+
+The easiest way to run Media Downloader on Windows. No Python installation required.
+
+1. **Download** the latest installer from the [Releases page](https://github.com/MSC72m/media_downloader/releases/latest)
+   - `MediaDownloaderSetup-x64.exe` for 64-bit Intel/AMD PCs
+   - `MediaDownloaderSetup-arm64.exe` for Windows on ARM devices
+
+2. **Run** the installer — it will install:
+   - The application (`MediaDownloader.exe`) with a Start Menu shortcut
+   - **ffmpeg** (required for video processing) — downloaded automatically during setup
+   - All Python dependencies (bundled by PyInstaller)
+
+3. **Launch** from the Start Menu or desktop shortcut
+
+**Note on Windows SmartScreen**: The installer is not code-signed, so Windows may show a blue "Windows protected your PC" warning. Click **"More info"** → **"Run anyway"** to proceed. This is normal for unsigned open-source software.
+
+**System requirements**: Windows 10 or later, 64-bit (x64 or ARM64).
+
+### Option 2: Using uv (Recommended — Python Required)
 
 ```bash
 # Clone the repository
@@ -94,7 +114,7 @@ uv run playwright install chromium
 uv run -m src.main
 ```
 
-### Option 2: Using pip
+### Option 3: Using pip
 
 ```bash
 # Clone the repository
@@ -346,6 +366,8 @@ Edit the config file directly or use the application's UI to change settings. Ch
 - **Spotify Audio** — Audio is sourced from YouTube, so quality depends on YouTube availability
 - **Instagram Auth** — First Instagram download requires browser-based authentication
 - **macOS Desktop Shortcut** — No `.app` bundle provided; see [Creating Desktop Shortcuts](#creating-desktop-shortcuts) for manual setup
+- **Windows SmartScreen** — The installer is unsigned; see [Windows Installer](#option-1-windows-installer-windows-only--recommended) for how to bypass
+- **Windows ARM64** — Only the ARM64 installer works on ARM devices (x64 installer requires emulation)
 
 ## Troubleshooting
 

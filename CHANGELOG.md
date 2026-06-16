@@ -1,11 +1,15 @@
 # Changelog
 
-## 1.1.1 - 2026-06-14
+## 1.1.1 - 2026-06-16
 
-Hotfix release fixing Windows installer and PyInstaller build issues.
+Hotfix release fixing Windows installer, PyInstaller build issues, and main-thread deadlock.
 
 ### Fixed
 
+- **Fixed main-thread deadlock**: `StatusBar._add_message` used blocking `Queue.put()` on a bounded queue (`maxsize=20`) called from the main thread. During downloads, ~10 status updates/sec filled the queue in ~2 seconds, causing the main thread to block forever. Windows detected this as "Not Responding" (white window + blue cursor). Changed to `put_nowait()`.
+- **Fixed double completion callback**: `_handle_download_failure`/`_handle_download_success` called the completion callback per-download, then `process_downloads_concurrently` called it again unconditionally — causing duplicate UI refreshes. Removed per-download calls; single batch callback at end.
+- **Fixed status bar stuck on "Downloading..." after failure**: The failure path bypassed `_on_failed_event` (which updates the status bar). Added failed-download detection to `on_complete` so status bar shows "Failed: ..." instead of staying stuck.
+- **Fixed progress update bypassing queue**: `update_progress` called `_update()` directly when progress >= 100, bypassing the StatusBar queue. Now always goes through the queue.
 - Fixed Windows installer crash: `{app}` constant was expanded before install directory was initialized in `CurPageChanged`
 - Fixed PyInstaller build: added Tcl/Tk runtime hook so tkinter initializes correctly in frozen app
 - Fixed PyInstaller build: bundled Tcl/Tk libraries and CustomTkinter assets properly
