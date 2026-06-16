@@ -28,6 +28,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from src.core.config import get_config
+from src.core.enums.download_status import DownloadStatus
 from src.core.enums.service_type import ServiceType
 from src.core.models import Download
 from src.services.detection.base_handler import BaseHandler
@@ -987,14 +988,9 @@ class TestE2EDownloadWorkerPipeline:
         handler = self._make_handler_with_mock_factory(mock_downloader)
         dl = Download(url="https://www.youtube.com/watch?v=abc", name="test_video")
 
-        completion_results: list[tuple[bool, str | None]] = []
-        handler._download_worker(
-            dl, _TEST_DOWNLOAD_DIR, None,
-            lambda success, msg: completion_results.append((success, msg))
-        )
+        handler._download_worker(dl, _TEST_DOWNLOAD_DIR, None)
 
-        assert len(completion_results) == 1
-        assert completion_results[0][0] is True
+        assert dl.status == DownloadStatus.COMPLETED
         mock_downloader.download.assert_called_once()
 
     def test_download_worker_failure(self) -> None:
@@ -1004,14 +1000,9 @@ class TestE2EDownloadWorkerPipeline:
         handler = self._make_handler_with_mock_factory(mock_downloader)
         dl = Download(url="https://www.youtube.com/watch?v=abc", name="test_video")
 
-        completion_results: list[tuple[bool, str | None]] = []
-        handler._download_worker(
-            dl, _TEST_DOWNLOAD_DIR, None,
-            lambda success, msg: completion_results.append((success, msg))
-        )
+        handler._download_worker(dl, _TEST_DOWNLOAD_DIR, None)
 
-        assert len(completion_results) == 1
-        assert completion_results[0][0] is False
+        assert dl.status == DownloadStatus.FAILED
 
     def test_download_worker_no_downloader(self) -> None:
         mock_service_factory = MagicMock()
@@ -1033,14 +1024,9 @@ class TestE2EDownloadWorkerPipeline:
         )
 
         dl = Download(url="https://www.youtube.com/watch?v=abc", name="test_video")
-        completion_results: list[tuple[bool, str | None]] = []
-        handler._download_worker(
-            dl, _TEST_DOWNLOAD_DIR, None,
-            lambda success, msg: completion_results.append((success, msg))
-        )
+        handler._download_worker(dl, _TEST_DOWNLOAD_DIR, None)
 
-        assert len(completion_results) == 1
-        assert completion_results[0][0] is False
+        assert dl.status == DownloadStatus.FAILED
 
     def test_download_worker_exception_handling(self) -> None:
         mock_downloader = MagicMock()
@@ -1049,15 +1035,10 @@ class TestE2EDownloadWorkerPipeline:
         handler = self._make_handler_with_mock_factory(mock_downloader)
         dl = Download(url="https://www.youtube.com/watch?v=abc", name="test_video")
 
-        completion_results: list[tuple[bool, str | None]] = []
-        handler._download_worker(
-            dl, _TEST_DOWNLOAD_DIR, None,
-            lambda success, msg: completion_results.append((success, msg))
-        )
+        handler._download_worker(dl, _TEST_DOWNLOAD_DIR, None)
 
-        assert len(completion_results) == 1
-        assert completion_results[0][0] is False
-        assert "Network error" in (completion_results[0][1] or "")
+        assert dl.status == DownloadStatus.FAILED
+        assert "Network error" in dl.error_message
 
     def test_download_worker_service_detection(self) -> None:
         mock_downloader = MagicMock()
@@ -1066,7 +1047,7 @@ class TestE2EDownloadWorkerPipeline:
         handler = self._make_handler_with_mock_factory(mock_downloader)
         dl = Download(url="https://soundcloud.com/artist/track", name="test_track")
 
-        handler._download_worker(dl, _TEST_DOWNLOAD_DIR, None, None)
+        handler._download_worker(dl, _TEST_DOWNLOAD_DIR, None)
 
         handler.service_factory.detect_service_type.assert_called_with("https://soundcloud.com/artist/track")
         handler.service_factory.get_downloader.assert_called_with(
@@ -1081,7 +1062,7 @@ class TestE2EDownloadWorkerPipeline:
         handler = self._make_handler_with_mock_factory(mock_downloader)
         dl = Download(url="https://www.youtube.com/watch?v=abc", name="test_video")
 
-        handler._download_worker(dl, _TEST_DOWNLOAD_DIR, None, None)
+        handler._download_worker(dl, _TEST_DOWNLOAD_DIR, None)
 
         call_kwargs = mock_downloader.download.call_args
         assert call_kwargs[1]["url"] == "https://www.youtube.com/watch?v=abc"
@@ -1098,7 +1079,6 @@ class TestE2EDownloadWorkerPipeline:
         handler._download_worker(
             dl, _TEST_DOWNLOAD_DIR,
             lambda d, p: progress_calls.append((d, p)),
-            None,
         )
 
         call_kwargs = mock_downloader.download.call_args

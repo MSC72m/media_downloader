@@ -309,6 +309,13 @@ class DownloadCoordinator:
                         )
                         has_active = self.has_active_downloads()
                         logger.debug(f"[DOWNLOAD_COORDINATOR] Has active downloads: {has_active}")
+                        if not has_active:
+                            downloads = self.download_handler.get_downloads()
+                            failed = [d for d in downloads if d.status == DownloadStatus.FAILED]
+                            if failed:
+                                self._update_status(f"Failed: {failed[0].name}", is_error=True)
+                            else:
+                                self._update_status("Downloads completed", is_error=False)
                         self._refresh_ui_after_event(enable_buttons=not has_active)
                     except Exception as e:
                         logger.error(

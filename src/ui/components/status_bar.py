@@ -149,7 +149,8 @@ class StatusBar(ctk.CTkFrame):
                     self.status_label.configure(text=message)
                     return
 
-                self._message_queue.put((message, is_error))
+                with contextlib.suppress(queue.Full):
+                    self._message_queue.put_nowait((message, is_error))
             except Exception as e:
                 logger.error(f"[STATUS_BAR] Error adding message: {e}", exc_info=True)
 
@@ -228,15 +229,7 @@ class StatusBar(ctk.CTkFrame):
             except Exception as e:
                 logger.error(f"[STATUS_BAR] Error updating progress: {e}", exc_info=True)
 
-        if progress >= 100:
-            try:
-                _update()
-                if self._running and self._root_window:
-                    self._root_window.after_idle(self._process_queue)
-            except Exception as e:
-                logger.error(f"[STATUS_BAR] Error in immediate progress update: {e}")
-        else:
-            self._queue_update(_update)
+        self._queue_update(_update)
 
     def reset(self) -> None:
         def _update() -> None:

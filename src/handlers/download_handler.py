@@ -122,7 +122,6 @@ class DownloadHandler(IDownloadHandler):
         download: Download,
         download_dir: str,
         progress_callback: Callable[[Download, float], None] | None,
-        completion_callback: Callable[[bool, str | None], None] | None,
     ) -> None:
         """Worker function to handle a single download."""
         logger.info(f"[DOWNLOAD_HANDLER] Worker started for: {download.name}")
@@ -160,7 +159,7 @@ class DownloadHandler(IDownloadHandler):
                         error_msg,
                         download.url,
                     )
-                self._handle_download_failure(download, completion_callback, error_msg)
+                self._handle_download_failure(download, error_msg)
                 return
 
             if (
@@ -200,21 +199,17 @@ class DownloadHandler(IDownloadHandler):
 
             # Handle result with early return
             if not success:
-                self._handle_download_failure(
-                    download,
-                    completion_callback,
-                    f"Failed to download: {download.name}",
-                )
+                self._handle_download_failure(download, f"Failed to download: {download.name}")
                 return
 
-            self._handle_download_success(download, completion_callback)
+            self._handle_download_success(download)
         except Exception as e:
             error_msg = f"Download error: {e!s}"
             logger.error(
                 f"[DOWNLOAD_HANDLER] Download error for {download.name}: {e}",
                 exc_info=True,
             )
-            self._handle_download_failure(download, completion_callback, error_msg)
+            self._handle_download_failure(download, error_msg)
 
     def _validate_download_directory(
         self,
@@ -296,17 +291,13 @@ class DownloadHandler(IDownloadHandler):
                                     logger.info(f"[DOWNLOAD_HANDLER] Starting download: {d.name}")
 
                                 try:
-                                    self._download_worker(
-                                        d, validated_dir, progress_callback, completion_callback
-                                    )
+                                    self._download_worker(d, validated_dir, progress_callback)
                                 except Exception as e:
                                     logger.error(
                                         f"[DOWNLOAD_HANDLER] Error in download worker for {d.name}: {e}",
                                         exc_info=True,
                                     )
-                                    self._handle_download_failure(
-                                        d, completion_callback, f"Download error: {e!s}"
-                                    )
+                                    self._handle_download_failure(d, f"Download error: {e!s}")
 
                         future = executor.submit(wrapper, download)
                         futures[future] = download
@@ -379,11 +370,7 @@ class DownloadHandler(IDownloadHandler):
 
         return progress_wrapper
 
-    def _handle_download_success(
-        self,
-        download: Download,
-        completion_callback: Callable[[bool, str | None], None] | None,
-    ) -> None:
+    def _handle_download_success(self, download: Download) -> None:
         """Handle successful download completion."""
         logger.info(f"[DOWNLOAD_HANDLER] Successfully downloaded: {download.name}")
         if download.status != DownloadStatus.COMPLETED:
@@ -391,14 +378,8 @@ class DownloadHandler(IDownloadHandler):
             if not download.completed_at:
                 download.completed_at = datetime.now()
             download.update_progress(100.0, 0.0)
-        self._invoke_completion_callback(completion_callback, True, f"Downloaded: {download.name}")
 
-    def _handle_download_failure(
-        self,
-        download: Download,
-        completion_callback: Callable[[bool, str | None], None] | None,
-        message: str,
-    ) -> None:
+    def _handle_download_failure(self, download: Download, message: str) -> None:
         """Handle download failure."""
         logger.error(f"[DOWNLOAD_HANDLER] {message}")
         download.mark_failed(message)
@@ -409,7 +390,6 @@ class DownloadHandler(IDownloadHandler):
             self.error_handler.handle_service_failure(
                 "Download Handler", "download", message, download.url
             )
-        self._invoke_completion_callback(completion_callback, False, message)
 
     def _invoke_completion_callback(
         self,
