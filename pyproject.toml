@@ -4,6 +4,24 @@ version = "1.1.1"
 description = "A cross-platform media downloader supporting YouTube, Spotify, TikTok, Instagram, Twitter, Pinterest, SoundCloud, and RadioJavan"
 readme = "README.md"
 requires-python = ">=3.10"
+keywords = [
+    "media-downloader",
+    "video-downloader",
+    "music-downloader",
+    "youtube-downloader",
+    "instagram-downloader",
+    "tiktok-downloader",
+    "spotify-downloader",
+    "twitter-x-downloader",
+    "pinterest-downloader",
+    "soundcloud-downloader",
+    "radiojavan-downloader",
+    "cross-platform",
+    "desktop-application",
+    "python-gui",
+    "customtkinter",
+    "yt-dlp",
+]
     dependencies = [
         "beautifulsoup4>=4.13.5",
         "customtkinter>=5.2.2",
