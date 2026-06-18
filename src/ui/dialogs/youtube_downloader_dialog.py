@@ -66,9 +66,15 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
 
         self.title("YouTube Video Downloader")
-        self.geometry("700x900")
+
+        # Screen-aware geometry
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+        init_w = min(int(screen_w * 0.7), 700)
+        init_h = min(int(screen_h * 0.85), 900)
+        self.geometry(f"{init_w}x{init_h}")
         self.resizable(True, True)
-        self.minsize(600, 700)
+        self.minsize(500, 400)
 
         self.transient(parent)
         self.withdraw()  # Hide immediately — shown only after metadata fetch
@@ -85,7 +91,11 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         except Exception as e:
             logger.warning(f"Could not center window: {e}")
             with contextlib.suppress(Exception):
-                self.geometry("700x900")
+                screen_w = self.winfo_screenwidth()
+                screen_h = self.winfo_screenheight()
+                w = min(700, int(screen_w * 0.9))
+                h = min(900, int(screen_h * 0.9))
+                self.geometry(f"{w}x{h}")
 
         self.after(10, self._start_metadata_fetch)
 
@@ -344,7 +354,15 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             logger.warning(f"Could not update idletasks after metadata fetch: {e}")
 
         try:
-            self.after(100, lambda: self.grab_set() if self.winfo_exists() else None)
+
+            def _safe_grab_set() -> None:
+                if self.winfo_exists():
+                    try:
+                        self.grab_set()
+                    except Exception as e:
+                        logger.warning(f"Could not set grab: {e}")
+
+            self.after(100, _safe_grab_set)
             logger.debug("Dialog grab scheduled - will be modal after UI renders")
         except Exception as e:
             logger.warning(f"Could not schedule grab: {e}")
@@ -487,45 +505,58 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         if not self.video_metadata:
             return
 
-        if self.video_metadata.title:
-            self.name_entry.delete(0, "end")
-            self.name_entry.insert(0, self.video_metadata.title)
+        try:
+            if self.video_metadata.title:
+                self.name_entry.delete(0, "end")
+                self.name_entry.insert(0, self.video_metadata.title)
 
-        if self.video_metadata.available_qualities:
-            self.quality_var.set(self.video_metadata.available_qualities[0])
-            self.quality_menu.configure(values=self.video_metadata.available_qualities)
+            if self.video_metadata.available_qualities:
+                self.quality_var.set(self.video_metadata.available_qualities[0])
+                self.quality_menu.configure(values=self.video_metadata.available_qualities)
 
-        if self.video_metadata.available_formats:
-            self.format_var.set(self.video_metadata.available_formats[0])
-            self.format_menu.configure(values=self.video_metadata.available_formats)
+            if self.video_metadata.available_formats:
+                self.format_var.set(self.video_metadata.available_formats[0])
+                self.format_menu.configure(values=self.video_metadata.available_formats)
 
-        if self.video_metadata.available_subtitles:
-            subtitle_options = [
-                {
-                    "id": sub["language_code"],
-                    "display": sub["language_name"],
-                    "language_code": sub["language_code"],
-                    "language_name": sub["language_name"],
-                    "is_auto": sub["is_auto_generated"],
-                    "is_auto_generated": sub["is_auto_generated"],
-                    "url": sub["url"],
-                }
-                for sub in self.video_metadata.available_subtitles
-            ]
-            self.subtitle_dropdown.set_subtitle_options(subtitle_options)
-            self.subtitle_frame.pack(fill="x", pady=(0, 20), after=self.format_frame)
-        else:
-            self.subtitle_frame.pack_forget()
+            if self.video_metadata.available_subtitles:
+                subtitle_options = [
+                    {
+                        "id": sub["language_code"],
+                        "display": sub["language_name"],
+                        "language_code": sub["language_code"],
+                        "language_name": sub["language_name"],
+                        "is_auto": sub["is_auto_generated"],
+                        "is_auto_generated": sub["is_auto_generated"],
+                        "url": sub["url"],
+                    }
+                    for sub in self.video_metadata.available_subtitles
+                ]
+                self.subtitle_dropdown.set_subtitle_options(subtitle_options)
+                self.subtitle_frame.pack(fill="x", pady=(0, 20), after=self.format_frame)
+            else:
+                self.subtitle_frame.pack_forget()
 
-        if self.video_metadata.thumbnail:
-            self._add_thumbnail_preview(self.video_metadata.thumbnail)
+            if self.video_metadata.thumbnail:
+                self._add_thumbnail_preview(self.video_metadata.thumbnail)
 
-        self._on_format_change()
+            self._on_format_change()
+
+        except Exception as e:
+            logger.error(f"Error updating UI with metadata: {e}", exc_info=True)
 
     def _create_widgets(self) -> None:
         """Create dialog widgets with scrolling support."""
         self.title("YouTube Downloader")
-        self.geometry("600x700")
+
+        # Re-clamp to screen if needed
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+        cur_w = self.winfo_width()
+        cur_h = self.winfo_height()
+        new_w = min(cur_w, int(screen_w * 0.9))
+        new_h = min(cur_h, int(screen_h * 0.9))
+        if new_w != cur_w or new_h != cur_h:
+            self.geometry(f"{new_w}x{new_h}")
         self.minsize(500, 400)
 
         self.scrollable_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
@@ -751,6 +782,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             hover_color=button_success_hover[0]
             if isinstance(button_success_hover, list)
             else button_success_hover,
+            text_color_disabled=["#999999", "#666666"],
         )
         self.add_button.pack(side="right", padx=5)
 
@@ -761,6 +793,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             width=120,
             height=40,
             font=("Roboto", 12),
+            text_color_disabled=["#999999", "#666666"],
         )
         cancel_button.pack(side="right", padx=5)
 
@@ -944,14 +977,17 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         threading.Thread(target=_fetch_and_display, daemon=True).start()
 
     def _show_error(self, message: str) -> None:
-        """Show error message temporarily."""
+        """Show error message temporarily inside the scrollable frame."""
         colors = self._theme_manager.get_colors()
         status_error = colors.get("status_error", "red")
         error_label = ctk.CTkLabel(
-            self, text=message, text_color=status_error, font=("Roboto", 11, "bold")
+            self.main_frame,
+            text=message,
+            text_color=status_error,
+            font=("Roboto", 11, "bold"),
         )
         error_label.pack(pady=5)
-        self.after(4000, error_label.destroy)
+        self.after(4000, lambda: error_label.destroy() if error_label.winfo_exists() else None)
 
     def _on_theme_changed(self, appearance, color) -> None:
         self._apply_theme_colors()

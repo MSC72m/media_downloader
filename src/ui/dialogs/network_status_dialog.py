@@ -24,8 +24,13 @@ class NetworkStatusDialog(ctk.CTkToplevel, WindowCenterMixin):
         self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
 
         self.title("Network Status")
-        self.geometry("500x350")
-        self.resizable(False, False)
+        # Screen-aware geometry
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+        w = min(500, int(screen_w * 0.9))
+        h = min(350, int(screen_h * 0.9))
+        self.geometry(f"{w}x{h}")
+        self.resizable(True, True)
         self.transient(parent)
 
         self.update_idletasks()
@@ -71,11 +76,19 @@ class NetworkStatusDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.button_frame.pack(side=ctk.BOTTOM, fill=ctk.X, pady=20)
 
         self.retry_button = ctk.CTkButton(
-            self.button_frame, text="Retry Checks", command=self.check_connectivity
+            self.button_frame,
+            text="Retry Checks",
+            command=self.check_connectivity,
+            text_color_disabled=["#999999", "#666666"],
         )
         self.retry_button.pack(side=ctk.LEFT, padx=10)
 
-        self.close_button = ctk.CTkButton(self.button_frame, text="Close", command=self.destroy)
+        self.close_button = ctk.CTkButton(
+            self.button_frame,
+            text="Close",
+            command=self.destroy,
+            text_color_disabled=["#999999", "#666666"],
+        )
         self.close_button.pack(side=ctk.RIGHT, padx=10)
 
         self.advice_frame = None

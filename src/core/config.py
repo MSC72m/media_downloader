@@ -580,12 +580,12 @@ class RadioJavanConfig(BaseModel):
     )
     url_patterns: list[str] = Field(
         default_factory=lambda: [
-            r"^https?://(?:www\.)?play\.radiojavan\.com/(?:mp3|mp4|song)/[\w-]+",
+            r"^https?://(?:www\.)?play\.radiojavan\.com/(?:mp3|mp4|song|video|album|artist|playlist|podcast|browse)/[\w/-]+",
             r"^https?://(?:www\.)?radiojavan\.com/artist/[\w-]+/songs",
             r"^https?://(?:www\.)?radiojavan\.com/mp3s/mp3/[\w-]+",
             r"^https?://(?:www\.)?radiojavan\.com/videos/video/[\w-]+",
-            r"^https?://rj\.app/[\w-]+",
             r"^https?://(?:www\.)?radiojavan\.com/(?:mp3|mp4|song)/[\w-]+",
+            r"^https?://rj\.app/[\w/-]+",
         ],
         description="Radio Javan URL validation patterns",
     )
@@ -788,12 +788,12 @@ class ServiceConfig(BaseModel):
         default_factory=lambda: {
             "service_type": "radiojavan",
             "url_patterns": [
-                r"^https?://(?:www\.)?play\.radiojavan\.com/(?:mp3|mp4)/[\w-]+",
+                r"^https?://(?:www\.)?play\.radiojavan\.com/(?:mp3|mp4|song|video|album|artist|playlist|podcast|browse)/[\w/-]+",
                 r"^https?://(?:www\.)?radiojavan\.com/artist/[\w-]+/songs",
                 r"^https?://(?:www\.)?radiojavan\.com/mp3s/mp3/[\w-]+",
                 r"^https?://(?:www\.)?radiojavan\.com/videos/video/[\w-]+",
-                r"^https?://rj\.app/[\w-]+",
-                r"^https?://(?:www\.)?radiojavan\.com/(?:mp3|mp4)/[\w-]+",
+                r"^https?://(?:www\.)?radiojavan\.com/(?:mp3|mp4|song)/[\w-]+",
+                r"^https?://rj\.app/[\w/-]+",
             ],
             "domains": ["play.radiojavan.com", "radiojavan.com", "rj.app"],
             "downloader_module": "src.services.radiojavan.downloader",

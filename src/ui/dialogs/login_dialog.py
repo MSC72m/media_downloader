@@ -28,8 +28,13 @@ class LoginDialog(ctk.CTkToplevel, WindowCenterMixin):
         self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
 
         self.title("Instagram Login")
-        self.geometry("400x250")
-        self.resizable(False, False)
+        # Screen-aware geometry
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+        w = min(400, int(screen_w * 0.9))
+        h = min(250, int(screen_h * 0.9))
+        self.geometry(f"{w}x{h}")
+        self.resizable(True, True)
 
         # Make dialog modal
         self.transient(parent)

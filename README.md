@@ -2,9 +2,9 @@
 
 ![Media Downloader](assets/media_downloader.ico)
 
-Cross-platform desktop application for downloading media content from social media platforms.
+A cross-platform desktop application for downloading media from 8 platforms — videos, music, podcasts, and playlists — with a modern, themeable UI.
 
-[![Version](https://img.shields.io/badge/Version-1.1.1-green.svg)](https://github.com/MSC72m/media_downloader/releases)
+[![Version](https://img.shields.io/badge/Version-1.1.2-green.svg)](https://github.com/MSC72m/media_downloader/releases)
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)]()
@@ -25,27 +25,30 @@ Cross-platform desktop application for downloading media content from social med
 
 | Platform | Content Types | Features |
 |----------|--------------|----------|
-| **YouTube** | Videos, Playlists, Shorts, Music | Quality selection (144p-8K), audio extraction, subtitle support, auto-cookie generation for age-restricted content |
-| **Instagram** | Posts, Reels | Authentication required, caption preservation, carousel handling |
-| **Twitter/X** | Tweets | Image and video extraction from tweets |
-| **Pinterest** | Pins | High-quality image retrieval, automated file naming |
-| **SoundCloud** | Tracks, Sets | Best available audio, metadata and thumbnail support, free tracks only (premium/Go+ tracks not supported) |
-| **Spotify** | Tracks, Albums, Playlists, Artists | Metadata extraction and YouTube-backed audio downloads with match selection |
-| **TikTok** | Videos | Best available video downloads with metadata and thumbnail support |
-| **RadioJavan** | Songs, Videos | Direct MP3/MP4 downloads with session cookie generation and CDN fallback |
+| **YouTube** | Videos, Playlists, Shorts, Music | Quality selection (144p–8K), audio-only extraction, subtitle downloads, automatic cookie generation for age-restricted content |
+| **Instagram** | Posts, Reels | Browser-based authentication, caption preservation, carousel support |
+| **Twitter/X** | Tweets | Image and video extraction from any tweet |
+| **Pinterest** | Pins | High-quality image retrieval with smart file naming |
+| **SoundCloud** | Tracks, Sets | Best available audio, metadata and thumbnails, playlist support (free tracks only) |
+| **Spotify** | Tracks, Albums, Playlists, Artists | Full metadata display, YouTube-backed audio with match selection |
+| **TikTok** | Videos | Best quality video with metadata and thumbnail preservation |
+| **RadioJavan** | Songs, Videos, Playlists, Podcasts, Albums | Direct MP3/MP4 downloads, playlist and podcast support, auto-cookie generation, CDN fallback across 5 hosts |
 
-## Features
+## Key Features
 
-- Multi-platform support for YouTube, Spotify, TikTok, Instagram, Twitter/X, Pinterest, SoundCloud, and RadioJavan
-- Bulk download queue with concurrent processing
-- Video quality selection (144p to 8K) and audio-only extraction
-- Real-time theme switching between dark/light modes with 18 color themes
-- Custom themes — drop a JSON file into `themes/` and it appears in the UI (see [docs/themes.md](docs/themes.md))
-- Automatic cookie generation using Playwright for YouTube, SoundCloud, Spotify, and RadioJavan
-- Live progress tracking with status indicators and speed metrics
-- Network connectivity monitoring and validation
-- Configurable retry mechanisms and error handling
-- YAML/JSON configuration files with customizable settings
+- **8 platforms** — YouTube, Spotify, TikTok, Instagram, Twitter/X, Pinterest, SoundCloud, RadioJavan
+- **Smart URL detection** — paste any supported link and the app detects the platform automatically
+- **Quality & format control** — choose resolution (144p–8K), extract audio-only, or download video-only tracks
+- **Batch downloads** — queue multiple items and process them concurrently with configurable worker count
+- **Subtitle support** — download manual and auto-generated YouTube subtitles in any available language
+- **Playlist & album support** — download entire playlists or albums with a single click
+- **18 color themes** — dark and light modes with instant switching, no restart required
+- **Custom themes** — drop a JSON file into `themes/` and it appears in the UI (see [docs/themes.md](docs/themes.md))
+- **Auto cookie generation** — Playwright-based browser cookies for YouTube, SoundCloud, Spotify, and RadioJavan (handles age-restricted and region-locked content)
+- **Real-time progress** — live download speed, ETA, and status indicators
+- **Network monitoring** — check connectivity to all platforms from the Tools menu
+- **Cross-platform** — Windows (with installer), macOS, and Linux
+- **Configurable** — YAML/JSON config files for all settings (download paths, concurrency, timeouts, platform options)
 
 ## Requirements
 
@@ -80,9 +83,9 @@ For `npx basedpyright ...`, install Node.js 18+ if it is not already available.
 
 The easiest way to run Media Downloader on Windows. No Python installation required.
 
-1. **Download** the latest installer from the [Releases page](https://github.com/MSC72m/media_downloader/releases/tag/v1.1.1)
-   - `MediaDownloaderSetup-1.1.1-x64.exe` for 64-bit Intel/AMD PCs
-   - `MediaDownloaderSetup-1.1.1-arm64.exe` for Windows on ARM devices
+1. **Download** the latest installer from the [Releases page](https://github.com/MSC72m/media_downloader/releases/tag/v1.1.2)
+   - `MediaDownloaderSetup-1.1.2-x64.exe` for 64-bit Intel/AMD PCs
+   - `MediaDownloaderSetup-1.1.2-arm64.exe` for Windows on ARM devices
 
 2. **Run** the installer — it will install:
    - The application (`MediaDownloader.exe`) with a Start Menu shortcut
@@ -316,7 +319,8 @@ Launch with: `launchctl load ~/Library/LaunchAgents/com.msc72m.mediadownloader.p
 
 #### RadioJavan
 
-- Paste song or video URLs
+- Paste any RadioJavan URL — songs, videos, playlists, podcasts, albums, or artist pages
+- Supports `play.radiojavan.com` and `rj.app` short links (e.g. `rj.app/m/...`, `rj.app/v/...`)
 - Downloads direct MP3 or MP4 media when available
 - Session cookies are generated automatically using Playwright when needed
 

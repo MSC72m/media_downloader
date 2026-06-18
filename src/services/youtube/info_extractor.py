@@ -55,17 +55,26 @@ class YouTubeInfoExtractor:
             + ", ".join(strategy.label for strategy in auth_strategies)
         )
 
+        last_bucket = YouTubeErrorBucket.OTHER
         for strategy in auth_strategies:
             if info := self._try_auth_strategy(url, strategy):
                 return info
 
-            bucket = self.youtube_error_handler.classify_ytdlp_error(self._last_error_message or "")
-            if not self._should_try_next_source(bucket):
+            last_bucket = self.youtube_error_handler.classify_ytdlp_error(
+                self._last_error_message or ""
+            )
+            if not self._should_try_next_source(last_bucket):
                 logger.warning(
                     "[INFO_EXTRACTOR] Stopping fallback chain after "
-                    f"{strategy.label} due to bucket={bucket.value}"
+                    f"{strategy.label} due to bucket={last_bucket.value}"
                 )
                 break
+
+        # If all strategies failed with LOGIN_REQUIRED, try regenerating cookies
+        if last_bucket == YouTubeErrorBucket.LOGIN_REQUIRED:
+            result = self._try_cookie_regeneration_and_retry(url, cookie_path, browser)
+            if result:
+                return result
 
         if fallback := self._fetch_oembed_fallback(url):
             logger.warning(
@@ -74,6 +83,43 @@ class YouTubeInfoExtractor:
             return fallback
 
         logger.error("[INFO_EXTRACTOR] All extraction strategies exhausted")
+        return None
+
+    def _try_cookie_regeneration_and_retry(
+        self,
+        url: str,
+        cookie_path: str | None,
+        browser: str | None,
+    ) -> dict[str, Any] | None:
+        """Invalidate stale cookies, regenerate, and retry extraction."""
+        auto_manager = self.cookie_source_coordinator.auto_cookie_manager
+        if not auto_manager:
+            return None
+
+        logger.info("[INFO_EXTRACTOR] LOGIN_REQUIRED detected — regenerating cookies and retrying")
+
+        try:
+            if not auto_manager.invalidate_and_regenerate():
+                logger.warning("[INFO_EXTRACTOR] Cookie regeneration failed")
+                return None
+        except Exception as exc:
+            logger.warning(f"[INFO_EXTRACTOR] Cookie regeneration error: {exc}")
+            return None
+
+        # Rebuild strategies with fresh cookies
+        fresh_strategies = self.cookie_source_coordinator.build_auth_strategies(
+            cookie_path_hint=cookie_path,
+            preferred_browser=browser,
+            include_browser_source=False,
+        )
+
+        for strategy in fresh_strategies:
+            if info := self._try_auth_strategy(url, strategy):
+                logger.info(
+                    f"[INFO_EXTRACTOR] Success after cookie regeneration with: {strategy.label}"
+                )
+                return info
+
         return None
 
     def _try_auth_strategy(

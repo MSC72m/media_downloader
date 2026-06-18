@@ -19,7 +19,12 @@ class FileManagerActionButtonBar(ctk.CTkFrame):
         self.grid_columnconfigure((0, 1, 2), weight=1)
 
         # Button style
-        button_style = {"height": 40, "font": ("Roboto", 14), "corner_radius": 10}
+        button_style = {
+            "height": 40,
+            "font": ("Roboto", 14),
+            "corner_radius": 10,
+            "text_color_disabled": ["#999999", "#666666"],
+        }
 
         # Set as Download Directory button
         self.change_dir_button = ctk.CTkButton(

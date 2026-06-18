@@ -106,11 +106,33 @@ class YouTubeCookieManager:
 
         return False
 
+    def _try_regenerate_in_lock(self) -> str | None:
+        """Attempt synchronous cookie regeneration while holding the lock.
+
+        Returns:
+            Valid cookie file path if regeneration succeeds, None otherwise
+        """
+        if self._state:
+            self._state.is_generating = True
+        try:
+            loop = self._get_event_loop()
+            self._state = loop.run_until_complete(self._regenerate_cookies())
+        except Exception as exc:
+            logger.error("[COOKIE_MANAGER] Regeneration failed: %s", exc)
+        if self._state:
+            self._state.is_generating = False
+        if self._state and self._state.is_valid and self._state.cookie_path:
+            cookie_path = self._state.cookie_path
+            if Path(cookie_path).exists() and self.generator.validate_netscape_file(cookie_path):
+                logger.info("[COOKIE_MANAGER] Returning regenerated cookie file: %s", cookie_path)
+                return cookie_path
+        return None
+
     def get_cookies(self) -> str | None:
         """Get path to cookie file for use with yt-dlp.
 
         If not initialized, returns None immediately (background init handles it).
-        If cookies need regeneration, triggers it in a background thread.
+        If cookies need regeneration, triggers it synchronously.
 
         Returns:
             Path to Netscape format cookie file, or None if not available
@@ -121,8 +143,17 @@ class YouTubeCookieManager:
 
         with self._lock:
             if not self._state or not self._state.is_valid:
-                logger.warning("[COOKIE_MANAGER] No valid cookies available")
-                return None
+                logger.warning(
+                    "[COOKIE_MANAGER] No valid cookies available, triggering regeneration"
+                )
+                return self._try_regenerate_in_lock()
+
+            if self._state.is_expired():
+                logger.info(
+                    "[COOKIE_MANAGER] Cookies expired (TTL reached), triggering regeneration"
+                )
+                self._state.is_valid = False
+                return self._try_regenerate_in_lock()
 
             if not (cookie_path := self._ensure_cookie_file_exists()):
                 return None
@@ -474,13 +505,12 @@ class YouTubeCookieManager:
         logger.warning("[COOKIE_MANAGER] Background strict probe failed: %s", reason)
         with self._lock:
             if self._state and self._state.cookie_path == cookie_path:
-                details = reason or "strict probe failed"
-                self._state.error_message = (
-                    f"Generated cookies are fallback-only; strict probe failed. Reason: {details}"
-                )
+                self._state.is_valid = False
+                self._state.error_message = f"Strict probe failed, cookies invalidated: {reason}"
                 self._save_state(self._state)
         logger.info(
-            "[COOKIE_MANAGER] Keeping current cookies to avoid disruptive background regeneration"
+            "[COOKIE_MANAGER] Cookies invalidated after strict probe failure — "
+            "will regenerate on next request"
         )
 
     async def _sleep_before_retry(self, attempt: int) -> None:

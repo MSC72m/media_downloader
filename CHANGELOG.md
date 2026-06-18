@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.1.2 - 2026-06-18
+
+Hotfix release fixing RadioJavan URL detection, YouTube dialog crash, disabled button contrast, and UI scaling across all screen resolutions.
+
+### Fixed
+
+- **Fixed RadioJavan URL detection**: Expanded URL patterns to support all RadioJavan URL families including `play.radiojavan.com/playlist/mp3/...`, `play.radiojavan.com/podcast/...`, `play.radiojavan.com/album/...`, `play.radiojavan.com/video/...`, `play.radiojavan.com/song/...`, and `rj.app/m/...`, `rj.app/v/...`, `rj.app/a/...`, `rj.app/p/...`, `rj.app/pl/...` short links. Previously only `/mp3/`, `/mp4/`, and `/song/` paths were recognized.
+- **Fixed RadioJavan handler type detection**: Added detection for playlist, album, podcast, browse, video, and music_video content types in addition to mp3/mp4/artist.
+- **Fixed RadioJavan media ID extraction**: Extended extraction patterns to handle all URL formats including short links with subpaths like `rj.app/m/...`.
+- **Fixed YouTube dialog crash**: Added error handling in `_update_ui_with_metadata()` to prevent unhandled exceptions during UI population. Fixed `_show_error()` to pack error labels inside the scrollable frame instead of directly on the dialog window (which corrupted the layout). Added `winfo_exists()` guard to the grab_set callback to prevent crashes when the dialog is destroyed before the scheduled callback fires.
+- **Fixed YouTube metadata fetch with stale cookies**: When all extraction strategies fail with `LOGIN_REQUIRED` (YouTube bot detection), the info extractor now automatically invalidates and regenerates cookies via Playwright, then retries with fresh cookies before giving up. Previously stale cookies would exhaust all strategies without attempting regeneration.
+- **Fixed disabled button contrast**: Added `text_color_disabled` parameter to all CTkButton instances across the application (YouTube dialog, Spotify dialog, Network Status dialog, Main Action Buttons, File Manager Action Buttons) so disabled buttons remain readable in both light and dark themes.
+- **Fixed UI scaling for all screen resolutions**: All windows (main app, YouTube/Spotify dialogs, Network Status, Login, File Manager, Loading) now use screen-aware geometry — sizes are clamped to 90% of the screen and centered automatically. `WindowCenterMixin.center_window()` now accepts optional `width`/`height` parameters and clamps to screen bounds. Main window uses `min(90% of screen, 1200x800)` initial size with `700x500` minimum. Dialogs use `min(70-90% of screen, their ideal size)` to prevent off-screen widgets on small or high-DPI displays.
+
 ## 1.1.1 - 2026-06-16
 
 Hotfix release fixing Windows installer, PyInstaller build issues, and main-thread deadlock.

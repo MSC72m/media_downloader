@@ -99,14 +99,21 @@ class RadioJavanHandler(BaseHandler):
         return radiojavan_callback
 
     def _detect_radiojavan_type(self, url: str) -> str:
-        """Detect if URL is song, video, artist page, etc."""
-        if "/mp3/" in url or "/song/" in url:
-            return "mp3"
-        if "/mp4/" in url:
-            return "mp4"
-        if "/artist/" in url:
-            return "artist"
-        if "rj.app" in url.lower():
+        """Detect if URL is song, video, artist page, playlist, etc."""
+        url_lower = url.lower()
+        type_map = [
+            (("/mp3/", "/song/"), "mp3"),
+            (("/mp4/", "/video/", "/music_video/"), "mp4"),
+            (("/artist/",), "artist"),
+            (("/playlist/",), "playlist"),
+            (("/album/",), "album"),
+            (("/podcast/",), "podcast"),
+            (("/browse/",), "browse"),
+        ]
+        for tokens, media_type in type_map:
+            if any(token in url for token in tokens):
+                return media_type
+        if "rj.app" in url_lower:
             return "short_url"
         return "unknown"
 
@@ -116,6 +123,16 @@ class RadioJavanHandler(BaseHandler):
             r"/mp3/([\w%-]+)",
             r"/mp4/([\w%-]+)",
             r"/song/([\w%-]+)",
+            r"/music_video/([\w%-]+)",
+            r"/playlist/mp3/([\w%-]+)",
+            r"/playlist/([\w%-]+)",
+            r"/podcast/([\w%-]+)",
+            r"/album/([\w%-]+)",
+            r"rj\.app/m/([\w%-]+)",
+            r"rj\.app/v/([\w%-]+)",
+            r"rj\.app/a/([\w%-]+)",
+            r"rj\.app/p/([\w%-]+)",
+            r"rj\.app/pl/([\w%-]+)",
             r"rj\.app/([\w%-]+)",
         ]
         for pattern in patterns:

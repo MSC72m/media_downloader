@@ -58,7 +58,11 @@ def _check_playwright_installation() -> None:
         # Create a minimal window to show the error
         error_window = ctk.CTk()
         error_window.title("CRITICAL: Playwright Not Installed")
-        error_window.geometry("600x400")
+        screen_w = error_window.winfo_screenwidth()
+        screen_h = error_window.winfo_screenheight()
+        w = min(600, int(screen_w * 0.9))
+        h = min(400, int(screen_h * 0.9))
+        error_window.geometry(f"{w}x{h}")
 
         # Center the window
         error_window.update_idletasks()
@@ -167,7 +171,14 @@ class MediaDownloaderApp(ctk.CTk):
         self.config = config or get_config()
 
         self.title(self.config.ui.app_title)
-        self.geometry("1000x700")
+
+        # Screen-aware initial geometry (90% of screen, capped at 1200x800)
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+        init_w = min(int(screen_w * 0.9), 1200)
+        init_h = min(int(screen_h * 0.9), 800)
+        self.geometry(f"{init_w}x{init_h}")
+        self.minsize(700, 500)
 
         # Set window icon
         icon_path = resource_path("assets/media_downloader.ico")

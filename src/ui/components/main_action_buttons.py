@@ -39,6 +39,7 @@ class ActionButtonBar(ctk.CTkFrame):
             "font": ("Roboto", 13),
             "corner_radius": 8,
             "border_width": 0,
+            "text_color_disabled": ["#999999", "#666666"],
         }
 
         def on_download_with_logging() -> None:
@@ -71,6 +72,7 @@ class ActionButtonBar(ctk.CTkFrame):
             font=("Roboto", 13),
             corner_radius=8,
             border_width=0,
+            text_color_disabled=["#999999", "#666666"],
         )
         self.download_button.grid(row=0, column=2, padx=(0, 8), pady=0, sticky="ew")
 

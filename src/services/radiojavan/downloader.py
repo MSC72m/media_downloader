@@ -142,6 +142,16 @@ class RadioJavanDownloader(BaseDownloader):
             r"/mp3/([\w%-]+)",
             r"/mp4/([\w%-]+)",
             r"/song/([\w%-]+)",
+            r"/music_video/([\w%-]+)",
+            r"/playlist/mp3/([\w%-]+)",
+            r"/podcast/([\w%-]+)",
+            r"/album/([\w%-]+)",
+            r"rj\.app/m/([\w%-]+)",
+            r"rj\.app/v/([\w%-]+)",
+            r"rj\.app/a/([\w%-]+)",
+            r"rj\.app/p/([\w%-]+)",
+            r"rj\.app/pl/([\w%-]+)",
+            r"rj\.app/([\w%-]+)",
         ]
         for pattern in patterns:
             if match := re.search(pattern, url):
@@ -155,7 +165,9 @@ class RadioJavanDownloader(BaseDownloader):
         match lowered:
             case value if any(token in value for token in ("/mp3s/mp3/", "/mp3/", "/song/")):
                 return "mp3"
-            case value if any(token in value for token in ("/videos/video/", "/mp4/")):
+            case value if any(
+                token in value for token in ("/videos/video/", "/mp4/", "/video/", "/music_video/")
+            ):
                 return "mp4"
             case _:
                 return None

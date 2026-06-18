@@ -74,9 +74,15 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
 
         self.title("Spotify Downloader")
-        self.geometry("900x950")
+
+        # Screen-aware geometry
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+        init_w = min(int(screen_w * 0.85), 900)
+        init_h = min(int(screen_h * 0.85), 950)
+        self.geometry(f"{init_w}x{init_h}")
         self.resizable(True, True)
-        self.minsize(700, 800)
+        self.minsize(600, 500)
 
         self.transient(parent)
         self.withdraw()  # Hide immediately — shown only after metadata fetch
@@ -94,7 +100,11 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             logger.warning(f"Could not center window: {e}")
 
             with contextlib.suppress(Exception):
-                self.geometry("900x950")
+                screen_w = self.winfo_screenwidth()
+                screen_h = self.winfo_screenheight()
+                w = min(900, int(screen_w * 0.85))
+                h = min(950, int(screen_h * 0.85))
+                self.geometry(f"{w}x{h}")
 
         self.after(10, self._start_metadata_fetch)
 
@@ -435,8 +445,16 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
     def _create_widgets(self) -> None:
         """Create dialog widgets with scrolling support (YouTube pattern)."""
         self.title("Spotify Downloader")
-        self.geometry("900x950")
-        self.minsize(700, 800)
+        # Re-clamp to screen if needed
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+        cur_w = self.winfo_width()
+        cur_h = self.winfo_height()
+        new_w = min(cur_w, int(screen_w * 0.9))
+        new_h = min(cur_h, int(screen_h * 0.9))
+        if new_w != cur_w or new_h != cur_h:
+            self.geometry(f"{new_w}x{new_h}")
+        self.minsize(600, 500)
 
         self.scrollable_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
         self.scrollable_frame.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
@@ -489,6 +507,7 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             hover_color=button_success_hover[0]
             if isinstance(button_success_hover, list)
             else button_success_hover,
+            text_color_disabled=["#999999", "#666666"],
         )
         self.download_button.pack(side="right", padx=5)
         self.download_button.configure(state="disabled")
@@ -500,6 +519,7 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
             width=120,
             height=40,
             font=("Roboto", 12),
+            text_color_disabled=["#999999", "#666666"],
         )
         cancel_button.pack(side="right", padx=5)
 
