@@ -109,7 +109,7 @@ class YouTubeCookieManager:
     def get_cookies(self) -> str | None:
         """Get path to cookie file for use with yt-dlp.
 
-        Returns the existing cookie file path if valid, None otherwise.
+        Returns the existing cookie file path if it exists and is valid Netscape format.
         Does NOT trigger regeneration — use refresh_if_needed() or
         invalidate_and_regenerate() for that.
 
@@ -121,11 +121,13 @@ class YouTubeCookieManager:
             return None
 
         with self._lock:
-            if not self._state or not self._state.is_valid:
-                logger.warning("[COOKIE_MANAGER] No valid cookies available")
+            if not self._state or not self._state.cookie_path:
+                logger.warning("[COOKIE_MANAGER] No cookie path available")
                 return None
 
-            if not (cookie_path := self._ensure_cookie_file_exists()):
+            cookie_path = self._state.cookie_path
+            if not Path(cookie_path).exists():
+                logger.warning("[COOKIE_MANAGER] Cookie file does not exist: %s", cookie_path)
                 return None
 
             if self.generator.validate_netscape_file(cookie_path):
