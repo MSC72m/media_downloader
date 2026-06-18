@@ -223,15 +223,19 @@ class YouTubeCookieManager:
         logger.info("[COOKIE_MANAGER] Cookies are still valid")
         return False
 
-    def invalidate_and_regenerate(self) -> bool:
+    def invalidate_and_regenerate(self, *, fast: bool = False) -> bool:
         """Invalidate current cookies and trigger regeneration.
 
-        This is called when cookies are detected to be invalid during use.
+        Args:
+            fast: If True, use fast mode (no strict probe) for quick regeneration.
 
         Returns:
             True if regeneration was triggered, False otherwise
         """
-        logger.info("[COOKIE_MANAGER] Invalidating cookies and triggering regeneration")
+        mode_label = "fast" if fast else "full"
+        logger.info(
+            "[COOKIE_MANAGER] Invalidating cookies and triggering %s regeneration", mode_label
+        )
 
         with self._lock:
             # Invalidate current state
@@ -246,7 +250,7 @@ class YouTubeCookieManager:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
 
-            self._state = loop.run_until_complete(self._regenerate_cookies())
+            self._state = loop.run_until_complete(self._regenerate_cookies(fast_mode=fast))
 
             if self._state and self._state.is_valid:
                 logger.info("[COOKIE_MANAGER] Cookies regenerated successfully after invalidation")

@@ -99,7 +99,7 @@ class YouTubeInfoExtractor:
         logger.info("[INFO_EXTRACTOR] LOGIN_REQUIRED detected — regenerating cookies and retrying")
 
         try:
-            if not auto_manager.invalidate_and_regenerate():
+            if not auto_manager.invalidate_and_regenerate(fast=True):
                 logger.warning("[INFO_EXTRACTOR] Cookie regeneration failed")
                 return None
         except Exception as exc:
