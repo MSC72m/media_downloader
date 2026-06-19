@@ -48,7 +48,6 @@ class YouTubeSubtitleExtractor:
         auth_strategies = self.cookie_source_coordinator.build_auth_strategies(
             cookie_path_hint=cookie_path,
             preferred_browser=browser,
-            include_browser_source=False,
         )
 
         for auth_strategy in auth_strategies:

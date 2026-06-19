@@ -162,9 +162,7 @@ class YouTubeDownloader(BaseDownloader):
 
     def _build_auth_strategies(self) -> list[tuple[str, dict[str, Any]]]:
         """Build ordered auth strategies for YouTube access."""
-        strategies = self.cookie_source_coordinator.build_auth_strategies(
-            include_browser_source=False
-        )
+        strategies = self.cookie_source_coordinator.build_auth_strategies()
         return [(strategy.label, strategy.ytdlp_options) for strategy in strategies]
 
     def _prepare_format_options(self, opts: dict[str, Any], output_template: str) -> str | None:
