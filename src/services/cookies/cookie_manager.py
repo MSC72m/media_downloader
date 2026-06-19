@@ -109,7 +109,7 @@ class YouTubeCookieManager:
     def get_cookies(self) -> str | None:
         """Get path to cookie file for use with yt-dlp.
 
-        Returns the existing cookie file path if it exists and is valid Netscape format.
+        Returns the existing cookie file path if valid, None otherwise.
         Does NOT trigger regeneration — use refresh_if_needed() or
         invalidate_and_regenerate() for that.
 
@@ -121,13 +121,13 @@ class YouTubeCookieManager:
             return None
 
         with self._lock:
-            if not self._state or not self._state.cookie_path:
-                logger.warning("[COOKIE_MANAGER] No cookie path available")
+            if not self._state or not self._state.is_valid:
+                logger.warning("[COOKIE_MANAGER] No valid cookies available")
                 return None
 
             cookie_path = self._state.cookie_path
-            if not Path(cookie_path).exists():
-                logger.warning("[COOKIE_MANAGER] Cookie file does not exist: %s", cookie_path)
+            if not cookie_path or not Path(cookie_path).exists():
+                logger.warning("[COOKIE_MANAGER] Cookie file does not exist")
                 return None
 
             if self.generator.validate_netscape_file(cookie_path):
@@ -481,12 +481,11 @@ class YouTubeCookieManager:
         logger.warning("[COOKIE_MANAGER] Background strict probe failed: %s", reason)
         with self._lock:
             if self._state and self._state.cookie_path == cookie_path:
-                self._state.is_valid = False
-                self._state.error_message = f"Strict probe failed, cookies invalidated: {reason}"
+                self._state = self._mark_generated_fallback_only(self._state, reason)
                 self._save_state(self._state)
         logger.info(
-            "[COOKIE_MANAGER] Cookies invalidated after strict probe failure — "
-            "will regenerate on next request"
+            "[COOKIE_MANAGER] Cookies marked as fallback-only; "
+            "browser source should be preferred for best results"
         )
 
     async def _sleep_before_retry(self, attempt: int) -> None:
