@@ -512,7 +512,7 @@ class YouTubeCookieSourceCoordinator:
                 )
             )
 
-        remaining_browsers = ["chromium", "brave", "edge", "vivaldi", "opera"]
+        remaining_browsers = ["chromium", "brave", "edge", "vivaldi", "opera", "arc"]
         for browser in remaining_browsers:
             if not self._is_browser_available(browser):
                 continue
@@ -688,6 +688,13 @@ class YouTubeCookieSourceCoordinator:
                     _join_env("APPDATA", "Opera Software", "Opera Stable"),
                 ],
                 "commands": ["opera"],
+            },
+            "arc": {
+                "paths": [
+                    "~/Library/Application Support/Arc",
+                    _join_env("LOCALAPPDATA", "Arc", "User Data"),
+                ],
+                "commands": ["arc"],
             },
             "firefox": {
                 "paths": [
