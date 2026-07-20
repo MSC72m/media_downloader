@@ -140,6 +140,14 @@ class NetworkConfig(BaseModel):
 
     default_timeout: int = Field(default=10, description="Default network timeout in seconds")
     twitter_api_timeout: int = Field(default=10, description="Twitter API timeout in seconds")
+    proxy: str | None = Field(
+        default=None,
+        description=(
+            "Optional proxy URL applied to all network requests and yt-dlp. "
+            "Supports socks5://, socks5h://, http:// and https:// schemes "
+            "(e.g. socks5://127.0.0.1:1080). None disables proxying."
+        ),
+    )
     user_agent: str = Field(
         default="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
         description="Default user agent string",

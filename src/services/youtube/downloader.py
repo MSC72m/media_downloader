@@ -16,6 +16,7 @@ from src.services.cookies import YouTubeCookieSourceCoordinator
 from src.services.ytdlp_logger import YTDLPLoggerBridge
 from src.utils.ffmpeg import get_ffmpeg_dir, is_ffmpeg_available
 from src.utils.logger import get_logger
+from src.utils.proxy import get_proxy
 
 from ...core.interfaces import (
     BaseDownloader,
@@ -116,6 +117,10 @@ class YouTubeDownloader(BaseDownloader):
         if shutil.which("node"):
             options["js_runtimes"] = {"node": {}}
             options["remote_components"] = "ejs:github"
+
+        # Route yt-dlp through the configured proxy (socks5/http) when set.
+        if proxy := get_proxy(self.config):
+            options["proxy"] = proxy
 
         # Point yt-dlp at bundled or system ffmpeg
         if ffmpeg_dir := get_ffmpeg_dir():

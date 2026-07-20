@@ -17,6 +17,7 @@ from src.core.interfaces import (
 )
 
 from ...utils.logger import get_logger
+from ...utils.proxy import get_request_proxies
 from ..youtube.downloader import YouTubeDownloader
 
 logger = get_logger(__name__)
@@ -121,6 +122,7 @@ class SpotifyDownloader(BaseDownloader):
                         headers={
                             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                         },
+                        proxies=get_request_proxies(self.config),
                     )
                     response.raise_for_status()
                     data = response.json()
@@ -213,6 +215,7 @@ class SpotifyDownloader(BaseDownloader):
                 embed_url,
                 timeout=self.default_timeout,
                 headers={"User-Agent": self.config.network.user_agent},
+                proxies=get_request_proxies(self.config),
             )
             response.raise_for_status()
         except _REQUEST_EXCEPTION as e:

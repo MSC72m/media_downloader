@@ -11,6 +11,7 @@ from src.core.interfaces import BaseDownloader, IErrorNotifier, IFileService
 
 from ...core.enums import ServiceType
 from ...utils.logger import get_logger
+from ...utils.proxy import get_request_proxies
 from ..file.service import FileService
 from ..network.checker import check_site_connection
 
@@ -158,6 +159,7 @@ class TwitterDownloader(BaseDownloader):
                         headers=headers,
                         verify=True,
                         timeout=self.config.network.twitter_api_timeout,
+                        proxies=get_request_proxies(self.config),
                     )
                     response.raise_for_status()
                 except requests.exceptions.HTTPError:

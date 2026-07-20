@@ -15,6 +15,7 @@ from src.core.interfaces import BaseDownloader, IErrorNotifier, IFileService
 from src.services.network.downloader import download_file
 
 from ...utils.logger import get_logger
+from ...utils.proxy import get_request_proxies
 
 if TYPE_CHECKING:
     from src.services.cookies.radiojavan_cookie_manager import RadioJavanCookieManager
@@ -287,6 +288,7 @@ class RadioJavanDownloader(BaseDownloader):
                 headers=headers,
                 cookies=cookies,
                 timeout=self.default_timeout,
+                proxies=get_request_proxies(self.config),
             )
             if (
                 status_code := response.status_code if isinstance(response.status_code, int) else 0
@@ -445,6 +447,7 @@ class RadioJavanDownloader(BaseDownloader):
                     cookies=session_cookies,
                     timeout=self.default_timeout,
                     allow_redirects=True,
+                    proxies=get_request_proxies(self.config),
                 )
                 response.raise_for_status()
             except requests.RequestException as e:
@@ -594,6 +597,7 @@ class RadioJavanDownloader(BaseDownloader):
                 headers={**headers, "Range": "bytes=0-1"},
                 cookies=cookies,
                 stream=True,
+                proxies=get_request_proxies(self.config),
             )
             response.raise_for_status()
         except requests.RequestException as exc:
