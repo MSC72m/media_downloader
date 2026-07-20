@@ -148,13 +148,13 @@ def download_ffmpeg(progress_callback: object = None) -> str | None:
 def ensure_ffmpeg_available(root_window: Tk | None = None) -> None:
     """Ensure ffmpeg is available, downloading in background if needed.
 
-    If ffmpeg is missing and we're on Windows, starts a background thread
-    to download it. Updates the status bar if root_window is provided.
+    On Windows, auto-downloads ffmpeg.exe in a background thread. On
+    macOS/Linux the automatic download (a Windows build) does not apply, so
+    surface a clear, actionable message instead of failing silently later in
+    the SoundCloud/audio-extraction path.
     """
     if is_ffmpeg_available():
         return
-
-    import threading
 
     label = None
     if (
@@ -163,6 +163,19 @@ def ensure_ffmpeg_available(root_window: Tk | None = None) -> None:
         and hasattr(root_window.status_bar, "status_label")
     ):
         label = root_window.status_bar.status_label
+
+    if sys.platform != "win32":
+        install_hint = (
+            "brew install ffmpeg" if sys.platform == "darwin" else "sudo apt install ffmpeg"
+        )
+        msg = f"ffmpeg not found — audio downloads need it. Install with: {install_hint}"
+        logger.warning("[FFMPEG] %s", msg)
+        if label is not None and root_window is not None:
+            with contextlib.suppress(Exception):
+                root_window.after(0, lambda: label.configure(text=msg))  # type: ignore[union-attr]
+        return
+
+    import threading
 
     def _bg_download() -> None:
         result = download_ffmpeg(progress_callback=label)
