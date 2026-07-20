@@ -25,14 +25,6 @@ logger = get_logger(__name__)
 class RadioJavanDownloader(BaseDownloader):
     """Radio Javan downloader using API and URL validation."""
 
-    CDN_HOSTS: ClassVar[list[str]] = [
-        "https://rj1.media",
-        "https://rj2.media",
-        "https://rj3.media",
-        "https://rjmedia.app",
-        "https://rj.app",
-    ]
-
     MP3_PATHS: ClassVar[list[str]] = [
         "/media/mp3/mp3-320/{media_name}.mp3",
         "/media/mp3/mp3-256/{media_name}.mp3",
@@ -192,7 +184,7 @@ class RadioJavanDownloader(BaseDownloader):
         return self._request_context(force_refresh=force_refresh)
 
     def _candidate_hosts(self, media_name: str, media_type: str) -> list[str]:
-        """Get candidate hosts using Radio Javan API first, then static fallbacks."""
+        """Get candidate hosts using Radio Javan API first, then config fallbacks."""
         hosts: list[str] = []
 
         api_hosts = [
@@ -202,10 +194,10 @@ class RadioJavanDownloader(BaseDownloader):
         ]
         hosts.extend(api_hosts)
 
+        # CDN hosts are fully externalised to config (config.radiojavan.cdn_hosts,
+        # which ships sensible defaults) — no hardcoded fallback list here.
         configured_hosts = [self._normalize_host(h) for h in self.config.radiojavan.cdn_hosts]
-        fallback_hosts = [self._normalize_host(h) for h in self.CDN_HOSTS]
         hosts.extend(configured_hosts)
-        hosts.extend(fallback_hosts)
 
         unique_hosts: list[str] = []
         seen: set[str] = set()
