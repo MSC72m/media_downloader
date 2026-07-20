@@ -935,7 +935,11 @@ class ThemeConfig(BaseModel):
                 "border_width": 0,
                 "fg_color": scheme["button_color"],
                 "hover_color": scheme["button_hover_color"],
-                "text_color": text_color,
+                # White reads with high contrast on the saturated accent fills
+                # used for buttons across all themes (accessibility feedback:
+                # the previous theme text colour was low-contrast on coloured
+                # buttons, especially the red/disabled states).
+                "text_color": "#FFFFFF",
             },
             "CTkEntry": {
                 "corner_radius": 12,
