@@ -241,28 +241,24 @@ class TestSpotifyDownloader:
             assert "id" in metadata
             assert "tracks" not in metadata
 
-    @patch("src.services.spotify.downloader.BeautifulSoup")
     @patch("src.services.spotify.downloader.requests.get")
-    def test_get_metadata_playlist(self, mock_get, mock_bs4):
+    def test_get_metadata_playlist(self, mock_get):
         """Test get metadata for playlist (with tracks)."""
+        import json as _json
+
         mock_response = Mock()
         mock_response.json.return_value = {
             "title": "Test Playlist",
             "thumbnail_url": "https://example.com/thumb.jpg",
         }
         mock_response.status_code = 200
-        mock_response.content = (
-            b'<div role="row"><a>Track 1</a></div><div role="row"><a>Track 2</a></div>'
+        _data = {"trackList": [{"title": "Track 1", "subtitle": ""}, {"title": "Track 2", "subtitle": ""}]}
+        mock_response.text = (
+            '<script id="__NEXT_DATA__" type="application/json">'
+            + _json.dumps(_data)
+            + "</script>"
         )
         mock_get.return_value = mock_response
-
-        row_one = Mock()
-        row_one.find.return_value = Mock(get_text=Mock(return_value="Track 1"))
-        row_two = Mock()
-        row_two.find.return_value = Mock(get_text=Mock(return_value="Track 2"))
-        mock_soup = Mock()
-        mock_soup.find_all.return_value = [row_one, row_two]
-        mock_bs4.return_value = mock_soup
 
         downloader = SpotifyDownloader(
             error_handler=MockErrorNotifier(),

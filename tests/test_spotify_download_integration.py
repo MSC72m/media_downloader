@@ -258,27 +258,29 @@ class TestSpotifyPlaylistDownload:
         self.handler = SpotifyHandler(message_queue=MockMessageQueue())
 
     @patch("src.services.spotify.downloader.requests.get")
-    @patch("src.services.spotify.downloader.BeautifulSoup")
-    def test_extract_metadata_from_playlist(self, mock_bs4, mock_get):
+    def test_extract_metadata_from_playlist(self, mock_get):
         """Verify metadata is extracted from playlist URL."""
+        import json as _json
+
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "title": "My Awesome Playlist",
             "thumbnail_url": "https://example.com/playlist.jpg",
         }
-        mock_response.content = b"<html></html>"
+        _data = {
+            "trackList": [
+                {"title": "Track One", "subtitle": ""},
+                {"title": "Track Two", "subtitle": ""},
+                {"title": "Track Three", "subtitle": ""},
+            ]
+        }
+        mock_response.text = (
+            '<script id="__NEXT_DATA__" type="application/json">'
+            + _json.dumps(_data)
+            + "</script>"
+        )
         mock_get.return_value = mock_response
-
-        row_one = Mock()
-        row_one.find.return_value = Mock(get_text=Mock(return_value="Track One"))
-        row_two = Mock()
-        row_two.find.return_value = Mock(get_text=Mock(return_value="Track Two"))
-        row_three = Mock()
-        row_three.find.return_value = Mock(get_text=Mock(return_value="Track Three"))
-        mock_soup = Mock()
-        mock_soup.find_all.return_value = [row_one, row_two, row_three]
-        mock_bs4.return_value = mock_soup
 
         url = "https://open.spotify.com/playlist/abc123"
         metadata = self.downloader.get_metadata(url)
@@ -295,22 +297,20 @@ class TestSpotifyPlaylistDownload:
 
     @patch("src.services.spotify.downloader.requests.get")
     @patch("src.services.spotify.downloader.yt_dlp.YoutubeDL")
-    @patch("src.services.spotify.downloader.BeautifulSoup")
-    def test_playlist_tracks_get_youtube_matches(self, mock_bs4, mock_ydl_class, mock_get):
+    def test_playlist_tracks_get_youtube_matches(self, mock_ydl_class, mock_get):
         """Verify playlist tracks get YouTube matches."""
+        import json as _json
+
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"title": "Playlist", "thumbnail_url": "http://thumb.jpg"}
-        mock_response.content = b"<html></html>"
+        _data = {"trackList": [{"title": "Track One", "subtitle": ""}, {"title": "Track Two", "subtitle": ""}]}
+        mock_response.text = (
+            '<script id="__NEXT_DATA__" type="application/json">'
+            + _json.dumps(_data)
+            + "</script>"
+        )
         mock_get.return_value = mock_response
-
-        row_one = Mock()
-        row_one.find.return_value = Mock(get_text=Mock(return_value="Track One"))
-        row_two = Mock()
-        row_two.find.return_value = Mock(get_text=Mock(return_value="Track Two"))
-        mock_soup = Mock()
-        mock_soup.find_all.return_value = [row_one, row_two]
-        mock_bs4.return_value = mock_soup
 
         mock_ydl = MagicMock()
         mock_ydl.extract_info.return_value = {
@@ -334,24 +334,26 @@ class TestSpotifyPlaylistDownload:
 
     @patch("src.services.spotify.downloader.requests.get")
     @patch("src.services.spotify.downloader.yt_dlp.YoutubeDL")
-    @patch("src.services.spotify.downloader.BeautifulSoup")
-    def test_playlist_select_tracks_individually(self, mock_bs4, mock_ydl_class, mock_get):
+    def test_playlist_select_tracks_individually(self, mock_ydl_class, mock_get):
         """Verify playlist allows individual track selection."""
+        import json as _json
+
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"title": "Playlist", "thumbnail_url": "http://thumb.jpg"}
-        mock_response.content = b"<html></html>"
+        _data = {
+            "trackList": [
+                {"title": "Track One", "subtitle": ""},
+                {"title": "Track Two", "subtitle": ""},
+                {"title": "Track Three", "subtitle": ""},
+            ]
+        }
+        mock_response.text = (
+            '<script id="__NEXT_DATA__" type="application/json">'
+            + _json.dumps(_data)
+            + "</script>"
+        )
         mock_get.return_value = mock_response
-
-        row_one = Mock()
-        row_one.find.return_value = Mock(get_text=Mock(return_value="Track One"))
-        row_two = Mock()
-        row_two.find.return_value = Mock(get_text=Mock(return_value="Track Two"))
-        row_three = Mock()
-        row_three.find.return_value = Mock(get_text=Mock(return_value="Track Three"))
-        mock_soup = Mock()
-        mock_soup.find_all.return_value = [row_one, row_two, row_three]
-        mock_bs4.return_value = mock_soup
 
         mock_ydl = MagicMock()
         mock_ydl.extract_info.return_value = {
@@ -496,27 +498,29 @@ class TestSpotifyUserInterface:
         assert download.audio_only is True
 
     @patch("src.services.spotify.downloader.requests.get")
-    @patch("src.services.spotify.downloader.BeautifulSoup")
-    def test_dialog_playlist_select_multiple_tracks(self, mock_bs4, mock_get):
+    def test_dialog_playlist_select_multiple_tracks(self, mock_get):
         """Verify dialog allows selecting multiple tracks from playlist."""
+        import json as _json
+
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "title": "My Playlist",
             "thumbnail_url": "https://example.com/pl.jpg",
         }
-        mock_response.content = b"<html></html>"
+        _data = {
+            "trackList": [
+                {"title": "Song One", "subtitle": ""},
+                {"title": "Song Two", "subtitle": ""},
+                {"title": "Song Three", "subtitle": ""},
+            ]
+        }
+        mock_response.text = (
+            '<script id="__NEXT_DATA__" type="application/json">'
+            + _json.dumps(_data)
+            + "</script>"
+        )
         mock_get.return_value = mock_response
-
-        row_one = Mock()
-        row_one.find.return_value = Mock(get_text=Mock(return_value="Song One"))
-        row_two = Mock()
-        row_two.find.return_value = Mock(get_text=Mock(return_value="Song Two"))
-        row_three = Mock()
-        row_three.find.return_value = Mock(get_text=Mock(return_value="Song Three"))
-        mock_soup = Mock()
-        mock_soup.find_all.return_value = [row_one, row_two, row_three]
-        mock_bs4.return_value = mock_soup
 
         downloader = SpotifyDownloader(
             error_handler=MockErrorNotifier(), file_service=MockFileService(), config=get_config()
@@ -707,18 +711,16 @@ class TestSpotifyErrorHandling:
         assert metadata["type"] == "unknown"
 
     @patch("src.services.spotify.downloader.requests.get")
-    @patch("src.services.spotify.downloader.BeautifulSoup")
-    def test_handle_empty_playlist(self, mock_bs4, mock_get):
+    def test_handle_empty_playlist(self, mock_get):
         """Verify empty playlists are handled correctly."""
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"title": "Empty Playlist"}
-        mock_response.content = b"<html></html>"
+        # Embed page with no track list -> zero tracks.
+        mock_response.text = (
+            '<script id="__NEXT_DATA__" type="application/json">{"trackList": []}</script>'
+        )
         mock_get.return_value = mock_response
-
-        mock_soup = Mock()
-        mock_soup.find_all.return_value = []
-        mock_bs4.return_value = mock_soup
 
         downloader = SpotifyDownloader(
             error_handler=MockErrorNotifier(), file_service=MockFileService(), config=get_config()

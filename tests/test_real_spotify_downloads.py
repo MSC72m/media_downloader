@@ -104,13 +104,13 @@ class TestRealSpotifyDownloads:
         assert metadata["thumbnail"] == "https://example.com/taylor.jpg"
 
     @patch("src.services.spotify.downloader.requests.get")
-    @patch("src.services.spotify.downloader.BeautifulSoup")
     def test_spotify_playlist_metadata_extraction(
         self,
-        mock_bs4,
         mock_get,
         spotify_downloader: SpotifyDownloader,
     ):
+        import json as _json
+
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.raise_for_status.return_value = None
@@ -118,16 +118,13 @@ class TestRealSpotifyDownloads:
             "title": "My Favorite Songs",
             "thumbnail_url": "https://example.com/playlist.jpg",
         }
-        mock_response.content = b"<html></html>"
+        _data = {"trackList": [{"title": "Track 1", "subtitle": ""}, {"title": "Track 2", "subtitle": ""}]}
+        mock_response.text = (
+            '<script id="__NEXT_DATA__" type="application/json">'
+            + _json.dumps(_data)
+            + "</script>"
+        )
         mock_get.return_value = mock_response
-
-        row_one = Mock()
-        row_one.find.return_value = Mock(get_text=Mock(return_value="Track 1"))
-        row_two = Mock()
-        row_two.find.return_value = Mock(get_text=Mock(return_value="Track 2"))
-        mock_soup = Mock()
-        mock_soup.find_all.return_value = [row_one, row_two]
-        mock_bs4.return_value = mock_soup
 
         metadata = spotify_downloader.get_metadata(
             "https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M"
