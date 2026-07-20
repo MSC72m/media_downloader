@@ -119,3 +119,51 @@ class WindowCenterMixin:
         y = max(0, min(y, screen_height - window_height))
 
         self.geometry(f"+{x}+{y}")
+
+    def apply_min_size(self, min_width: int, min_height: int, screen_factor: float = 0.9) -> None:
+        """Set ``minsize`` clamped so it never exceeds the usable screen.
+
+        Tk enforces ``minsize`` over any geometry request, so a minimum larger
+        than the display makes the window impossible to fit and pushes its
+        lower content (e.g. the Download button) off-screen. Always clamp.
+        """
+        with contextlib.suppress(Exception):
+            screen_w = self.winfo_screenwidth()  # type: ignore[attr-defined]
+            screen_h = self.winfo_screenheight()  # type: ignore[attr-defined]
+            self.minsize(  # type: ignore[attr-defined]
+                min(min_width, int(screen_w * screen_factor)),
+                min(min_height, int(screen_h * screen_factor)),
+            )
+
+    def apply_screen_aware_geometry(
+        self,
+        preferred_width: int,
+        preferred_height: int,
+        min_width: int,
+        min_height: int,
+        screen_factor: float = 0.9,
+    ) -> None:
+        """Size, constrain and centre a window so it always fits the display.
+
+        Single source of truth for dialog sizing. Sets a screen-clamped
+        ``minsize`` FIRST, then applies a preferred geometry (also clamped to
+        ``screen_factor`` of the screen) and centres. Callers must not hand-roll
+        ``min(fixed, screen*factor)`` maths — use this instead.
+        """
+        if not isinstance(self, tk.Tk | tk.Toplevel):
+            raise TypeError("WindowCenterMixin must be used with Tk or Toplevel windows")
+
+        with contextlib.suppress(Exception):
+            self.update_idletasks()
+
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+        max_w = int(screen_w * screen_factor)
+        max_h = int(screen_h * screen_factor)
+
+        self.apply_min_size(min_width, min_height, screen_factor)
+
+        width = max(min(preferred_width, max_w), min(min_width, max_w))
+        height = max(min(preferred_height, max_h), min(min_height, max_h))
+        # center_window re-clamps to screen and positions the window.
+        self.center_window(width, height)

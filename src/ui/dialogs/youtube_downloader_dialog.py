@@ -67,35 +67,24 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
 
         self.title("YouTube Video Downloader")
 
-        # Screen-aware geometry
-        screen_w = self.winfo_screenwidth()
-        screen_h = self.winfo_screenheight()
-        init_w = min(int(screen_w * 0.8), 800)
-        init_h = min(int(screen_h * 0.9), 1000)
-        self.geometry(f"{init_w}x{init_h}")
         self.resizable(True, True)
-        self.minsize(700, 800)
 
         self.transient(parent)
         self.withdraw()  # Hide immediately — shown only after metadata fetch
 
         self.attributes("-topmost", True)
+        # Single source of truth for sizing; min kept small enough to fit
+        # laptops / HiDPI displays — content scrolls inside a CTkScrollableFrame.
         try:
-            self.update_idletasks()
+            self.apply_screen_aware_geometry(
+                preferred_width=800,
+                preferred_height=1000,
+                min_width=560,
+                min_height=520,
+            )
         except Exception as e:
-            logger.warning(f"Could not update idletasks in __init__: {e}")
+            logger.warning(f"Could not size window: {e}")
         self.attributes("-topmost", False)
-
-        try:
-            self.center_window()
-        except Exception as e:
-            logger.warning(f"Could not center window: {e}")
-            with contextlib.suppress(Exception):
-                screen_w = self.winfo_screenwidth()
-                screen_h = self.winfo_screenheight()
-                w = min(int(screen_w * 0.8), 800)
-                h = min(int(screen_h * 0.9), 1000)
-                self.geometry(f"{w}x{h}")
 
         self.after(10, self._start_metadata_fetch)
 
@@ -547,7 +536,7 @@ class YouTubeDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
     def _create_widgets(self) -> None:
         """Create dialog widgets with scrolling support."""
         self.title("YouTube Downloader")
-        self.minsize(700, 800)
+        self.apply_min_size(560, 520)
 
         self.scrollable_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
         self.scrollable_frame.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
