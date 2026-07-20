@@ -26,8 +26,11 @@ import customtkinter as ctk  # noqa: E402
 # This MUST happen before any CTk widget is created.
 ctk.set_default_color_theme("blue")
 ctk.set_appearance_mode("System")
-ctk.set_widget_scaling(1.0)
-ctk.set_window_scaling(1.0)
+# NOTE: do NOT force widget/window scaling to 1.0. CustomTkinter auto-detects
+# the OS DPI and scales widgets + fonts accordingly; pinning to 1.0 disabled
+# HiDPI/Retina scaling and made the UI render tiny. Sizes/fonts come from
+# src.ui.tokens in logical px and CTk applies the DPI factor. (Windows process
+# DPI-awareness is already set above via set_windows_dpi_awareness().)
 
 from src.core import get_application_orchestrator  # noqa: E402
 from src.core.config import AppConfig, get_config  # noqa: E402
@@ -37,7 +40,6 @@ from src.ui.components.concurrent_downloads_selector import (  # noqa: E402
 )
 from src.ui.components.download_list import DownloadListView  # noqa: E402
 from src.ui.components.main_action_buttons import ActionButtonBar  # noqa: E402
-from src.ui.components.options_bar import OptionsBar  # noqa: E402
 from src.ui.components.status_bar import StatusBar  # noqa: E402
 from src.ui.components.theme_switcher import ThemeSwitcher  # noqa: E402
 from src.ui.components.url_entry import URLEntryFrame  # noqa: E402
@@ -289,8 +291,6 @@ class MediaDownloaderApp(ctk.CTk):
             theme_manager=self.theme_manager,
         )
 
-        self.options_bar = OptionsBar(self.main_frame, theme_manager=self.theme_manager)
-
         self.download_list = DownloadListView(
             self.main_frame,
             on_selection_change=lambda sel: self.action_buttons.update_button_states(
@@ -331,7 +331,6 @@ class MediaDownloaderApp(ctk.CTk):
         logger.info("[MAIN_APP] Passing UI components to orchestrator")
         self.orchestrator.set_ui_components(
             url_entry=self.url_entry,
-            options_bar=self.options_bar,
             download_list=self.download_list,
             action_buttons=self.action_buttons,
             status_bar=self.status_bar,
