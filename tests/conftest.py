@@ -143,7 +143,9 @@ class MockField:
     def __init__(self, default=None, default_factory=None, description=None, **kwargs) -> None:
         # Store the actual value that should be returned when the field is accessed
         resolved_value = (
-            default_factory() if default_factory is not None and callable(default_factory) else default_factory
+            default_factory()
+            if default_factory is not None and callable(default_factory)
+            else default_factory
             if default_factory is not None
             else default
         )
