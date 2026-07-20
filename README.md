@@ -26,7 +26,7 @@ A cross-platform desktop application for downloading media from 8 platforms — 
 | Platform | Content Types | Features |
 |----------|--------------|----------|
 | **YouTube** | Videos, Playlists, Shorts, Music | Quality selection (144p–8K), audio-only extraction, subtitle downloads, automatic cookie generation for age-restricted content |
-| **Instagram** | Posts, Reels | Browser-based authentication, caption preservation, carousel support |
+| **Instagram** | Posts, Reels | Automatic session/cookie authentication (imported from your logged-in browser), caption preservation, carousel support |
 | **Twitter/X** | Tweets | Image and video extraction from any tweet |
 | **Pinterest** | Pins | High-quality image retrieval with smart file naming |
 | **SoundCloud** | Tracks, Sets | Best available audio, metadata and thumbnails, playlist support (free tracks only) |
@@ -283,10 +283,14 @@ Launch with: `launchctl load ~/Library/LaunchAgents/com.msc72m.mediadownloader.p
 
 #### Instagram
 
-- **Authentication required**: First Instagram URL will prompt authentication window
-- After successful authentication, session is saved and reused for subsequent downloads
-- Supports posts and reels
-- Captions are preserved when available
+- **No username/password login**: Instagram blocks scripted credential logins, so Media Downloader never asks for your Instagram password.
+- **Public posts** download directly with no setup.
+- **Private or login-gated content** requires an existing logged-in session, resolved automatically in this order:
+  1. **Browser cookies** — if you are logged in to Instagram in a supported browser (Chrome, Firefox, Edge, Brave, and others), your session cookies are imported automatically. This reuses the same browser-cookie subsystem as YouTube.
+  2. **Saved session file** — alternatively, run `instaloader --login=YOUR_USERNAME` once and copy the generated `session-YOUR_USERNAME` file into the `instagram` folder of the app's cookie storage directory (`~/.media_downloader/instagram/` by default).
+- Once a session is imported it is saved and reused for subsequent downloads.
+- If login is required but no browser session or session file is found, the download fails with a clear message explaining both options above.
+- Supports posts and reels; captions are preserved when available.
 
 #### Twitter/X
 
@@ -368,7 +372,7 @@ Edit the config file directly or use the application's UI to change settings. Ch
 - **Twitter Spaces** — Audio spaces are not currently supported
 - **SoundCloud Premium** — Only free tracks can be downloaded (Go+ subscription tracks are blocked by SoundCloud)
 - **Spotify Audio** — Audio is sourced from YouTube, so quality depends on YouTube availability
-- **Instagram Auth** — First Instagram download requires browser-based authentication
+- **Instagram Auth** — Private/login-gated content needs a logged-in browser session or a saved `instaloader` session file; public posts work without setup (no password login)
 - **macOS Desktop Shortcut** — No `.app` bundle provided; see [Creating Desktop Shortcuts](#creating-desktop-shortcuts) for manual setup
 - **Windows SmartScreen** — The installer is unsigned; see [Windows Installer](#option-1-windows-installer-windows-only--recommended) for how to bypass
 - **Windows ARM64** — Only the ARM64 installer works on ARM devices (x64 installer requires emulation)
@@ -395,10 +399,11 @@ playwright install chromium
 
 ### Authentication Failures (Instagram)
 
-- Authentication window appears automatically when adding first Instagram URL
-- Check credentials are correct
-- Wait for authentication to complete before adding more URLs
-- Session is saved after successful authentication
+- Media Downloader does not use username/password login (Instagram blocks it) — you are never asked for a password.
+- Public posts download without any setup.
+- For private/login-gated content, make sure you are logged in to Instagram in a supported browser (Chrome, Firefox, Edge, Brave, etc.); the app imports your session cookies automatically.
+- Alternatively, run `instaloader --login=YOUR_USERNAME` and copy the generated `session-YOUR_USERNAME` file into `~/.media_downloader/instagram/`.
+- Once a session is imported it is saved and reused automatically.
 
 ### Download Errors
 
