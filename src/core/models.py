@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
 from .config import get_config
+from .enums.compat import StrEnum
 from .enums.download_status import DownloadStatus
 from .enums.events import DownloadEvent
 from .enums.service_type import ServiceType
