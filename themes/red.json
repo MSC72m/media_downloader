@@ -1,6 +1,6 @@
 {
   "name": "red",
-  "emoji": "\ud83d\udd34",
+  "emoji": "🔴",
   "light": {
     "fg_color": [
       "#F8D7DA",
@@ -43,7 +43,8 @@
     "status_active": "#DC3545",
     "status_pending": "#6B7280",
     "status_warning": "#B45309",
-    "surface_overlay": "#FFFFFF"
+    "surface_overlay": "#FFFFFF",
+    "focus_ring": "#DC3545"
   },
   "dark": {
     "fg_color": [
@@ -87,6 +88,7 @@
     "status_active": "#DC3545",
     "status_pending": "#9AA0A6",
     "status_warning": "#F59E0B",
-    "surface_overlay": "#444444"
+    "surface_overlay": "#444444",
+    "focus_ring": "#DC3545"
   }
 }

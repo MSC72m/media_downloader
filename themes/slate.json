@@ -1,6 +1,6 @@
 {
   "name": "slate",
-  "emoji": "\u26ab",
+  "emoji": "⚫",
   "light": {
     "fg_color": [
       "#F8FAFC",
@@ -43,7 +43,8 @@
     "status_active": "#64748B",
     "status_pending": "#6B7280",
     "status_warning": "#B45309",
-    "surface_overlay": "#FFFFFF"
+    "surface_overlay": "#FFFFFF",
+    "focus_ring": "#64748B"
   },
   "dark": {
     "fg_color": [
@@ -87,6 +88,7 @@
     "status_active": "#64748B",
     "status_pending": "#9AA0A6",
     "status_warning": "#F59E0B",
-    "surface_overlay": "#444444"
+    "surface_overlay": "#444444",
+    "focus_ring": "#64748B"
   }
 }

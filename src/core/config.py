@@ -1189,7 +1189,7 @@ def get_config() -> AppConfig:
     Returns:
         The application configuration instance
     """
-    global _config_instance  # noqa: PLW0603
+    global _config_instance
     if _config_instance is None:
         _config_instance = AppConfig()
     return _config_instance
@@ -1201,11 +1201,11 @@ def set_config(config: AppConfig) -> None:
     Args:
         config: The configuration instance to set
     """
-    global _config_instance  # noqa: PLW0603
+    global _config_instance
     _config_instance = config
 
 
 def reset_config() -> None:
     """Reset the configuration instance (mainly for testing)."""
-    global _config_instance  # noqa: PLW0603
+    global _config_instance
     _config_instance = None

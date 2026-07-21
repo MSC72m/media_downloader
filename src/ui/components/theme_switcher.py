@@ -8,6 +8,7 @@ import customtkinter as ctk
 from src.core.enums.appearance_mode import AppearanceMode
 from src.core.enums.theme_event import ThemeEvent
 from src.core.themes import get_available_themes
+from src.ui.utils.normalize_color import normalize_color
 from src.ui.utils.theme_manager import ThemeManager, get_theme_manager
 from src.utils.logger import get_logger
 
@@ -41,14 +42,14 @@ class ThemeSwitcher(ctk.CTkFrame):
             text="Dark" if is_dark else "Light",
             command=self._on_appearance_toggle,
             font=("Roboto", 11),
-            width=90,
+            width=65,
         )
         if is_dark:
             self.appearance_switch.select()
-        self.appearance_switch.grid(row=0, column=0, padx=(0, 15))
+        self.appearance_switch.grid(row=0, column=0, padx=(0, 8))
 
-        self.color_label = ctk.CTkLabel(container, text="Theme:", font=("Roboto", 11))
-        self.color_label.grid(row=0, column=1, padx=(0, 5), sticky="w")
+        self.color_label = ctk.CTkLabel(container, text="Accent:", font=("Roboto", 11))
+        self.color_label.grid(row=0, column=1, padx=(0, 3), sticky="w")
 
         # Build dropdown values dynamically from discovered theme JSON files
         emoji_map = _build_emoji_map()
@@ -72,8 +73,8 @@ class ThemeSwitcher(ctk.CTkFrame):
             values=color_values,
             command=self._on_color_change,
             font=("Roboto", 11),
-            width=130,
-            height=30,
+            width=100,
+            height=28,
             dropdown_font=("Roboto", 11),
         )
         self.color_dropdown.set(current_display)
@@ -99,21 +100,12 @@ class ThemeSwitcher(ctk.CTkFrame):
             entry.bind("<Control-a>", prevent_selection)
             entry.bind("<Button-3>", prevent_selection)
 
-    @staticmethod
-    def _normalize_color(color):
-        """Extract a single color string from a theme color value (may be list/tuple)."""
-        if isinstance(color, list | tuple) and len(color) > 0:
-            return color[0] if isinstance(color[0], str) else str(color[0])
-        if not isinstance(color, str):
-            return str(color)
-        return color
-
     def _apply_theme_colors(self) -> None:
         theme_json = self._theme_manager.get_theme_json()
 
         if button_config := theme_json.get("CTkButton", {}):
-            button_color = self._normalize_color(button_config.get("fg_color"))
-            hover_color = self._normalize_color(button_config.get("hover_color"))
+            button_color = normalize_color(button_config.get("fg_color"))
+            hover_color = normalize_color(button_config.get("hover_color"))
 
             self.appearance_switch.configure(
                 progress_color=button_color,
@@ -122,10 +114,10 @@ class ThemeSwitcher(ctk.CTkFrame):
             )
 
         if (entry_config := theme_json.get("CTkEntry", {})) and button_config:
-            fg_color = self._normalize_color(entry_config.get("fg_color"))
-            border_color = self._normalize_color(entry_config.get("border_color"))
-            button_color = self._normalize_color(button_config.get("fg_color"))
-            hover_color = self._normalize_color(button_config.get("hover_color"))
+            fg_color = normalize_color(entry_config.get("fg_color"))
+            border_color = normalize_color(entry_config.get("border_color"))
+            button_color = normalize_color(button_config.get("fg_color"))
+            hover_color = normalize_color(button_config.get("hover_color"))
 
             self.color_dropdown.configure(
                 fg_color=fg_color,
@@ -135,7 +127,7 @@ class ThemeSwitcher(ctk.CTkFrame):
             )
 
         if label_config := theme_json.get("CTkLabel", {}):
-            text_color = self._normalize_color(label_config.get("text_color"))
+            text_color = normalize_color(label_config.get("text_color"))
             self.color_label.configure(text_color=text_color)
 
     def _on_appearance_toggle(self) -> None:

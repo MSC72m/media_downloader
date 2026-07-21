@@ -1,6 +1,6 @@
 {
   "name": "lime",
-  "emoji": "\ud83c\udf48",
+  "emoji": "🍈",
   "light": {
     "fg_color": [
       "#F0FFF0",
@@ -43,7 +43,8 @@
     "status_active": "#84CC16",
     "status_pending": "#6B7280",
     "status_warning": "#B45309",
-    "surface_overlay": "#FFFFFF"
+    "surface_overlay": "#FFFFFF",
+    "focus_ring": "#84CC16"
   },
   "dark": {
     "fg_color": [
@@ -87,6 +88,7 @@
     "status_active": "#84CC16",
     "status_pending": "#9AA0A6",
     "status_warning": "#F59E0B",
-    "surface_overlay": "#444444"
+    "surface_overlay": "#444444",
+    "focus_ring": "#84CC16"
   }
 }

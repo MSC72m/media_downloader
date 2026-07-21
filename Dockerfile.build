@@ -1,0 +1,59 @@
+# Dockerfile.build — Test Linux build locally using cached python:3.13-slim
+# Usage:
+#   docker build --platform linux/amd64 -f Dockerfile.build -t media-downloader-build .
+#   docker run --rm media-downloader-build
+
+FROM --platform=linux/amd64 python:3.13-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+
+# Install minimal system deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    binutils \
+    curl \
+    tar \
+    xz-utils \
+    file \
+    python3-tk \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy project files
+COPY pyproject.toml uv.lock ./
+COPY src/ src/
+COPY scripts/ scripts/
+COPY media_downloader_linux.spec ./
+COPY themes/ themes/
+COPY assets/ assets/
+COPY hooks/ hooks/
+
+# Create fake ffmpeg binary
+RUN mkdir -p bin && touch bin/ffmpeg && chmod +x bin/ffmpeg
+
+# Install uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+
+ENV PATH="/root/.local/bin:${PATH}"
+
+# Install all project deps via uv
+RUN uv sync --frozen 2>&1
+
+# Build binary
+RUN echo "=== Starting Linux build ===" && \
+    bash scripts/build_linux.sh 2>&1 && \
+    echo "=== Build complete ==="
+
+# Verify binary
+RUN echo "=== Verifying binary ===" && \
+    if [ -f dist/MediaDownloader/MediaDownloader ]; then \
+        file dist/MediaDownloader/MediaDownloader && \
+        ls -lh dist/MediaDownloader/; \
+    else \
+        echo "ERROR: Binary not found!"; \
+        ls -la dist/ 2>/dev/null || true; \
+        exit 1; \
+    fi
+
+CMD ["echo", "All Linux build tests passed"]

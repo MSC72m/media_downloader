@@ -1,7 +1,10 @@
 """Pytest configuration and mocking for testing without GUI dependencies."""
 
 import os
+import shutil
+import socket
 import sys
+import tempfile
 from types import ModuleType
 from typing import Any
 from unittest.mock import MagicMock, Mock
@@ -10,6 +13,11 @@ import pytest
 
 # Add src to path for all tests
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+
+# Early check: --run-network in CLI args.
+# This MUST run before any sys.modules mocking because it controls
+# whether network dependencies (requests, yt-dlp, instaloader) are mocked.
+_RUN_NETWORK = "--run-network" in sys.argv
 
 # ================================
 # MOCK CLASSES - Define early before use
@@ -306,14 +314,15 @@ mock_filedialog_module.askopenfilename = lambda **kwargs: ""
 mock_filedialog_module.askdirectory = lambda **kwargs: ""
 sys.modules["tkinter.filedialog"] = mock_filedialog_module
 sys.modules["customtkinter"] = mock_ctk
-sys.modules["yt_dlp"] = mock_yt_dlp_module
-sys.modules["yt_dlp.utils"] = mock_yt_dlp_utils
-# Don't mock pydantic - we use the real pydantic in our code
-# sys.modules["pydantic"] = mock_pydantic
 
-# Mock other external dependencies
-sys.modules["requests"] = Mock()
-sys.modules["instaloader"] = Mock()
+# Conditionally mock network dependencies so --run-network tests get real code paths.
+if not _RUN_NETWORK:
+    sys.modules["yt_dlp"] = mock_yt_dlp_module
+    sys.modules["yt_dlp.utils"] = mock_yt_dlp_utils
+    sys.modules["requests"] = Mock()
+    sys.modules["instaloader"] = Mock()
+
+# Always mock PIL (image processing, not needed for unit tests).
 sys.modules["PIL"] = Mock()
 sys.modules["PIL.Image"] = Mock()
 sys.modules["PIL.ImageTk"] = Mock()
@@ -347,17 +356,192 @@ def mock_yt_dlp_fixture():
 
 
 # ================================
-# PYTEST CONFIGURATION
+# PYTEST HOOKS
 # ================================
 
 
+def pytest_addoption(parser) -> None:
+    """Register custom CLI options."""
+    parser.addoption(
+        "--run-network",
+        action="store_true",
+        default=False,
+        help="run tests that require real network access "
+        "(bypasses module-level mocks for requests, yt-dlp, instaloader)",
+    )
+
+
 def pytest_configure(config) -> None:
-    """Configure pytest with custom options."""
+    """Configure pytest with custom options and markers."""
     config.addinivalue_line(
         "markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')"
     )
     config.addinivalue_line("markers", "integration: marks tests as integration tests")
     config.addinivalue_line("markers", "unit: marks tests as unit tests")
+    config.addinivalue_line(
+        "markers",
+        "network: marks tests that require real network access "
+        "(run with --run-network to execute)",
+    )
+
+
+# ================================
+# NETWORK HELPERS
+# ================================
+
+
+def skip_unless_network(
+    host: str = "8.8.8.8", port: int = 53, timeout: int = 3
+) -> None:
+    """Skip the current test if network is unreachable.
+
+    Checks connectivity to a reliable host/port. Skips gracefully so
+    CI environments without network don't report failures.
+    """
+    try:
+        socket.create_connection((host, port), timeout=timeout)
+    except OSError:
+        pytest.skip("network unavailable")
+
+
+# ================================
+# INTEGRATION TEST FIXTURES
+# ================================
+
+# Shared mock/stub classes for integration tests that don't need real services.
+
+
+class MockFileService:
+    """Stand-in file service for integration tests.
+
+    Allowed operations succeed without touching the real filesystem
+    (except for the temp directory provided by integration_temp_dir).
+    """
+
+    def ensure_directory(self, path: str) -> bool:
+        return True
+
+    def sanitize_filename(self, filename: str) -> str:
+        return filename
+
+    def clean_filename(self, filename: str) -> str:
+        return filename
+
+    def download_file(self, url: str, path: str, progress_callback=None):
+        _ = (url, path, progress_callback)
+
+        class Result:
+            success = True
+
+        return Result()
+
+    def save_text_file(self, content: str, file_path: str) -> bool:
+        _ = (content, file_path)
+        return True
+
+    def get_unique_filename(
+        self, directory: str, base_name: str, extension: str = ""
+    ) -> str:
+        return f"{directory}/{base_name}{extension}"
+
+
+class MockErrorNotifier:
+    """Stand-in error notifier for integration tests."""
+
+    def handle_service_failure(
+        self,
+        service: str,
+        operation: str,
+        error_message: str,
+        url: str = "",
+        exception: Exception | None = None,
+    ) -> None:
+        _ = (service, operation, error_message, url, exception)
+
+    def handle_exception(
+        self,
+        exception: Exception,
+        context: str = "",
+        service: str = "",
+        url: str = "",
+    ) -> None:
+        _ = (exception, context, service, url)
+
+    def show_error(self, title: str, message: str) -> None:
+        _ = (title, message)
+
+    def show_warning(self, title: str, message: str) -> None:
+        _ = (title, message)
+
+    def show_info(self, title: str, message: str) -> None:
+        _ = (title, message)
+
+    def set_message_queue(self, message_queue) -> None:
+        _ = message_queue
+
+
+@pytest.fixture
+def integration_temp_dir():
+    """Provide a temporary directory for integration test downloads."""
+    td = tempfile.mkdtemp()
+    yield td
+    shutil.rmtree(td, ignore_errors=True)
+
+
+@pytest.fixture
+def integration_config():
+    """Provide the real application config for integration tests."""
+    from src.core.config import get_config
+
+    return get_config()
+
+
+@pytest.fixture
+def integration_file_service():
+    """Provide a MockFileService for integration tests."""
+    return MockFileService()
+
+
+@pytest.fixture
+def integration_error_notifier():
+    """Provide a MockErrorNotifier for integration tests."""
+    return MockErrorNotifier()
+
+
+@pytest.fixture
+def integration_radiojavan_downloader(
+    integration_config,
+    integration_error_notifier,
+    integration_file_service,
+):
+    """Provide a wired RadioJavanDownloader for integration tests.
+
+    When --run-network is active the downloader uses real network
+    dependencies; otherwise module-level mocks are in place.
+    """
+    from src.services.radiojavan.downloader import RadioJavanDownloader
+
+    return RadioJavanDownloader(
+        error_handler=integration_error_notifier,
+        file_service=integration_file_service,
+        config=integration_config,
+    )
+
+
+@pytest.fixture
+def integration_tiktok_downloader(
+    integration_config,
+    integration_error_notifier,
+    integration_file_service,
+):
+    """Provide a wired TikTokDownloader for integration tests."""
+    from src.services.tiktok.downloader import TikTokDownloader
+
+    return TikTokDownloader(
+        error_handler=integration_error_notifier,
+        file_service=integration_file_service,
+        config=integration_config,
+    )
 
 
 # ================================

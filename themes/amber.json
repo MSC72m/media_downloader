@@ -1,6 +1,6 @@
 {
   "name": "amber",
-  "emoji": "\ud83d\udfe1",
+  "emoji": "🟡",
   "light": {
     "fg_color": [
       "#FFF8E1",
@@ -43,7 +43,8 @@
     "status_active": "#FFC107",
     "status_pending": "#6B7280",
     "status_warning": "#B45309",
-    "surface_overlay": "#FFFFFF"
+    "surface_overlay": "#FFFFFF",
+    "focus_ring": "#FFC107"
   },
   "dark": {
     "fg_color": [
@@ -87,6 +88,7 @@
     "status_active": "#FFC107",
     "status_pending": "#9AA0A6",
     "status_warning": "#F59E0B",
-    "surface_overlay": "#444444"
+    "surface_overlay": "#444444",
+    "focus_ring": "#FFC107"
   }
 }

@@ -40,9 +40,6 @@ class ThemeManager(EventBus[ThemeEvent]):
 
         self._apply_theme(appearance, color)
 
-        if self._root:
-            self._root.update()
-
         if persist and self.config.ui.theme.theme_persistence:
             self._persist_theme()
 
@@ -90,7 +87,7 @@ def get_theme_manager(
     root: Any | None = None,
     config: AppConfig = get_config(),
 ) -> ThemeManager:
-    global _theme_manager_instance  # noqa: PLW0603
+    global _theme_manager_instance
 
     if _theme_manager_instance is None:
         _theme_manager_instance = ThemeManager(root, config=config)

@@ -2,13 +2,12 @@ import re
 from collections.abc import Mapping
 
 from src.core.config import AppConfig, get_config
-from src.core.interfaces import IErrorNotifier, IMessageQueue, UIContextProtocol
+from src.core.interfaces import IErrorNotifier, IMessageQueue
 from src.core.type_defs import JSONDict, JSONValue
-from src.services.detection.base_handler import BaseHandler, UICallback
+from src.services.detection.base_handler import BaseHandler
 from src.services.detection.link_detector import (
     auto_register_handler,
 )
-from src.utils import type_helpers
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -50,50 +49,6 @@ class TikTokHandler(BaseHandler):
         """Process TikTok download."""
         logger.info(f"[TIKTOK_HANDLER] Processing TikTok download: {url}")
         return True
-
-    def get_ui_callback(self) -> UICallback:
-        """Get UI callback for TikTok URLs."""
-        logger.info("[TIKTOK_HANDLER] Getting UI callback")
-
-        def tiktok_callback(url: str, ui_context: UIContextProtocol) -> None:
-            """Callback for handling TikTok URLs."""
-            logger.info(f"[TIKTOK_HANDLER] TikTok callback called with URL: {url}")
-
-            root = type_helpers.get_root(ui_context)
-
-            if not (
-                download_callback := type_helpers.get_platform_callback(ui_context, "tiktok")
-            ) and not (
-                download_callback := type_helpers.get_platform_callback(ui_context, "generic")
-            ):
-                error_msg = "No download callback found"
-                logger.error(f"[TIKTOK_HANDLER] {error_msg}")
-                if self.error_handler:
-                    self.error_handler.handle_service_failure(
-                        "TikTok Handler", "callback", error_msg, url
-                    )
-                return
-
-            def process_tiktok_download() -> None:
-                try:
-                    logger.info(f"[TIKTOK_HANDLER] Calling download callback for: {url}")
-                    download_callback(url)
-                    logger.info("[TIKTOK_HANDLER] Download callback executed")
-                except Exception as e:
-                    logger.error(
-                        f"[TIKTOK_HANDLER] Error processing TikTok download: {e}",
-                        exc_info=True,
-                    )
-                    if self.error_handler:
-                        self.error_handler.handle_exception(
-                            e, "Processing TikTok download", "TikTok"
-                        )
-
-            type_helpers.schedule_on_main_thread(root, process_tiktok_download, immediate=True)
-            logger.info("[TIKTOK_HANDLER] TikTok download scheduled")
-
-        logger.info("[TIKTOK_HANDLER] Returning TikTok callback")
-        return tiktok_callback
 
     def _detect_tiktok_type(self, url: str) -> str:
         """Detect if URL is video, user profile, etc."""

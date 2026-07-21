@@ -1,6 +1,6 @@
 {
   "name": "navy",
-  "emoji": "\u2693",
+  "emoji": "⚓",
   "light": {
     "fg_color": [
       "#E8EEF5",
@@ -43,7 +43,8 @@
     "status_active": "#1E3A5F",
     "status_pending": "#6B7280",
     "status_warning": "#B45309",
-    "surface_overlay": "#FFFFFF"
+    "surface_overlay": "#FFFFFF",
+    "focus_ring": "#1E3A5F"
   },
   "dark": {
     "fg_color": [
@@ -87,6 +88,7 @@
     "status_active": "#2E5A8F",
     "status_pending": "#9AA0A6",
     "status_warning": "#F59E0B",
-    "surface_overlay": "#35415A"
+    "surface_overlay": "#35415A",
+    "focus_ring": "#2E5A8F"
   }
 }

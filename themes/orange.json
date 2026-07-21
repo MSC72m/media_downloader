@@ -1,6 +1,6 @@
 {
   "name": "orange",
-  "emoji": "\ud83d\udfe0",
+  "emoji": "🟠",
   "light": {
     "fg_color": [
       "#FFF3E0",
@@ -43,7 +43,8 @@
     "status_active": "#FF9800",
     "status_pending": "#6B7280",
     "status_warning": "#B45309",
-    "surface_overlay": "#FFFFFF"
+    "surface_overlay": "#FFFFFF",
+    "focus_ring": "#FF9800"
   },
   "dark": {
     "fg_color": [
@@ -87,6 +88,7 @@
     "status_active": "#FF9800",
     "status_pending": "#9AA0A6",
     "status_warning": "#F59E0B",
-    "surface_overlay": "#444444"
+    "surface_overlay": "#444444",
+    "focus_ring": "#FF9800"
   }
 }

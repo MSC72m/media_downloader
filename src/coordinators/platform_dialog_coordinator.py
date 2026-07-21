@@ -12,6 +12,7 @@ from src.services.instagram.auth_manager import InstagramAuthManager
 from src.services.instagram.downloader import InstagramDownloader
 from src.services.soundcloud.downloader import SoundCloudDownloader
 from src.services.spotify.downloader import SpotifyDownloader
+from src.services.twitter.spaces import TwitterSpacesDownloader
 from src.ui.components.loading_dialog import LoadingDialog
 from src.ui.dialogs.login_dialog import LoginDialog
 from src.utils.error_helpers import extract_error_context
@@ -48,9 +49,14 @@ class TwitterDialogHandler(DialogHandler):
     def show_dialog(self, url: str, on_download_callback: Callable) -> None:
         """Show Twitter download dialog."""
         try:
+            space_id = TwitterSpacesDownloader.extract_space_id(url)
+            if space_id:
+                name = f"Twitter Space - {space_id}"
+            else:
+                name = os.path.basename(url) or "twitter_download"
             download = Download(
                 url=url,
-                name=os.path.basename(url) or "twitter_download",
+                name=name,
                 service_type="twitter",
             )
             on_download_callback(download)

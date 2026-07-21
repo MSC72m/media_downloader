@@ -3,7 +3,7 @@ import contextlib
 import importlib.util
 import queue
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
@@ -26,24 +26,22 @@ import customtkinter as ctk  # noqa: E402
 # This MUST happen before any CTk widget is created.
 ctk.set_default_color_theme("blue")
 ctk.set_appearance_mode("System")
-# NOTE: do NOT force widget/window scaling to 1.0. CustomTkinter auto-detects
-# the OS DPI and scales widgets + fonts accordingly; pinning to 1.0 disabled
-# HiDPI/Retina scaling and made the UI render tiny. Sizes/fonts come from
-# src.ui.tokens in logical px and CTk applies the DPI factor. (Windows process
-# DPI-awareness is already set above via set_windows_dpi_awareness().)
+# Cap widget scaling so Retina displays don't balloon everything.
+# CustomTkinter auto-detects OS DPI and can go as high as 1.5-1.7x on
+# Retina, which makes padded=16 render as 24-27 points — too loose.
+# Pinning to a moderate value keeps the UI compact on all screens.
+ctk.set_widget_scaling(1.15)
 
-from src.core import get_application_orchestrator  # noqa: E402
+from src.core import Download, get_application_orchestrator  # noqa: E402
 from src.core.config import AppConfig, get_config  # noqa: E402
+from src.core.enums.download_status import DownloadStatus  # noqa: E402
 from src.core.interfaces import DynamicUIContextProtocol  # noqa: E402
-from src.ui.components.concurrent_downloads_selector import (  # noqa: E402
-    ConcurrentDownloadsSelector,
-)
-from src.ui.components.download_list import DownloadListView  # noqa: E402
-from src.ui.components.main_action_buttons import ActionButtonBar  # noqa: E402
-from src.ui.components.status_bar import StatusBar  # noqa: E402
-from src.ui.components.theme_switcher import ThemeSwitcher  # noqa: E402
+from src.ui.components.download_card_list import DownloadCardList  # noqa: E402
+from src.ui.components.footer import AppFooter  # noqa: E402
+from src.ui.components.header import AppHeader  # noqa: E402
 from src.ui.components.url_entry import URLEntryFrame  # noqa: E402
 from src.ui.utils.theme_manager import get_theme_manager  # noqa: E402
+from src.ui.visual_system import GradientBackdrop, resolve_palette  # noqa: E402
 
 if TYPE_CHECKING:
     from src.application.orchestrator import ApplicationOrchestrator
@@ -198,10 +196,15 @@ class MediaDownloaderApp(ctk.CTk):
         self.orchestrator = application_orchestrator(self, config=self.config)
 
         self.theme_manager = get_theme_manager(self, config=self.config)
+        palette = resolve_palette(self.theme_manager)
+        self.configure(fg_color=palette.background_mid)
 
-        self.update()
+        self.update_idletasks()
 
-        self.main_frame = ctk.CTkFrame(self, fg_color="transparent")
+        # One real gradient canvas owns the window background.  The four
+        # production regions are direct children so spacing reveals it.
+        self.background = GradientBackdrop(self, theme_manager=self.theme_manager)
+        self.main_frame = self.background
         self._create_ui()
         self._setup_layout()
         self._setup_menu()
@@ -246,31 +249,16 @@ class MediaDownloaderApp(ctk.CTk):
             pass
 
     def _create_ui(self) -> None:
-        self.header_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent", corner_radius=0)
-        self.header_frame.grid_columnconfigure(0, weight=1)
-        self.header_frame.grid_columnconfigure(1, weight=0)
-        self.header_frame.grid_columnconfigure(2, weight=0)
-
-        app_title = self.config.ui.app_title
-        self.title_label = ctk.CTkLabel(
-            self.header_frame, text=app_title, font=("Roboto", 26, "bold")
-        )
-        self.title_label.grid(row=0, column=0, sticky="w", pady=8)
-
-        controls_frame = ctk.CTkFrame(self.header_frame, fg_color="transparent")
-        controls_frame.grid(row=0, column=1, sticky="e", pady=8)
-
-        self.theme_switcher = ThemeSwitcher(controls_frame, self.theme_manager)
-        self.theme_switcher.grid(row=0, column=0, sticky="e", pady=8, padx=(20, 0))
-
-        self.concurrent_selector = ConcurrentDownloadsSelector(
-            controls_frame,
-            theme_manager=self.theme_manager,
-            config=self.config,
-        )
-        self.concurrent_selector.grid(row=0, column=1, sticky="e", pady=8, padx=(10, 0))
+        from src.ui.components.settings_panel import SettingsPanel
 
         coord = self.orchestrator.event_coordinator
+
+        self.header_frame = AppHeader(
+            self.main_frame,
+            self.theme_manager,
+            self.config,
+            title=self.config.ui.app_title,
+        )
 
         def on_add_url(url: str, name: str) -> None:
             if not self.orchestrator.link_detector.detect_and_handle(
@@ -291,20 +279,6 @@ class MediaDownloaderApp(ctk.CTk):
             theme_manager=self.theme_manager,
         )
 
-        self.download_list = DownloadListView(
-            self.main_frame,
-            on_selection_change=lambda sel: self.action_buttons.update_button_states(
-                has_selection=len(sel) > 0,
-                has_items=len(coord.downloads.get_downloads()) > 0,
-            ),
-            theme_manager=self.theme_manager,
-        )
-
-        logger.info("[MAIN_APP] Creating ActionButtonBar")
-
-        def on_remove() -> None:
-            coord.downloads.remove_downloads(self.download_list.get_selected_indices())
-
         def on_clear() -> None:
             coord.downloads.clear_downloads()
 
@@ -315,42 +289,73 @@ class MediaDownloaderApp(ctk.CTk):
         def on_manage_files() -> None:
             coord.show_file_manager()
 
-        self.action_buttons = ActionButtonBar(
+        self.footer = AppFooter(
             self.main_frame,
-            on_remove=on_remove,
             on_clear=on_clear,
             on_download=on_download,
             on_manage_files=on_manage_files,
             theme_manager=self.theme_manager,
         )
-        logger.info("[MAIN_APP] ActionButtonBar created successfully")
 
-        self.status_bar = StatusBar(self.main_frame, theme_manager=self.theme_manager)
-        logger.info("[MAIN_APP] StatusBar created")
+        def on_remove(download: Download) -> None:
+            downloads = coord.downloads.get_downloads()
+            for index, candidate in enumerate(downloads):
+                if candidate is download or (
+                    candidate.url == download.url and candidate.name == download.name
+                ):
+                    coord.downloads.remove_downloads([index])
+                    return
 
-        logger.info("[MAIN_APP] Passing UI components to orchestrator")
+        def on_queue_summary(downloads: Sequence[Download]) -> None:
+            self.footer.update_queue(downloads)
+            active = sum(
+                item.status
+                in {DownloadStatus.PENDING, DownloadStatus.DOWNLOADING, DownloadStatus.PAUSED}
+                for item in downloads
+            )
+            self.header_frame.set_count(active, len(downloads))
+
+        self.download_list = DownloadCardList(
+            self.main_frame,
+            on_remove=on_remove,
+            on_summary=on_queue_summary,
+            theme_manager=self.theme_manager,
+        )
+
+        # Preserve the existing orchestrator component keys while presenting a
+        # single cohesive footer in the UI.
+        self.action_buttons = self.footer
+        self.status_bar = self.footer
+
+        self.settings_panel = SettingsPanel(
+            self.main_frame,
+            theme_manager=self.theme_manager,
+            config=self.config,
+        )
+        self.header_frame.settings_button.configure(command=self.settings_panel.toggle)
+
         self.orchestrator.set_ui_components(
             url_entry=self.url_entry,
             download_list=self.download_list,
-            action_buttons=self.action_buttons,
-            status_bar=self.status_bar,
+            action_buttons=self.footer,
+            status_bar=self.footer,
         )
-        logger.info("[MAIN_APP] UI components passed to orchestrator successfully")
+        logger.info("[MAIN_APP] Queue-first UI connected to orchestrator")
 
     def _setup_layout(self) -> None:
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
+        self.background.grid(row=0, column=0, sticky="nsew")
 
-        self.main_frame.grid(row=0, column=0, sticky="nsew", padx=30, pady=(20, 25))
         self.main_frame.grid_columnconfigure(0, weight=1)
-        self.main_frame.grid_rowconfigure(3, weight=1)
-        self.main_frame.grid_rowconfigure(5, weight=0)
+        self.main_frame.grid_columnconfigure(1, weight=0)
+        self.main_frame.grid_rowconfigure(2, weight=1)
 
-        self.header_frame.grid(row=0, column=0, sticky="ew", pady=(0, 35))
-        self.url_entry.grid(row=1, column=0, sticky="ew", pady=(0, 25))
-        self.download_list.grid(row=3, column=0, sticky="nsew", pady=(0, 15))
-        self.action_buttons.grid(row=4, column=0, sticky="ew", pady=(0, 10))
-        self.status_bar.grid(row=5, column=0, sticky="ew", pady=(0, 0))
+        # Four regions: compact header, link input, expanding queue, footer.
+        self.header_frame.grid(row=0, column=0, sticky="ew", padx=18, pady=(14, 8))
+        self.url_entry.grid(row=1, column=0, sticky="ew", padx=18, pady=(0, 9))
+        self.download_list.grid(row=2, column=0, sticky="nsew", padx=18, pady=(0, 9))
+        self.footer.grid(row=3, column=0, sticky="ew", padx=18, pady=(0, 14))
 
     def _setup_menu(self) -> None:
         menubar = Menu(self)

@@ -4,7 +4,7 @@
 
 A cross-platform desktop application for downloading media from 8 platforms — videos, music, podcasts, and playlists — with a modern, themeable UI.
 
-[![Version](https://img.shields.io/badge/Version-1.1.2-green.svg)](https://github.com/MSC72m/media_downloader/releases)
+[![Version](https://img.shields.io/badge/Version-1.2.0-green.svg)](https://github.com/MSC72m/media_downloader/releases)
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)]()
@@ -83,9 +83,9 @@ For `npx basedpyright ...`, install Node.js 18+ if it is not already available.
 
 The easiest way to run Media Downloader on Windows. No Python installation required.
 
-1. **Download** the latest installer from the [Releases page](https://github.com/MSC72m/media_downloader/releases/tag/v1.1.2)
-   - `MediaDownloaderSetup-1.1.2-x64.exe` for 64-bit Intel/AMD PCs
-   - `MediaDownloaderSetup-1.1.2-arm64.exe` for Windows on ARM devices
+1. **Download** the latest installer from the [Releases page](https://github.com/MSC72m/media_downloader/releases/tag/v1.2.0)
+   - `MediaDownloaderSetup-1.2.0-x64.exe` for 64-bit Intel/AMD PCs
+   - `MediaDownloaderSetup-1.2.0-arm64.exe` for Windows on ARM devices
 
 2. **Run** the installer — it will install:
    - The application (`MediaDownloader.exe`) with a Start Menu shortcut

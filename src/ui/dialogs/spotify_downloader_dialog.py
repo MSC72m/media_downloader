@@ -9,23 +9,22 @@ import customtkinter as ctk
 import PIL.Image
 import requests
 
-from src.core.config import AppConfig, get_config
+from src.core.config import AppConfig
 from src.core.enums.message_level import MessageLevel
-from src.core.enums.theme_event import ThemeEvent
 from src.core.interfaces import IErrorNotifier, IMessageQueue
 from src.core.models import Download
 from src.services.events.queue import Message
 from src.services.spotify.downloader import SpotifyDownloader
-from src.ui.utils.theme_manager import ThemeManager, get_theme_manager
 
 from ...utils.logger import get_logger
-from ...utils.window import WindowCenterMixin, close_loading_dialog
+from ...utils.window import close_loading_dialog
 from ..components.loading_dialog import LoadingDialog
+from .base_dialog import BaseDialog
 
 logger = get_logger(__name__)
 
 
-class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
+class SpotifyDownloaderDialog(BaseDialog):
     """Dialog for downloading Spotify content via YouTube matches.
 
     Follows YouTube dialog pattern for consistency:
@@ -43,12 +42,17 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         on_download: Callable[[Download], None] | None = None,
         error_handler: IErrorNotifier | None = None,
         message_queue: IMessageQueue | None = None,
-        config: AppConfig = get_config(),
-        theme_manager: ThemeManager | None = None,
+        config: AppConfig | None = None,
+        theme_manager=None,
     ) -> None:
-        super().__init__(parent)
+        super().__init__(
+            parent,
+            title="Spotify Downloader",
+            config=config,
+            theme_manager=theme_manager,
+        )
 
-        self.config = config
+        self.config = config or self._cfg
         self.url = url
         self.on_download = on_download
         self.error_handler = error_handler
@@ -70,29 +74,7 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.track_checkboxes: dict[int, ctk.BooleanVar] = {}
         self._poll_after_id = None
 
-        self._theme_manager = theme_manager or get_theme_manager()
-        self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
-
-        self.title("Spotify Downloader")
-
-        self.resizable(True, True)
-
-        self.transient(parent)
-        self.withdraw()  # Hide immediately — shown only after metadata fetch
-
         self.attributes("-topmost", True)
-        # Single source of truth for sizing; min kept small enough to fit
-        # laptops / HiDPI displays — content scrolls inside a CTkScrollableFrame.
-        try:
-            self.apply_screen_aware_geometry(
-                preferred_width=900,
-                preferred_height=950,
-                min_width=560,
-                min_height=520,
-            )
-        except Exception as e:
-            logger.warning(f"Could not size window: {e}")
-        self.attributes("-topmost", False)
 
         self.after(10, self._start_metadata_fetch)
 
@@ -914,6 +896,4 @@ class SpotifyDownloaderDialog(ctk.CTkToplevel, WindowCenterMixin):
                 self.loading_overlay.close()
         with contextlib.suppress(Exception):
             self.grab_release()
-        if self._theme_manager:
-            self._theme_manager.unsubscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
         super().destroy()

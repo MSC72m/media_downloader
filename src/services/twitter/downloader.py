@@ -14,6 +14,7 @@ from ...utils.logger import get_logger
 from ...utils.proxy import get_request_proxies
 from ..file.service import FileService
 from ..network.checker import check_site_connection
+from .spaces import TwitterSpacesDownloader
 
 logger = get_logger(__name__)
 
@@ -52,6 +53,15 @@ class TwitterDownloader(BaseDownloader):
         Returns:
             True if download was successful, False otherwise
         """
+        space_id = TwitterSpacesDownloader.extract_space_id(url)
+        if space_id:
+            spaces_dl = TwitterSpacesDownloader(
+                error_handler=self.error_handler,
+                file_service=self.file_service,
+                config=self.config,
+            )
+            return spaces_dl.download(url, save_path, progress_callback)
+
         try:
             connected, error_msg = check_site_connection(ServiceType.TWITTER)
             if not connected:

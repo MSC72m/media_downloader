@@ -69,6 +69,14 @@ class Download(BaseModel):
     error_message: str | None = None
     service_type: ServiceType | None = None
 
+    # UI-facing optional fields for rich presentation (backwards-compatible)
+    thumbnail_url: str | None = Field(default=None, description="URL or path to thumbnail image")
+    total_bytes: int | None = Field(default=None, description="Total file size in bytes")
+    transferred_bytes: int | None = Field(default=None, description="Bytes transferred so far")
+    eta_seconds: int | None = Field(default=None, description="Estimated time remaining in seconds")
+    output_path: str | None = Field(default=None, description="Final output file path")
+    can_retry: bool = Field(default=True, description="Whether download can be retried on failure")
+
     quality: str | None = Field(default_factory=lambda: get_config().youtube.default_quality)
     format: str | None = Field(default="video")
     audio_only: bool = Field(default=False)
