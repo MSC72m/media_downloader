@@ -2,19 +2,13 @@ import re
 from collections.abc import Mapping
 
 from src.core.config import AppConfig, get_config
-from src.core.interfaces import IErrorNotifier, IMessageQueue, UIContextProtocol
+from src.core.interfaces import IErrorNotifier, IMessageQueue
 from src.core.type_defs import JSONDict, JSONValue
-from src.services.detection.base_handler import BaseHandler, UICallback
+from src.services.detection.base_handler import BaseHandler
 from src.services.detection.link_detector import (
     auto_register_handler,
 )
-from src.utils.error_helpers import extract_error_context
 from src.utils.logger import get_logger
-from src.utils.type_helpers import (
-    get_platform_callback,
-    get_root,
-    schedule_on_main_thread,
-)
 
 logger = get_logger(__name__)
 
@@ -57,58 +51,6 @@ class SoundCloudHandler(BaseHandler):
         """Process SoundCloud download."""
         logger.info(f"[SOUNDCLOUD_HANDLER] Processing SoundCloud download: {url}")
         return True
-
-    def get_ui_callback(self) -> UICallback:
-        """Get the UI callback for SoundCloud URLs."""
-        logger.info("[SOUNDCLOUD_HANDLER] Getting UI callback")
-
-        def soundcloud_callback(url: str, ui_context: UIContextProtocol) -> None:
-            """Callback for handling SoundCloud URLs."""
-            logger.info(f"[SOUNDCLOUD_HANDLER] SoundCloud callback called with URL: {url}")
-            logger.info(f"[SOUNDCLOUD_HANDLER] UI context: {ui_context}")
-
-            root = get_root(ui_context)
-
-            logger.info(f"[SOUNDCLOUD_HANDLER] Root: {root}")
-
-            if not (download_callback := get_platform_callback(ui_context, "soundcloud")) and not (
-                download_callback := get_platform_callback(ui_context, "generic")
-            ):
-                error_msg = "No download callback found"
-                logger.error(f"[SOUNDCLOUD_HANDLER] {error_msg}")
-                if self.error_handler:
-                    self.error_handler.handle_service_failure(
-                        "SoundCloud Handler", "callback", error_msg, url
-                    )
-                return
-
-            def process_soundcloud_download() -> None:
-                try:
-                    logger.info(f"[SOUNDCLOUD_HANDLER] Calling download callback for: {url}")
-                    download_callback(url)
-                    logger.info("[SOUNDCLOUD_HANDLER] Download callback executed")
-                except Exception as e:
-                    logger.error(
-                        f"[SOUNDCLOUD_HANDLER] Error processing SoundCloud download: {e}",
-                        exc_info=True,
-                    )
-                    if self.error_handler:
-                        extract_error_context(e, "SoundCloud", "download processing", url)
-                        self.error_handler.handle_exception(
-                            e, "Processing SoundCloud download", "SoundCloud"
-                        )
-                    else:
-                        self.notifier.notify_user(
-                            "error",
-                            title="SoundCloud Download Error",
-                            message=f"Failed to process SoundCloud download: {e!s}",
-                        )
-
-            schedule_on_main_thread(root, process_soundcloud_download, immediate=True)
-            logger.info("[SOUNDCLOUD_HANDLER] SoundCloud download scheduled")
-
-        logger.info("[SOUNDCLOUD_HANDLER] Returning SoundCloud callback")
-        return soundcloud_callback
 
     def _detect_soundcloud_type(self, url: str) -> str:
         """Detect if URL is track, playlist/set, or user profile."""

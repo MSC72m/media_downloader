@@ -1,34 +1,63 @@
 from collections.abc import Callable
+from typing import Any
 
 import customtkinter as ctk
 
+from src.ui import tokens
+from src.ui.utils.theme_manager import ThemeManager
+from src.ui.visual_system import GlassButton, GlassFrame, resolve_palette
 
-class PathEntryBar(ctk.CTkFrame):
-    """Frame for path entry and navigation."""
 
-    def __init__(self, master, initial_path: str, on_path_change: Callable) -> None:
-        super().__init__(master, fg_color="transparent")
+class PathEntryBar(GlassFrame):
+    """Glass path-entry surface for directory navigation."""
 
-        # Configure grid
+    def __init__(
+        self,
+        master: Any,
+        initial_path: str,
+        on_path_change: Callable[[], None],
+        theme_manager: ThemeManager | None = None,
+    ) -> None:
+        super().__init__(
+            master,
+            theme_manager=theme_manager,
+            corner_radius=tokens.RADIUS_MD,
+        )
         self.grid_columnconfigure(0, weight=1)
 
-        # Path variable
         self.path_var = ctk.StringVar(value=initial_path)
+        palette = resolve_palette(self.theme_manager)
 
-        # Path entry
-        self.entry = ctk.CTkEntry(self, textvariable=self.path_var, height=40, font=("Roboto", 14))
-        self.entry.grid(row=0, column=0, sticky="ew", padx=(20, 10), pady=20)
+        self.entry = ctk.CTkEntry(
+            self,
+            textvariable=self.path_var,
+            height=tokens.CONTROL_H_LG,
+            font=tokens.font("body"),
+            fg_color=palette.surface,
+            border_color=palette.border_strong,
+            text_color=palette.text,
+        )
+        self.entry.grid(row=0, column=0, sticky="ew", padx=(10, 6), pady=10)
 
-        # Go button
-        self.go_button = ctk.CTkButton(
+        self.go_button = GlassButton(
             self,
             text="Go",
-            width=60,
+            width=64,
             command=on_path_change,
-            height=40,
-            font=("Roboto", 14),
+            theme_manager=self.theme_manager,
+            variant="secondary",
+            height=tokens.CONTROL_H_LG,
         )
-        self.go_button.grid(row=0, column=1, padx=(0, 20), pady=20)
+        self.go_button.grid(row=0, column=1, padx=(6, 10), pady=10)
+
+    def _handle_visual_theme_changed(self, appearance: str, color: str) -> None:
+        super()._handle_visual_theme_changed(appearance, color)
+        palette = resolve_palette(self.theme_manager)
+        self.entry.configure(
+            fg_color=palette.surface,
+            border_color=palette.border_strong,
+            text_color=palette.text,
+        )
 
     def get_path(self) -> str:
         """Get current path."""

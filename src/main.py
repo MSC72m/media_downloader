@@ -3,7 +3,7 @@ import contextlib
 import importlib.util
 import queue
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
@@ -26,142 +26,36 @@ import customtkinter as ctk  # noqa: E402
 # This MUST happen before any CTk widget is created.
 ctk.set_default_color_theme("blue")
 ctk.set_appearance_mode("System")
-ctk.set_widget_scaling(1.0)
-ctk.set_window_scaling(1.0)
+# Cap widget scaling so Retina displays don't balloon everything.
+# CustomTkinter auto-detects OS DPI and can go as high as 1.5-1.7x on
+# Retina, which makes padded=16 render as 24-27 points — too loose.
+# Pinning to a moderate value keeps the UI compact on all screens.
+ctk.set_widget_scaling(1.15)
 
-from src.core import get_application_orchestrator  # noqa: E402
+from src.core import Download, get_application_orchestrator  # noqa: E402
 from src.core.config import AppConfig, get_config  # noqa: E402
+from src.core.enums.download_status import DownloadStatus  # noqa: E402
 from src.core.interfaces import DynamicUIContextProtocol  # noqa: E402
-from src.ui.components.concurrent_downloads_selector import (  # noqa: E402
-    ConcurrentDownloadsSelector,
-)
-from src.ui.components.download_list import DownloadListView  # noqa: E402
-from src.ui.components.main_action_buttons import ActionButtonBar  # noqa: E402
-from src.ui.components.options_bar import OptionsBar  # noqa: E402
-from src.ui.components.status_bar import StatusBar  # noqa: E402
-from src.ui.components.theme_switcher import ThemeSwitcher  # noqa: E402
+from src.ui.components.download_card_list import DownloadCardList  # noqa: E402
+from src.ui.components.footer import AppFooter  # noqa: E402
+from src.ui.components.header import AppHeader  # noqa: E402
 from src.ui.components.url_entry import URLEntryFrame  # noqa: E402
+from src.ui.dialogs.message_dialog import MessageDialog  # noqa: E402
 from src.ui.utils.theme_manager import get_theme_manager  # noqa: E402
+from src.ui.visual_system import GradientBackdrop, resolve_palette  # noqa: E402
 
 if TYPE_CHECKING:
     from src.application.orchestrator import ApplicationOrchestrator
 
 
-def _check_playwright_installation() -> None:
-    try:
-        if not importlib.util.find_spec("playwright"):
-            raise ImportError("playwright module not found")
+def _check_playwright_installation() -> bool:
+    """Return whether Playwright is available without creating a second Tk root."""
+    available = importlib.util.find_spec("playwright") is not None
+    if available:
         logger.info("[MAIN_APP] Playwright is installed")
-    except ImportError as original_error:
-        logger.error("[MAIN_APP] Playwright is NOT installed - showing critical error")
-
-        # Create a minimal window to show the error
-        error_window = ctk.CTk()
-        error_window.title("CRITICAL: Playwright Not Installed")
-        screen_w = error_window.winfo_screenwidth()
-        screen_h = error_window.winfo_screenheight()
-        w = min(600, int(screen_w * 0.9))
-        h = min(400, int(screen_h * 0.9))
-        error_window.geometry(f"{w}x{h}")
-
-        # Center the window
-        error_window.update_idletasks()
-        width = error_window.winfo_width()
-        height = error_window.winfo_height()
-        x = (error_window.winfo_screenwidth() // 2) - (width // 2)
-        y = (error_window.winfo_screenheight() // 2) - (height // 2)
-        error_window.geometry(f"{width}x{height}+{x}+{y}")
-
-        # Error message
-        error_frame = ctk.CTkFrame(error_window, fg_color="transparent")
-        error_frame.pack(fill="both", expand=True, padx=20, pady=20)
-
-        title_label = ctk.CTkLabel(
-            error_frame,
-            text="PLAYWRIGHT NOT INSTALLED",
-            font=("Arial", 20, "bold"),
-            text_color="red",
-        )
-        title_label.pack(pady=(0, 20))
-
-        message = (
-            "The auto-cookie generation system requires Playwright.\n\n"
-            "Without it, age-restricted YouTube videos will FAIL to download.\n\n"
-            "To fix this, run these commands in your terminal:\n\n"
-            "   pip install playwright\n"
-            "   playwright install chromium\n\n"
-            "Then restart the application.\n\n"
-            "Click 'Continue Anyway' to run without cookies (NOT RECOMMENDED)\n"
-            "or 'Exit' to close and install Playwright first."
-        )
-
-        message_label = ctk.CTkLabel(error_frame, text=message, font=("Arial", 12), justify="left")
-        message_label.pack(pady=10)
-
-        # Buttons
-        button_frame = ctk.CTkFrame(error_frame, fg_color="transparent")
-        button_frame.pack(pady=20)
-
-        # Track which button was clicked
-        exit_clicked = {"value": False}
-
-        def continue_anyway() -> None:
-            logger.warning("[MAIN_APP] User chose to continue without Playwright")
-            error_window.destroy()
-
-        def exit_app() -> None:
-            logger.info("[MAIN_APP] User chose to exit and install Playwright")
-            exit_clicked["value"] = True
-
-            print("\n" + "=" * 70)
-            print("  PLAYWRIGHT INSTALLATION REQUIRED")
-            print("=" * 70)
-            print("\nTo install Playwright and Chromium, run these commands:\n")
-            print("  pip install playwright")
-            print("  playwright install chromium")
-            print("\nAfter installation, restart the application:")
-            print("  uv run -m src.main")
-            print("\n" + "=" * 70 + "\n")
-
-            # Destroy window to exit mainloop
-            error_window.destroy()
-
-        # Exit button - recommended action
-        exit_button = ctk.CTkButton(
-            button_frame,
-            text="Exit",
-            command=exit_app,
-            fg_color="red",
-            hover_color="darkred",
-            width=150,
-        )
-        exit_button.pack(side="left", padx=10)
-
-        # Continue button - not recommended
-        continue_button = ctk.CTkButton(
-            button_frame,
-            text="Continue Without Playwright",
-            command=continue_anyway,
-            fg_color="gray",
-            hover_color="darkgray",
-            width=250,
-        )
-        continue_button.pack(side="left", padx=10)
-
-        # Prevent window from being closed without clicking a button
-        error_window.protocol("WM_DELETE_WINDOW", exit_app)
-
-        # Run the error window - this BLOCKS until user clicks a button
-        error_window.mainloop()
-
-        # Check which button was clicked
-        if exit_clicked["value"]:
-            logger.info("[MAIN_APP] Exiting program as user requested")
-            raise SystemExit(1) from None
-
-        # If we reach here, user clicked Continue Anyway
-        logger.warning("[MAIN_APP] Continuing without Playwright as user requested")
-        raise original_error
+    else:
+        logger.error("[MAIN_APP] Playwright is not installed")
+    return available
 
 
 class MediaDownloaderApp(ctk.CTk):
@@ -196,10 +90,15 @@ class MediaDownloaderApp(ctk.CTk):
         self.orchestrator = application_orchestrator(self, config=self.config)
 
         self.theme_manager = get_theme_manager(self, config=self.config)
+        palette = resolve_palette(self.theme_manager)
+        self.configure(fg_color=palette.background_mid)
 
-        self.update()
+        self.update_idletasks()
 
-        self.main_frame = ctk.CTkFrame(self, fg_color="transparent")
+        # One real gradient canvas owns the window background.  The four
+        # production regions are direct children so spacing reveals it.
+        self.background = GradientBackdrop(self, theme_manager=self.theme_manager)
+        self.main_frame = self.background
         self._create_ui()
         self._setup_layout()
         self._setup_menu()
@@ -244,31 +143,16 @@ class MediaDownloaderApp(ctk.CTk):
             pass
 
     def _create_ui(self) -> None:
-        self.header_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent", corner_radius=0)
-        self.header_frame.grid_columnconfigure(0, weight=1)
-        self.header_frame.grid_columnconfigure(1, weight=0)
-        self.header_frame.grid_columnconfigure(2, weight=0)
-
-        app_title = self.config.ui.app_title
-        self.title_label = ctk.CTkLabel(
-            self.header_frame, text=app_title, font=("Roboto", 26, "bold")
-        )
-        self.title_label.grid(row=0, column=0, sticky="w", pady=8)
-
-        controls_frame = ctk.CTkFrame(self.header_frame, fg_color="transparent")
-        controls_frame.grid(row=0, column=1, sticky="e", pady=8)
-
-        self.theme_switcher = ThemeSwitcher(controls_frame, self.theme_manager)
-        self.theme_switcher.grid(row=0, column=0, sticky="e", pady=8, padx=(20, 0))
-
-        self.concurrent_selector = ConcurrentDownloadsSelector(
-            controls_frame,
-            theme_manager=self.theme_manager,
-            config=self.config,
-        )
-        self.concurrent_selector.grid(row=0, column=1, sticky="e", pady=8, padx=(10, 0))
+        from src.ui.components.settings_panel import SettingsPanel
 
         coord = self.orchestrator.event_coordinator
+
+        self.header_frame = AppHeader(
+            self.main_frame,
+            self.theme_manager,
+            self.config,
+            title=self.config.ui.app_title,
+        )
 
         def on_add_url(url: str, name: str) -> None:
             if not self.orchestrator.link_detector.detect_and_handle(
@@ -289,22 +173,6 @@ class MediaDownloaderApp(ctk.CTk):
             theme_manager=self.theme_manager,
         )
 
-        self.options_bar = OptionsBar(self.main_frame, theme_manager=self.theme_manager)
-
-        self.download_list = DownloadListView(
-            self.main_frame,
-            on_selection_change=lambda sel: self.action_buttons.update_button_states(
-                has_selection=len(sel) > 0,
-                has_items=len(coord.downloads.get_downloads()) > 0,
-            ),
-            theme_manager=self.theme_manager,
-        )
-
-        logger.info("[MAIN_APP] Creating ActionButtonBar")
-
-        def on_remove() -> None:
-            coord.downloads.remove_downloads(self.download_list.get_selected_indices())
-
         def on_clear() -> None:
             coord.downloads.clear_downloads()
 
@@ -315,43 +183,73 @@ class MediaDownloaderApp(ctk.CTk):
         def on_manage_files() -> None:
             coord.show_file_manager()
 
-        self.action_buttons = ActionButtonBar(
+        self.footer = AppFooter(
             self.main_frame,
-            on_remove=on_remove,
             on_clear=on_clear,
             on_download=on_download,
             on_manage_files=on_manage_files,
             theme_manager=self.theme_manager,
         )
-        logger.info("[MAIN_APP] ActionButtonBar created successfully")
 
-        self.status_bar = StatusBar(self.main_frame, theme_manager=self.theme_manager)
-        logger.info("[MAIN_APP] StatusBar created")
+        def on_remove(download: Download) -> None:
+            downloads = coord.downloads.get_downloads()
+            for index, candidate in enumerate(downloads):
+                if candidate is download or (
+                    candidate.url == download.url and candidate.name == download.name
+                ):
+                    coord.downloads.remove_downloads([index])
+                    return
 
-        logger.info("[MAIN_APP] Passing UI components to orchestrator")
+        def on_queue_summary(downloads: Sequence[Download]) -> None:
+            self.footer.update_queue(downloads)
+            active = sum(
+                item.status
+                in {DownloadStatus.PENDING, DownloadStatus.DOWNLOADING, DownloadStatus.PAUSED}
+                for item in downloads
+            )
+            self.header_frame.set_count(active, len(downloads))
+
+        self.download_list = DownloadCardList(
+            self.main_frame,
+            on_remove=on_remove,
+            on_summary=on_queue_summary,
+            theme_manager=self.theme_manager,
+        )
+
+        # Preserve the existing orchestrator component keys while presenting a
+        # single cohesive footer in the UI.
+        self.action_buttons = self.footer
+        self.status_bar = self.footer
+
+        self.settings_panel = SettingsPanel(
+            self.main_frame,
+            theme_manager=self.theme_manager,
+            config=self.config,
+        )
+        self.header_frame.settings_button.configure(command=self.settings_panel.toggle)
+
         self.orchestrator.set_ui_components(
             url_entry=self.url_entry,
-            options_bar=self.options_bar,
             download_list=self.download_list,
-            action_buttons=self.action_buttons,
-            status_bar=self.status_bar,
+            action_buttons=self.footer,
+            status_bar=self.footer,
         )
-        logger.info("[MAIN_APP] UI components passed to orchestrator successfully")
+        logger.info("[MAIN_APP] Queue-first UI connected to orchestrator")
 
     def _setup_layout(self) -> None:
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
+        self.background.grid(row=0, column=0, sticky="nsew")
 
-        self.main_frame.grid(row=0, column=0, sticky="nsew", padx=30, pady=(20, 25))
         self.main_frame.grid_columnconfigure(0, weight=1)
-        self.main_frame.grid_rowconfigure(3, weight=1)
-        self.main_frame.grid_rowconfigure(5, weight=0)
+        self.main_frame.grid_columnconfigure(1, weight=0)
+        self.main_frame.grid_rowconfigure(2, weight=1)
 
-        self.header_frame.grid(row=0, column=0, sticky="ew", pady=(0, 35))
-        self.url_entry.grid(row=1, column=0, sticky="ew", pady=(0, 25))
-        self.download_list.grid(row=3, column=0, sticky="nsew", pady=(0, 15))
-        self.action_buttons.grid(row=4, column=0, sticky="ew", pady=(0, 10))
-        self.status_bar.grid(row=5, column=0, sticky="ew", pady=(0, 0))
+        # Four regions: compact header, link input, expanding queue, footer.
+        self.header_frame.grid(row=0, column=0, sticky="ew", padx=18, pady=(14, 8))
+        self.url_entry.grid(row=1, column=0, sticky="ew", padx=18, pady=(0, 9))
+        self.download_list.grid(row=2, column=0, sticky="nsew", padx=18, pady=(0, 9))
+        self.footer.grid(row=3, column=0, sticky="ew", padx=18, pady=(0, 14))
 
     def _setup_menu(self) -> None:
         menubar = Menu(self)
@@ -403,7 +301,7 @@ if __name__ == "__main__":
     try:
         # Step 1: Verify Playwright Python package is available
         logger.info("[MAIN_APP] Step 1/3: Checking Playwright installation...")
-        _check_playwright_installation()
+        playwright_available = _check_playwright_installation()
 
         # Step 2: Ensure Chromium browser is available (non-blocking).
         # Cookie init threads will wait on _chromium_ready event before launching browsers.
@@ -432,41 +330,59 @@ if __name__ == "__main__":
         logger.info("[MAIN_APP] Step 3/3: Initializing application window...")
         app = MediaDownloaderApp()
 
+        if not playwright_available:
+
+            def _show_playwright_warning() -> None:
+                dialog = MessageDialog(
+                    app,
+                    title="Playwright Not Installed",
+                    heading="Browser support is unavailable",
+                    message=(
+                        "Automatic cookie generation requires Playwright. Without it, "
+                        "age-restricted or login-gated downloads may fail.\n\n"
+                        "Install it with:\n"
+                        "  pip install playwright\n"
+                        "  playwright install chromium\n\n"
+                        "You can continue now and install it later."
+                    ),
+                    primary_text="Exit and Install",
+                    secondary_text="Continue Anyway",
+                )
+                if dialog.get_result():
+                    app._on_closing()
+
+            app.after(150, _show_playwright_warning)
+
         # Start Chromium install in background after window is visible
         try:
             from src.services.cookies.playwright_bootstrap import (
                 detect_system_chrome,
                 ensure_playwright_ready,
                 is_chromium_installed,
+                mark_chromium_ready,
             )
 
-            if not is_chromium_installed():
+            if not playwright_available:
+                logger.warning("[MAIN_APP] Skipping browser setup until Playwright is installed")
+            elif not is_chromium_installed():
                 system_chrome = detect_system_chrome()
                 if system_chrome:
-                    from src.services.cookies.playwright_bootstrap import _chromium_ready
-
-                    _chromium_ready.set()
+                    mark_chromium_ready()
                     logger.info(f"[MAIN_APP] Using system browser: {system_chrome}")
                 else:
                     app.status_bar.show_message("Setting up browser (first time only)...")
                     logger.info("[MAIN_APP] Chromium not found - installing in background...")
 
-                    def _bg_install():
+                    def _install_browser() -> None:
                         from src.services.cookies.playwright_bootstrap import _chromium_ready
 
                         ensure_playwright_ready(root_window=app)
                         if _chromium_ready.is_set():
-                            app.run_on_main_thread(
-                                lambda: app.status_bar.show_message("Browser ready")
-                            )
+                            app.status_bar.show_message("Browser ready")
 
-                    import threading
-
-                    threading.Thread(target=_bg_install, daemon=True).start()
+                    app.after(250, _install_browser)
             else:
-                from src.services.cookies.playwright_bootstrap import _chromium_ready
-
-                _chromium_ready.set()
+                mark_chromium_ready()
                 logger.info("[MAIN_APP] Browser already available")
         except Exception:
             pass

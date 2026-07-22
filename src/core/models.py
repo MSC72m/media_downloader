@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
 from .config import get_config
+from .enums.compat import StrEnum
 from .enums.download_status import DownloadStatus
 from .enums.events import DownloadEvent
 from .enums.service_type import ServiceType
@@ -68,6 +68,14 @@ class Download(BaseModel):
     completed_at: datetime | None = None
     error_message: str | None = None
     service_type: ServiceType | None = None
+
+    # UI-facing optional fields for rich presentation (backwards-compatible)
+    thumbnail_url: str | None = Field(default=None, description="URL or path to thumbnail image")
+    total_bytes: int | None = Field(default=None, description="Total file size in bytes")
+    transferred_bytes: int | None = Field(default=None, description="Bytes transferred so far")
+    eta_seconds: int | None = Field(default=None, description="Estimated time remaining in seconds")
+    output_path: str | None = Field(default=None, description="Final output file path")
+    can_retry: bool = Field(default=True, description="Whether download can be retried on failure")
 
     quality: str | None = Field(default_factory=lambda: get_config().youtube.default_quality)
     format: str | None = Field(default="video")

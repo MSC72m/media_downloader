@@ -32,6 +32,12 @@ _chromium_ready = threading.Event()
 _chromium_check_done = threading.Event()
 
 
+def mark_chromium_ready() -> None:
+    """Signal that a usable browser is available and setup checks are complete."""
+    _chromium_ready.set()
+    _chromium_check_done.set()
+
+
 def wait_for_chromium(timeout: float = 120.0) -> bool:
     """Block until Chromium install is complete or timeout.
 
@@ -188,11 +194,8 @@ def _get_browser_search_bases() -> list[Path]:
 
     # PyInstaller frozen bundle: browsers under _internal/playwright/driver/package/.local-browsers/
     if getattr(sys, "frozen", False):
-        internal = (
-            Path(sys._MEIPASS)
-            if hasattr(sys, "_MEIPASS")
-            else Path(sys.executable).parent / "_internal"
-        )
+        meipass = getattr(sys, "_MEIPASS", None)
+        internal = Path(meipass) if meipass else Path(sys.executable).parent / "_internal"
         bases.append(internal / "playwright" / "driver" / "package" / ".local-browsers")
 
     # Standard Playwright locations
@@ -413,6 +416,9 @@ def install_chromium_with_dialog(root_window: tk.Tk | None = None) -> bool:
 
     try:
         import customtkinter as ctk
+
+        from src.ui.dialogs.base_dialog import BaseDialog
+        from src.ui.visual_system import GlassButton, GlassFrame, resolve_palette
     except ImportError:
         success, msg = install_chromium_blocking()
         return success
@@ -421,26 +427,22 @@ def install_chromium_with_dialog(root_window: tk.Tk | None = None) -> bool:
     progress = _InstallProgress()
 
     # ── Build modal dialog ────────────────────────────────────────────
-    dialog = ctk.CTkToplevel(root_window)
-    dialog.title("Setting Up Browser")
-    dialog.geometry("520x230")
+    dialog = BaseDialog(root_window, title="Setting Up Browser")
     dialog.resizable(False, False)
-    dialog.transient(root_window)
-    dialog.grab_set()
+    palette = resolve_palette(dialog._theme_manager)
 
-    # Center on parent
-    dialog.update_idletasks()
-    x = root_window.winfo_x() + (root_window.winfo_width() // 2) - 260
-    y = root_window.winfo_y() + (root_window.winfo_height() // 2) - 115
-    dialog.geometry(f"520x230+{x}+{y}")
-
-    frame = ctk.CTkFrame(dialog, fg_color="transparent")
-    frame.pack(fill="both", expand=True, padx=24, pady=20)
+    frame = GlassFrame(
+        dialog.content_parent,
+        theme_manager=dialog._theme_manager,
+        elevation="raised",
+    )
+    frame.pack(fill="both", expand=True, padx=20, pady=20)
 
     title_label = ctk.CTkLabel(
         frame,
         text="First-Time Setup",
         font=("Arial", 18, "bold"),
+        text_color=palette.text,
     )
     title_label.pack(pady=(0, 8))
 
@@ -448,11 +450,18 @@ def install_chromium_with_dialog(root_window: tk.Tk | None = None) -> bool:
         frame,
         text="Preparing to download Chromium browser...\nThis only needs to happen once.",
         font=("Arial", 12),
+        text_color=palette.text_secondary,
     )
     status_label.pack(pady=(0, 8))
 
     # Determinate progress bar (0-1 range)
-    progress_bar = ctk.CTkProgressBar(frame, mode="determinate", width=440)
+    progress_bar = ctk.CTkProgressBar(
+        frame,
+        mode="determinate",
+        width=440,
+        progress_color=palette.accent,
+        fg_color=palette.progress_track,
+    )
     progress_bar.pack(pady=(0, 4))
     progress_bar.set(0)
 
@@ -460,12 +469,31 @@ def install_chromium_with_dialog(root_window: tk.Tk | None = None) -> bool:
         frame,
         text="",
         font=("Arial", 11),
-        text_color="gray",
+        text_color=palette.text_muted,
     )
     detail_label.pack(pady=(0, 8))
 
+    def _apply_dialog_palette() -> None:
+        current = resolve_palette(dialog._theme_manager)
+        title_label.configure(text_color=current.text)
+        status_label.configure(text_color=current.text_secondary)
+        detail_label.configure(text_color=current.text_muted)
+        progress_bar.configure(
+            progress_color=current.accent,
+            fg_color=current.progress_track,
+        )
+
+    dialog.register_theme_refresh(_apply_dialog_palette)
+
     # Prevent closing during install
     dialog.protocol("WM_DELETE_WINDOW", lambda: None)
+    dialog._finalize_init(
+        preferred_width=520,
+        preferred_height=250,
+        min_width=520,
+        min_height=250,
+        modal=True,
+    )
 
     # ── Poll progress from the background thread ──────────────────────
     def _poll_progress() -> None:
@@ -512,7 +540,13 @@ def install_chromium_with_dialog(root_window: tk.Tk | None = None) -> bool:
             with contextlib.suppress(Exception):
                 dialog.grab_release()
             dialog.protocol("WM_DELETE_WINDOW", dialog.destroy)
-            close_btn = ctk.CTkButton(frame, text="Continue", command=dialog.destroy, width=120)
+            close_btn = GlassButton(
+                frame,
+                text="Continue",
+                command=dialog.destroy,
+                theme_manager=dialog._theme_manager,
+                width=120,
+            )
             close_btn.pack(pady=(4, 0))
 
     # ── Kick off install thread + polling ──────────────────────────────

@@ -4,12 +4,14 @@ from typing import Any
 import customtkinter as ctk
 
 from src.core.config import AppConfig, get_config
+from src.ui.utils.theme_manager import ThemeManager
+from src.ui.visual_system import GlassButton, GlassFrame, resolve_palette
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-class SubtitleChecklist(ctk.CTkFrame):
+class SubtitleChecklist(GlassFrame):
     """Simple scrollable checklist for subtitle selection."""
 
     def __init__(
@@ -19,9 +21,10 @@ class SubtitleChecklist(ctk.CTkFrame):
         on_change: Callable[[list[str]], None] | None = None,
         height: int = 120,
         config: AppConfig = get_config(),
+        theme_manager: ThemeManager | None = None,
         **kwargs,
     ) -> None:
-        super().__init__(master, fg_color="transparent", **kwargs)
+        super().__init__(master, theme_manager=theme_manager, **kwargs)
 
         self.placeholder = placeholder
         self.on_change = on_change
@@ -34,18 +37,27 @@ class SubtitleChecklist(ctk.CTkFrame):
         self._subtitle_generator: Iterator[tuple[dict[str, Any], int]] | None = None
         self._batch_size: int = self.app_config.ui.subtitle_batch_size
         self._current_index: int = 0
+        self._batch_after_id: str | None = None
 
         self._create_widgets()
 
     def _create_widgets(self) -> None:
         """Create the checklist widgets."""
+        palette = resolve_palette(self.theme_manager)
         self.title_label = ctk.CTkLabel(
-            self, text="Available Subtitles:", font=("Roboto", 11, "bold")
+            self,
+            text="Available Subtitles:",
+            font=("Roboto", 11, "bold"),
+            text_color=palette.text,
         )
         self.title_label.pack(anchor="w", pady=(0, 5))
 
         self.scrollable_frame = ctk.CTkScrollableFrame(
-            self, height=self.height, fg_color=("gray95", "gray25")
+            self,
+            height=self.height,
+            fg_color=palette.surface,
+            border_color=palette.border,
+            border_width=1,
         )
         self.scrollable_frame.pack(fill="both", expand=True)
 
@@ -53,27 +65,31 @@ class SubtitleChecklist(ctk.CTkFrame):
             self.scrollable_frame,
             text=self.placeholder,
             font=("Roboto", 10),
-            text_color="gray",
+            text_color=palette.text_muted,
         )
         self.placeholder_label.pack(pady=20)
 
         self.button_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.button_frame.pack(fill="x", pady=(5, 0))
 
-        self.select_all_btn = ctk.CTkButton(
+        self.select_all_btn = GlassButton(
             self.button_frame,
             text="Select All",
             command=self._select_all,
+            theme_manager=self.theme_manager,
+            variant="secondary",
             width=80,
             height=25,
             font=("Roboto", 9),
         )
         self.select_all_btn.pack(side="left", padx=(0, 5))
 
-        self.clear_all_btn = ctk.CTkButton(
+        self.clear_all_btn = GlassButton(
             self.button_frame,
             text="Clear All",
             command=self._clear_all,
+            theme_manager=self.theme_manager,
+            variant="ghost",
             width=80,
             height=25,
             font=("Roboto", 9),
@@ -81,7 +97,10 @@ class SubtitleChecklist(ctk.CTkFrame):
         self.clear_all_btn.pack(side="left")
 
         self.status_label = ctk.CTkLabel(
-            self.button_frame, text="0 selected", font=("Roboto", 9), text_color="gray"
+            self.button_frame,
+            text="0 selected",
+            font=("Roboto", 9),
+            text_color=palette.text_muted,
         )
         self.status_label.pack(side="right")
 
@@ -133,6 +152,7 @@ class SubtitleChecklist(ctk.CTkFrame):
 
     def _load_next_batch(self) -> None:
         """Load next batch of subtitles using generator with offset/indexing."""
+        self._batch_after_id = None
         if not self._subtitle_generator:
             self._update_status()
             return
@@ -155,7 +175,7 @@ class SubtitleChecklist(ctk.CTkFrame):
             self._current_index += len(batch_items)
 
             if len(batch_items) == self._batch_size:
-                self.after(10, self._load_next_batch)  # Small delay to keep UI responsive
+                self._batch_after_id = self.after(10, self._load_next_batch)
             else:
                 self._update_status()
 
@@ -167,6 +187,9 @@ class SubtitleChecklist(ctk.CTkFrame):
 
     def _clear_existing_options(self) -> None:
         """Clear existing option widgets."""
+        if self._batch_after_id is not None:
+            self.after_cancel(self._batch_after_id)
+            self._batch_after_id = None
         self._subtitle_generator = None
         self._current_index = 0
 
@@ -189,11 +212,15 @@ class SubtitleChecklist(ctk.CTkFrame):
             var = ctk.BooleanVar(value=False)
             self.option_vars[option_id] = var
 
+            palette = resolve_palette(self.theme_manager)
             checkbox = ctk.CTkCheckBox(
                 option_frame,
                 text=display_text,
                 variable=var,
                 font=("Roboto", 10),
+                text_color=palette.text,
+                fg_color=palette.accent,
+                hover_color=palette.accent_hover,
                 command=lambda oid=option_id, v=var: self._handle_option_change(oid, v.get()),
             )
             checkbox.pack(anchor="w")
@@ -298,3 +325,26 @@ class SubtitleChecklist(ctk.CTkFrame):
     def clear_selection(self) -> None:
         """Clear all selections (alias for _clear_all)."""
         self._clear_all()
+
+    def _handle_visual_theme_changed(self, appearance: str, color: str) -> None:
+        super()._handle_visual_theme_changed(appearance, color)
+        palette = resolve_palette(self.theme_manager)
+        self.title_label.configure(text_color=palette.text)
+        self.placeholder_label.configure(text_color=palette.text_muted)
+        self.status_label.configure(text_color=palette.text_muted)
+        self.scrollable_frame.configure(
+            fg_color=palette.surface,
+            border_color=palette.border,
+        )
+        for checkbox in self.checkboxes.values():
+            checkbox.configure(
+                text_color=palette.text,
+                fg_color=palette.accent,
+                hover_color=palette.accent_hover,
+            )
+
+    def destroy(self) -> None:
+        if self._batch_after_id is not None:
+            self.after_cancel(self._batch_after_id)
+            self._batch_after_id = None
+        super().destroy()

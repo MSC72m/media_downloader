@@ -1,9 +1,11 @@
 import os
 import tkinter as tk
 from collections.abc import Callable
+from typing import Any
 
 from src.core.enums.theme_event import ThemeEvent
 from src.ui.utils.theme_manager import ThemeManager, get_theme_manager
+from src.ui.visual_system import resolve_palette
 
 
 class FileListBox(tk.Listbox):
@@ -11,46 +13,54 @@ class FileListBox(tk.Listbox):
 
     def __init__(
         self,
-        master,
-        on_double_click: Callable,
+        master: Any,
+        on_double_click: Callable[[Any], None],
         theme_manager: ThemeManager | None = None,
     ) -> None:
-        self._theme_manager = theme_manager or get_theme_manager()
-        colors = self._theme_manager.get_colors()
+        self._theme_manager = theme_manager or get_theme_manager(master.winfo_toplevel())
+        palette = resolve_palette(self._theme_manager)
 
         super().__init__(
             master,
-            bg=colors.get("surface", "#2a2d2e"),
-            fg=colors.get("text_on_surface", "white"),
+            bg=palette.surface,
+            fg=palette.text,
             selectmode=tk.SINGLE,
-            selectbackground=colors.get("select_bg", "#1f538d"),
+            selectbackground=palette.accent,
+            selectforeground="#FFFFFF",
+            highlightbackground=palette.border,
+            highlightcolor=palette.border_strong,
+            highlightthickness=1,
+            borderwidth=0,
+            relief="flat",
+            activestyle="none",
             font=("Roboto", 12),
         )
 
         self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
         self.bind("<Double-1>", on_double_click)
 
-    def _on_theme_changed(self, appearance, color) -> None:
+    def _on_theme_changed(self, _appearance: str, _color: str) -> None:
         self._apply_theme_colors()
 
     def _apply_theme_colors(self) -> None:
-        colors = self._theme_manager.get_colors()
+        palette = resolve_palette(self._theme_manager)
         self.configure(
-            bg=colors.get("surface", "#2a2d2e"),
-            fg=colors.get("text_on_surface", "white"),
-            selectbackground=colors.get("select_bg", "#1f538d"),
+            bg=palette.surface,
+            fg=palette.text,
+            selectbackground=palette.accent,
+            selectforeground="#FFFFFF",
+            highlightbackground=palette.border,
+            highlightcolor=palette.border_strong,
         )
 
     def update_items(self, current_path: str) -> None:
         """Update list with directory contents."""
         self.delete(0, tk.END)
 
-        # Add parent directory option
         if current_path != os.path.expanduser("~"):
             self.insert(tk.END, "..")
 
         try:
-            # List directories first
             items = os.listdir(current_path)
             directories = []
             files = []
@@ -62,15 +72,12 @@ class FileListBox(tk.Listbox):
                 else:
                     files.append(item)
 
-            # Insert sorted directories and files
             for directory in sorted(directories):
                 self.insert(tk.END, f"📁 {directory}")
 
             for file in sorted(files):
                 self.insert(tk.END, f"📄 {file}")
-
         except OSError:
-            # Handle directory access errors
             pass
 
     def get_selected_item(self) -> str | None:
@@ -79,6 +86,5 @@ class FileListBox(tk.Listbox):
         return self.get(selection[0]) if selection else None
 
     def destroy(self) -> None:
-        if self._theme_manager:
-            self._theme_manager.unsubscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
+        self._theme_manager.unsubscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
         super().destroy()

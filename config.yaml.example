@@ -34,6 +34,9 @@ downloads:
 network:
   default_timeout: 10  # Default network timeout in seconds
   twitter_api_timeout: 10  # Twitter API timeout in seconds
+  # Optional proxy for all requests + yt-dlp. Supports socks5://, socks5h://,
+  # http:// and https:// (e.g. socks5://127.0.0.1:1080). Omit or null to disable.
+  proxy: null
   user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
   cookie_user_agent: "Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"  # Android mobile user agent
   minimal_user_agent: "Mozilla/5.0"

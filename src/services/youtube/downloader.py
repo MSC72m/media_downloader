@@ -16,6 +16,7 @@ from src.services.cookies import YouTubeCookieSourceCoordinator
 from src.services.ytdlp_logger import YTDLPLoggerBridge
 from src.utils.ffmpeg import get_ffmpeg_dir, is_ffmpeg_available
 from src.utils.logger import get_logger
+from src.utils.proxy import get_proxy
 
 from ...core.interfaces import (
     BaseDownloader,
@@ -117,6 +118,10 @@ class YouTubeDownloader(BaseDownloader):
             options["js_runtimes"] = {"node": {}}
             options["remote_components"] = "ejs:github"
 
+        # Route yt-dlp through the configured proxy (socks5/http) when set.
+        if proxy := get_proxy(self.config):
+            options["proxy"] = proxy
+
         # Point yt-dlp at bundled or system ffmpeg
         if ffmpeg_dir := get_ffmpeg_dir():
             options["ffmpeg_location"] = ffmpeg_dir
@@ -162,9 +167,7 @@ class YouTubeDownloader(BaseDownloader):
 
     def _build_auth_strategies(self) -> list[tuple[str, dict[str, Any]]]:
         """Build ordered auth strategies for YouTube access."""
-        strategies = self.cookie_source_coordinator.build_auth_strategies(
-            include_browser_source=False
-        )
+        strategies = self.cookie_source_coordinator.build_auth_strategies()
         return [(strategy.label, strategy.ytdlp_options) for strategy in strategies]
 
     def _prepare_format_options(self, opts: dict[str, Any], output_template: str) -> str | None:

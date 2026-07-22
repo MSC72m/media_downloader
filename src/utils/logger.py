@@ -14,7 +14,7 @@ def _get_log_dir() -> Path:
 
 
 def get_logger(name: str) -> logging.Logger:
-    global _root_logger_configured  # noqa: PLW0603
+    global _root_logger_configured
 
     if not _root_logger_configured:
         root_logger = logging.getLogger()

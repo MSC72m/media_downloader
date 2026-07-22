@@ -1,19 +1,8 @@
-from .download_list import DownloadListView
-from .file_list import FileListBox
-from .file_manager_action_buttons import FileManagerActionButtonBar
-from .file_manager_buttons import FileManagerButtonBar
-from .options_bar import OptionsBar
-from .path_entry import PathEntryBar
-from .status_bar import StatusBar
-from .url_entry import URLEntryFrame
+"""UI components package.
 
-__all__ = [
-    "DownloadListView",
-    "FileListBox",
-    "FileManagerActionButtonBar",
-    "FileManagerButtonBar",
-    "OptionsBar",
-    "PathEntryBar",
-    "StatusBar",
-    "URLEntryFrame",
-]
+Production modules are imported explicitly (for example,
+``src.ui.components.download_card_list``) to avoid eager GUI initialization
+when importing utility modules in headless contexts.
+"""
+
+__all__: list[str] = []

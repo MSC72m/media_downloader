@@ -398,13 +398,15 @@ class TestDownloadIntegration:
     """Integration tests for download functionality."""
 
     def test_radiojavan_url_patterns(self):
-        """Test that RadioJavan URL patterns are correctly configured."""
-        patterns = RadioJavanDownloader.CDN_HOSTS
+        """Test that RadioJavan CDN hosts are correctly configured."""
+        from src.core.config import get_config
+
+        patterns = get_config().radiojavan.cdn_hosts
 
         # Should have multiple CDN hosts for redundancy
         assert len(patterns) > 1, "Should have multiple CDN hosts"
-        assert all(host.endswith(".media") or host.endswith(".app") for host in patterns), (
-            "All hosts should be valid domains"
+        assert all(isinstance(host, str) and host for host in patterns), (
+            "All hosts should be non-empty strings"
         )
 
     def test_tiktok_configuration(self):

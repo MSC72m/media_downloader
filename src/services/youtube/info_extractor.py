@@ -47,7 +47,6 @@ class YouTubeInfoExtractor:
         auth_strategies = self.cookie_source_coordinator.build_auth_strategies(
             cookie_path_hint=cookie_path,
             preferred_browser=browser,
-            include_browser_source=False,
         )
 
         logger.info(
@@ -70,11 +69,14 @@ class YouTubeInfoExtractor:
                 )
                 break
 
-        # If all strategies failed with LOGIN_REQUIRED, try regenerating cookies
+        # If all strategies failed with LOGIN_REQUIRED, log it so the download path
+        # can trigger cookie regeneration. Do NOT regenerate here — it blocks the
+        # 60-second metadata fetch timeout with a 55+ second Playwright run.
         if last_bucket == YouTubeErrorBucket.LOGIN_REQUIRED:
-            result = self._try_cookie_regeneration_and_retry(url, cookie_path, browser)
-            if result:
-                return result
+            logger.warning(
+                "[INFO_EXTRACTOR] All strategies failed with LOGIN_REQUIRED — "
+                "cookies will be regenerated on next download attempt"
+            )
 
         if fallback := self._fetch_oembed_fallback(url):
             logger.warning(
@@ -110,7 +112,6 @@ class YouTubeInfoExtractor:
         fresh_strategies = self.cookie_source_coordinator.build_auth_strategies(
             cookie_path_hint=cookie_path,
             preferred_browser=browser,
-            include_browser_source=False,
         )
 
         for strategy in fresh_strategies:

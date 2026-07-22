@@ -140,6 +140,14 @@ class NetworkConfig(BaseModel):
 
     default_timeout: int = Field(default=10, description="Default network timeout in seconds")
     twitter_api_timeout: int = Field(default=10, description="Twitter API timeout in seconds")
+    proxy: str | None = Field(
+        default=None,
+        description=(
+            "Optional proxy URL applied to all network requests and yt-dlp. "
+            "Supports socks5://, socks5h://, http:// and https:// schemes "
+            "(e.g. socks5://127.0.0.1:1080). None disables proxying."
+        ),
+    )
     user_agent: str = Field(
         default="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
         description="Default user agent string",
@@ -935,7 +943,11 @@ class ThemeConfig(BaseModel):
                 "border_width": 0,
                 "fg_color": scheme["button_color"],
                 "hover_color": scheme["button_hover_color"],
-                "text_color": text_color,
+                # White reads with high contrast on the saturated accent fills
+                # used for buttons across all themes (accessibility feedback:
+                # the previous theme text colour was low-contrast on coloured
+                # buttons, especially the red/disabled states).
+                "text_color": "#FFFFFF",
             },
             "CTkEntry": {
                 "corner_radius": 12,
@@ -1177,7 +1189,7 @@ def get_config() -> AppConfig:
     Returns:
         The application configuration instance
     """
-    global _config_instance  # noqa: PLW0603
+    global _config_instance
     if _config_instance is None:
         _config_instance = AppConfig()
     return _config_instance
@@ -1189,11 +1201,11 @@ def set_config(config: AppConfig) -> None:
     Args:
         config: The configuration instance to set
     """
-    global _config_instance  # noqa: PLW0603
+    global _config_instance
     _config_instance = config
 
 
 def reset_config() -> None:
     """Reset the configuration instance (mainly for testing)."""
-    global _config_instance  # noqa: PLW0603
+    global _config_instance
     _config_instance = None

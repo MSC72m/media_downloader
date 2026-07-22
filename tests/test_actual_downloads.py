@@ -291,7 +291,7 @@ class TestActualDownloads:
         assert media_name == "sample-song", "Should extract media name"
 
         # Step 2: Test CDN host logic (without actual network calls)
-        hosts = downloader.CDN_HOSTS
+        hosts = downloader.config.radiojavan.cdn_hosts
         paths = downloader.MP3_PATHS
 
         assert len(hosts) > 1, "Should have multiple CDN hosts"

@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.2.0 - 2026-07-21
+
+UI/UX overhaul, Twitter Spaces support, and Linux build.
+
+### Added
+
+- **Twitter Spaces download** — GraphQL guest auth with AudioSpaceById
+- **Paste button** — one-click paste in URL entry with clipboard emoji
+- **Platform badge** — live domain detection on URL input
+- **Auto-naming** — URL-based default names (no more popup dialog)
+- **DownloadCard + DownloadCardList** — compact per-download cards with progress bars, platform badges, status indicators, and empty-state label
+- **AppHeader** — consolidated header with 8 platform badges, theme switcher, concurrent downloads selector, and download count
+- **BaseDialog** — shared dialog base class for theme subscription, centering, cleanup
+- **Linux build** — PyInstaller spec, build script, ffmpeg auto-download, .deb packaging, Dockerfile.build for CI testing
+- **Linux ffmpeg auto-download** — downloads static binary from johnvansickle.com with GitHub fallback
+
+### Changed
+
+- Replaced CenteredInputDialog popup with inline auto-naming in URLEntry
+- Refactored YouTube/Spotify dialogs to inherit from BaseDialog (~12 lines boilerplate removed per dialog)
+- Consolidated header UI into AppHeader component
+- ffmpeg.py refactored for cross-platform auto-download (Windows + Linux)
+
+### Fixed
+
+- Fixed paste button crash: surrogate pair `\uD83D\uDCCB` → `\U0001F4CB`
+- Removed unused imports (`CenteredInputDialog`, `_SPACE_PATTERN`)
+
 ## 1.1.2 - 2026-06-18
 
 Hotfix release fixing RadioJavan URL detection, YouTube dialog crash, disabled button contrast, and UI scaling across all screen resolutions.
