@@ -80,7 +80,7 @@ def _stream_chunks_to_temp_file(
                 continue
             elapsed = time.time() - start_time
             speed_bytes = downloaded / elapsed if elapsed > 0 else 0
-            # Convert bytes/s to MB/s for display
+            # Convert bytes/s to MB/s for the progress callback contract
             speed_mbps = speed_bytes / (1024 * 1024)
             progress_to_report = _compute_progress_to_report(downloaded, total_size, config)
             progress_callback(progress_to_report, speed_mbps)

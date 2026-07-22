@@ -22,13 +22,16 @@ class FileManagerButtonBar(GlassFrame):
             theme_manager=theme_manager,
             corner_radius=tokens.RADIUS_MD,
         )
-        self.grid_columnconfigure((0, 1, 2), weight=1)
+        self.grid_columnconfigure(0, weight=2, minsize=200)
+        self.grid_columnconfigure(1, weight=2, minsize=135)
+        self.grid_columnconfigure(2, weight=1, minsize=80)
 
         self.change_dir_button = GradientButton(
             self,
             text="Set as Download Directory",
             command=on_change_dir,
             theme_manager=self.theme_manager,
+            width=210,
             height=tokens.CONTROL_H_LG,
         )
         self.change_dir_button.grid(row=0, column=0, padx=(10, 5), pady=10, sticky="ew")

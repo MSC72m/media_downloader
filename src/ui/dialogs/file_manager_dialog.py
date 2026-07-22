@@ -40,9 +40,9 @@ class FileManagerDialog(BaseDialog):
         self.create_widgets()
         self.update_file_list()
         self._finalize_init(
-            preferred_width=600,
+            preferred_width=680,
             preferred_height=400,
-            min_width=480,
+            min_width=560,
             min_height=320,
             modal=True,
         )

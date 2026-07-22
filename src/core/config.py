@@ -358,12 +358,12 @@ class YouTubeConfig(BaseModel):
     )
     url_patterns: list[str] = Field(
         default_factory=lambda: [
-            r"^https?://(?:www\.)?youtube\.com/watch\?v=[\w-]+",
-            r"^https?://(?:www\.)?youtube\.com/playlist\?list=[\w-]+",
+            r"^https?://(?:(?:www|m)\.)?youtube\.com/watch\?v=[\w-]+",
+            r"^https?://(?:(?:www|m)\.)?youtube\.com/playlist\?list=[\w-]+",
             r"^https?://(?:www\.)?youtu\.be/[\w-]+",
-            r"^https?://(?:www\.)?youtube\.com/embed/[\w-]+",
-            r"^https?://(?:www\.)?youtube\.com/v/[\w-]+",
-            r"^https?://(?:www\.)?youtube\.com/shorts/[\w-]+",
+            r"^https?://(?:(?:www|m)\.)?youtube\.com/embed/[\w-]+",
+            r"^https?://(?:(?:www|m)\.)?youtube\.com/v/[\w-]+",
+            r"^https?://(?:(?:www|m)\.)?youtube\.com/shorts/[\w-]+",
             r"^https?://music\.youtube\.com/watch\?v=[\w-]+",
             r"^https?://music\.youtube\.com/playlist\?list=[\w-]+",
         ],
@@ -453,11 +453,24 @@ class YouTubeConfig(BaseModel):
         description="Language code to name mapping",
     )
 
+    @field_validator("url_patterns", mode="after")
+    @classmethod
+    def _ensure_mobile_patterns(cls, patterns: list[str]) -> list[str]:
+        mobile_patterns = [
+            r"^https?://m\.youtube\.com/watch\?v=[\w-]+",
+            r"^https?://m\.youtube\.com/shorts/[\w-]+",
+        ]
+        return [*patterns, *(pattern for pattern in mobile_patterns if pattern not in patterns)]
+
 
 class TwitterConfig(BaseModel):
     """Twitter/X-specific configuration."""
 
     default_timeout: int = Field(default=10, description="Default request timeout in seconds")
+    space_download_timeout_seconds: int = Field(
+        default=14400,
+        description="Maximum Twitter Spaces ffmpeg runtime in seconds",
+    )
     url_patterns: list[str] = Field(
         default_factory=lambda: [
             r"^https?://(?:www\.)?twitter\.com/[\w]+/status/[\d]+",
@@ -483,10 +496,6 @@ class InstagramConfig(BaseModel):
         default_factory=lambda: [
             r"^https?://(?:www\.)?instagram\.com/p/[\w-]+",
             r"^https?://(?:www\.)?instagram\.com/reel/[\w-]+",
-            r"^https?://(?:www\.)?instagram\.com/stories/[\w-]+",
-            r"^https?://(?:www\.)?instagram\.com/tv/[\w-]+",
-            r"^https?://(?:www\.)?instagram\.com/[\w]+/p/[\w-]+",
-            r"^https?://(?:www\.)?instagram\.com/[\w]+/reel/[\w-]+",
         ],
         description="Instagram URL validation patterns",
     )
@@ -534,7 +543,9 @@ class SoundCloudConfig(BaseModel):
 class RadioJavanConfig(BaseModel):
     """Radio Javan-specific configuration."""
 
-    default_timeout: int = Field(default=30, description="Default request timeout in seconds")
+    default_timeout: int = Field(default=30, description="Default media request timeout in seconds")
+    resolver_timeout: int = Field(default=10, description="Timeout per metadata/CDN probe")
+    max_candidate_probes: int = Field(default=8, description="Maximum CDN candidates to probe")
     max_retries: int = Field(default=3, description="Maximum number of retries")
     cookie_enabled: bool = Field(
         default=True,
@@ -630,11 +641,17 @@ class TikTokConfig(BaseModel):
     url_patterns: list[str] = Field(
         default_factory=lambda: [
             r"^https?://(?:www\.)?tiktok\.com/[@\w]+/video/[\d]+",
-            r"^https?://(?:vm\.)?tiktok\.com/[\w-]+",
+            r"^https?://(?:(?:vm|vt)\.)?tiktok\.com/[\w-]+",
             r"^https?://(?:www\.)?tiktok\.com/t/[\w-]+",
         ],
         description="TikTok URL validation patterns",
     )
+
+    @field_validator("url_patterns", mode="after")
+    @classmethod
+    def _ensure_vt_share_pattern(cls, patterns: list[str]) -> list[str]:
+        vt_pattern = r"^https?://vt\.tiktok\.com/[\w-]+"
+        return patterns if vt_pattern in patterns else [*patterns, vt_pattern]
 
 
 class SpotifyConfig(BaseModel):
@@ -676,12 +693,12 @@ class ServiceConfig(BaseModel):
         default_factory=lambda: {
             "service_type": "youtube",
             "url_patterns": [
-                r"^https?://(?:www\.)?youtube\.com/watch\?v=[\w-]+",
-                r"^https?://(?:www\.)?youtube\.com/playlist\?list=[\w-]+",
+                r"^https?://(?:(?:www|m)\.)?youtube\.com/watch\?v=[\w-]+",
+                r"^https?://(?:(?:www|m)\.)?youtube\.com/playlist\?list=[\w-]+",
                 r"^https?://(?:www\.)?youtu\.be/[\w-]+",
-                r"^https?://(?:www\.)?youtube\.com/embed/[\w-]+",
-                r"^https?://(?:www\.)?youtube\.com/v/[\w-]+",
-                r"^https?://(?:www\.)?youtube\.com/shorts/[\w-]+",
+                r"^https?://(?:(?:www|m)\.)?youtube\.com/embed/[\w-]+",
+                r"^https?://(?:(?:www|m)\.)?youtube\.com/v/[\w-]+",
+                r"^https?://(?:(?:www|m)\.)?youtube\.com/shorts/[\w-]+",
                 r"^https?://music\.youtube\.com/watch\?v=[\w-]+",
                 r"^https?://music\.youtube\.com/playlist\?list=[\w-]+",
             ],
@@ -720,10 +737,6 @@ class ServiceConfig(BaseModel):
             "url_patterns": [
                 r"^https?://(?:www\.)?instagram\.com/p/[\w-]+",
                 r"^https?://(?:www\.)?instagram\.com/reel/[\w-]+",
-                r"^https?://(?:www\.)?instagram\.com/stories/[\w-]+",
-                r"^https?://(?:www\.)?instagram\.com/tv/[\w-]+",
-                r"^https?://(?:www\.)?instagram\.com/[\w]+/p/[\w-]+",
-                r"^https?://(?:www\.)?instagram\.com/[\w]+/reel/[\w-]+",
             ],
             "domains": ["instagram.com", "www.instagram.com", "m.instagram.com"],
             "downloader_module": "src.services.instagram.downloader",
@@ -780,7 +793,7 @@ class ServiceConfig(BaseModel):
             "service_type": "tiktok",
             "url_patterns": [
                 r"^https?://(?:www\.)?tiktok\.com/[@\w]+/video/[\d]+",
-                r"^https?://(?:vm\.)?tiktok\.com/[\w-]+",
+                r"^https?://(?:(?:vm|vt)\.)?tiktok\.com/[\w-]+",
                 r"^https?://(?:www\.)?tiktok\.com/t/[\w-]+",
             ],
             "domains": ["tiktok.com", "vm.tiktok.com", "www.tiktok.com"],

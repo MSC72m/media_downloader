@@ -48,7 +48,7 @@ This increases the package size by ~150 MB but enables offline use.
 ## Installing the .deb
 
 ```bash
-sudo dpkg -i installers/media-downloader_1.2.0_amd64.deb
+sudo dpkg -i installers/media-downloader_1.2.1_amd64.deb
 sudo apt install -f   # install missing dependencies
 ```
 
@@ -81,5 +81,5 @@ For GitHub Actions / GitLab CI, use the `full installer` mode:
 
 ```yaml
 - run: ./scripts/build_linux.sh full installer
-- run: echo "ARTIFACT_PATH=installers/media-downloader_1.2.0_amd64.deb" >> $GITHUB_ENV
+- run: echo "ARTIFACT_PATH=installers/media-downloader_1.2.1_amd64.deb" >> $GITHUB_ENV
 ```

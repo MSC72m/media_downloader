@@ -117,7 +117,7 @@ class FileDownloader:
                         progress = (downloaded / file_size * 100) if file_size > 0 else -1
                         elapsed = time.time() - download_start
                         speed_bytes = downloaded / elapsed if elapsed > 0 else 0
-                        # Convert bytes/s to MB/s for display
+                        # Convert bytes/s to MB/s for the progress callback contract
                         speed_mbps = speed_bytes / (1024 * 1024)
 
                         if progress_callback:

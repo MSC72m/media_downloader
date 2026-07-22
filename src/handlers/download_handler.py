@@ -148,7 +148,9 @@ class DownloadHandler(IDownloadHandler):
 
             if not (
                 downloader := self.service_factory.get_downloader(
-                    download.url, service_type=service_type
+                    download.url,
+                    service_type=service_type,
+                    download=download,
                 )
             ):
                 error_msg = f"No downloader available for URL: {download.url}"

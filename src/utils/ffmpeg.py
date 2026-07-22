@@ -20,7 +20,7 @@ import tempfile
 import urllib.request
 import zipfile
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 from src.utils.logger import get_logger
 
@@ -115,7 +115,7 @@ def _download_extract_win(
                 downloaded = block_num * block_size
                 pct = min(downloaded * 100 // total_size, 100)
                 with contextlib.suppress(Exception):
-                    progress_callback.configure(text=f"Downloading ffmpeg... {pct}%")
+                    cast(Any, progress_callback).configure(text=f"Downloading ffmpeg... {pct}%")
 
         urllib.request.urlretrieve(_FFMPEG_WIN_URL, str(tmp_zip), _report)  # noqa: S310
 
@@ -232,13 +232,10 @@ def ensure_ffmpeg_available(root_window: Tk | None = None) -> None:
     if is_ffmpeg_available():
         return
 
-    label = None
-    if (
-        root_window is not None
-        and hasattr(root_window, "status_bar")
-        and hasattr(root_window.status_bar, "status_label")
-    ):
-        label = root_window.status_bar.status_label
+    label: Any = None
+    if root_window is not None:
+        status_bar = getattr(root_window, "status_bar", None)
+        label = getattr(status_bar, "status_label", None)
 
     if sys.platform != "win32":
         install_hint = (

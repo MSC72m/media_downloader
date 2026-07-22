@@ -304,14 +304,14 @@ mock_ttk.Button = MockTkButton
 mock_ttk.Entry = MockTkEntry
 sys.modules["tkinter.ttk"] = mock_ttk
 mock_messagebox_module: Any = ModuleType("tkinter.messagebox")
-mock_messagebox_module.showerror = lambda title, message: None
-mock_messagebox_module.showwarning = lambda title, message: None
-mock_messagebox_module.showinfo = lambda title, message: None
+mock_messagebox_module.showerror = lambda _title, _message: None
+mock_messagebox_module.showwarning = lambda _title, _message: None
+mock_messagebox_module.showinfo = lambda _title, _message: None
 sys.modules["tkinter.messagebox"] = mock_messagebox_module
 
 mock_filedialog_module: Any = ModuleType("tkinter.filedialog")
-mock_filedialog_module.askopenfilename = lambda **kwargs: ""
-mock_filedialog_module.askdirectory = lambda **kwargs: ""
+mock_filedialog_module.askopenfilename = lambda **_kwargs: ""
+mock_filedialog_module.askdirectory = lambda **_kwargs: ""
 sys.modules["tkinter.filedialog"] = mock_filedialog_module
 sys.modules["customtkinter"] = mock_ctk
 

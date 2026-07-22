@@ -63,7 +63,7 @@ class Download(BaseModel):
     url: str
     status: DownloadStatus = Field(default=DownloadStatus.PENDING)
     progress: float = Field(default=0.0)
-    speed: float = Field(default=0.0)
+    speed: float = Field(default=0.0, description="Current transfer speed in MB/s")
     created_at: datetime = Field(default_factory=datetime.now)
     completed_at: datetime | None = None
     error_message: str | None = None

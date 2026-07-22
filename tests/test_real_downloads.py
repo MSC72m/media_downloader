@@ -152,29 +152,17 @@ class TestRealRadioJavanDownloads:
                 f"Expected .mp4 extension, got {downloaded_file.suffix}"
             )
 
-    def test_construct_download_url_valid_mp3(self):
-        """Test constructing download URL for a valid MP3."""
+    def test_construct_download_url_rejects_unvalidated_mp3(self):
+        """Nonexistent MP3 slugs must not return a guessed CDN URL."""
         test_url = "https://www.radiojavan.com/mp3/test-song-name/"
 
-        download_url = self.downloader._construct_download_url(test_url)
+        assert self.downloader._construct_download_url(test_url) is None
 
-        # Should return a valid HTTPS URL to a CDN
-        assert download_url is not None, "Download URL should be constructed"
-        assert download_url.startswith("https://"), "URL should be HTTPS"
-        assert "radiojavan.com" in download_url, "Should use a RadioJavan host"
-        assert "test-song-name" in download_url, "Should contain media name"
-
-    def test_construct_download_url_valid_mp4(self):
-        """Test constructing download URL for a valid MP4."""
+    def test_construct_download_url_rejects_unvalidated_mp4(self):
+        """Nonexistent MP4 slugs must not return a guessed CDN URL."""
         test_url = "https://www.radiojavan.com/mp4/test-video-name/"
 
-        download_url = self.downloader._construct_download_url(test_url)
-
-        # Should return a valid HTTPS URL to a CDN
-        assert download_url is not None, "Download URL should be constructed"
-        assert download_url.startswith("https://"), "URL should be HTTPS"
-        assert "radiojavan.com" in download_url, "Should use a RadioJavan host"
-        assert "test-video-name" in download_url, "Should contain media name"
+        assert self.downloader._construct_download_url(test_url) is None
 
     def test_construct_download_url_invalid(self):
         """Test constructing download URL for invalid URL."""

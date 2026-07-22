@@ -8,7 +8,7 @@ from collections.abc import Mapping, Sequence
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import Lock
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from playwright.async_api import Browser, BrowserContext, Page, Playwright
@@ -96,7 +96,7 @@ class RadioJavanCookieGenerator:
             logger.info("[RJ_COOKIE_GENERATOR] Using system browser channel: %s", channel)
 
         try:
-            return await playwright.chromium.launch(**launch_kwargs)
+            return await playwright.chromium.launch(**cast(Any, launch_kwargs))
         except Exception as exc:
             if channel:
                 logger.warning(

@@ -113,28 +113,37 @@ bundled blue theme.
 
 ## Bundled themes
 
-The app ships with 18 themes:
+The app ships with 22 themes:
 
-| Emoji | Name    | Accent colour |
-|-------|---------|---------------|
-| 🟡    | amber   | `#F59E0B`     |
-| 🔵    | blue    | `#007BFF`     |
-| 🪸    | coral   | `#FF6B6B`     |
-| 💫    | cyan    | `#06B6D4`     |
-| 💚    | emerald | `#10B981`     |
-| 👑    | gold    | `#D4A017`     |
-| 🟢    | green   | `#22C55E`     |
-| 💙    | indigo  | `#6366F1`     |
-| 🍈    | lime    | `#84CC16`     |
-| ⚓    | navy    | `#1E3A5F`     |
-| 🟠    | orange  | `#FF8C00`     |
-| 🌸    | pink    | `#EC4899`     |
-| 🟣    | purple  | `#9333EA`     |
-| 🔴    | red     | `#EF4444`     |
-| 🌹    | rose    | `#F43F5E`     |
-| ⚫    | slate   | `#64748B`     |
-| 🔷    | teal    | `#14B8A6`     |
-| 💜    | violet  | `#8B5CF6`     |
+| Emoji | Name      | Accent colour |
+|-------|-----------|---------------|
+| 🟡    | amber     | `#F59E0B`     |
+| 🔵    | blue      | `#007BFF`     |
+| 🪸    | coral     | `#FF6B6B`     |
+| ⚡    | cyberpunk | `#A21CAF`     |
+| 💫    | cyan      | `#06B6D4`     |
+| 💚    | emerald   | `#10B981`     |
+| ☕    | espresso  | `#8B5A2B`     |
+| ❄️    | glacier   | `#0E7490`     |
+| 👑    | gold      | `#D4A017`     |
+| 🟢    | green     | `#22C55E`     |
+| 💙    | indigo    | `#6366F1`     |
+| 🍈    | lime      | `#84CC16`     |
+| ⚓    | navy      | `#1E3A5F`     |
+| 🟠    | orange    | `#FF8C00`     |
+| 🌸    | pink      | `#EC4899`     |
+| 🟣    | purple    | `#9333EA`     |
+| 🔴    | red       | `#EF4444`     |
+| 🌹    | rose      | `#F43F5E`     |
+| ⚫    | slate     | `#64748B`     |
+| 🌅    | sunset    | `#C2415D`     |
+| 🔷    | teal      | `#14B8A6`     |
+| 💜    | violet    | `#8B5CF6`     |
+
+The newest palettes are designed as complete visual moods rather than simple
+accent swaps: **cyberpunk** pairs neon magenta and cyan with ink surfaces,
+**espresso** uses coffee browns and warm cream, **glacier** combines ice blue
+with deep ocean surfaces, and **sunset** blends coral with cinematic plum.
 
 ## Theme persistence
 

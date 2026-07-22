@@ -2,7 +2,16 @@
 
 ## 1.2.1 - 2026-07-22
 
-Security updates, YouTube metadata fixes, reliable theme switching, and UI improvements.
+Security updates, downloader reliability repairs across all eight platforms, reliable theme switching, and four new visual themes.
+
+### Added
+
+- **Four complete light/dark themes**:
+  - ⚡ **Cyberpunk** — neon magenta and cyan on ink-black surfaces
+  - ☕ **Espresso** — warm coffee browns with cream and chocolate surfaces
+  - ❄️ **Glacier** — crisp ice blues with deep-ocean dark mode
+  - 🌅 **Sunset** — coral highlights over warm ivory and cinematic plum
+- Expanded the dynamic theme dropdown and bundled-theme contract from 18 to 22 themes.
 
 ### Security
 
@@ -17,9 +26,19 @@ Security updates, YouTube metadata fixes, reliable theme switching, and UI impro
 
 ### Fixed
 
+- **Fixed Spotify selected-result downloads**: a YouTube match chosen in the Spotify dialog is now delegated directly to the YouTube audio backend instead of being sent to Spotify oEmbed as if it were a Spotify URL. This removes the 504/error path and avoids repeating metadata/search work.
+- **Fixed child windows after Alt-Tab or app focus changes**: every dialog now uses its true top-level owner, transient window ownership, screen-clamped recentering, and temporary foreground restoration when the app is activated. Dialogs no longer become stranded off-screen or hidden behind the main window.
+- **Fixed File Manager action sizing**: the “Set as Download Directory” button now has sufficient width for its complete label, and the dialog minimum width was increased accordingly.
 - **Fixed theme switching between light and dark modes**: CustomTkinter requires `[light_color, dark_color]` tuples for `fg_color` and `border_color` to properly handle appearance mode switching. GlassFrame and other widgets were passing single color values, causing them to not update when switching themes. Added `resolve_both_palettes()` function and updated all CTk widgets to use color tuples.
 - **Fixed YouTube metadata extraction crash**: `remote_components` was incorrectly passed as a string instead of a list, causing yt-dlp to treat each character as a separate component. Changed `"ejs:github"` to `["ejs:github"]` in all YouTube services (info_extractor, downloader, subtitle_extractor, cookie_sources).
-- **Fixed download speed display**: Speed was shown as bytes/s instead of MB/s. Updated YouTube, file, and network downloaders to normalize progress callback speeds to MB/s.
+- **Fixed download speed units**: YouTube, shared file, and shared network downloaders now convert bytes/s to MB/s before invoking the UI progress callback.
+- **Fixed YouTube option routing**: quality, audio/video mode, playlists, subtitles, thumbnails, metadata, speed limits, retries, and cookie selections now reach the execution-time downloader. Playlist context is preserved when playlist mode is enabled, and mobile YouTube URLs are recognized.
+- **Fixed SoundCloud sets**: `/sets/` URLs now enable playlist mode instead of silently downloading only the first item.
+- **Fixed TikTok completion reporting**: downloads only succeed after a non-empty media file is produced; extractor failures retain actionable details, and `vt.tiktok.com` share links are recognized.
+- **Fixed Instagram queueing and carousel behavior**: Instagram links are added exactly once, Instaloader uses configured request bounds, carousel progress is aggregate and monotonic, and incomplete carousels no longer report full success. Routing now matches the documented Posts/Reels support.
+- **Fixed Twitter/X fallback reliability**: a timeout, connection failure, HTTP error, or invalid JSON from one tweet endpoint now advances to the next endpoint. Spaces distinguish unavailable/private/deleted content from API failures, use the centralized ffmpeg path, enforce a finite process timeout, remove partial output, and notify once.
+- **Fixed RadioJavan resolution stalls**: `feat`/`featuring`/`ft` slugs are matched equivalently, resolver calls use short timeouts and an eight-probe budget, streamed range checks no longer read full media bodies, and unvalidated fallback URLs are rejected. The reported `Arash-Broken-Angel-feat-Helena` URL now resolves to the `(Ft-Helena)` result.
+- **Hardened service routing**: service detection now matches parsed hostnames rather than arbitrary URL substrings, supports international Pinterest domains, and sends Pinterest OEmbed URLs as encoded request parameters.
 - **Fixed dialog centering**: YouTube and Spotify dialogs now properly center on screen using `apply_screen_aware_geometry()` when showing after metadata fetch.
 - **Added debouncing to theme switcher**: Prevents race conditions when clicking rapidly between themes.
 
