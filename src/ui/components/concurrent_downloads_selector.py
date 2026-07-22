@@ -7,6 +7,7 @@ import customtkinter as ctk
 from src.core.config import AppConfig, get_config
 from src.core.enums.concurrent_option import ConcurrentOption
 from src.core.enums.theme_event import ThemeEvent
+from src.ui.utils.normalize_color import normalize_color
 from src.ui.utils.theme_manager import ThemeManager, get_theme_manager
 from src.utils.logger import get_logger
 
@@ -33,10 +34,10 @@ class ConcurrentDownloadsSelector(ctk.CTkFrame):
 
         self.label = ctk.CTkLabel(
             container,
-            text="Concurrency:",
+            text="Max:",
             font=("Roboto", 11),
         )
-        self.label.grid(row=0, column=0, padx=(0, 5), sticky="w")
+        self.label.grid(row=0, column=0, padx=(0, 4), sticky="w")
 
         values = ConcurrentOption.all_options()
         self.dropdown = ctk.CTkComboBox(
@@ -44,8 +45,8 @@ class ConcurrentDownloadsSelector(ctk.CTkFrame):
             values=values,
             command=self._on_change,
             font=("Roboto", 11),
-            width=70,
-            height=30,
+            width=55,
+            height=28,
             dropdown_font=("Roboto", 11),
         )
         self.dropdown.set(str(self._current_value))
@@ -81,16 +82,9 @@ class ConcurrentDownloadsSelector(ctk.CTkFrame):
         theme_json = self._theme_manager.get_theme_json()
 
         if button_config := theme_json.get("CTkButton", {}):
-            button_color = button_config.get("fg_color")
-            hover_color = button_config.get("hover_color")
-            border_color = button_config.get("button_border_color") or button_color
-
-            if isinstance(button_color, tuple):
-                button_color = button_color[0] if isinstance(button_color[0], str) else button_color
-            if isinstance(hover_color, tuple):
-                hover_color = hover_color[0] if isinstance(hover_color[0], str) else hover_color
-            if isinstance(border_color, tuple):
-                border_color = border_color[0] if isinstance(border_color[0], str) else border_color
+            button_color = normalize_color(button_config.get("fg_color"))
+            hover_color = normalize_color(button_config.get("hover_color"))
+            border_color = normalize_color(button_config.get("button_border_color")) or button_color
 
             self.dropdown.configure(
                 fg_color=button_color,
@@ -100,13 +94,8 @@ class ConcurrentDownloadsSelector(ctk.CTkFrame):
             )
 
         if entry_config := theme_json.get("CTkEntry", {}):
-            fg_color = entry_config.get("fg_color")
-            border_color = entry_config.get("border_color")
-
-            if isinstance(fg_color, tuple):
-                fg_color = fg_color[0] if isinstance(fg_color[0], str) else fg_color
-            if isinstance(border_color, tuple):
-                border_color = border_color[0] if isinstance(border_color[0], str) else border_color
+            fg_color = normalize_color(entry_config.get("fg_color"))
+            border_color = normalize_color(entry_config.get("border_color"))
 
             self.dropdown.configure(
                 fg_color=fg_color,
@@ -114,9 +103,7 @@ class ConcurrentDownloadsSelector(ctk.CTkFrame):
             )
 
         if label_config := theme_json.get("CTkLabel", {}):
-            text_color = label_config.get("text_color")
-            if isinstance(text_color, tuple):
-                text_color = text_color[0] if isinstance(text_color[0], str) else text_color
+            text_color = normalize_color(label_config.get("text_color"))
             self.label.configure(text_color=text_color)
 
     def _on_theme_changed(self, appearance, color) -> None:

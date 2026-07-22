@@ -1,113 +1,135 @@
-import contextlib
 import threading
+from typing import Any
 
 import customtkinter as ctk
 
 from src.core.enums import NetworkStatus, ServiceType
-from src.core.enums.theme_event import ThemeEvent
 from src.services.network.checker import check_all_services, check_internet_connection
-from src.ui.utils.theme_manager import ThemeManager, get_theme_manager
-from src.utils.window import WindowCenterMixin
+from src.ui import tokens
+from src.ui.utils.theme_manager import ThemeManager
+from src.ui.visual_system import GlassButton, GlassFrame, GradientButton, resolve_palette
+
+from .base_dialog import BaseDialog
 
 
-class NetworkStatusDialog(ctk.CTkToplevel, WindowCenterMixin):
+class NetworkStatusDialog(BaseDialog):
     """Dialog to show network connectivity status."""
 
-    def __init__(self, parent, theme_manager: ThemeManager | None = None) -> None:
-        super().__init__(parent)
+    def __init__(self, parent: Any, theme_manager: ThemeManager | None = None) -> None:
+        super().__init__(parent, title="Network Status", theme_manager=theme_manager)
 
-        self.parent = parent
         self.service_statuses = dict.fromkeys(ServiceType, NetworkStatus.UNKNOWN)
-        self._is_destroyed = False
+        self.status_labels: dict[ServiceType, ctk.CTkLabel] = {}
+        self.advice_frame: GlassFrame | None = None
 
-        self._theme_manager = theme_manager or get_theme_manager()
-        self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
+        self._create_widgets()
+        self._finalize_init(
+            preferred_width=520,
+            preferred_height=560,
+            min_width=460,
+            min_height=400,
+            modal=True,
+        )
+        self.check_connectivity()
 
-        self.title("Network Status")
-        self.geometry("500x350")
-        self.resizable(False, False)
-        self.transient(parent)
-
-        self.update_idletasks()
-        self.center_window()
-
-        self.update_idletasks()
-
-        self.grab_set()
-        self.focus_set()
-
-        self.frame = ctk.CTkFrame(self)
-        self.frame.pack(fill=ctk.BOTH, expand=True, padx=20, pady=20)
+    def _create_widgets(self) -> None:
+        palette = resolve_palette(self._theme_manager)
+        self.frame = GlassFrame(
+            self.content_parent,
+            theme_manager=self._theme_manager,
+            elevation="raised",
+        )
+        self.frame.pack(fill="both", expand=True, padx=20, pady=20)
 
         self.title_label = ctk.CTkLabel(
             self.frame,
             text="Network Connectivity Status",
-            font=ctk.CTkFont(size=18, weight="bold"),
+            font=tokens.font("title"),
+            text_color=palette.text,
         )
-        self.title_label.pack(pady=(0, 20))
+        self.title_label.pack(pady=(20, 12))
 
-        self.status_labels = {}
+        self.status_frame = GlassFrame(
+            self.frame,
+            theme_manager=self._theme_manager,
+            corner_radius=tokens.RADIUS_MD,
+        )
+        self.status_frame.pack(fill="x", padx=16, pady=8)
+
         for service in ServiceType:
-            frame = ctk.CTkFrame(self.frame)
-            frame.pack(fill=ctk.X, padx=10, pady=5)
+            row = ctk.CTkFrame(self.status_frame, fg_color="transparent")
+            row.pack(fill="x", padx=12, pady=5)
 
             service_label = ctk.CTkLabel(
-                frame,
+                row,
                 text=f"{service.name if hasattr(service, 'name') else str(service)}:",
-                font=ctk.CTkFont(size=14, weight="bold"),
-                width=100,
+                font=tokens.font("body", weight="bold"),
+                text_color=palette.text,
+                width=110,
                 anchor="w",
             )
-            service_label.pack(side=ctk.LEFT, padx=10)
+            service_label.pack(side="left")
 
             status_label = ctk.CTkLabel(
-                frame, text="Checking...", font=ctk.CTkFont(size=14), anchor="w"
+                row,
+                text="Checking...",
+                font=tokens.font("body"),
+                text_color=palette.text_muted,
+                anchor="w",
             )
-            status_label.pack(side=ctk.LEFT, fill=ctk.X, expand=True, padx=10)
-
+            status_label.pack(side="left", fill="x", expand=True, padx=(10, 0))
             self.status_labels[service] = status_label
 
         self.button_frame = ctk.CTkFrame(self.frame, fg_color="transparent")
-        self.button_frame.pack(side=ctk.BOTTOM, fill=ctk.X, pady=20)
+        self.button_frame.pack(side="bottom", fill="x", padx=16, pady=16)
 
-        self.retry_button = ctk.CTkButton(
-            self.button_frame, text="Retry Checks", command=self.check_connectivity
+        self.retry_button = GradientButton(
+            self.button_frame,
+            text="Retry Checks",
+            command=self.check_connectivity,
+            theme_manager=self._theme_manager,
+            width=140,
+            height=tokens.CONTROL_H,
         )
-        self.retry_button.pack(side=ctk.LEFT, padx=10)
+        self.retry_button.pack(side="left")
 
-        self.close_button = ctk.CTkButton(self.button_frame, text="Close", command=self.destroy)
-        self.close_button.pack(side=ctk.RIGHT, padx=10)
+        self.close_button = GlassButton(
+            self.button_frame,
+            text="Close",
+            command=self.destroy,
+            theme_manager=self._theme_manager,
+            variant="secondary",
+            width=100,
+            height=tokens.CONTROL_H,
+        )
+        self.close_button.pack(side="right")
 
-        self.advice_frame = None
-
-        self.check_connectivity()
-
-    def _on_theme_changed(self, appearance, color) -> None:
+    def _on_theme_changed(self, _appearance: str, _color: str) -> None:
         self._apply_theme_colors()
 
     def _apply_theme_colors(self) -> None:
-        colors = self._theme_manager.get_colors()
-        text_muted = colors.get("text_muted", "gray")
-        status_success = colors.get("status_success", "green")
-        status_error = colors.get("status_error", "red")
+        palette = resolve_palette(self._theme_manager)
+        self.title_label.configure(text_color=palette.text)
 
         for service, status in self.service_statuses.items():
             if service not in self.status_labels:
                 continue
             if status == NetworkStatus.CHECKING:
-                self.status_labels[service].configure(text_color=text_muted)
+                self.status_labels[service].configure(text_color=palette.text_muted)
             elif status == NetworkStatus.CONNECTED:
-                self.status_labels[service].configure(text_color=status_success)
+                self.status_labels[service].configure(text_color=palette.success)
             elif status == NetworkStatus.ERROR:
-                self.status_labels[service].configure(text_color=status_error)
+                self.status_labels[service].configure(text_color=palette.error)
 
     def check_connectivity(self) -> None:
         """Check connectivity to each service."""
-        colors = self._theme_manager.get_colors()
-        text_muted = colors.get("text_muted", "gray")
+        palette = resolve_palette(self._theme_manager)
         for service in ServiceType:
             self.service_statuses[service] = NetworkStatus.CHECKING
-            self.status_labels[service].configure(text="Checking...", text_color=text_muted)
+            self.status_labels[service].configure(
+                text="Checking...",
+                text_color=palette.text_muted,
+            )
 
         self.retry_button.configure(state="disabled")
 
@@ -116,8 +138,7 @@ class NetworkStatusDialog(ctk.CTkToplevel, WindowCenterMixin):
             self.advice_frame = None
 
         def check_worker() -> None:
-            _internet_connected, _error_msg = check_internet_connection()
-
+            check_internet_connection()
             service_results = check_all_services()
 
             any_error = False
@@ -128,18 +149,18 @@ class NetworkStatusDialog(ctk.CTkToplevel, WindowCenterMixin):
                     self.service_statuses[service] = NetworkStatus.ERROR
                     any_error = True
 
-            if not self._is_destroyed:
+            if not self._dialog_destroyed:
                 self.after(0, lambda: self.update_status_display(service_results, any_error))
 
         threading.Thread(target=check_worker, daemon=True).start()
 
     def update_status_display(
-        self, service_results: dict[ServiceType, tuple[bool, str]], any_error: bool
+        self,
+        service_results: dict[ServiceType, tuple[bool, str]],
+        any_error: bool,
     ) -> None:
         """Update the status display with check results."""
-        colors = self._theme_manager.get_colors()
-        status_success = colors.get("status_success", "green")
-        status_error = colors.get("status_error", "red")
+        palette = resolve_palette(self._theme_manager)
 
         for service, (connected, error) in service_results.items():
             if service not in self.status_labels:
@@ -147,11 +168,15 @@ class NetworkStatusDialog(ctk.CTkToplevel, WindowCenterMixin):
 
             if connected:
                 self.service_statuses[service] = NetworkStatus.CONNECTED
-                self.status_labels[service].configure(text="Connected", text_color=status_success)
+                self.status_labels[service].configure(
+                    text="Connected",
+                    text_color=palette.success,
+                )
             else:
                 self.service_statuses[service] = NetworkStatus.ERROR
                 self.status_labels[service].configure(
-                    text=f"Error: {error}", text_color=status_error
+                    text=f"Error: {error}",
+                    text_color=palette.error,
                 )
 
         self.retry_button.configure(state="normal")
@@ -164,16 +189,22 @@ class NetworkStatusDialog(ctk.CTkToplevel, WindowCenterMixin):
         if self.advice_frame:
             return
 
-        self.advice_frame = ctk.CTkFrame(self.frame, fg_color="transparent")
-        self.advice_frame.pack(fill=ctk.X, padx=10, pady=(20, 10))
+        palette = resolve_palette(self._theme_manager)
+        self.advice_frame = GlassFrame(
+            self.frame,
+            theme_manager=self._theme_manager,
+            corner_radius=tokens.RADIUS_MD,
+        )
+        self.advice_frame.pack(fill="x", padx=16, pady=(8, 4))
 
         advice_label = ctk.CTkLabel(
             self.advice_frame,
-            text="Troubleshooting Steps:",
-            font=ctk.CTkFont(size=14, weight="bold"),
+            text="Troubleshooting Steps",
+            font=tokens.font("body", weight="bold"),
+            text_color=palette.text,
             anchor="w",
         )
-        advice_label.pack(anchor="w")
+        advice_label.pack(fill="x", padx=14, pady=(10, 4))
 
         steps = [
             "1. Check your internet connection",
@@ -182,15 +213,11 @@ class NetworkStatusDialog(ctk.CTkToplevel, WindowCenterMixin):
             "4. If using a VPN, try disabling it temporarily",
             "5. Check if the service is down for everyone",
         ]
-
         for step in steps:
-            step_label = ctk.CTkLabel(self.advice_frame, text=step, anchor="w")
-            step_label.pack(anchor="w", padx=20)
-
-    def destroy(self) -> None:
-        self._is_destroyed = True
-        with contextlib.suppress(Exception):
-            self.grab_release()
-        if self._theme_manager:
-            self._theme_manager.unsubscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
-        super().destroy()
+            step_label = ctk.CTkLabel(
+                self.advice_frame,
+                text=step,
+                text_color=palette.text_secondary,
+                anchor="w",
+            )
+            step_label.pack(fill="x", padx=14, pady=1)

@@ -15,6 +15,7 @@ from src.core.interfaces import BaseDownloader, IErrorNotifier, IFileService
 from src.services.network.downloader import download_file
 
 from ...utils.logger import get_logger
+from ...utils.proxy import get_request_proxies
 
 if TYPE_CHECKING:
     from src.services.cookies.radiojavan_cookie_manager import RadioJavanCookieManager
@@ -24,14 +25,6 @@ logger = get_logger(__name__)
 
 class RadioJavanDownloader(BaseDownloader):
     """Radio Javan downloader using API and URL validation."""
-
-    CDN_HOSTS: ClassVar[list[str]] = [
-        "https://rj1.media",
-        "https://rj2.media",
-        "https://rj3.media",
-        "https://rjmedia.app",
-        "https://rj.app",
-    ]
 
     MP3_PATHS: ClassVar[list[str]] = [
         "/media/mp3/mp3-320/{media_name}.mp3",
@@ -142,6 +135,16 @@ class RadioJavanDownloader(BaseDownloader):
             r"/mp3/([\w%-]+)",
             r"/mp4/([\w%-]+)",
             r"/song/([\w%-]+)",
+            r"/music_video/([\w%-]+)",
+            r"/playlist/mp3/([\w%-]+)",
+            r"/podcast/([\w%-]+)",
+            r"/album/([\w%-]+)",
+            r"rj\.app/m/([\w%-]+)",
+            r"rj\.app/v/([\w%-]+)",
+            r"rj\.app/a/([\w%-]+)",
+            r"rj\.app/p/([\w%-]+)",
+            r"rj\.app/pl/([\w%-]+)",
+            r"rj\.app/([\w%-]+)",
         ]
         for pattern in patterns:
             if match := re.search(pattern, url):
@@ -155,7 +158,9 @@ class RadioJavanDownloader(BaseDownloader):
         match lowered:
             case value if any(token in value for token in ("/mp3s/mp3/", "/mp3/", "/song/")):
                 return "mp3"
-            case value if any(token in value for token in ("/videos/video/", "/mp4/")):
+            case value if any(
+                token in value for token in ("/videos/video/", "/mp4/", "/video/", "/music_video/")
+            ):
                 return "mp4"
             case _:
                 return None
@@ -180,7 +185,7 @@ class RadioJavanDownloader(BaseDownloader):
         return self._request_context(force_refresh=force_refresh)
 
     def _candidate_hosts(self, media_name: str, media_type: str) -> list[str]:
-        """Get candidate hosts using Radio Javan API first, then static fallbacks."""
+        """Get candidate hosts using Radio Javan API first, then config fallbacks."""
         hosts: list[str] = []
 
         api_hosts = [
@@ -190,10 +195,10 @@ class RadioJavanDownloader(BaseDownloader):
         ]
         hosts.extend(api_hosts)
 
+        # CDN hosts are fully externalised to config (config.radiojavan.cdn_hosts,
+        # which ships sensible defaults) — no hardcoded fallback list here.
         configured_hosts = [self._normalize_host(h) for h in self.config.radiojavan.cdn_hosts]
-        fallback_hosts = [self._normalize_host(h) for h in self.CDN_HOSTS]
         hosts.extend(configured_hosts)
-        hosts.extend(fallback_hosts)
 
         unique_hosts: list[str] = []
         seen: set[str] = set()
@@ -283,6 +288,7 @@ class RadioJavanDownloader(BaseDownloader):
                 headers=headers,
                 cookies=cookies,
                 timeout=self.default_timeout,
+                proxies=get_request_proxies(self.config),
             )
             if (
                 status_code := response.status_code if isinstance(response.status_code, int) else 0
@@ -441,6 +447,7 @@ class RadioJavanDownloader(BaseDownloader):
                     cookies=session_cookies,
                     timeout=self.default_timeout,
                     allow_redirects=True,
+                    proxies=get_request_proxies(self.config),
                 )
                 response.raise_for_status()
             except requests.RequestException as e:
@@ -590,6 +597,7 @@ class RadioJavanDownloader(BaseDownloader):
                 headers={**headers, "Range": "bytes=0-1"},
                 cookies=cookies,
                 stream=True,
+                proxies=get_request_proxies(self.config),
             )
             response.raise_for_status()
         except requests.RequestException as exc:

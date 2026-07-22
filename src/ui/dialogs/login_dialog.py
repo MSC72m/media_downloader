@@ -1,95 +1,105 @@
-import contextlib
+from typing import Any
 
 import customtkinter as ctk
 
 from src.core.enums.message_level import MessageLevel
-from src.core.enums.theme_event import ThemeEvent
 from src.core.interfaces import IErrorNotifier, IMessageQueue
 from src.services.events.queue import Message
-from src.ui.utils.theme_manager import ThemeManager, get_theme_manager
+from src.ui import tokens
+from src.ui.utils.theme_manager import ThemeManager
+from src.ui.visual_system import GlassFrame, GradientButton, resolve_palette
 from src.utils.logger import get_logger
-from src.utils.window import WindowCenterMixin
+
+from .base_dialog import BaseDialog
 
 logger = get_logger(__name__)
 
 
-class LoginDialog(ctk.CTkToplevel, WindowCenterMixin):
+class LoginDialog(BaseDialog):
     def __init__(
         self,
-        parent,
+        parent: Any,
         error_handler: IErrorNotifier | None = None,
         message_queue: IMessageQueue | None = None,
         theme_manager: ThemeManager | None = None,
     ) -> None:
         logger.info(f"[LOGIN_DIALOG] Initializing with parent: {parent}")
-        super().__init__(parent)
-
-        self._theme_manager = theme_manager or get_theme_manager()
-        self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
-
-        self.title("Instagram Login")
-        self.geometry("400x250")
-        self.resizable(False, False)
-
-        # Make dialog modal
-        self.transient(parent)
-        logger.info("[LOGIN_DIALOG] Window properties set")
+        super().__init__(parent, title="Instagram Login", theme_manager=theme_manager)
 
         self.username: str | None = None
         self.password: str | None = None
         self.error_handler = error_handler
         self.message_queue = message_queue
 
-        # Create widgets FIRST
-        logger.info("[LOGIN_DIALOG] Creating widgets")
         self.create_widgets()
-        logger.info("[LOGIN_DIALOG] Widgets created")
-
-        # Center the window
-        logger.info("[LOGIN_DIALOG] Centering window")
-        self.center_window()
-        logger.info("[LOGIN_DIALOG] Window centered")
-
-        # Update the window to ensure it's drawn
-        self.update_idletasks()
-
-        # Now make it visible and grab focus
-        logger.info("[LOGIN_DIALOG] Making window visible and grabbing focus")
-        self.grab_set()
-        self.focus_set()
-        logger.info("[LOGIN_DIALOG] Window should now be visible with focus")
-
-        # Bind enter key
-        self.bind("<Return>", lambda _e: self.handle_login())
+        self.bind("<Return>", lambda _event: self.handle_login())
+        self._finalize_init(
+            preferred_width=400,
+            preferred_height=300,
+            min_width=360,
+            min_height=280,
+            modal=True,
+        )
+        self.username_entry.focus_set()
         logger.info("[LOGIN_DIALOG] Initialization complete")
 
     def create_widgets(self) -> None:
-        # Username
-        self.username_label = ctk.CTkLabel(self, text="Username:", font=("Roboto", 14))
-        self.username_label.pack(pady=(20, 5))
+        palette = resolve_palette(self._theme_manager)
+        self.form_frame = GlassFrame(
+            self.content_parent,
+            theme_manager=self._theme_manager,
+            elevation="raised",
+        )
+        self.form_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        self.form_frame.grid_columnconfigure(0, weight=1)
 
-        self.username_entry = ctk.CTkEntry(self, width=280, font=("Roboto", 14))
-        self.username_entry.pack(pady=5)
+        self.username_label = ctk.CTkLabel(
+            self.form_frame,
+            text="Username",
+            font=tokens.font("body", weight="bold"),
+            text_color=palette.text,
+            anchor="w",
+        )
+        self.username_label.grid(row=0, column=0, sticky="ew", padx=24, pady=(20, 6))
 
-        # Password
-        self.password_label = ctk.CTkLabel(self, text="Password:", font=("Roboto", 14))
-        self.password_label.pack(pady=(10, 5))
+        self.username_entry = ctk.CTkEntry(
+            self.form_frame,
+            height=tokens.CONTROL_H_LG,
+            font=tokens.font("body"),
+            fg_color=palette.surface,
+            border_color=palette.border_strong,
+            text_color=palette.text,
+        )
+        self.username_entry.grid(row=1, column=0, sticky="ew", padx=24)
 
-        self.password_entry = ctk.CTkEntry(self, width=280, show="*", font=("Roboto", 14))
-        self.password_entry.pack(pady=5)
+        self.password_label = ctk.CTkLabel(
+            self.form_frame,
+            text="Password",
+            font=tokens.font("body", weight="bold"),
+            text_color=palette.text,
+            anchor="w",
+        )
+        self.password_label.grid(row=2, column=0, sticky="ew", padx=24, pady=(14, 6))
 
-        # Login button
-        self.login_button = ctk.CTkButton(
-            self,
+        self.password_entry = ctk.CTkEntry(
+            self.form_frame,
+            height=tokens.CONTROL_H_LG,
+            show="*",
+            font=tokens.font("body"),
+            fg_color=palette.surface,
+            border_color=palette.border_strong,
+            text_color=palette.text,
+        )
+        self.password_entry.grid(row=3, column=0, sticky="ew", padx=24)
+
+        self.login_button = GradientButton(
+            self.form_frame,
             text="Login",
             command=self.handle_login,
-            width=200,
-            font=("Roboto", 14),
+            theme_manager=self._theme_manager,
+            height=tokens.CONTROL_H_LG,
         )
-        self.login_button.pack(pady=20)
-
-        # Set initial focus
-        self.username_entry.focus()
+        self.login_button.grid(row=4, column=0, sticky="ew", padx=24, pady=20)
 
     def handle_login(self) -> None:
         logger.info("[LOGIN_DIALOG] handle_login called")
@@ -97,28 +107,32 @@ class LoginDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.password = self.password_entry.get().strip()
 
         logger.info(
-            f"[LOGIN_DIALOG] Username: {self.username}, Password: {'*' * len(self.password) if self.password else 'empty'}"
+            "[LOGIN_DIALOG] Username: %s, Password: %s",
+            self.username,
+            "*" * len(self.password) if self.password else "empty",
         )
 
         if self.username and self.password:
             logger.info("[LOGIN_DIALOG] Credentials provided, closing dialog")
             self.destroy()
-        else:
-            logger.warning("[LOGIN_DIALOG] Missing credentials, showing error")
-            error_msg = "Please enter both username and password"
-            if self.error_handler:
-                self.error_handler.show_error("Login Error", error_msg)
-            elif self.message_queue:
-                self.message_queue.add_message(
-                    Message(text=error_msg, level=MessageLevel.ERROR, title="Login Error")
-                )
+            return
 
-    def _on_theme_changed(self, appearance, color) -> None:
-        """Handle theme change - CTk widgets auto-update, subscription enables future extensions."""
+        logger.warning("[LOGIN_DIALOG] Missing credentials, showing error")
+        error_msg = "Please enter both username and password"
+        if self.error_handler:
+            self.error_handler.show_error("Login Error", error_msg)
+        elif self.message_queue:
+            self.message_queue.add_message(
+                Message(text=error_msg, level=MessageLevel.ERROR, title="Login Error")
+            )
 
-    def destroy(self) -> None:
-        with contextlib.suppress(Exception):
-            self.grab_release()
-        if self._theme_manager:
-            self._theme_manager.unsubscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
-        super().destroy()
+    def _on_theme_changed(self, _appearance: str, _color: str) -> None:
+        palette = resolve_palette(self._theme_manager)
+        self.username_label.configure(text_color=palette.text)
+        self.password_label.configure(text_color=palette.text)
+        for entry in (self.username_entry, self.password_entry):
+            entry.configure(
+                fg_color=palette.surface,
+                border_color=palette.border_strong,
+                text_color=palette.text,
+            )

@@ -1,5 +1,68 @@
 # Changelog
 
+## 1.2.1 - 2026-07-22
+
+Security updates, YouTube metadata fix, and UI improvements.
+
+### Security
+
+- **Updated dependencies** to address 31 security vulnerabilities:
+  - Pillow 12.3.0 (was 12.1.1) — fixes 18 vulnerabilities (heap overflows, DoS, command injection)
+  - beautifulsoup4 4.15.0 (was 4.14.3)
+  - instaloader 4.15.2 (was 4.15)
+  - playwright 1.61.0 (was 1.58.0)
+  - pydantic 2.13.4 (was 2.12.5)
+  - pydantic-settings 2.14.2 (was 2.12.0)
+  - requests 2.34.2 (was 2.32.5)
+
+### Fixed
+
+- **Fixed YouTube metadata extraction crash**: `remote_components` was incorrectly passed as a string instead of a list, causing yt-dlp to treat each character as a separate component. Changed `"ejs:github"` to `["ejs:github"]` in all YouTube services (info_extractor, downloader, subtitle_extractor, cookie_sources).
+- **Fixed download speed display**: Speed was shown as bytes/s (e.g., 840315 MB/s) instead of MB/s. Updated YouTube, file, and network downloaders to convert bytes/s to MB/s before passing to progress callback.
+- **Fixed dialog centering**: YouTube and Spotify dialogs now properly center on screen using `apply_screen_aware_geometry()` when showing after metadata fetch.
+
+## 1.2.0 - 2026-07-21
+
+UI/UX overhaul, Twitter Spaces support, and Linux build.
+
+### Added
+
+- **Twitter Spaces download** — GraphQL guest auth with AudioSpaceById
+- **Paste button** — one-click paste in URL entry with clipboard emoji
+- **Platform badge** — live domain detection on URL input
+- **Auto-naming** — URL-based default names (no more popup dialog)
+- **DownloadCard + DownloadCardList** — compact per-download cards with progress bars, platform badges, status indicators, and empty-state label
+- **AppHeader** — consolidated header with 8 platform badges, theme switcher, concurrent downloads selector, and download count
+- **BaseDialog** — shared dialog base class for theme subscription, centering, cleanup
+- **Linux build** — PyInstaller spec, build script, ffmpeg auto-download, .deb packaging, Dockerfile.build for CI testing
+- **Linux ffmpeg auto-download** — downloads static binary from johnvansickle.com with GitHub fallback
+
+### Changed
+
+- Replaced CenteredInputDialog popup with inline auto-naming in URLEntry
+- Refactored YouTube/Spotify dialogs to inherit from BaseDialog (~12 lines boilerplate removed per dialog)
+- Consolidated header UI into AppHeader component
+- ffmpeg.py refactored for cross-platform auto-download (Windows + Linux)
+
+### Fixed
+
+- Fixed paste button crash: surrogate pair `\uD83D\uDCCB` → `\U0001F4CB`
+- Removed unused imports (`CenteredInputDialog`, `_SPACE_PATTERN`)
+
+## 1.1.2 - 2026-06-18
+
+Hotfix release fixing RadioJavan URL detection, YouTube dialog crash, disabled button contrast, and UI scaling across all screen resolutions.
+
+### Fixed
+
+- **Fixed RadioJavan URL detection**: Expanded URL patterns to support all RadioJavan URL families including `play.radiojavan.com/playlist/mp3/...`, `play.radiojavan.com/podcast/...`, `play.radiojavan.com/album/...`, `play.radiojavan.com/video/...`, `play.radiojavan.com/song/...`, and `rj.app/m/...`, `rj.app/v/...`, `rj.app/a/...`, `rj.app/p/...`, `rj.app/pl/...` short links. Previously only `/mp3/`, `/mp4/`, and `/song/` paths were recognized.
+- **Fixed RadioJavan handler type detection**: Added detection for playlist, album, podcast, browse, video, and music_video content types in addition to mp3/mp4/artist.
+- **Fixed RadioJavan media ID extraction**: Extended extraction patterns to handle all URL formats including short links with subpaths like `rj.app/m/...`.
+- **Fixed YouTube dialog crash**: Added error handling in `_update_ui_with_metadata()` to prevent unhandled exceptions during UI population. Fixed `_show_error()` to pack error labels inside the scrollable frame instead of directly on the dialog window (which corrupted the layout). Added `winfo_exists()` guard to the grab_set callback to prevent crashes when the dialog is destroyed before the scheduled callback fires.
+- **Fixed YouTube metadata fetch with stale cookies**: When all extraction strategies fail with `LOGIN_REQUIRED` (YouTube bot detection), the info extractor now automatically invalidates and regenerates cookies via Playwright, then retries with fresh cookies before giving up. Previously stale cookies would exhaust all strategies without attempting regeneration.
+- **Fixed disabled button contrast**: Added `text_color_disabled` parameter to all CTkButton instances across the application (YouTube dialog, Spotify dialog, Network Status dialog, Main Action Buttons, File Manager Action Buttons) so disabled buttons remain readable in both light and dark themes.
+- **Fixed UI scaling for all screen resolutions**: All windows (main app, YouTube/Spotify dialogs, Network Status, Login, File Manager, Loading) now use screen-aware geometry — sizes are clamped to 90% of the screen and centered automatically. `WindowCenterMixin.center_window()` now accepts optional `width`/`height` parameters and clamps to screen bounds. Main window uses `min(90% of screen, 1200x800)` initial size with `700x500` minimum. Dialogs use `min(70-90% of screen, their ideal size)` to prevent off-screen widgets on small or high-DPI displays.
+
 ## 1.1.1 - 2026-06-16
 
 Hotfix release fixing Windows installer, PyInstaller build issues, and main-thread deadlock.

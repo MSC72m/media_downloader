@@ -1,6 +1,6 @@
 [project]
 name = "media-downloader"
-version = "1.1.1"
+version = "1.2.0"
 description = "A cross-platform media downloader supporting YouTube, Spotify, TikTok, Instagram, Twitter, Pinterest, SoundCloud, and RadioJavan"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -23,17 +23,17 @@ keywords = [
     "yt-dlp",
 ]
     dependencies = [
-        "beautifulsoup4>=4.13.5",
+        "beautifulsoup4>=4.15.0",
         "customtkinter>=5.2.2",
-        "instaloader>=4.14.2",
+        "instaloader>=4.15.2",
         "mypy>=1.18.2",
-        "playwright>=1.40.0",
-        "pydantic>=2.11.8",
-        "pydantic-settings>=2.1.0",
+        "playwright>=1.61.0",
+        "pydantic>=2.13.4",
+        "pydantic-settings>=2.14.2",
         "pyyaml>=6.0.1",
-        "requests>=2.32.5",
-        "yt-dlp>=2025.11.12",
-        "pillow>=10.0.0",
+        "requests>=2.34.2",
+        "yt-dlp>=2026.7.4",
+        "pillow>=12.3.0",
 ]
 
 [project.optional-dependencies]
@@ -111,6 +111,7 @@ ignore = [
     "ARG002", # unused method argument (interface compliance, may be used by subclasses)
     "RUF001", # ambiguous characters (intentional in test cases)
     "S311", # random for non-crypto (acceptable for user agent rotation)
+    "PLW0603", # using global statement (needed for singleton pattern)
     "PLW1641", # __hash__ not implemented (test mocks don't need it)
     "PT017", # assertion in except (pytest.raises preferred but current pattern is acceptable)
 ]

@@ -48,7 +48,6 @@ class YouTubeSubtitleExtractor:
         auth_strategies = self.cookie_source_coordinator.build_auth_strategies(
             cookie_path_hint=cookie_path,
             preferred_browser=browser,
-            include_browser_source=False,
         )
 
         for auth_strategy in auth_strategies:
@@ -160,7 +159,7 @@ class YouTubeSubtitleExtractor:
 
         if shutil.which("node"):
             opts["js_runtimes"] = {"node": {}}
-            opts["remote_components"] = "ejs:github"
+            opts["remote_components"] = ["ejs:github"]
 
         if client:
             opts["extractor_args"] = {"youtube": {"player_client": [client]}}

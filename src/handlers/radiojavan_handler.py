@@ -3,18 +3,13 @@ from collections.abc import Mapping
 from urllib.parse import unquote
 
 from src.core.config import AppConfig, get_config
-from src.core.interfaces import IErrorNotifier, IMessageQueue, UIContextProtocol
+from src.core.interfaces import IErrorNotifier, IMessageQueue
 from src.core.type_defs import JSONDict, JSONValue
-from src.services.detection.base_handler import BaseHandler, UICallback
+from src.services.detection.base_handler import BaseHandler
 from src.services.detection.link_detector import (
     auto_register_handler,
 )
 from src.utils.logger import get_logger
-from src.utils.type_helpers import (
-    get_platform_callback,
-    get_root,
-    schedule_on_main_thread,
-)
 
 logger = get_logger(__name__)
 
@@ -56,57 +51,22 @@ class RadioJavanHandler(BaseHandler):
         logger.info(f"[RADIOJAVAN_HANDLER] Processing Radio Javan download: {url}")
         return True
 
-    def get_ui_callback(self) -> UICallback:
-        """Get UI callback for Radio Javan URLs."""
-        logger.info("[RADIOJAVAN_HANDLER] Getting UI callback")
-
-        def radiojavan_callback(url: str, ui_context: UIContextProtocol) -> None:
-            """Callback for handling Radio Javan URLs."""
-            logger.info(f"[RADIOJAVAN_HANDLER] Radio Javan callback called with URL: {url}")
-
-            root = get_root(ui_context)
-
-            if not (download_callback := get_platform_callback(ui_context, "radiojavan")) and not (
-                download_callback := get_platform_callback(ui_context, "generic")
-            ):
-                error_msg = "No download callback found"
-                logger.error(f"[RADIOJAVAN_HANDLER] {error_msg}")
-                if self.error_handler:
-                    self.error_handler.handle_service_failure(
-                        "Radio Javan Handler", "callback", error_msg, url
-                    )
-                return
-
-            def process_radiojavan_download() -> None:
-                try:
-                    logger.info(f"[RADIOJAVAN_HANDLER] Calling download callback for: {url}")
-                    download_callback(url)
-                    logger.info("[RADIOJAVAN_HANDLER] Download callback executed")
-                except Exception as e:
-                    logger.error(
-                        f"[RADIOJAVAN_HANDLER] Error processing Radio Javan download: {e}",
-                        exc_info=True,
-                    )
-                    if self.error_handler:
-                        self.error_handler.handle_exception(
-                            e, "Processing Radio Javan download", "Radio Javan"
-                        )
-
-            schedule_on_main_thread(root, process_radiojavan_download, immediate=True)
-            logger.info("[RADIOJAVAN_HANDLER] Radio Javan download scheduled")
-
-        logger.info("[RADIOJAVAN_HANDLER] Returning Radio Javan callback")
-        return radiojavan_callback
-
     def _detect_radiojavan_type(self, url: str) -> str:
-        """Detect if URL is song, video, artist page, etc."""
-        if "/mp3/" in url or "/song/" in url:
-            return "mp3"
-        if "/mp4/" in url:
-            return "mp4"
-        if "/artist/" in url:
-            return "artist"
-        if "rj.app" in url.lower():
+        """Detect if URL is song, video, artist page, playlist, etc."""
+        url_lower = url.lower()
+        type_map = [
+            (("/mp3/", "/song/"), "mp3"),
+            (("/mp4/", "/video/", "/music_video/"), "mp4"),
+            (("/artist/",), "artist"),
+            (("/playlist/",), "playlist"),
+            (("/album/",), "album"),
+            (("/podcast/",), "podcast"),
+            (("/browse/",), "browse"),
+        ]
+        for tokens, media_type in type_map:
+            if any(token in url for token in tokens):
+                return media_type
+        if "rj.app" in url_lower:
             return "short_url"
         return "unknown"
 
@@ -116,6 +76,16 @@ class RadioJavanHandler(BaseHandler):
             r"/mp3/([\w%-]+)",
             r"/mp4/([\w%-]+)",
             r"/song/([\w%-]+)",
+            r"/music_video/([\w%-]+)",
+            r"/playlist/mp3/([\w%-]+)",
+            r"/playlist/([\w%-]+)",
+            r"/podcast/([\w%-]+)",
+            r"/album/([\w%-]+)",
+            r"rj\.app/m/([\w%-]+)",
+            r"rj\.app/v/([\w%-]+)",
+            r"rj\.app/a/([\w%-]+)",
+            r"rj\.app/p/([\w%-]+)",
+            r"rj\.app/pl/([\w%-]+)",
             r"rj\.app/([\w%-]+)",
         ]
         for pattern in patterns:

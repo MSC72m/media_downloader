@@ -1,3 +1,4 @@
+import json
 import re
 from collections.abc import Callable
 from difflib import SequenceMatcher
@@ -5,7 +6,6 @@ from typing import Any
 
 import requests
 import yt_dlp
-from bs4 import BeautifulSoup
 
 from src.core.config import AppConfig, get_config
 from src.core.interfaces import (
@@ -17,6 +17,7 @@ from src.core.interfaces import (
 )
 
 from ...utils.logger import get_logger
+from ...utils.proxy import get_request_proxies
 from ..youtube.downloader import YouTubeDownloader
 
 logger = get_logger(__name__)
@@ -121,6 +122,7 @@ class SpotifyDownloader(BaseDownloader):
                         headers={
                             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
                         },
+                        proxies=get_request_proxies(self.config),
                     )
                     response.raise_for_status()
                     data = response.json()
@@ -194,63 +196,85 @@ class SpotifyDownloader(BaseDownloader):
         return "", title
 
     def _scrape_playlist_tracks(self, url: str) -> list[dict[str, str]]:
-        """Scrape track list from Spotify playlist/album page.
+        """Fetch a playlist/album track list via Spotify's public embed JSON.
 
-        Args:
-            url: Spotify playlist/album URL
-
-        Returns:
-            List of track dictionaries with 'title' and 'position'
+        The embed page (https://open.spotify.com/embed/<type>/<id>) ships a
+        ``__NEXT_DATA__`` JSON blob containing the full track list — no API key
+        required and stable, unlike scraping the JS-rendered main SPA (which
+        matched ``div[role=row]`` that never exist server-side and returned []).
         """
-        try:
-            logger.info(f"[SPOTIFY_DOWNLOADER] Scraping tracks from: {url}")
+        url_type = self._detect_url_type(url)
+        content_id = self._extract_spotify_id(url)
+        if not content_id or url_type not in ("album", "playlist"):
+            return []
 
+        embed_url = f"https://open.spotify.com/embed/{url_type}/{content_id}"
+        try:
+            logger.info(f"[SPOTIFY_DOWNLOADER] Fetching embed JSON: {embed_url}")
             response = requests.get(
-                url,
+                embed_url,
                 timeout=self.default_timeout,
                 headers={"User-Agent": self.config.network.user_agent},
+                proxies=get_request_proxies(self.config),
             )
             response.raise_for_status()
-
-            soup = BeautifulSoup(response.content, "html.parser")
-
-            tracks = []
-
-            song_rows = soup.find_all("div", {"role": "row"})
-            for i, row in enumerate(song_rows):
-                try:
-                    track_element = row.find("a")
-                    if not track_element or not hasattr(track_element, "get_text"):
-                        continue
-
-                    if not (track_name := track_element.get_text(strip=True)):
-                        continue
-
-                    tracks.append(
-                        {
-                            "title": track_name,
-                            "position": i + 1,
-                        }
-                    )
-                except Exception as e:
-                    logger.warning(f"[SPOTIFY_DOWNLOADER] Error parsing track row {i}: {e}")
-                    continue
-
-            logger.info(f"[SPOTIFY_DOWNLOADER] Scraped {len(tracks)} tracks")
-            return tracks
-
         except _REQUEST_EXCEPTION as e:
-            logger.error(f"[SPOTIFY_DOWNLOADER] Playlist scrape failed: {e}")
+            logger.error(f"[SPOTIFY_DOWNLOADER] Embed fetch failed: {e}")
             if self.error_handler:
                 self.error_handler.handle_service_failure(
                     "Spotify", "playlist scraping", str(e), url
                 )
             return []
-        except Exception as e:
-            logger.error(f"[SPOTIFY_DOWNLOADER] Playlist scraping error: {e}", exc_info=True)
-            if self.error_handler:
-                self.error_handler.handle_exception(e, "Spotify playlist scraping", "Spotify")
+
+        data = self._extract_next_data(response.text)
+        if data is None:
+            logger.warning("[SPOTIFY_DOWNLOADER] No __NEXT_DATA__ JSON in embed page")
             return []
+
+        tracks: list[dict[str, str]] = []
+        for i, item in enumerate(self._find_track_list(data)):
+            title = str(item.get("title") or "").strip()
+            if not title:
+                continue
+            artist = str(item.get("subtitle") or "").strip()
+            display = f"{artist} - {title}" if artist else title
+            tracks.append(
+                {
+                    "title": display,
+                    "artist": artist,
+                    "track": title,
+                    "position": str(i + 1),
+                }
+            )
+
+        logger.info(f"[SPOTIFY_DOWNLOADER] Parsed {len(tracks)} tracks from embed JSON")
+        return tracks
+
+    @staticmethod
+    def _extract_next_data(html: str) -> Any | None:
+        """Extract and parse the __NEXT_DATA__ JSON blob from embed HTML."""
+        match = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.DOTALL)
+        if not match:
+            return None
+        try:
+            return json.loads(match.group(1))
+        except (json.JSONDecodeError, ValueError):
+            return None
+
+    @staticmethod
+    def _find_track_list(data: Any) -> list[dict[str, Any]]:
+        """Recursively locate the first non-empty ``trackList`` array."""
+        stack: list[Any] = [data]
+        while stack:
+            node = stack.pop()
+            if isinstance(node, dict):
+                track_list = node.get("trackList")
+                if isinstance(track_list, list) and track_list:
+                    return [t for t in track_list if isinstance(t, dict)]
+                stack.extend(node.values())
+            elif isinstance(node, list):
+                stack.extend(node)
+        return []
 
     def _search_youtube(self, artist: str, track: str) -> list[dict[str, Any]]:
         """Search YouTube for matching videos.

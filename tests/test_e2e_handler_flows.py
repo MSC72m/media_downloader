@@ -739,6 +739,30 @@ class TestE2EServiceFactoryDetection:
     def test_radiojavan_app_url_detection(self) -> None:
         assert self.factory.detect_service_type("https://rj.app/mp3s/mp3/artist-song") == ServiceType.RADIOJAVAN
 
+    def test_radiojavan_playlist_mp3_url_detection(self) -> None:
+        assert self.factory.detect_service_type("https://play.radiojavan.com/playlist/mp3/2c4a156ae613") == ServiceType.RADIOJAVAN
+
+    def test_radiojavan_rj_app_short_url_detection(self) -> None:
+        assert self.factory.detect_service_type("https://rj.app/m/nvOKQ9lMI") == ServiceType.RADIOJAVAN
+
+    def test_radiojavan_rj_app_video_short_url_detection(self) -> None:
+        assert self.factory.detect_service_type("https://rj.app/v/abc123") == ServiceType.RADIOJAVAN
+
+    def test_radiojavan_rj_app_artist_short_url_detection(self) -> None:
+        assert self.factory.detect_service_type("https://rj.app/artist/some-artist") == ServiceType.RADIOJAVAN
+
+    def test_radiojavan_play_podcast_url_detection(self) -> None:
+        assert self.factory.detect_service_type("https://play.radiojavan.com/podcast/some-podcast-id") == ServiceType.RADIOJAVAN
+
+    def test_radiojavan_play_album_url_detection(self) -> None:
+        assert self.factory.detect_service_type("https://play.radiojavan.com/album/some-album-id") == ServiceType.RADIOJAVAN
+
+    def test_radiojavan_play_song_url_detection(self) -> None:
+        assert self.factory.detect_service_type("https://play.radiojavan.com/song/some-song-id") == ServiceType.RADIOJAVAN
+
+    def test_radiojavan_play_video_url_detection(self) -> None:
+        assert self.factory.detect_service_type("https://play.radiojavan.com/video/some-video-id") == ServiceType.RADIOJAVAN
+
     def test_spotify_url_detection(self) -> None:
         assert self.factory.detect_service_type("https://open.spotify.com/track/3n3Ppam7vgaVa1iaRUc9Lp") == ServiceType.SPOTIFY
 

@@ -12,6 +12,7 @@ from src.core.enums import ServiceType
 from src.core.interfaces import BaseDownloader, IErrorNotifier, IFileService
 
 from ...utils.logger import get_logger
+from ...utils.proxy import get_request_proxies
 from ..file.service import FileService
 from ..network.checker import check_site_connection
 
@@ -145,6 +146,7 @@ class PinterestDownloader(BaseDownloader):
                 oembed_url,
                 headers=headers,
                 timeout=self.config.pinterest.oembed_timeout,
+                proxies=get_request_proxies(self.config),
             )
             if response.status_code == 200:
                 data = response.json()
@@ -219,7 +221,10 @@ class PinterestDownloader(BaseDownloader):
             headers = {"User-Agent": self.config.network.user_agent}
             if not media_url:
                 response = requests.get(
-                    url, headers=headers, timeout=self.config.pinterest.default_timeout
+                    url,
+                    headers=headers,
+                    timeout=self.config.pinterest.default_timeout,
+                    proxies=get_request_proxies(self.config),
                 )
                 if response.status_code != 200:
                     return None

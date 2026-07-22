@@ -109,8 +109,9 @@ class YouTubeCookieManager:
     def get_cookies(self) -> str | None:
         """Get path to cookie file for use with yt-dlp.
 
-        If not initialized, returns None immediately (background init handles it).
-        If cookies need regeneration, triggers it in a background thread.
+        Returns the existing cookie file path if valid, None otherwise.
+        Does NOT trigger regeneration — use refresh_if_needed() or
+        invalidate_and_regenerate() for that.
 
         Returns:
             Path to Netscape format cookie file, or None if not available
@@ -124,7 +125,9 @@ class YouTubeCookieManager:
                 logger.warning("[COOKIE_MANAGER] No valid cookies available")
                 return None
 
-            if not (cookie_path := self._ensure_cookie_file_exists()):
+            cookie_path = self._state.cookie_path
+            if not cookie_path or not Path(cookie_path).exists():
+                logger.warning("[COOKIE_MANAGER] Cookie file does not exist")
                 return None
 
             if self.generator.validate_netscape_file(cookie_path):
@@ -192,15 +195,19 @@ class YouTubeCookieManager:
         logger.info("[COOKIE_MANAGER] Cookies are still valid")
         return False
 
-    def invalidate_and_regenerate(self) -> bool:
+    def invalidate_and_regenerate(self, *, fast: bool = False) -> bool:
         """Invalidate current cookies and trigger regeneration.
 
-        This is called when cookies are detected to be invalid during use.
+        Args:
+            fast: If True, use fast mode (no strict probe) for quick regeneration.
 
         Returns:
             True if regeneration was triggered, False otherwise
         """
-        logger.info("[COOKIE_MANAGER] Invalidating cookies and triggering regeneration")
+        mode_label = "fast" if fast else "full"
+        logger.info(
+            "[COOKIE_MANAGER] Invalidating cookies and triggering %s regeneration", mode_label
+        )
 
         with self._lock:
             # Invalidate current state
@@ -215,7 +222,7 @@ class YouTubeCookieManager:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
 
-            self._state = loop.run_until_complete(self._regenerate_cookies())
+            self._state = loop.run_until_complete(self._regenerate_cookies(fast_mode=fast))
 
             if self._state and self._state.is_valid:
                 logger.info("[COOKIE_MANAGER] Cookies regenerated successfully after invalidation")
@@ -474,13 +481,11 @@ class YouTubeCookieManager:
         logger.warning("[COOKIE_MANAGER] Background strict probe failed: %s", reason)
         with self._lock:
             if self._state and self._state.cookie_path == cookie_path:
-                details = reason or "strict probe failed"
-                self._state.error_message = (
-                    f"Generated cookies are fallback-only; strict probe failed. Reason: {details}"
-                )
+                self._state = self._mark_generated_fallback_only(self._state, reason)
                 self._save_state(self._state)
         logger.info(
-            "[COOKIE_MANAGER] Keeping current cookies to avoid disruptive background regeneration"
+            "[COOKIE_MANAGER] Cookies marked as fallback-only; "
+            "browser source should be preferred for best results"
         )
 
     async def _sleep_before_retry(self, attempt: int) -> None:

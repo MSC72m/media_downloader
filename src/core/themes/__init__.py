@@ -113,7 +113,7 @@ def load_color_schemes() -> dict[str, dict[str, Any]]:
     Results are cached after the first call.  Use :func:`reload_themes` to
     force a refresh.
     """
-    global _schemes_cache  # noqa: PLW0603
+    global _schemes_cache
     if _schemes_cache is not None:
         return _schemes_cache
 
@@ -142,7 +142,7 @@ def get_available_themes() -> list[dict[str, str]]:
     alphabetically by name.  The list is built from the same JSON files
     that :func:`load_color_schemes` reads.
     """
-    global _themes_cache  # noqa: PLW0603
+    global _themes_cache
     if _themes_cache is not None:
         return _themes_cache
 
@@ -176,7 +176,7 @@ def get_default_theme() -> str:
 
 def reload_themes() -> dict[str, dict[str, Any]]:
     """Clear caches and re-read all theme files from disk."""
-    global _schemes_cache, _themes_cache  # noqa: PLW0603
+    global _schemes_cache, _themes_cache
     _schemes_cache = None
     _themes_cache = None
     return load_color_schemes()

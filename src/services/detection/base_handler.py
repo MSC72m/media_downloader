@@ -8,10 +8,13 @@ from src.core.config import AppConfig, get_config
 from src.core.interfaces import IMessageQueue, INotifier, UIContextProtocol
 from src.core.type_defs import JSONDict, JSONValue
 from src.services.notifications.notifier import NotifierService
+from src.utils.logger import get_logger
 
 from .models import DetectionResult
 
 UICallback = Callable[[str, UIContextProtocol], None]
+
+logger = get_logger(__name__)
 
 
 class BaseHandler(ABC):
@@ -36,6 +39,14 @@ class BaseHandler(ABC):
         if isinstance(templates_attr, dict):
             return templates_attr
         return {}
+
+    def _callback_service_name(self) -> str:
+        """Service name used for platform callback lookup."""
+        return self.service_name
+
+    def _handler_label(self) -> str:
+        """Human-readable handler label for log messages."""
+        return self.service_name.title() if self.service_name else "Unknown"
 
     @classmethod
     @abstractmethod
@@ -62,5 +73,63 @@ class BaseHandler(ABC):
     @abstractmethod
     def process_download(self, url: str, options: Mapping[str, JSONValue]) -> bool: ...
 
-    @abstractmethod
-    def get_ui_callback(self) -> UICallback: ...
+    def get_ui_callback(self) -> UICallback:
+        """Default UI callback that schedules a download via platform callback.
+
+        Uses ``_callback_service_name()`` to look up the platform callback,
+        falling back to ``"generic"``. Subclasses that need dialog creation
+        (e.g. YouTube, Spotify) or custom download-creation logic (e.g.
+        Instagram) override this method.
+        """
+        from src.utils.type_helpers import (
+            get_platform_callback,
+            get_root,
+            schedule_on_main_thread,
+        )
+
+        service_name = self._callback_service_name()
+        label = self._handler_label()
+        error_handler = getattr(self, "error_handler", None)
+
+        def default_callback(url: str, ui_context: UIContextProtocol) -> None:
+            nonlocal service_name, label, error_handler
+
+            root = get_root(ui_context)
+
+            download_callback = get_platform_callback(ui_context, service_name)
+            if not download_callback:
+                download_callback = get_platform_callback(ui_context, "generic")
+
+            if not download_callback:
+                error_msg = "No download callback found"
+                logger.error(f"[{service_name.upper()}_HANDLER] {error_msg}")
+                if error_handler:
+                    error_handler.handle_service_failure(
+                        f"{label} Handler", "callback", error_msg, url
+                    )
+                return
+
+            def process() -> None:
+                try:
+                    logger.info(
+                        f"[{service_name.upper()}_HANDLER] Calling download callback for: {url}"
+                    )
+                    download_callback(url)
+                    logger.info(f"[{service_name.upper()}_HANDLER] Download callback executed")
+                except Exception as e:
+                    logger.error(
+                        f"[{service_name.upper()}_HANDLER] Error processing {label} download: {e}",
+                        exc_info=True,
+                    )
+                    if error_handler:
+                        error_handler.handle_exception(e, f"Processing {label} download", label)
+                    else:
+                        self.notifier.notify_user(
+                            "error",
+                            title=f"{label} Download Error",
+                            message=f"Failed to process {label} download: {e!s}",
+                        )
+
+            schedule_on_main_thread(root, process, immediate=True)
+
+        return default_callback
