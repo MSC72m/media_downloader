@@ -40,6 +40,7 @@ from src.ui.components.download_card_list import DownloadCardList  # noqa: E402
 from src.ui.components.footer import AppFooter  # noqa: E402
 from src.ui.components.header import AppHeader  # noqa: E402
 from src.ui.components.url_entry import URLEntryFrame  # noqa: E402
+from src.ui.dialogs.message_dialog import MessageDialog  # noqa: E402
 from src.ui.utils.theme_manager import get_theme_manager  # noqa: E402
 from src.ui.visual_system import GradientBackdrop, resolve_palette  # noqa: E402
 
@@ -47,121 +48,14 @@ if TYPE_CHECKING:
     from src.application.orchestrator import ApplicationOrchestrator
 
 
-def _check_playwright_installation() -> None:
-    try:
-        if not importlib.util.find_spec("playwright"):
-            raise ImportError("playwright module not found")
+def _check_playwright_installation() -> bool:
+    """Return whether Playwright is available without creating a second Tk root."""
+    available = importlib.util.find_spec("playwright") is not None
+    if available:
         logger.info("[MAIN_APP] Playwright is installed")
-    except ImportError as original_error:
-        logger.error("[MAIN_APP] Playwright is NOT installed - showing critical error")
-
-        # Create a minimal window to show the error
-        error_window = ctk.CTk()
-        error_window.title("CRITICAL: Playwright Not Installed")
-        screen_w = error_window.winfo_screenwidth()
-        screen_h = error_window.winfo_screenheight()
-        w = min(600, int(screen_w * 0.9))
-        h = min(400, int(screen_h * 0.9))
-        error_window.geometry(f"{w}x{h}")
-
-        # Center the window
-        error_window.update_idletasks()
-        width = error_window.winfo_width()
-        height = error_window.winfo_height()
-        x = (error_window.winfo_screenwidth() // 2) - (width // 2)
-        y = (error_window.winfo_screenheight() // 2) - (height // 2)
-        error_window.geometry(f"{width}x{height}+{x}+{y}")
-
-        # Error message
-        error_frame = ctk.CTkFrame(error_window, fg_color="transparent")
-        error_frame.pack(fill="both", expand=True, padx=20, pady=20)
-
-        title_label = ctk.CTkLabel(
-            error_frame,
-            text="PLAYWRIGHT NOT INSTALLED",
-            font=("Arial", 20, "bold"),
-            text_color="red",
-        )
-        title_label.pack(pady=(0, 20))
-
-        message = (
-            "The auto-cookie generation system requires Playwright.\n\n"
-            "Without it, age-restricted YouTube videos will FAIL to download.\n\n"
-            "To fix this, run these commands in your terminal:\n\n"
-            "   pip install playwright\n"
-            "   playwright install chromium\n\n"
-            "Then restart the application.\n\n"
-            "Click 'Continue Anyway' to run without cookies (NOT RECOMMENDED)\n"
-            "or 'Exit' to close and install Playwright first."
-        )
-
-        message_label = ctk.CTkLabel(error_frame, text=message, font=("Arial", 12), justify="left")
-        message_label.pack(pady=10)
-
-        # Buttons
-        button_frame = ctk.CTkFrame(error_frame, fg_color="transparent")
-        button_frame.pack(pady=20)
-
-        # Track which button was clicked
-        exit_clicked = {"value": False}
-
-        def continue_anyway() -> None:
-            logger.warning("[MAIN_APP] User chose to continue without Playwright")
-            error_window.destroy()
-
-        def exit_app() -> None:
-            logger.info("[MAIN_APP] User chose to exit and install Playwright")
-            exit_clicked["value"] = True
-
-            print("\n" + "=" * 70)
-            print("  PLAYWRIGHT INSTALLATION REQUIRED")
-            print("=" * 70)
-            print("\nTo install Playwright and Chromium, run these commands:\n")
-            print("  pip install playwright")
-            print("  playwright install chromium")
-            print("\nAfter installation, restart the application:")
-            print("  uv run -m src.main")
-            print("\n" + "=" * 70 + "\n")
-
-            # Destroy window to exit mainloop
-            error_window.destroy()
-
-        # Exit button - recommended action
-        exit_button = ctk.CTkButton(
-            button_frame,
-            text="Exit",
-            command=exit_app,
-            fg_color="red",
-            hover_color="darkred",
-            width=150,
-        )
-        exit_button.pack(side="left", padx=10)
-
-        # Continue button - not recommended
-        continue_button = ctk.CTkButton(
-            button_frame,
-            text="Continue Without Playwright",
-            command=continue_anyway,
-            fg_color="gray",
-            hover_color="darkgray",
-            width=250,
-        )
-        continue_button.pack(side="left", padx=10)
-
-        # Prevent window from being closed without clicking a button
-        error_window.protocol("WM_DELETE_WINDOW", exit_app)
-
-        # Run the error window - this BLOCKS until user clicks a button
-        error_window.mainloop()
-
-        # Check which button was clicked
-        if exit_clicked["value"]:
-            logger.info("[MAIN_APP] Exiting program as user requested")
-            raise SystemExit(1) from None
-
-        # If we reach here, user clicked Continue Anyway
-        logger.warning("[MAIN_APP] Continuing without Playwright as user requested")
-        raise original_error
+    else:
+        logger.error("[MAIN_APP] Playwright is not installed")
+    return available
 
 
 class MediaDownloaderApp(ctk.CTk):
@@ -407,7 +301,7 @@ if __name__ == "__main__":
     try:
         # Step 1: Verify Playwright Python package is available
         logger.info("[MAIN_APP] Step 1/3: Checking Playwright installation...")
-        _check_playwright_installation()
+        playwright_available = _check_playwright_installation()
 
         # Step 2: Ensure Chromium browser is available (non-blocking).
         # Cookie init threads will wait on _chromium_ready event before launching browsers.
@@ -436,41 +330,59 @@ if __name__ == "__main__":
         logger.info("[MAIN_APP] Step 3/3: Initializing application window...")
         app = MediaDownloaderApp()
 
+        if not playwright_available:
+
+            def _show_playwright_warning() -> None:
+                dialog = MessageDialog(
+                    app,
+                    title="Playwright Not Installed",
+                    heading="Browser support is unavailable",
+                    message=(
+                        "Automatic cookie generation requires Playwright. Without it, "
+                        "age-restricted or login-gated downloads may fail.\n\n"
+                        "Install it with:\n"
+                        "  pip install playwright\n"
+                        "  playwright install chromium\n\n"
+                        "You can continue now and install it later."
+                    ),
+                    primary_text="Exit and Install",
+                    secondary_text="Continue Anyway",
+                )
+                if dialog.get_result():
+                    app._on_closing()
+
+            app.after(150, _show_playwright_warning)
+
         # Start Chromium install in background after window is visible
         try:
             from src.services.cookies.playwright_bootstrap import (
                 detect_system_chrome,
                 ensure_playwright_ready,
                 is_chromium_installed,
+                mark_chromium_ready,
             )
 
-            if not is_chromium_installed():
+            if not playwright_available:
+                logger.warning("[MAIN_APP] Skipping browser setup until Playwright is installed")
+            elif not is_chromium_installed():
                 system_chrome = detect_system_chrome()
                 if system_chrome:
-                    from src.services.cookies.playwright_bootstrap import _chromium_ready
-
-                    _chromium_ready.set()
+                    mark_chromium_ready()
                     logger.info(f"[MAIN_APP] Using system browser: {system_chrome}")
                 else:
                     app.status_bar.show_message("Setting up browser (first time only)...")
                     logger.info("[MAIN_APP] Chromium not found - installing in background...")
 
-                    def _bg_install():
+                    def _install_browser() -> None:
                         from src.services.cookies.playwright_bootstrap import _chromium_ready
 
                         ensure_playwright_ready(root_window=app)
                         if _chromium_ready.is_set():
-                            app.run_on_main_thread(
-                                lambda: app.status_bar.show_message("Browser ready")
-                            )
+                            app.status_bar.show_message("Browser ready")
 
-                    import threading
-
-                    threading.Thread(target=_bg_install, daemon=True).start()
+                    app.after(250, _install_browser)
             else:
-                from src.services.cookies.playwright_bootstrap import _chromium_ready
-
-                _chromium_ready.set()
+                mark_chromium_ready()
                 logger.info("[MAIN_APP] Browser already available")
         except Exception:
             pass

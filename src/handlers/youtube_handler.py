@@ -140,8 +140,10 @@ class YouTubeHandler(BaseHandler):
                                     )
 
                         dialog = CenteredInputDialog(
+                            root,
                             text="Enter a name for this track:",
                             title="YouTube Music Download",
+                            initial_value=track_name,
                         )
 
                         if not (name := dialog.get_input()):

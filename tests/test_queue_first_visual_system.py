@@ -91,7 +91,7 @@ def test_main_layout_is_exactly_four_queue_first_regions() -> None:
         "footer",
     }
     assert "self.main_frame.grid_rowconfigure(2, weight=1)" in source
-    assert 'self.download_list.grid(\n            row=2, column=0, sticky="nsew"' in source
+    assert 'self.download_list.grid(row=2, column=0, sticky="nsew"' in source
     assert "self.action_buttons = self.footer" in source
     assert "self.status_bar = self.footer" in source
 

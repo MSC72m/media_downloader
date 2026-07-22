@@ -1,29 +1,27 @@
-import contextlib
 import os
 from collections.abc import Callable
-
-import customtkinter as ctk
+from typing import Any
 
 from src.core.enums.message_level import MessageLevel
-from src.core.enums.theme_event import ThemeEvent
 from src.core.interfaces import IErrorNotifier, IMessageQueue
 from src.services.events.queue import Message
-from src.ui.utils.theme_manager import ThemeManager, get_theme_manager
+from src.ui.utils.theme_manager import ThemeManager
+from src.ui.visual_system import GlassFrame
 from src.utils.logger import get_logger
-from src.utils.window import WindowCenterMixin
 
 from ..components.file_list import FileListBox
 from ..components.file_manager_buttons import FileManagerButtonBar
 from ..components.path_entry import PathEntryBar
+from .base_dialog import BaseDialog
 from .input_dialog import CenteredInputDialog
 
 logger = get_logger(__name__)
 
 
-class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
+class FileManagerDialog(BaseDialog):
     def __init__(
         self,
-        parent,
+        parent: Any,
         initial_path: str,
         on_directory_change: Callable[[str], None],
         show_status: Callable[[str], None],
@@ -31,84 +29,77 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
         message_queue: IMessageQueue | None = None,
         theme_manager: ThemeManager | None = None,
     ) -> None:
-        super().__init__(parent)
+        super().__init__(parent, title="File Browser", theme_manager=theme_manager)
 
-        self._theme_manager = theme_manager or get_theme_manager()
-        self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
-
-        self.title("File Browser")
-        # Screen-aware geometry
-        screen_w = self.winfo_screenwidth()
-        screen_h = self.winfo_screenheight()
-        w = min(600, int(screen_w * 0.9))
-        h = min(400, int(screen_h * 0.9))
-        self.geometry(f"{w}x{h}")
-        self.resizable(True, True)
-
-        # Make dialog modal
-        self.transient(parent)
-
-        # Setup window - expand any tilde paths
         self.current_path = os.path.expanduser(initial_path)
         self.on_directory_change = on_directory_change
         self.show_status = show_status
         self.error_handler = error_handler
         self.message_queue = message_queue
 
-        # Configure grid
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(1, weight=1)
-
-        # Create widgets before centering
         self.create_widgets()
         self.update_file_list()
-
-        # Center the window
-        self.center_window()
-
-        # Update to ensure window is drawn
-        self.update_idletasks()
-
-        # Make visible and grab focus
-        self.grab_set()
-        self.focus_set()
+        self._finalize_init(
+            preferred_width=600,
+            preferred_height=400,
+            min_width=480,
+            min_height=320,
+            modal=True,
+        )
 
     def create_widgets(self) -> None:
-        """Create and arrange all widgets."""
-        # Path entry bar
-        self.path_entry = PathEntryBar(self, self.current_path, self.update_file_list)
-        self.path_entry.grid(row=0, column=0, columnspan=2, sticky="ew")
-
-        # File list
-        self.file_list = FileListBox(self, self.on_item_double_click)
-        self.file_list.grid(row=1, column=0, columnspan=2, padx=20, pady=(0, 20), sticky="nsew")
-
-        # Action buttons
-        self.action_buttons = FileManagerButtonBar(
-            self, self.change_directory, self.create_folder, self.destroy
+        """Create and arrange all widgets under the shared content parent."""
+        self.main_frame = GlassFrame(
+            self.content_parent,
+            theme_manager=self._theme_manager,
+            elevation="raised",
         )
-        self.action_buttons.grid(row=2, column=0, columnspan=2, padx=20, pady=(0, 20), sticky="ew")
+        self.main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        self.main_frame.grid_columnconfigure(0, weight=1)
+        self.main_frame.grid_rowconfigure(1, weight=1)
+
+        self.path_entry = PathEntryBar(
+            self.main_frame,
+            self.current_path,
+            self.update_file_list,
+            theme_manager=self._theme_manager,
+        )
+        self.path_entry.grid(row=0, column=0, sticky="ew", padx=12, pady=(12, 8))
+
+        self.file_list = FileListBox(
+            self.main_frame,
+            self.on_item_double_click,
+            theme_manager=self._theme_manager,
+        )
+        self.file_list.grid(row=1, column=0, padx=12, pady=8, sticky="nsew")
+
+        self.action_buttons = FileManagerButtonBar(
+            self.main_frame,
+            self.change_directory,
+            self.create_folder,
+            self.destroy,
+            theme_manager=self._theme_manager,
+        )
+        self.action_buttons.grid(row=2, column=0, padx=12, pady=(8, 12), sticky="ew")
 
     def update_file_list(self) -> None:
         """Update the file list with current directory contents."""
         try:
             self.current_path = os.path.expanduser(self.path_entry.get_path())
             self.file_list.update_items(self.current_path)
-        except OSError as oe:
-            logger.error(f"Error accessing directory: {oe}")
+        except OSError as error:
+            logger.error(f"Error accessing directory: {error}")
             if self.show_status:
                 self.show_status("Error: Unable to access the specified directory.")
 
-    def on_item_double_click(self, event) -> None:
+    def on_item_double_click(self, _event: Any) -> None:
         """Handle double-click on file/directory."""
         if not (item := self.file_list.get_selected_item()):
             return
 
-        # Handle parent directory
         if item == "..":
             new_path = os.path.dirname(self.current_path)
         else:
-            # Remove icon prefix if present
             if item.startswith(("📁 ", "📄 ")):
                 item = item[2:]
             new_path = os.path.join(self.current_path, item)
@@ -126,33 +117,38 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
             if self.show_status:
                 self.show_status(f"Download directory changed to: {self.current_path}")
             self.destroy()
-        else:
-            error_msg = "Please select a valid directory."
-            if self.error_handler:
-                self.error_handler.show_error("File Manager Error", error_msg)
-            elif self.message_queue:
-                self.message_queue.add_message(
-                    Message(
-                        text=error_msg,
-                        level=MessageLevel.ERROR,
-                        title="File Manager Error",
-                    )
+            return
+
+        error_msg = "Please select a valid directory."
+        if self.error_handler:
+            self.error_handler.show_error("File Manager Error", error_msg)
+        elif self.message_queue:
+            self.message_queue.add_message(
+                Message(
+                    text=error_msg,
+                    level=MessageLevel.ERROR,
+                    title="File Manager Error",
                 )
-            elif self.show_status:
-                self.show_status(error_msg)
+            )
+        elif self.show_status:
+            self.show_status(error_msg)
 
     def create_folder(self) -> None:
         """Create a new folder."""
-        dialog = CenteredInputDialog(title="Create Folder", text="Enter folder name:")
+        dialog = CenteredInputDialog(
+            self,
+            title="Create Folder",
+            text="Enter folder name:",
+        )
         if folder_name := dialog.get_input():
             new_folder_path = os.path.join(self.current_path, folder_name)
             try:
                 os.mkdir(new_folder_path)
                 logger.info(f"Created new folder: {new_folder_path}")
                 self.update_file_list()
-            except OSError as oe:
-                logger.error(f"Error creating folder: {oe}")
-                error_msg = f"Unable to create folder: {oe!s}"
+            except OSError as error:
+                logger.error(f"Error creating folder: {error}")
+                error_msg = f"Unable to create folder: {error!s}"
                 if self.error_handler:
                     self.error_handler.show_error("File Manager Error", error_msg)
                 elif self.message_queue:
@@ -165,13 +161,3 @@ class FileManagerDialog(ctk.CTkToplevel, WindowCenterMixin):
                     )
                 elif self.show_status:
                     self.show_status(f"Error: {error_msg}")
-
-    def _on_theme_changed(self, appearance, color) -> None:
-        """Handle theme change - CTk widgets auto-update, subscription enables future extensions."""
-
-    def destroy(self) -> None:
-        with contextlib.suppress(Exception):
-            self.grab_release()
-        if self._theme_manager:
-            self._theme_manager.unsubscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
-        super().destroy()
