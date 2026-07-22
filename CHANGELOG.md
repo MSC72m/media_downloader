@@ -2,7 +2,7 @@
 
 ## 1.2.1 - 2026-07-22
 
-Security updates, YouTube metadata fix, and theme switching fix.
+Security updates, YouTube metadata fixes, reliable theme switching, and UI improvements.
 
 ### Security
 
@@ -19,7 +19,7 @@ Security updates, YouTube metadata fix, and theme switching fix.
 
 - **Fixed theme switching between light and dark modes**: CustomTkinter requires `[light_color, dark_color]` tuples for `fg_color` and `border_color` to properly handle appearance mode switching. GlassFrame and other widgets were passing single color values, causing them to not update when switching themes. Added `resolve_both_palettes()` function and updated all CTk widgets to use color tuples.
 - **Fixed YouTube metadata extraction crash**: `remote_components` was incorrectly passed as a string instead of a list, causing yt-dlp to treat each character as a separate component. Changed `"ejs:github"` to `["ejs:github"]` in all YouTube services (info_extractor, downloader, subtitle_extractor, cookie_sources).
-- **Fixed download speed**: Updated YouTube, file, and network downloaders to convert bytes/s to MB/s before passing to progress callback.
+- **Fixed download speed display**: Speed was shown as bytes/s instead of MB/s. Updated YouTube, file, and network downloaders to normalize progress callback speeds to MB/s.
 - **Fixed dialog centering**: YouTube and Spotify dialogs now properly center on screen using `apply_screen_aware_geometry()` when showing after metadata fetch.
 - **Added debouncing to theme switcher**: Prevents race conditions when clicking rapidly between themes.
 

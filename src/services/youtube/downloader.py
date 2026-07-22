@@ -116,7 +116,7 @@ class YouTubeDownloader(BaseDownloader):
 
         if shutil.which("node"):
             options["js_runtimes"] = {"node": {}}
-            options["remote_components"] = "ejs:github"
+            options["remote_components"] = ["ejs:github"]
 
         # Route yt-dlp through the configured proxy (socks5/http) when set.
         if proxy := get_proxy(self.config):
@@ -787,9 +787,11 @@ class YouTubeDownloader(BaseDownloader):
                     progress = (downloaded / total) * 100 if total > 0 else 0
 
                     elapsed = time.time() - start_time
-                    speed = downloaded / elapsed if elapsed > 0 else 0
+                    speed_bytes = downloaded / elapsed if elapsed > 0 else 0
+                    # Convert bytes/s to MB/s for display
+                    speed_mbps = speed_bytes / (1024 * 1024)
 
-                    callback(progress, speed)
+                    callback(progress, speed_mbps)
 
                 elif status == "finished":
                     # Only report 100% for video files, not subtitles or thumbnails

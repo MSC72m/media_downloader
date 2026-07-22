@@ -159,7 +159,7 @@ class YouTubeSubtitleExtractor:
 
         if shutil.which("node"):
             opts["js_runtimes"] = {"node": {}}
-            opts["remote_components"] = "ejs:github"
+            opts["remote_components"] = ["ejs:github"]
 
         if client:
             opts["extractor_args"] = {"youtube": {"player_client": [client]}}
