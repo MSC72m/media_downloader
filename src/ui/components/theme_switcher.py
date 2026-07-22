@@ -28,6 +28,7 @@ class ThemeSwitcher(ctk.CTkFrame):
 
         self._theme_manager = theme_manager or get_theme_manager(master.winfo_toplevel())
         self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
+        self._debounce_id: str | None = None
 
         self.grid_columnconfigure(0, weight=1)
 
@@ -135,17 +136,27 @@ class ThemeSwitcher(ctk.CTkFrame):
         appearance = AppearanceMode.DARK if is_dark else AppearanceMode.LIGHT
         current_color = self._theme_manager.get_color_theme()
 
-        logger.info(f"[THEME_SWITCHER] Changing appearance to {appearance.value}")
-        self._theme_manager.set_theme(appearance, current_color)
-
         self.appearance_switch.configure(text="Dark" if is_dark else "Light")
+        self._debounced_set_theme(appearance, current_color)
 
     def _on_color_change(self, value: str) -> None:
         color_name = value.rsplit(maxsplit=1)[-1].lower()
         current_appearance = self._theme_manager.get_appearance()
 
-        logger.info(f"[THEME_SWITCHER] Changing color to {color_name}")
-        self._theme_manager.set_theme(current_appearance, color_name)
+        self._debounced_set_theme(current_appearance, color_name)
+
+    def _debounced_set_theme(self, appearance: AppearanceMode, color: str) -> None:
+        """Debounce theme changes to prevent rapid switching race conditions."""
+        if self._debounce_id is not None:
+            with contextlib.suppress(Exception):
+                self.after_cancel(self._debounce_id)
+
+        def apply_theme() -> None:
+            self._debounce_id = None
+            logger.info(f"[THEME_SWITCHER] Changing theme to {appearance.value}/{color}")
+            self._theme_manager.set_theme(appearance, color)
+
+        self._debounce_id = self.after(100, apply_theme)
 
     def _on_theme_changed(self, appearance, color) -> None:
         self._apply_theme_colors()
@@ -160,6 +171,9 @@ class ThemeSwitcher(ctk.CTkFrame):
         self.color_dropdown.set(current_display)
 
     def destroy(self) -> None:
+        if self._debounce_id is not None:
+            with contextlib.suppress(Exception):
+                self.after_cancel(self._debounce_id)
         if self._theme_manager:
             self._theme_manager.unsubscribe(ThemeEvent.THEME_CHANGED, self._on_theme_changed)
         super().destroy()
