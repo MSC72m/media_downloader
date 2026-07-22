@@ -116,7 +116,9 @@ class FileDownloader:
                         # Calculate progress and speed
                         progress = (downloaded / file_size * 100) if file_size > 0 else -1
                         elapsed = time.time() - download_start
-                        speed = downloaded / elapsed if elapsed > 0 else 0
+                        speed_bytes = downloaded / elapsed if elapsed > 0 else 0
+                        # Convert bytes/s to MB/s for display
+                        speed_mbps = speed_bytes / (1024 * 1024)
 
                         if progress_callback:
                             # If file size unknown, report indeterminate progress
@@ -124,7 +126,7 @@ class FileDownloader:
                             progress_to_report = (
                                 progress if progress >= 0 else min(99, downloaded / mb_to_bytes)
                             )
-                            progress_callback(progress_to_report, speed)
+                            progress_callback(progress_to_report, speed_mbps)
 
             # Rename temp file to final filename
             os.replace(temp_file, save_path)

@@ -337,6 +337,13 @@ class YouTubeDownloaderDialog(BaseDialog):
 
         logger.info("Showing YouTube options dialog after metadata fetch complete")
         try:
+            # Apply screen-aware geometry and center the dialog
+            self.apply_screen_aware_geometry(
+                preferred_width=800,
+                preferred_height=700,
+                min_width=600,
+                min_height=500,
+            )
             self.deiconify()
             self.lift()
             self.focus_force()

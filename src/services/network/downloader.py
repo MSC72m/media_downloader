@@ -79,9 +79,11 @@ def _stream_chunks_to_temp_file(
             if not progress_callback:
                 continue
             elapsed = time.time() - start_time
-            speed = downloaded / elapsed if elapsed > 0 else 0
+            speed_bytes = downloaded / elapsed if elapsed > 0 else 0
+            # Convert bytes/s to MB/s for display
+            speed_mbps = speed_bytes / (1024 * 1024)
             progress_to_report = _compute_progress_to_report(downloaded, total_size, config)
-            progress_callback(progress_to_report, speed)
+            progress_callback(progress_to_report, speed_mbps)
 
 
 def _finalize_download(

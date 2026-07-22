@@ -225,7 +225,7 @@ class _YouTubeProbeRunner:
 
         if shutil.which("node"):
             options["js_runtimes"] = {"node": {}}
-            options["remote_components"] = "ejs:github"
+            options["remote_components"] = ["ejs:github"]
 
         return options
 

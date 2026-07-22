@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.2.1 - 2026-07-22
+
+Security updates, YouTube metadata fix, and UI improvements.
+
+### Security
+
+- **Updated dependencies** to address 31 security vulnerabilities:
+  - Pillow 12.3.0 (was 12.1.1) — fixes 18 vulnerabilities (heap overflows, DoS, command injection)
+  - beautifulsoup4 4.15.0 (was 4.14.3)
+  - instaloader 4.15.2 (was 4.15)
+  - playwright 1.61.0 (was 1.58.0)
+  - pydantic 2.13.4 (was 2.12.5)
+  - pydantic-settings 2.14.2 (was 2.12.0)
+  - requests 2.34.2 (was 2.32.5)
+
+### Fixed
+
+- **Fixed YouTube metadata extraction crash**: `remote_components` was incorrectly passed as a string instead of a list, causing yt-dlp to treat each character as a separate component. Changed `"ejs:github"` to `["ejs:github"]` in all YouTube services (info_extractor, downloader, subtitle_extractor, cookie_sources).
+- **Fixed download speed display**: Speed was shown as bytes/s (e.g., 840315 MB/s) instead of MB/s. Updated YouTube, file, and network downloaders to convert bytes/s to MB/s before passing to progress callback.
+- **Fixed dialog centering**: YouTube and Spotify dialogs now properly center on screen using `apply_screen_aware_geometry()` when showing after metadata fetch.
+
 ## 1.2.0 - 2026-07-21
 
 UI/UX overhaul, Twitter Spaces support, and Linux build.
