@@ -42,7 +42,10 @@ from src.ui.components.header import AppHeader  # noqa: E402
 from src.ui.components.url_entry import URLEntryFrame  # noqa: E402
 from src.ui.dialogs.message_dialog import MessageDialog  # noqa: E402
 from src.ui.utils.theme_manager import get_theme_manager  # noqa: E402
-from src.ui.visual_system import GradientBackdrop, resolve_palette  # noqa: E402
+from src.ui.visual_system import (  # noqa: E402
+    GradientBackdrop,
+    resolve_both_palettes,
+)
 
 if TYPE_CHECKING:
     from src.application.orchestrator import ApplicationOrchestrator
@@ -90,8 +93,8 @@ class MediaDownloaderApp(ctk.CTk):
         self.orchestrator = application_orchestrator(self, config=self.config)
 
         self.theme_manager = get_theme_manager(self, config=self.config)
-        palette = resolve_palette(self.theme_manager)
-        self.configure(fg_color=palette.background_mid)
+        light_palette, dark_palette = resolve_both_palettes(self.theme_manager)
+        self.configure(fg_color=[light_palette.background_mid, dark_palette.background_mid])
 
         self.update_idletasks()
 
