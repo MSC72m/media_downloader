@@ -1,0 +1,60 @@
+# Dockerfile for testing Linux build of Media Downloader
+# Tests: dependency installation, PyInstaller build, and app launch
+
+FROM ubuntu:24.04
+
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies for GUI app (CustomTkinter/Tkinter)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.12 \
+    python3.12-venv \
+    python3-pip \
+    python3-tk \
+    tk-dev \
+    libtcl8.6 \
+    libtk8.6 \
+    libx11-6 \
+    libxext6 \
+    libxrender1 \
+    libxrandr2 \
+    libxfixes3 \
+    libxcursor1 \
+    libxi6 \
+    libgl1 \
+    libglx0 \
+    libglib2.0-0 \
+    ffmpeg \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+RUN pip install --break-system-packages uv
+
+COPY pyproject.toml uv.lock ./
+COPY src/ ./src/
+COPY themes/ ./themes/
+COPY assets/ ./assets/
+COPY hooks/ ./hooks/
+COPY media_downloader_linux.spec ./
+
+RUN uv sync --dev
+
+RUN uv pip install pyinstaller
+
+RUN uv run pyinstaller media_downloader_linux.spec --noconfirm
+
+RUN if [ ! -f "dist/MediaDownloader/MediaDownloader" ]; then \
+        echo "ERROR: MediaDownloader executable not found"; \
+        exit 1; \
+    fi && \
+    echo "Build successful!" && \
+    ls -la dist/MediaDownloader/ && \
+    du -sh dist/MediaDownloader/
+
+RUN chmod +x dist/MediaDownloader/MediaDownloader
+
+ENTRYPOINT ["echo", "Linux build test passed"]

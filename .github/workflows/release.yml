@@ -178,17 +178,98 @@ jobs:
           path: dist/MediaDownloader/
           retention-days: 30
 
+  # ── Linux Build ──────────────────────────────────────────────────
+  build-linux:
+    name: build-linux-x64
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            python3-tk \
+            tk-dev \
+            libtcl8.6 \
+            libtk8.6 \
+            libx11-6 \
+            libxext6 \
+            libxrender1 \
+            ffmpeg
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Run tests
+        run: uv run pytest --cov-fail-under=25
+
+      # ── PyInstaller Build ──────────────────────────────────────────
+      - name: Build with PyInstaller
+        run: uv run pyinstaller media_downloader_linux.spec --noconfirm
+
+      - name: Verify PyInstaller output
+        run: |
+          if [ ! -f "dist/MediaDownloader/MediaDownloader" ]; then
+            echo "ERROR: MediaDownloader executable not found"
+            exit 1
+          fi
+          echo "Build successful: dist/MediaDownloader/MediaDownloader"
+          size=$(du -sh dist/MediaDownloader/ | cut -f1)
+          echo "Bundle size: $size"
+          chmod +x dist/MediaDownloader/MediaDownloader
+
+      # ── Create tarball ─────────────────────────────────────────────
+      - name: Create tarball
+        id: tarball
+        run: |
+          mkdir -p release
+          cd dist
+          tar -czvf ../release/MediaDownloader-linux-x64.tar.gz MediaDownloader/
+          cd ..
+          size=$(du -sh release/MediaDownloader-linux-x64.tar.gz | cut -f1)
+          echo "Tarball size: $size"
+          echo "tarball_path=release/MediaDownloader-linux-x64.tar.gz" >> $GITHUB_OUTPUT
+          echo "tarball_name=MediaDownloader-linux-x64.tar.gz" >> $GITHUB_OUTPUT
+
+      # ── Upload Artifacts ───────────────────────────────────────────
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-tarball-x64
+          path: ${{ steps.tarball.outputs.tarball_path }}
+          retention-days: 30
+
   # ── GitHub Release ───────────────────────────────────────────────
   release:
-    needs: build-windows
+    needs: [build-windows, build-linux]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.create_release == 'true')
 
     steps:
-      - name: Download installer artifacts
+      - name: Download Windows installer artifacts
         uses: actions/download-artifact@v4
         with:
           pattern: windows-installer-*
+          path: artifacts/
+          merge-multiple: true
+
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          pattern: linux-tarball-*
           path: artifacts/
           merge-multiple: true
 
@@ -211,25 +292,39 @@ jobs:
           body: |
             ## Media Downloader ${{ steps.version.outputs.version }}
 
-            ### Installation
+            ### Windows Installation
 
-            1. Download the installer for your Windows architecture below:
+            1. Download the installer for your architecture:
                - `MediaDownloaderSetup-${{ steps.version.outputs.version }}-x64.exe` for Intel/AMD Windows PCs
                - `MediaDownloaderSetup-${{ steps.version.outputs.version }}-arm64.exe` for Windows on ARM devices
             2. Run the installer and follow the setup wizard
             3. During install, ffmpeg (~80 MB) will be downloaded for video/audio processing
             4. On first launch, the app will download a browser component (~150 MB) for cookie generation -- this only happens once
 
-            ### Requirements
-
+            **Windows Requirements:**
             - Windows 10 or later
-            - Internet connection (for ffmpeg download during install and first-run browser download)
+            - Internet connection
 
-            ### Notes
-
+            **Notes:**
             - If Windows SmartScreen shows a warning, click "More info" then "Run anyway"
             - ffmpeg is downloaded during install, not bundled in the installer itself
-            - The browser component is stored in your user profile and persists across app updates
+
+            ### Linux Installation
+
+            1. Download `MediaDownloader-linux-x64.tar.gz`
+            2. Extract: `tar -xzvf MediaDownloader-linux-x64.tar.gz`
+            3. Run: `./MediaDownloader/MediaDownloader`
+
+            **Linux Requirements:**
+            - glibc 2.31+ (Debian 11+, Ubuntu 20.04+, Fedora 32+, etc.)
+            - X11 display server (for GUI)
+            - ffmpeg (optional, for video/audio processing)
+            - Internet connection
+
+            **Notes:**
+            - The tarball is not an AppImage or package - it's a portable bundle
+            - Install ffmpeg via your package manager: `sudo apt install ffmpeg` (Debian/Ubuntu)
+            - First launch will download a browser component (~150 MB) for cookie generation
           files: artifacts/*
           draft: false
           prerelease: ${{ contains(steps.version.outputs.version, 'dev') || contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'rc') }}
