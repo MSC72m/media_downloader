@@ -204,7 +204,7 @@ jobs:
           echo "Version: $VERSION"
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.version.outputs.version }}
           name: "Media Downloader ${{ steps.version.outputs.version }}"
