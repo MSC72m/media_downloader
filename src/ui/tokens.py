@@ -62,7 +62,7 @@ to satisfy the complete semantic contract:
     focus_ring: keyboard focus indicator (optional; defaults to accent)
     card_border: card/container borders
 
-This policy ensures all 18 themes provide consistent, accessible components.
+This policy ensures all 22 themes provide consistent, accessible components.
 """
 
 from __future__ import annotations
@@ -131,7 +131,7 @@ FontRole = Literal[
 ]
 
 # role -> (size, weight)
-_TYPE_SCALE: dict[str, tuple[int, str]] = {
+_TYPE_SCALE: dict[FontRole, tuple[int, Literal["normal", "bold"]]] = {
     "caption": (11, "normal"),
     "body": (13, "normal"),
     "subtitle": (15, "bold"),
@@ -140,7 +140,11 @@ _TYPE_SCALE: dict[str, tuple[int, str]] = {
 }
 
 
-def font(role: FontRole = "body", *, weight: str | None = None) -> ctk.CTkFont:
+def font(
+    role: FontRole = "body",
+    *,
+    weight: Literal["normal", "bold"] | None = None,
+) -> ctk.CTkFont:
     """Return a ``CTkFont`` for a semantic role.
 
     ``weight`` overrides the role default when provided ("normal"/"bold").

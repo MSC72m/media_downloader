@@ -370,7 +370,7 @@ class TestE2EHandlerCallbacks:
         callback = handler.get_ui_callback()
         callback("https://www.instagram.com/p/ABC123/", ui_ctx)
 
-        assert len(ui_ctx.downloads.downloads) >= 1
+        assert len(ui_ctx.downloads.downloads) == 1
         urls = [dl.url for dl in ui_ctx.downloads.downloads]
         assert "https://www.instagram.com/p/ABC123/" in urls
 
@@ -586,7 +586,7 @@ class TestE2ELinkDetectorFlow:
             "https://www.instagram.com/p/ABC123/", ui_ctx
         )
         assert result is True
-        assert len(ui_ctx.downloads.downloads) >= 1
+        assert len(ui_ctx.downloads.downloads) == 1
         urls = [dl.url for dl in ui_ctx.downloads.downloads]
         assert "https://www.instagram.com/p/ABC123/" in urls
 
@@ -1077,6 +1077,7 @@ class TestE2EDownloadWorkerPipeline:
         handler.service_factory.get_downloader.assert_called_with(
             "https://soundcloud.com/artist/track",
             service_type=ServiceType.YOUTUBE,
+            download=dl,
         )
 
     def test_download_worker_passes_correct_args_to_downloader(self) -> None:

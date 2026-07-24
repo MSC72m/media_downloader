@@ -49,7 +49,7 @@ def test_no_window_bypasses_base_dialog_or_creates_a_second_root() -> None:
     for path in _SRC.rglob("*.py"):
         source = path.read_text(encoding="utf-8")
         tree = ast.parse(source)
-        relative = str(path.relative_to(_PROJECT_ROOT))
+        relative = str(path.relative_to(_PROJECT_ROOT)).replace("\\", "/")
         for node in ast.walk(tree):
             if isinstance(node, ast.ClassDef):
                 for base in node.bases:
@@ -73,7 +73,7 @@ def test_only_application_entrypoint_owns_a_main_loop() -> None:
     for path in _SRC.rglob("*.py"):
         source = path.read_text(encoding="utf-8")
         if ".mainloop(" in source:
-            occurrences.append(str(path.relative_to(_PROJECT_ROOT)))
+            occurrences.append(str(path.relative_to(_PROJECT_ROOT)).replace("\\", "/"))
     assert occurrences == ["src/main.py"]
     assert _source("src/main.py").count(".mainloop(") == 1
 
@@ -176,3 +176,29 @@ def test_subtitle_replacement_cancels_pending_batch() -> None:
     clear_source = source[clear_start:next_method]
     assert "self.after_cancel(self._batch_after_id)" in clear_source
     assert "self._batch_after_id = None" in clear_source
+
+
+def test_child_windows_restore_center_and_foreground_on_owner_activation() -> None:
+    base_source = inspect.getsource(BaseDialog)
+    restore_source = inspect.getsource(BaseDialog._restore_to_foreground)
+    destroy_source = inspect.getsource(BaseDialog.destroy)
+
+    assert "super().__init__(owner" in base_source
+    assert "self.transient(owner)" in base_source
+    assert 'owner.bind(\n                "<FocusIn>"' in base_source
+    assert "self.center_window()" in restore_source
+    assert 'self.attributes("-topmost", True)' in restore_source
+    assert "self.focus_force()" in restore_source
+    assert "self._clear_temporary_topmost" in restore_source
+    assert 'self._owner.unbind("<FocusIn>"' in destroy_source
+
+
+def test_file_manager_primary_action_has_room_for_its_label() -> None:
+    button_source = _source("src/ui/components/file_manager_buttons.py")
+    dialog_source = _source("src/ui/dialogs/file_manager_dialog.py")
+
+    assert 'text="Set as Download Directory"' in button_source
+    assert "self.grid_columnconfigure(0, weight=2, minsize=200)" in button_source
+    assert "width=210" in button_source
+    assert "preferred_width=680" in dialog_source
+    assert "min_width=560" in dialog_source

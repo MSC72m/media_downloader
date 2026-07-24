@@ -58,6 +58,8 @@ class RadioJavanDownloader(BaseDownloader):
         resolved_config = config or get_config()
         super().__init__(error_handler, file_service, resolved_config)
         self.default_timeout = self.config.radiojavan.default_timeout
+        self.resolver_timeout = self.config.radiojavan.resolver_timeout
+        self.max_candidate_probes = self.config.radiojavan.max_candidate_probes
         self.max_retries = self.config.radiojavan.max_retries
         self._api_base = str(self.config.radiojavan.api_base_url).rstrip("/")
         self._site_base = self._api_base.removesuffix("/api2")
@@ -174,7 +176,9 @@ class RadioJavanDownloader(BaseDownloader):
 
     @staticmethod
     def _normalize_slug(value: str) -> str:
-        return re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+        tokens = re.findall(r"[a-z0-9]+", value.lower())
+        aliases: dict[str, str] = {"feat": "ft", "featuring": "ft"}
+        return "-".join((aliases.get(token) or token) for token in tokens)
 
     def _request_context_for_url(
         self,
@@ -287,7 +291,7 @@ class RadioJavanDownloader(BaseDownloader):
                 params={"id": media_name},
                 headers=headers,
                 cookies=cookies,
-                timeout=self.default_timeout,
+                timeout=self.resolver_timeout,
                 proxies=get_request_proxies(self.config),
             )
             if (
@@ -445,7 +449,7 @@ class RadioJavanDownloader(BaseDownloader):
                     search_url,
                     headers=headers,
                     cookies=session_cookies,
-                    timeout=self.default_timeout,
+                    timeout=self.resolver_timeout,
                     allow_redirects=True,
                     proxies=get_request_proxies(self.config),
                 )
@@ -513,29 +517,28 @@ class RadioJavanDownloader(BaseDownloader):
         hosts = self._candidate_hosts(media_name, media_type)
         paths = self._candidate_paths(media_type)
 
-        first_candidate: str | None = None
+        probes = 0
         for host in hosts:
             for path in paths:
+                if probes >= self.max_candidate_probes:
+                    logger.warning(
+                        "[RADIOJAVAN_DOWNLOADER] Candidate probe budget exhausted after %s URLs",
+                        probes,
+                    )
+                    break
+                probes += 1
                 download_url = f"{host}{path.format(media_name=media_name)}"
-                if first_candidate is None:
-                    first_candidate = download_url
                 if self._validate_url(download_url):
                     logger.debug(f"[RADIOJAVAN_DOWNLOADER] Valid URL found: {download_url}")
                     return download_url
+            if probes >= self.max_candidate_probes:
+                break
 
-        if first_candidate:
-            if self._last_access_error:
-                logger.warning(
-                    "[RADIOJAVAN_DOWNLOADER] Returning best-effort URL after transport errors: %s",
-                    self._last_access_error,
-                )
-            logger.warning(
-                "[RADIOJAVAN_DOWNLOADER] No candidate URL validated; returning best-effort URL: "
-                f"{first_candidate}"
-            )
-            return first_candidate
-
-        logger.warning(f"[RADIOJAVAN_DOWNLOADER] Could not construct valid URL for: {url}")
+        logger.warning(
+            "[RADIOJAVAN_DOWNLOADER] Could not validate a media URL for %s after %s probes",
+            url,
+            probes,
+        )
         return None
 
     def _validate_url(self, url: str) -> bool:
@@ -560,10 +563,11 @@ class RadioJavanDownloader(BaseDownloader):
             logger.debug(f"[RADIOJAVAN_DOWNLOADER] Validating URL via HEAD: {url}")
             response = requests.head(
                 url,
-                timeout=self.default_timeout,
+                timeout=self.resolver_timeout,
                 allow_redirects=True,
                 headers=headers,
                 cookies=cookies,
+                proxies=get_request_proxies(self.config),
             )
             response.raise_for_status()
         except requests.RequestException as exc:
@@ -589,10 +593,11 @@ class RadioJavanDownloader(BaseDownloader):
 
     def _validate_with_range_get(self, url: str) -> bool:
         headers, cookies = self._request_context_for_url(url)
+        response: requests.Response | None = None
         try:
             response = requests.get(
                 url,
-                timeout=self.default_timeout,
+                timeout=self.resolver_timeout,
                 allow_redirects=True,
                 headers={**headers, "Range": "bytes=0-1"},
                 cookies=cookies,
@@ -600,18 +605,20 @@ class RadioJavanDownloader(BaseDownloader):
                 proxies=get_request_proxies(self.config),
             )
             response.raise_for_status()
-        except requests.RequestException as exc:
+            cf_mitigated = response.headers.get("cf-mitigated")
+            if isinstance(cf_mitigated, str) and cf_mitigated.lower() == "challenge":
+                return False
+            if response.status_code in {403, 429, 503}:
+                return False
+            content_type = response.headers.get("content-type", "")
+            return self._is_media_content_type(content_type)
+        except Exception as exc:
             logger.debug("[RADIOJAVAN_DOWNLOADER] Range validation failed (%s): %s", url, exc)
             return False
-        except Exception as exc:
-            logger.error("[RADIOJAVAN_DOWNLOADER] Error validating URL: %s", exc)
-            return False
-
-        if self._is_host_lookup_challenge(response):
-            return False
-
-        content_type = response.headers.get("content-type", "")
-        return self._is_media_content_type(content_type)
+        finally:
+            close = getattr(response, "close", None)
+            if callable(close):
+                close()
 
     def download(
         self,

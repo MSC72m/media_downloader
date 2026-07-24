@@ -4,7 +4,7 @@
 
 A cross-platform desktop application for downloading media from 8 platforms — videos, music, podcasts, and playlists — with a modern, themeable UI.
 
-[![Version](https://img.shields.io/badge/Version-1.2.0-green.svg)](https://github.com/MSC72m/media_downloader/releases)
+[![Version](https://img.shields.io/badge/Version-1.2.2-green.svg)](https://github.com/MSC72m/media_downloader/releases)
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)]()
@@ -27,12 +27,19 @@ A cross-platform desktop application for downloading media from 8 platforms — 
 |----------|--------------|----------|
 | **YouTube** | Videos, Playlists, Shorts, Music | Quality selection (144p–8K), audio-only extraction, subtitle downloads, automatic cookie generation for age-restricted content |
 | **Instagram** | Posts, Reels | Automatic session/cookie authentication (imported from your logged-in browser), caption preservation, carousel support |
-| **Twitter/X** | Tweets | Image and video extraction from any tweet |
+| **Twitter/X** | Tweets, Spaces | Image/video extraction from tweets; public live and replayable Spaces audio via ffmpeg |
 | **Pinterest** | Pins | High-quality image retrieval with smart file naming |
 | **SoundCloud** | Tracks, Sets | Best available audio, metadata and thumbnails, playlist support (free tracks only) |
 | **Spotify** | Tracks, Albums, Playlists, Artists | Full metadata display, YouTube-backed audio with match selection |
 | **TikTok** | Videos | Best quality video with metadata and thumbnail preservation |
 | **RadioJavan** | Songs, Videos, Playlists, Podcasts, Albums | Direct MP3/MP4 downloads, playlist and podcast support, auto-cookie generation, CDN fallback across 5 hosts |
+
+## Screenshots
+
+<p float="left" align="middle">
+  <img src="assets/ui.png" width="45%" alt="Media Downloader main interface">
+  <img src="assets/ui-with-settings.png" width="45%" alt="Media Downloader with settings panel">
+</p>
 
 ## Key Features
 
@@ -42,7 +49,7 @@ A cross-platform desktop application for downloading media from 8 platforms — 
 - **Batch downloads** — queue multiple items and process them concurrently with configurable worker count
 - **Subtitle support** — download manual and auto-generated YouTube subtitles in any available language
 - **Playlist & album support** — download entire playlists or albums with a single click
-- **18 color themes** — dark and light modes with instant switching, no restart required
+- **22 color themes** — dark and light modes with instant switching, no restart required
 - **Custom themes** — drop a JSON file into `themes/` and it appears in the UI (see [docs/themes.md](docs/themes.md))
 - **Auto cookie generation** — Playwright-based browser cookies for YouTube, SoundCloud, Spotify, and RadioJavan (handles age-restricted and region-locked content)
 - **Real-time progress** — live download speed, ETA, and status indicators
@@ -83,9 +90,9 @@ For `npx basedpyright ...`, install Node.js 18+ if it is not already available.
 
 The easiest way to run Media Downloader on Windows. No Python installation required.
 
-1. **Download** the latest installer from the [Releases page](https://github.com/MSC72m/media_downloader/releases/tag/v1.2.0)
-   - `MediaDownloaderSetup-1.2.0-x64.exe` for 64-bit Intel/AMD PCs
-   - `MediaDownloaderSetup-1.2.0-arm64.exe` for Windows on ARM devices
+1. **Download** the latest installer from the [Releases page](https://github.com/MSC72m/media_downloader/releases/tag/v1.2.2)
+   - `MediaDownloaderSetup-1.2.2-x64.exe` for 64-bit Intel/AMD PCs
+   - `MediaDownloaderSetup-1.2.2-arm64.exe` for Windows on ARM devices
 
 2. **Run** the installer — it will install:
    - The application (`MediaDownloader.exe`) with a Start Menu shortcut
@@ -294,9 +301,12 @@ Launch with: `launchctl load ~/Library/LaunchAgents/com.msc72m.mediadownloader.p
 
 #### Twitter/X
 
-- Paste tweet URL containing images or videos
-- Media is automatically extracted and added to queue
-- Note: Spaces are not currently supported
+- Paste a tweet URL to extract its text and available images or videos
+- Paste a Space URL (`x.com/i/spaces/...`) to download public live or replayable audio
+  - Supports current X GraphQL API with automatic fallback
+  - Downloads HLS audio streams via ffmpeg
+  - Real-time progress and status indicators
+- **Limitations**: Private, deleted, login-gated, or replay-disabled Spaces cannot be downloaded. Some Spaces may be unavailable due to X API restrictions even if previously accessible.
 
 #### Pinterest
 
@@ -333,7 +343,7 @@ Launch with: `launchctl load ~/Library/LaunchAgents/com.msc72m.mediadownloader.p
 The theme switcher is located in the header:
 
 - **Appearance toggle**: Switch between Dark and Light modes
-- **Color theme dropdown**: Select from 18 color themes (Amber, Blue, Coral, Cyan, Emerald, Gold, Green, Indigo, Lime, Navy, Orange, Pink, Purple, Red, Rose, Slate, Teal, Violet)
+- **Color theme dropdown**: Select from 22 color themes (Amber, Blue, Coral, Cyberpunk, Cyan, Emerald, Espresso, Glacier, Gold, Green, Indigo, Lime, Navy, Orange, Pink, Purple, Red, Rose, Slate, Sunset, Teal, Violet)
 - Changes apply instantly without restart
 - Preferences are saved automatically to config file
 
@@ -369,7 +379,7 @@ Edit the config file directly or use the application's UI to change settings. Ch
 
 ## Known Limitations
 
-- **Twitter Spaces** — Audio spaces are not currently supported
+- **Twitter/X Spaces availability** — Public live and replayable Spaces are supported; private, deleted, login-gated, or replay-disabled Spaces are unavailable
 - **SoundCloud Premium** — Only free tracks can be downloaded (Go+ subscription tracks are blocked by SoundCloud)
 - **Spotify Audio** — Audio is sourced from YouTube, so quality depends on YouTube availability
 - **Instagram Auth** — Private/login-gated content needs a logged-in browser session or a saved `instaloader` session file; public posts work without setup (no password login)
@@ -411,6 +421,20 @@ playwright install chromium
 - Verify URL is valid and accessible
 - Ensure sufficient disk space in download directory
 - For YouTube, SoundCloud, Spotify, or RadioJavan: Wait for cookie generation to complete if prompted
+
+## Contributing
+
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details on:
+
+- Code of Conduct
+- Branch protection policy (no direct PRs to `main`)
+- Development setup and workflow
+- Commit message conventions
+- Pull request process
+
+## Security
+
+For security concerns, please read our [Security Policy](SECURITY.md) and report vulnerabilities responsibly.
 
 ## License
 

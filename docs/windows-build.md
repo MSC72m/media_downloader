@@ -221,11 +221,12 @@ holds multiple resolutions of the same image.
 
    ```python
    from PIL import Image
+
    img = Image.open("logo.png")
    img.save(
        "assets/icon.ico",
        format="ICO",
-       sizes=[(16,16), (32,32), (48,48), (64,64), (128,128), (256,256)],
+       sizes=[(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)],
    )
    ```
 
@@ -286,10 +287,10 @@ bar and taskbar), add this after the window is created in `MediaDownloaderApp.__
 
 ```python
 import os, sys
+
 if sys.platform == "win32":
     icon_path = os.path.join(
-        getattr(sys, "_MEIPASS", os.path.dirname(__file__)),
-        "..", "assets", "icon.ico"
+        getattr(sys, "_MEIPASS", os.path.dirname(__file__)), "..", "assets", "icon.ico"
     )
     if os.path.exists(icon_path):
         self.iconbitmap(icon_path)
@@ -298,11 +299,13 @@ if sys.platform == "win32":
 And add the `assets/` directory to the `datas` list in `media_downloader.spec`:
 
 ```python
-datas=[
-    (os.path.join(PROJECT_ROOT, "themes"), "themes"),
-    (os.path.join(PROJECT_ROOT, "assets"), "assets"),  # <-- add this
-    (CTK_PATH, "customtkinter"),
-],
+datas = (
+    [
+        (os.path.join(PROJECT_ROOT, "themes"), "themes"),
+        (os.path.join(PROJECT_ROOT, "assets"), "assets"),  # <-- add this
+        (CTK_PATH, "customtkinter"),
+    ],
+)
 ```
 
 ---

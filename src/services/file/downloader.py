@@ -117,16 +117,19 @@ class FileDownloader:
                         progress = (downloaded / file_size * 100) if file_size > 0 else -1
                         elapsed = time.time() - download_start
                         speed_bytes = downloaded / elapsed if elapsed > 0 else 0
-                        # Convert bytes/s to MB/s for display
+                        # Convert bytes/s to MB/s for the progress callback contract
                         speed_mbps = speed_bytes / (1024 * 1024)
 
                         if progress_callback:
-                            # If file size unknown, report indeterminate progress
-                            mb_to_bytes = self.config.downloads.kb_to_bytes * 1024
-                            progress_to_report = (
-                                progress if progress >= 0 else min(99, downloaded / mb_to_bytes)
-                            )
-                            progress_callback(progress_to_report, speed_mbps)
+                            try:
+                                # If file size unknown, report indeterminate progress
+                                mb_to_bytes = self.config.downloads.kb_to_bytes * 1024
+                                progress_to_report = (
+                                    progress if progress >= 0 else min(99, downloaded / mb_to_bytes)
+                                )
+                                progress_callback(progress_to_report, speed_mbps)
+                            except Exception as e:
+                                logger.error("[FILE_DOWNLOADER] Progress callback error: %s", e)
 
             # Rename temp file to final filename
             os.replace(temp_file, save_path)
@@ -145,7 +148,10 @@ class FileDownloader:
                 )
 
             if progress_callback:
-                progress_callback(100.0, 0.0)  # Final progress update
+                try:
+                    progress_callback(100.0, 0.0)  # Final progress update
+                except Exception as e:
+                    logger.error("[FILE_DOWNLOADER] Progress callback error: %s", e)
 
             download_time = time.time() - start_time
             mb_to_bytes = self.config.downloads.kb_to_bytes * 1024

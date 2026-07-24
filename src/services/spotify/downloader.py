@@ -441,13 +441,57 @@ class SpotifyDownloader(BaseDownloader):
 
         return None
 
+    @staticmethod
+    def _is_youtube_url(url: str) -> bool:
+        """Return whether a resolved Spotify selection is already a YouTube URL."""
+        return bool(
+            re.match(
+                r"^https?://(?:(?:www|music)\.)?(?:youtube\.com|youtu\.be)/",
+                url,
+                flags=re.IGNORECASE,
+            )
+        )
+
+    def _download_youtube_match(
+        self,
+        youtube_url: str,
+        save_path: str,
+        progress_callback: Callable[[float, float], None] | None,
+    ) -> bool:
+        """Download a resolved Spotify match as YouTube-backed audio."""
+        try:
+            yt_downloader = YouTubeDownloader(
+                quality="lowest",
+                audio_only=True,
+                download_thumbnail=False,
+                embed_metadata=True,
+                error_handler=self.error_handler,
+                file_service=self.file_service,
+                config=self.config,
+                cookie_handler=self.cookie_handler,
+                auto_cookie_manager=self.auto_cookie_manager,
+            )
+            return yt_downloader.download(youtube_url, save_path, progress_callback)
+        except Exception as e:
+            logger.error(f"[SPOTIFY_DOWNLOADER] Download failed: {e}", exc_info=True)
+            if self.error_handler:
+                self.error_handler.handle_exception(e, "Spotify direct download", "Spotify")
+            return False
+
     def download(
         self,
         url: str,
         save_path: str,
         progress_callback: Callable[[float, float], None] | None = None,
     ) -> bool:
-        """Download Spotify track by matching and downloading from YouTube."""
+        """Download Spotify audio, reusing a YouTube match selected in the dialog."""
+        if self._is_youtube_url(url):
+            logger.info(
+                "[SPOTIFY_DOWNLOADER] Using user-selected YouTube match without "
+                "re-querying Spotify metadata"
+            )
+            return self._download_youtube_match(url, save_path, progress_callback)
+
         metadata = self._extract_spotify_metadata(url)
         title = str(metadata.get("title", "")).strip()
 
@@ -484,21 +528,4 @@ class SpotifyDownloader(BaseDownloader):
             youtube_url,
         )
 
-        try:
-            yt_downloader = YouTubeDownloader(
-                quality="lowest",
-                audio_only=True,
-                download_thumbnail=False,
-                embed_metadata=True,
-                error_handler=self.error_handler,
-                file_service=self.file_service,
-                config=self.config,
-                cookie_handler=self.cookie_handler,
-                auto_cookie_manager=self.auto_cookie_manager,
-            )
-            return yt_downloader.download(youtube_url, save_path, progress_callback)
-        except Exception as e:
-            logger.error(f"[SPOTIFY_DOWNLOADER] Download failed: {e}", exc_info=True)
-            if self.error_handler:
-                self.error_handler.handle_exception(e, "Spotify direct download", "Spotify")
-            return False
+        return self._download_youtube_match(youtube_url, save_path, progress_callback)

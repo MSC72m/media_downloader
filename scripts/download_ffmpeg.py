@@ -42,7 +42,7 @@ def download_file(url: str, dest: Path, desc: str = "Downloading") -> None:
                 flush=True,
             )
 
-    urllib.request.urlretrieve(url, dest, reporthook=report_hook)  # noqa: S310
+    urllib.request.urlretrieve(url, dest, reporthook=report_hook)
     print()  # Newline after progress
 
 

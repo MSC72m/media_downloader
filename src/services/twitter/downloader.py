@@ -172,14 +172,26 @@ class TwitterDownloader(BaseDownloader):
                         proxies=get_request_proxies(self.config),
                     )
                     response.raise_for_status()
-                except requests.exceptions.HTTPError:
-                    logger.debug("[TWITTER_DOWNLOADER] Endpoint returned HTTP error: %s", endpoint)
+                except Exception as exc:
+                    logger.debug(
+                        "[TWITTER_DOWNLOADER] Endpoint request failed (%s): %s",
+                        endpoint,
+                        exc,
+                    )
                     continue
 
                 content_type = response.headers.get("content-type", "")
                 match content_type:
                     case value if "application/json" in value:
-                        data = response.json()
+                        try:
+                            data = response.json()
+                        except (TypeError, ValueError) as exc:
+                            logger.debug(
+                                "[TWITTER_DOWNLOADER] Endpoint returned invalid JSON (%s): %s",
+                                endpoint,
+                                exc,
+                            )
+                            continue
                         if not (tweet_data := self._select_tweet_payload(data)):
                             continue
 

@@ -32,19 +32,23 @@ class BaseDialog(ctk.CTkToplevel, WindowCenterMixin):
         theme_manager: ThemeManager | None = None,
         **kwargs: Any,
     ) -> None:
-        super().__init__(parent, **kwargs)
+        owner = parent.winfo_toplevel() if hasattr(parent, "winfo_toplevel") else parent
+        super().__init__(owner, **kwargs)
 
+        self._owner = owner
         self._cfg = config or get_config()
-        root = parent.winfo_toplevel() if hasattr(parent, "winfo_toplevel") else parent
-        self._theme_manager = theme_manager or get_theme_manager(root)
+        self._theme_manager = theme_manager or get_theme_manager(owner)
         self._dialog_destroyed = False
         self._theme_refresh_callbacks: list[Callable[[], None]] = []
         self._ui_callbacks: queue.SimpleQueue[Callable[[], None]] = queue.SimpleQueue()
         self._ui_queue_after_id: str | None = None
+        self._foreground_after_id: str | None = None
+        self._topmost_after_id: str | None = None
+        self._owner_focus_bind_id: str | None = None
         self._previous_grab: Any | None = None
 
         self.title(title)
-        self.transient(parent)
+        self.transient(owner)
         self.resizable(True, True)
         self.withdraw()
 
@@ -55,6 +59,13 @@ class BaseDialog(ctk.CTkToplevel, WindowCenterMixin):
         self.content_parent = self.background
 
         self.protocol("WM_DELETE_WINDOW", self.destroy)
+        self.bind("<Map>", self._queue_foreground_restore, add=True)
+        with contextlib.suppress(Exception):
+            self._owner_focus_bind_id = owner.bind(
+                "<FocusIn>",
+                self._queue_foreground_restore,
+                add=True,
+            )
         self._theme_manager.subscribe(ThemeEvent.THEME_CHANGED, self._handle_dialog_theme_changed)
         self._ui_queue_after_id = self.after(25, self._drain_ui_callbacks)
 
@@ -104,6 +115,48 @@ class BaseDialog(ctk.CTkToplevel, WindowCenterMixin):
                 self._previous_grab = None
             self.grab_set()
 
+    def _queue_foreground_restore(self, _event: Any | None = None) -> None:
+        """Restore a visible child after its owner or the child is activated."""
+        if self._dialog_destroyed:
+            return
+        with contextlib.suppress(Exception):
+            if not self.winfo_exists() or self.state() == "withdrawn":
+                return
+        if self._foreground_after_id is not None:
+            with contextlib.suppress(Exception):
+                self.after_cancel(self._foreground_after_id)
+        self._foreground_after_id = self.after_idle(self._restore_to_foreground)
+
+    def _restore_to_foreground(self) -> None:
+        """Recenter, raise, and focus this transient without staying globally topmost."""
+        self._foreground_after_id = None
+        if self._dialog_destroyed:
+            return
+        try:
+            if not self.winfo_exists() or self.state() == "withdrawn":
+                return
+            if self.state() == "iconic":
+                self.deiconify()
+            self.transient(self._owner)
+            self.center_window()
+            self.lift()
+            self.attributes("-topmost", True)
+            self.focus_force()
+            if self._topmost_after_id is not None:
+                with contextlib.suppress(Exception):
+                    self.after_cancel(self._topmost_after_id)
+            self._topmost_after_id = self.after(75, self._clear_temporary_topmost)
+        except Exception:
+            # Window-manager operations may race with shutdown or workspace changes.
+            return
+
+    def _clear_temporary_topmost(self) -> None:
+        self._topmost_after_id = None
+        if self._dialog_destroyed:
+            return
+        with contextlib.suppress(Exception):
+            self.attributes("-topmost", False)
+
     def register_theme_refresh(self, callback: Callable[[], None]) -> None:
         """Refresh extra dialog-owned controls through the centralized listener."""
         self._theme_refresh_callbacks.append(callback)
@@ -124,10 +177,20 @@ class BaseDialog(ctk.CTkToplevel, WindowCenterMixin):
         if self._dialog_destroyed:
             return
         self._dialog_destroyed = True
-        if self._ui_queue_after_id is not None:
+        for after_id_name in (
+            "_ui_queue_after_id",
+            "_foreground_after_id",
+            "_topmost_after_id",
+        ):
+            after_id = getattr(self, after_id_name)
+            if after_id is not None:
+                with contextlib.suppress(Exception):
+                    self.after_cancel(after_id)
+                setattr(self, after_id_name, None)
+        if self._owner_focus_bind_id is not None:
             with contextlib.suppress(Exception):
-                self.after_cancel(self._ui_queue_after_id)
-            self._ui_queue_after_id = None
+                self._owner.unbind("<FocusIn>", self._owner_focus_bind_id)
+            self._owner_focus_bind_id = None
         with contextlib.suppress(Exception):
             if self.grab_current() is self:
                 self.grab_release()

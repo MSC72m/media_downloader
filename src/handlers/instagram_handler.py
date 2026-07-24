@@ -2,9 +2,7 @@ import re
 from collections.abc import Mapping
 
 from src.core.config import AppConfig, get_config
-from src.core.enums.service_type import ServiceType
 from src.core.interfaces import IErrorNotifier, IMessageQueue, UIContextProtocol
-from src.core.models import Download, DownloadStatus
 from src.core.type_defs import JSONDict, JSONValue
 from src.services.detection.base_handler import BaseHandler, UICallback
 from src.services.detection.link_detector import (
@@ -15,7 +13,6 @@ from src.utils.logger import get_logger
 from src.utils.type_helpers import (
     get_platform_callback,
     get_root,
-    get_ui_context,
     schedule_on_main_thread,
 )
 
@@ -50,7 +47,7 @@ class InstagramHandler(BaseHandler):
             "shortcode": self._extract_shortcode(url),
         }
 
-    def get_metadata(self, url: str) -> dict[str, str | None | bool]:
+    def get_metadata(self, url: str) -> dict[str, str | bool | None]:
         """Get Instagram metadata for the URL."""
         return {
             "type": self._detect_instagram_type(url),
@@ -91,30 +88,8 @@ class InstagramHandler(BaseHandler):
 
             root = get_root(ui_context)
 
-            if not (ctx := get_ui_context(ui_context)):
-                logger.error("[INSTAGRAM_HANDLER] Could not get UI context")
-                if self.error_handler:
-                    self.error_handler.handle_service_failure(
-                        "Instagram Handler",
-                        "context",
-                        "Could not access UI context",
-                        url,
-                    )
-                return
-
-            download_name = f"Instagram - {url[:50]}..." if len(url) > 50 else f"Instagram - {url}"
-            download = Download(
-                name=download_name,
-                url=url,
-                status=DownloadStatus.PENDING,
-                service_type=ServiceType.INSTAGRAM,
-            )
-
             def add_and_process() -> None:
                 try:
-                    if hasattr(ctx, "downloads") and hasattr(ctx.downloads, "add_download"):
-                        ctx.downloads.add_download(download)
-                        logger.info("[INSTAGRAM_HANDLER] Download added to list")
                     logger.info(f"[INSTAGRAM_HANDLER] Calling download callback for: {url}")
                     download_callback(url)
                     logger.info("[INSTAGRAM_HANDLER] Download callback executed")
@@ -139,8 +114,6 @@ class InstagramHandler(BaseHandler):
         type_markers = {
             "/p/": "post",
             "/reel/": "reel",
-            "/stories/": "story",
-            "/tv/": "tv",
         }
 
         for marker, content_type in type_markers.items():
@@ -154,8 +127,6 @@ class InstagramHandler(BaseHandler):
         patterns = [
             r"/p/([\w-]+)",
             r"/reel/([\w-]+)",
-            r"/stories/[\w-]+/([\w-]+)",
-            r"/tv/([\w-]+)",
         ]
         for pattern in patterns:
             if match := re.search(pattern, url):

@@ -152,6 +152,70 @@ def resolve_palette(theme_manager: ThemeManager) -> Palette:
     )
 
 
+def resolve_both_palettes(theme_manager: ThemeManager) -> tuple[Palette, Palette]:
+    """Resolve both light and dark palettes for the current color theme.
+
+    Returns (light_palette, dark_palette) tuple. Used for CTk widgets that need
+    [light_color, dark_color] tuples to handle appearance mode switching.
+    """
+    # Build light palette
+    theme = theme_manager.get_theme_json()
+    accent = _coerce_hex(theme.get("CTkButton", {}).get("fg_color"), "#FF4F78")
+
+    base_light = "#F2F3F7"
+    mid_light = blend(accent, base_light, 0.018)
+    light_palette = Palette(
+        appearance="light",
+        background_top=blend(accent, "#FAFAFC", 0.055),
+        background_bottom="#EDEEF3",
+        background_mid=mid_light,
+        surface=blend("#FFFFFF", mid_light, 0.72),
+        surface_raised=blend("#FFFFFF", mid_light, 0.90),
+        surface_hover="#FFFFFF",
+        border=blend("#1A1B22", mid_light, 0.10),
+        border_strong=blend("#1A1B22", mid_light, 0.17),
+        text="#181A22",
+        text_secondary="#4D5160",
+        text_muted="#858A98",
+        accent=accent,
+        accent_end=lighten(accent, 0.20),
+        accent_hover=darken(accent, 0.07),
+        success="#168F5B",
+        warning="#B9760B",
+        error="#D83B55",
+        progress_track=blend("#1A1B22", mid_light, 0.10),
+        disabled=blend("#1A1B22", mid_light, 0.14),
+    )
+
+    # Build dark palette
+    base_dark = "#0E0F14"
+    mid_dark = blend(accent, base_dark, 0.035)
+    dark_palette = Palette(
+        appearance="dark",
+        background_top=blend(accent, "#171820", 0.10),
+        background_bottom="#0B0C10",
+        background_mid=mid_dark,
+        surface=blend("#FFFFFF", mid_dark, 0.055),
+        surface_raised=blend("#FFFFFF", mid_dark, 0.085),
+        surface_hover=blend("#FFFFFF", mid_dark, 0.12),
+        border=blend("#FFFFFF", mid_dark, 0.10),
+        border_strong=blend("#FFFFFF", mid_dark, 0.16),
+        text="#F5F6FA",
+        text_secondary="#B4B7C3",
+        text_muted="#747887",
+        accent=accent,
+        accent_end=lighten(accent, 0.25),
+        accent_hover=lighten(accent, 0.12),
+        success="#39D98A",
+        warning="#F6B94A",
+        error="#FF657A",
+        progress_track=blend("#FFFFFF", mid_dark, 0.10),
+        disabled=blend("#FFFFFF", mid_dark, 0.15),
+    )
+
+    return light_palette, dark_palette
+
+
 if TYPE_CHECKING:
     _CanvasBase = tk.Canvas
 else:
@@ -267,9 +331,12 @@ class GlassFrame(ctk.CTkFrame):
         self.theme_manager = theme_manager or get_theme_manager(master.winfo_toplevel())
         self.elevation = elevation
         self.interactive = interactive
-        palette = resolve_palette(self.theme_manager)
-        kwargs.setdefault("fg_color", self._surface_color(palette))
-        kwargs.setdefault("border_color", palette.border)
+        light_palette, dark_palette = resolve_both_palettes(self.theme_manager)
+        kwargs.setdefault(
+            "fg_color",
+            [self._surface_color(light_palette), self._surface_color(dark_palette)],
+        )
+        kwargs.setdefault("border_color", [light_palette.border, dark_palette.border])
         kwargs.setdefault("border_width", 1)
         kwargs.setdefault("corner_radius", 14)
         super().__init__(master, **kwargs)
@@ -282,10 +349,18 @@ class GlassFrame(ctk.CTkFrame):
         return palette.surface_raised if self.elevation == "raised" else palette.surface
 
     def _apply_surface_palette(self, *, hover: bool = False) -> None:
-        palette = resolve_palette(self.theme_manager)
+        # Resolve both light and dark palettes so CTk can handle mode switching
+        light_palette, dark_palette = resolve_both_palettes(self.theme_manager)
+
+        light_surface = light_palette.surface_hover if hover else self._surface_color(light_palette)
+        dark_surface = dark_palette.surface_hover if hover else self._surface_color(dark_palette)
+        light_border = light_palette.border_strong if hover else light_palette.border
+        dark_border = dark_palette.border_strong if hover else dark_palette.border
+
+        # CTk requires [light_color, dark_color] tuples for proper mode switching
         self.configure(
-            fg_color=palette.surface_hover if hover else self._surface_color(palette),
-            border_color=palette.border_strong if hover else palette.border,
+            fg_color=[light_surface, dark_surface],
+            border_color=[light_border, dark_border],
         )
 
     def _on_enter(self, _event: tk.Event | None = None) -> None:

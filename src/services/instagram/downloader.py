@@ -82,6 +82,8 @@ class InstagramDownloader(BaseDownloader):
             save_metadata=False,
             quiet=True,
             user_agent=self.config.network.cookie_user_agent,
+            request_timeout=self.config.instagram.default_timeout,
+            max_connection_attempts=self.config.instagram.max_login_attempts,
         )
 
     def authenticate(self, username: str | None = None, password: str | None = None) -> bool:
@@ -257,24 +259,41 @@ class InstagramDownloader(BaseDownloader):
         file_service: IFileService,
         progress_callback: Callable[[float, float], None] | None = None,
     ) -> bool:
-        """Download all items from a GraphSidecar (carousel) post."""
-        any_success = False
-        for i, node in enumerate(post.get_sidecar_nodes()):
+        """Download every carousel item with aggregate, monotonic progress."""
+        nodes = list(post.get_sidecar_nodes())
+        if not nodes:
+            return False
+
+        all_succeeded = True
+        total = len(nodes)
+        for i, node in enumerate(nodes):
             try:
                 ext = ".mp4" if node.is_video else ".jpg"
                 media_url: str | None = node.video_url if node.is_video else node.display_url
                 if not media_url:
                     logger.warning(f"[INSTAGRAM_DOWNLOADER] No media URL for sidecar item {i}")
+                    all_succeeded = False
                     continue
                 suffix = f"_{i}" if i > 0 else ""
                 filename = self.file_service.sanitize_filename(f"{base_name}{suffix}{ext}")
                 full_path = os.path.join(save_dir, filename)
-                if file_service.download_file(media_url, full_path, progress_callback).success:
-                    any_success = True
+
+                def aggregate_progress(percent: float, speed: float, index: int = i) -> None:
+                    if progress_callback:
+                        bounded = min(100.0, max(0.0, percent))
+                        progress_callback(((index + bounded / 100.0) / total) * 100.0, speed)
+
+                result = file_service.download_file(
+                    media_url,
+                    full_path,
+                    aggregate_progress if progress_callback else None,
+                )
+                if not result.success:
+                    all_succeeded = False
             except Exception as e:
                 logger.error(f"Error downloading sidecar item {i}: {e!s}")
-                continue
-        return any_success
+                all_succeeded = False
+        return all_succeeded
 
     def _download_post(
         self,

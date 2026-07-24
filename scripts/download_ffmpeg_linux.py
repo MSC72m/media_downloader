@@ -42,7 +42,7 @@ def download_file(url: str, dest: Path, desc: str = "Downloading") -> None:
                 done_mb = downloaded // (1024 * 1024)
                 print(f"\r  {pct}% ({done_mb} MB / {size_mb} MB)", end="", flush=True)
 
-    urllib.request.urlretrieve(url, dest, reporthook=report)  # noqa: S310
+    urllib.request.urlretrieve(url, dest, reporthook=report)
     print()
 
 

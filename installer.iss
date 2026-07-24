@@ -7,7 +7,7 @@
 ; missing ffmpeg gracefully with single-stream fallback.
 
 #define MyAppName "Media Downloader"
-#define MyAppVersion "1.2.0"
+#define MyAppVersion "1.2.1"
 #ifndef MyAppArchLabel
 #define MyAppArchLabel "x64"
 #endif

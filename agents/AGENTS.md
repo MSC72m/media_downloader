@@ -458,7 +458,9 @@ if error_type in RETRYABLE:
 ```python
 class MockErrorNotifier:
     def show_error(self, title: str, message: str) -> None: ...
-    def handle_exception(self, exception: Exception, context: str = "", service: str = "") -> None: ...
+    def handle_exception(
+        self, exception: Exception, context: str = "", service: str = ""
+    ) -> None: ...
 ```
 
 ### Bad

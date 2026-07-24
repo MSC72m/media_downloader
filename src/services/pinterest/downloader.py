@@ -138,12 +138,13 @@ class PinterestDownloader(BaseDownloader):
         Returns:
             Media URL if found, None otherwise
         """
-        oembed_url = f"https://www.pinterest.com/oembed/?url={url}"
+        oembed_url = "https://www.pinterest.com/oembed/"
         headers = {"User-Agent": self.config.network.user_agent}
 
         try:
             response = requests.get(
                 oembed_url,
+                params={"url": url},
                 headers=headers,
                 timeout=self.config.pinterest.oembed_timeout,
                 proxies=get_request_proxies(self.config),

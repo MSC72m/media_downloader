@@ -209,3 +209,42 @@ class TestRealSpotifyDownloads:
 
         assert result is True
         mock_instance.download.assert_called_once()
+
+
+    @patch("src.services.spotify.downloader.YouTubeDownloader")
+    def test_selected_youtube_result_bypasses_spotify_metadata(
+        self,
+        mock_youtube_downloader,
+        spotify_downloader: SpotifyDownloader,
+    ):
+        mock_instance = Mock()
+        mock_instance.download.return_value = True
+        mock_youtube_downloader.return_value = mock_instance
+        selected_url = "https://www.youtube.com/watch?v=GjXWtEqs8I4"
+        progress_callback = Mock()
+
+        with patch.object(spotify_downloader, "_extract_spotify_metadata") as metadata_fetch:
+            result = spotify_downloader.download(
+                selected_url,
+                "/tmp/knights-of-cydonia.mp3",
+                progress_callback,
+            )
+
+        assert result is True
+        metadata_fetch.assert_not_called()
+        mock_youtube_downloader.assert_called_once_with(
+            quality="lowest",
+            audio_only=True,
+            download_thumbnail=False,
+            embed_metadata=True,
+            error_handler=spotify_downloader.error_handler,
+            file_service=spotify_downloader.file_service,
+            config=spotify_downloader.config,
+            cookie_handler=spotify_downloader.cookie_handler,
+            auto_cookie_manager=spotify_downloader.auto_cookie_manager,
+        )
+        mock_instance.download.assert_called_once_with(
+            selected_url,
+            "/tmp/knights-of-cydonia.mp3",
+            progress_callback,
+        )
