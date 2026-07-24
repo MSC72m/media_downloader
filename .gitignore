@@ -270,6 +270,7 @@ MANIFEST
 *.manifest
 *.spec
 !media_downloader.spec
+!media_downloader_linux.spec
 
 # Installer logs
 pip-log.txt
