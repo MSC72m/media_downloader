@@ -47,7 +47,7 @@ class InstagramHandler(BaseHandler):
             "shortcode": self._extract_shortcode(url),
         }
 
-    def get_metadata(self, url: str) -> dict[str, str | None | bool]:
+    def get_metadata(self, url: str) -> dict[str, str | bool | None]:
         """Get Instagram metadata for the URL."""
         return {
             "type": self._detect_instagram_type(url),

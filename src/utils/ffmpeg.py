@@ -117,7 +117,7 @@ def _download_extract_win(
                 with contextlib.suppress(Exception):
                     cast(Any, progress_callback).configure(text=f"Downloading ffmpeg... {pct}%")
 
-        urllib.request.urlretrieve(_FFMPEG_WIN_URL, str(tmp_zip), _report)  # noqa: S310
+        urllib.request.urlretrieve(_FFMPEG_WIN_URL, str(tmp_zip), _report)
 
         logger.info("[FFMPEG] Extracting ffmpeg.exe...")
         with zipfile.ZipFile(str(tmp_zip), "r") as zf:
@@ -172,7 +172,7 @@ def _download_extract_linux(dest: Path) -> str | None:
 
     try:
         logger.info("[FFMPEG] Downloading from %s", url)
-        urllib.request.urlretrieve(url, str(tmp_file))  # noqa: S310
+        urllib.request.urlretrieve(url, str(tmp_file))
         if _extract_ffmpeg_from_tar(tmp_file, dest):
             return str(dest)
         logger.error("[FFMPEG] ffmpeg binary not found in downloaded archive")
@@ -182,7 +182,7 @@ def _download_extract_linux(dest: Path) -> str | None:
             return None
         logger.info("[FFMPEG] Trying fallback URL...")
         try:
-            urllib.request.urlretrieve(_FFMPEG_LINUX_FALLBACK, str(tmp_file))  # noqa: S310
+            urllib.request.urlretrieve(_FFMPEG_LINUX_FALLBACK, str(tmp_file))
             if _extract_ffmpeg_from_tar(tmp_file, dest):
                 return str(dest)
         except Exception as e2:
