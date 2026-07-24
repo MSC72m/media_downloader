@@ -49,7 +49,7 @@ def test_no_window_bypasses_base_dialog_or_creates_a_second_root() -> None:
     for path in _SRC.rglob("*.py"):
         source = path.read_text(encoding="utf-8")
         tree = ast.parse(source)
-        relative = str(path.relative_to(_PROJECT_ROOT))
+        relative = str(path.relative_to(_PROJECT_ROOT)).replace("\\", "/")
         for node in ast.walk(tree):
             if isinstance(node, ast.ClassDef):
                 for base in node.bases:
@@ -73,7 +73,7 @@ def test_only_application_entrypoint_owns_a_main_loop() -> None:
     for path in _SRC.rglob("*.py"):
         source = path.read_text(encoding="utf-8")
         if ".mainloop(" in source:
-            occurrences.append(str(path.relative_to(_PROJECT_ROOT)))
+            occurrences.append(str(path.relative_to(_PROJECT_ROOT)).replace("\\", "/"))
     assert occurrences == ["src/main.py"]
     assert _source("src/main.py").count(".mainloop(") == 1
 
