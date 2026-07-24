@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
 DownloadOptions = Mapping[str, JSONValue]
 MessagePayload = Mapping[str, JSONValue | MessageLevel]
+# Progress is a percentage in [0, 100]; speed is megabytes per second (MB/s).
 ProgressCallback = Callable[[float, float], None]
 DownloadProgressCallback = Callable[["Download", float], None]
 DownloadCompletionCallback = Callable[[bool, str | None], None]
@@ -151,7 +152,10 @@ class IErrorNotifier(Protocol):
 @runtime_checkable
 class IServiceFactory(Protocol):
     def get_downloader(
-        self, url: str, service_type: ServiceType | None = None
+        self,
+        url: str,
+        service_type: ServiceType | None = None,
+        download: Download | None = None,
     ) -> BaseDownloader | None: ...
 
     def detect_service_type(self, url: str) -> ServiceType: ...

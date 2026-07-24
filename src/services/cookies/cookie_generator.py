@@ -7,7 +7,7 @@ import random
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import Lock
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import quote_plus
 
 if TYPE_CHECKING:
@@ -114,7 +114,7 @@ class CookieGenerator:
             logger.info("[COOKIE_GENERATOR] Using system browser channel: %s", channel)
 
         try:
-            return await playwright.chromium.launch(**launch_kwargs)
+            return await playwright.chromium.launch(**cast(Any, launch_kwargs))
         except Exception as browser_error:
             # If system browser failed, retry without channel (use Playwright Chromium)
             if channel:

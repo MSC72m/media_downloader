@@ -1,3 +1,8 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+from urllib.parse import urlparse
+
 from src.core.config import AppConfig, get_config
 from src.core.enums import ServiceType
 from src.core.interfaces import (
@@ -22,6 +27,9 @@ from src.services.tiktok.downloader import TikTokDownloader
 from src.services.twitter.downloader import TwitterDownloader
 from src.services.youtube.downloader import YouTubeDownloader
 from src.utils.logger import get_logger
+
+if TYPE_CHECKING:
+    from src.core.models import Download
 
 logger = get_logger(__name__)
 
@@ -63,21 +71,36 @@ class ServiceFactory:
         return self.auto_cookie_manager
 
     def detect_service_type(self, url: str) -> ServiceType:
-        url_lower = url.lower()
+        parsed = urlparse(url if "://" in url else f"//{url}")
+        host = (parsed.hostname or "").lower().rstrip(".")
 
         service_map = {
-            ServiceType.YOUTUBE: ["youtube.com", "youtu.be"],
-            ServiceType.SOUNDCLOUD: ["soundcloud.com"],
-            ServiceType.TWITTER: ["twitter.com", "x.com"],
-            ServiceType.INSTAGRAM: ["instagram.com"],
-            ServiceType.PINTEREST: ["pinterest.com", "pin.it"],
-            ServiceType.TIKTOK: ["tiktok.com", "vm.tiktok.com"],
-            ServiceType.RADIOJAVAN: ["play.radiojavan.com", "radiojavan.com", "rj.app"],
-            ServiceType.SPOTIFY: ["open.spotify.com", "spotify.com", "spotify.link"],
+            ServiceType.YOUTUBE: {"youtube.com", "youtu.be"},
+            ServiceType.SOUNDCLOUD: {"soundcloud.com", "soundcloud.app.goo.gl"},
+            ServiceType.TWITTER: {"twitter.com", "x.com"},
+            ServiceType.INSTAGRAM: {"instagram.com"},
+            ServiceType.PINTEREST: {
+                "pinterest.com",
+                "pinterest.com.au",
+                "pinterest.ca",
+                "pinterest.co.uk",
+                "pinterest.de",
+                "pinterest.fr",
+                "pin.it",
+            },
+            ServiceType.TIKTOK: {"tiktok.com"},
+            ServiceType.RADIOJAVAN: {"radiojavan.com", "rj.app"},
+            ServiceType.SPOTIFY: {
+                "spotify.com",
+                "spotify.link",
+                "song.link",
+                "album.link",
+                "playlist.link",
+            },
         }
 
-        for service_type, patterns in service_map.items():
-            if any(pattern in url_lower for pattern in patterns):
+        for service_type, domains in service_map.items():
+            if any(host == domain or host.endswith(f".{domain}") for domain in domains):
                 return service_type
 
         logger.warning(f"[SERVICE_FACTORY] Unknown service type for URL: {url}")
@@ -91,7 +114,10 @@ class ServiceFactory:
         return ServiceType.GENERIC
 
     def get_downloader(
-        self, url: str, service_type: ServiceType | None = None
+        self,
+        url: str,
+        service_type: ServiceType | None = None,
+        download: Download | None = None,
     ) -> BaseDownloader | None:
         if service_type is None:
             service_type = self.detect_service_type(url)
@@ -99,12 +125,26 @@ class ServiceFactory:
 
         downloader_map = {
             ServiceType.SOUNDCLOUD: lambda: SoundCloudDownloader(
+                download_playlist=(
+                    bool(download and download.download_playlist) or "/sets/" in url.lower()
+                ),
                 error_handler=self.error_handler,
                 file_service=self.file_service,
                 config=self.config,
                 cookie_manager=self.sc_cookie_manager,
             ),
             ServiceType.YOUTUBE: lambda: YouTubeDownloader(
+                quality=(download.quality if download and download.quality else "720p"),
+                download_playlist=bool(download and download.download_playlist),
+                audio_only=bool(download and download.audio_only),
+                video_only=bool(download and download.video_only),
+                format=(download.format if download and download.format else "video"),
+                download_subtitles=bool(download and download.download_subtitles),
+                selected_subtitles=(download.selected_subtitles if download else None),
+                download_thumbnail=(download.download_thumbnail if download else True),
+                embed_metadata=(download.embed_metadata if download else True),
+                speed_limit=(download.speed_limit if download else None),
+                retries=(download.retries if download else 3),
                 cookie_handler=self.cookie_handler,
                 auto_cookie_manager=self.auto_cookie_manager,
                 error_handler=self.error_handler,

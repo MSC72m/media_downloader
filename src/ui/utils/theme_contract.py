@@ -1,6 +1,6 @@
 """Theme visual-system contract validator.
 
-Ensures all 18 built-in themes + user themes supply required semantic colour roles
+Ensures all 22 built-in themes + user themes supply required semantic colour roles
 and maintain adequate contrast for accessibility.
 """
 

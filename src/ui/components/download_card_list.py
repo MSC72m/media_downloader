@@ -11,7 +11,7 @@ from src.core import Download, DownloadStatus
 from src.core.enums.theme_event import ThemeEvent
 from src.ui.components.download_card import DownloadCard
 from src.ui.utils.theme_manager import ThemeManager, get_theme_manager
-from src.ui.visual_system import GlassFrame, resolve_palette
+from src.ui.visual_system import GlassFrame, resolve_both_palettes, resolve_palette
 
 
 class DownloadCardList(GlassFrame):
@@ -168,14 +168,22 @@ class DownloadCardList(GlassFrame):
 
     def _apply_palette(self) -> None:
         palette = resolve_palette(self._theme_manager)
+        light_palette, dark_palette = resolve_both_palettes(self._theme_manager)
         self._heading_label.configure(text_color=palette.text)
         self._count_label.configure(text_color=palette.text_muted)
         self._empty_title.configure(text_color=palette.text_secondary)
         self._empty_hint.configure(text_color=palette.text_muted)
         with contextlib.suppress(Exception):
             self._scroll.configure(
-                scrollbar_button_color=palette.border_strong,
-                scrollbar_button_hover_color=palette.text_muted,
+                fg_color=[light_palette.surface, dark_palette.surface],
+                scrollbar_button_color=[
+                    light_palette.border_strong,
+                    dark_palette.border_strong,
+                ],
+                scrollbar_button_hover_color=[
+                    light_palette.text_muted,
+                    dark_palette.text_muted,
+                ],
             )
 
     def _on_theme_changed(self, appearance: str, color: str) -> None:

@@ -1,8 +1,8 @@
 """Comprehensive unit tests for TikTok downloader and handler."""
 
 import os
-import tempfile
 import re
+import tempfile
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -169,6 +169,8 @@ class TestTikTokDownloader:
 
         with tempfile.TemporaryDirectory() as temp_dir:
             save_path = os.path.join(temp_dir, "test_video")
+            with open(f"{save_path}.mp4", "wb") as output:
+                output.write(b"video")
             result = self.downloader._perform_download(
                 "https://tiktok.com/@user/video/123", save_path, None
             )
@@ -218,6 +220,8 @@ class TestTikTokDownloader:
 
         with tempfile.TemporaryDirectory() as temp_dir:
             save_path = os.path.join(temp_dir, "test_video")
+            with open(f"{save_path}.mp4", "wb") as output:
+                output.write(b"video")
             result = self.downloader.download("https://tiktok.com/@user/video/123", save_path)
 
             assert result is True
@@ -278,7 +282,7 @@ class TestTikTokDownloader:
     def test_create_progress_handle_callback_exception(self):
         """Test progress hook handles callback exceptions gracefully."""
 
-        def failing_callback(progress, speed):
+        def failing_callback(_progress, _speed):
             raise Exception("Callback error")
 
         hook = self.downloader._create_progress_hook(failing_callback)

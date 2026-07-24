@@ -684,10 +684,8 @@ class TestSpotifyErrorHandling:
     @patch("src.services.spotify.downloader.requests.get")
     def test_handle_timeout_gracefully(self, mock_get):
         """Verify timeout is handled gracefully with fallback."""
-        import requests
-
         mock_response = Mock()
-        mock_response.raise_for_status.side_effect = requests.Timeout("Timeout")
+        mock_response.raise_for_status.side_effect = TimeoutError("Timeout")
         mock_get.return_value = mock_response
 
         error_handler = MockErrorNotifier()

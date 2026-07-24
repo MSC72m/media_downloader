@@ -11,7 +11,13 @@ import customtkinter as ctk
 
 from src.core.enums.theme_event import ThemeEvent
 from src.ui.utils.theme_manager import ThemeManager, get_theme_manager
-from src.ui.visual_system import GlassButton, GlassFrame, GradientButton, resolve_palette
+from src.ui.visual_system import (
+    GlassButton,
+    GlassFrame,
+    GradientButton,
+    resolve_both_palettes,
+    resolve_palette,
+)
 
 _YOUTUBE_DOMAIN_PATTERN = re.compile(r"(?:youtube\.com|youtu\.be)", re.IGNORECASE)
 _SERVICE_DOMAIN_PATTERNS: list[tuple[re.Pattern[str], str]] = [
@@ -180,16 +186,19 @@ class URLEntryFrame(GlassFrame):
         self.url_entry.configure(border_width=0, border_color=palette.border)
 
     def _apply_palette(self) -> None:
-        palette = resolve_palette(self._theme_manager)
+        light_palette, dark_palette = resolve_both_palettes(self._theme_manager)
         self.url_entry.configure(
-            fg_color=palette.surface,
-            text_color=palette.text,
-            placeholder_text_color=palette.text_muted,
-            border_color=palette.border,
+            fg_color=[light_palette.surface, dark_palette.surface],
+            text_color=[light_palette.text, dark_palette.text],
+            placeholder_text_color=[light_palette.text_muted, dark_palette.text_muted],
+            border_color=[light_palette.border, dark_palette.border],
         )
         self._platform_badge.configure(
-            fg_color=palette.surface_hover,
-            text_color=palette.accent if self._detected_badge else palette.text_muted,
+            fg_color=[light_palette.surface_hover, dark_palette.surface_hover],
+            text_color=[
+                light_palette.accent if self._detected_badge else light_palette.text_muted,
+                dark_palette.accent if self._detected_badge else dark_palette.text_muted,
+            ],
         )
 
     def _on_theme_changed(self, appearance: str, color: str) -> None:

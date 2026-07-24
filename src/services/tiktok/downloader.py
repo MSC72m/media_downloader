@@ -1,5 +1,6 @@
 import os
 from collections.abc import Callable
+from glob import glob
 from typing import Any, cast
 
 import yt_dlp
@@ -95,13 +96,33 @@ class TikTokDownloader(BaseDownloader):
                         )
                     return False
 
-                logger.info("[TIKTOK_DOWNLOADER] Download completed successfully")
+                output_candidates = [
+                    path
+                    for path in glob(f"{stem}.*")
+                    if not path.endswith((".part", ".ytdl"))
+                    and os.path.isfile(path)
+                    and os.path.getsize(path) > 0
+                ]
+                if not output_candidates:
+                    error_msg = "TikTok download completed without producing a media file"
+                    logger.error("[TIKTOK_DOWNLOADER] %s", error_msg)
+                    if self.error_handler:
+                        self.error_handler.handle_service_failure(
+                            "TikTok", "download", error_msg, url
+                        )
+                    return False
+
+                logger.info(
+                    "[TIKTOK_DOWNLOADER] Download completed successfully: %s", output_candidates[0]
+                )
                 if "title" in info:
                     logger.info(f"[TIKTOK_DOWNLOADER] Downloaded: {info['title']}")
                 return True
 
         except Exception as e:
             logger.error(f"[TIKTOK_DOWNLOADER] Download error: {e}", exc_info=True)
+            if self.error_handler:
+                self.error_handler.handle_exception(e, "TikTok download", "TikTok")
             return False
 
     def download(

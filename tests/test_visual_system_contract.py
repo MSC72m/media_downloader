@@ -126,8 +126,8 @@ class TestThemeSemanticContract:
         assert result["light"]["focus_ring"] == "#007BFF"
         assert result["dark"]["focus_ring"] == "#0056b3"
 
-    def test_we_have_exactly_18_themes(self, all_color_schemes: dict[str, dict[str, object]]) -> None:
-        """Verify all 18 color themes are present."""
+    def test_we_have_exactly_22_themes(self, all_color_schemes: dict[str, dict[str, object]]) -> None:
+        """Verify all 22 color themes are present."""
         # Extract unique theme names
         theme_names = set()
         for key in all_color_schemes.keys():
@@ -135,14 +135,15 @@ class TestThemeSemanticContract:
             if len(parts) == 2:
                 theme_names.add(parts[-1])
 
-        expected_18_themes = {
+        expected_22_themes = {
             "blue", "green", "red", "purple", "cyan", "emerald",
             "gold", "amber", "pink", "coral", "orange", "lime",
             "indigo", "teal", "violet", "rose", "slate", "navy",
+            "cyberpunk", "espresso", "glacier", "sunset",
         }
 
-        assert len(theme_names) == 18, f"Expected 18 themes, got {len(theme_names)}: {theme_names}"
-        assert theme_names == expected_18_themes, f"Theme names mismatch: {theme_names ^ expected_18_themes}"
+        assert len(theme_names) == 22, f"Expected 22 themes, got {len(theme_names)}: {theme_names}"
+        assert theme_names == expected_22_themes, f"Theme names mismatch: {theme_names ^ expected_22_themes}"
 
 
 class TestSemanticColorUsagePatterns:

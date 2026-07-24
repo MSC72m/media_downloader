@@ -234,6 +234,79 @@ class _FakePixels:
         self.writes.append((key, value))
 
 
+class _PaletteThemeBus(_ThemeBus):
+    def get_appearance(self) -> _Appearance:
+        return _Appearance()
+
+    def get_theme_json(self) -> dict[str, object]:
+        return {"CTkButton": {"fg_color": ["#EF4444", "#DC2626"]}}
+
+
+class _ConfigRecorder:
+    def __init__(self) -> None:
+        self.configurations: list[dict[str, Any]] = []
+
+    def configure(self, **kwargs: Any) -> None:
+        self.configurations.append(kwargs)
+
+
+def test_central_surfaces_keep_light_dark_pairs_from_construction(
+    monkeypatch: Any,
+) -> None:
+    import customtkinter as ctk
+
+    from src.ui.components.download_card_list import DownloadCardList
+    from src.ui.components.url_entry import URLEntryFrame
+    from src.ui.visual_system import GlassFrame, resolve_both_palettes
+
+    manager = _PaletteThemeBus()
+    light, dark = resolve_both_palettes(manager)  # type: ignore[arg-type]
+    initial: dict[str, Any] = {}
+
+    def record_frame_init(_self: Any, _master: Any, **kwargs: Any) -> None:
+        initial.update(kwargs)
+
+    monkeypatch.setattr(ctk.CTkFrame, "__init__", record_frame_init)
+    frame = object.__new__(GlassFrame)
+    GlassFrame.__init__(frame, object(), theme_manager=manager, elevation="raised")
+
+    assert initial["fg_color"] == [light.surface_raised, dark.surface_raised]
+    assert initial["border_color"] == [light.border, dark.border]
+    assert initial["fg_color"][0] != initial["fg_color"][1]
+
+    entry = _ConfigRecorder()
+    badge = _ConfigRecorder()
+    url_bar = SimpleNamespace(
+        _theme_manager=manager,
+        _detected_badge=None,
+        url_entry=entry,
+        _platform_badge=badge,
+    )
+    URLEntryFrame._apply_palette(url_bar)
+    assert entry.configurations[-1]["fg_color"] == [light.surface, dark.surface]
+    assert entry.configurations[-1]["text_color"] == [light.text, dark.text]
+    assert badge.configurations[-1]["fg_color"] == [
+        light.surface_hover,
+        dark.surface_hover,
+    ]
+
+    queue = SimpleNamespace(
+        _theme_manager=manager,
+        _heading_label=_ConfigRecorder(),
+        _count_label=_ConfigRecorder(),
+        _empty_title=_ConfigRecorder(),
+        _empty_hint=_ConfigRecorder(),
+        _scroll=_ConfigRecorder(),
+    )
+    DownloadCardList._apply_palette(queue)
+    scroll_colors = queue._scroll.configurations[-1]
+    assert scroll_colors["fg_color"] == [light.surface, dark.surface]
+    assert scroll_colors["scrollbar_button_color"] == [
+        light.border_strong,
+        dark.border_strong,
+    ]
+
+
 class _FakeImage:
     def __init__(self, size: tuple[int, int]) -> None:
         self.size = size

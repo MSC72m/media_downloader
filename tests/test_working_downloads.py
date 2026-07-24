@@ -278,6 +278,8 @@ class TestRealWorkingDownloads:
 
                         mock_instance.__enter__.return_value = mock_instance
                         mock_instance.__exit__.return_value = None
+                        with open(fake_file_path, 'wb') as f:
+                            f.write(fake_video_content)
 
                         result = downloader.download(test_url, save_path, progress_callback)
 

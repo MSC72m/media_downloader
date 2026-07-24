@@ -101,7 +101,7 @@ class YouTubeInfoExtractor:
         logger.info("[INFO_EXTRACTOR] LOGIN_REQUIRED detected — regenerating cookies and retrying")
 
         try:
-            if not auto_manager.invalidate_and_regenerate(fast=True):
+            if not cast(Any, auto_manager).invalidate_and_regenerate(fast=True):
                 logger.warning("[INFO_EXTRACTOR] Cookie regeneration failed")
                 return None
         except Exception as exc:
@@ -224,7 +224,7 @@ class YouTubeInfoExtractor:
 
         if shutil.which("node"):
             opts["js_runtimes"] = {"node": {}}
-            opts["remote_components"] = "ejs:github"
+            opts["remote_components"] = ["ejs:github"]
 
         if client and client != "default":
             opts["extractor_args"] = {"youtube": {"player_client": [client]}}

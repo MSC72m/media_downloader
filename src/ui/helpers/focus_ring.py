@@ -5,7 +5,7 @@ Provides focus ring styling for keyboard navigation and accessibility.
 
 from __future__ import annotations
 
-import customtkinter as ctk
+from typing import Any, cast
 
 from src.ui import tokens
 
@@ -19,7 +19,7 @@ class FocusRingHelper:
 
     @staticmethod
     def apply_focus_ring(
-        widget: ctk.CTkWidget,
+        widget: object,
         ring_color: str = tokens.FOCUS_RING,
         ring_width: int = tokens.FOCUS_WIDTH,
     ) -> None:
@@ -31,11 +31,12 @@ class FocusRingHelper:
             ring_width: Width of the focus ring in pixels
         """
         # Store focus ring properties on widget for retrieval
-        widget._focus_ring_color = ring_color
-        widget._focus_ring_width = ring_width
+        dynamic_widget = cast(Any, widget)
+        dynamic_widget._focus_ring_color = ring_color
+        dynamic_widget._focus_ring_width = ring_width
 
     @staticmethod
-    def get_focus_ring_color(widget: ctk.CTkWidget) -> str:
+    def get_focus_ring_color(widget: object) -> str:
         """Get the focus ring colour for a widget.
 
         Args:
@@ -47,7 +48,7 @@ class FocusRingHelper:
         return getattr(widget, "_focus_ring_color", tokens.FOCUS_RING)
 
     @staticmethod
-    def get_focus_ring_width(widget: ctk.CTkWidget) -> int:
+    def get_focus_ring_width(widget: object) -> int:
         """Get the focus ring width for a widget.
 
         Args:
@@ -60,7 +61,7 @@ class FocusRingHelper:
 
 
 def apply_focus_ring(
-    widget: ctk.CTkWidget,
+    widget: object,
     ring_color: str = tokens.FOCUS_RING,
     ring_width: int = tokens.FOCUS_WIDTH,
 ) -> None:

@@ -331,9 +331,12 @@ class GlassFrame(ctk.CTkFrame):
         self.theme_manager = theme_manager or get_theme_manager(master.winfo_toplevel())
         self.elevation = elevation
         self.interactive = interactive
-        palette = resolve_palette(self.theme_manager)
-        kwargs.setdefault("fg_color", self._surface_color(palette))
-        kwargs.setdefault("border_color", palette.border)
+        light_palette, dark_palette = resolve_both_palettes(self.theme_manager)
+        kwargs.setdefault(
+            "fg_color",
+            [self._surface_color(light_palette), self._surface_color(dark_palette)],
+        )
+        kwargs.setdefault("border_color", [light_palette.border, dark_palette.border])
         kwargs.setdefault("border_width", 1)
         kwargs.setdefault("corner_radius", 14)
         super().__init__(master, **kwargs)

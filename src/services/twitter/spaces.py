@@ -6,6 +6,7 @@ URL, then downloads the HLS stream via ffmpeg.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -17,6 +18,7 @@ import requests
 
 from src.core.config import AppConfig
 from src.core.interfaces import BaseDownloader, IErrorNotifier, IFileService
+from src.utils.ffmpeg import get_ffmpeg_path
 from src.utils.logger import get_logger
 from src.utils.proxy import get_request_proxies
 
@@ -32,7 +34,18 @@ _BEARER_TOKEN = (
     "AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs"  # noqa: S105
     "%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA"
 )
-_GRAPHQL_URL = "https://twitter.com/i/api/graphql/kZ9wfR8EBtiP0As3sFFrBA/AudioSpaceById"
+# X rotates GraphQL operation IDs as its web client changes. Keep the current
+# operation first and a legacy fallback so a stale operation does not make every
+# valid Space look deleted.
+_GRAPHQL_ENDPOINTS = (
+    "https://api.x.com/graphql/xpwpkJD3FetGBaSq7zH4Lw/AudioSpaceById",
+    "https://twitter.com/i/api/graphql/kZ9wfR8EBtiP0As3sFFrBA/AudioSpaceById",
+)
+_GRAPHQL_URL = _GRAPHQL_ENDPOINTS[0]
+
+
+class _SpaceUnavailableError(RuntimeError):
+    """Raised when a Space is private, deleted, replay-disabled, or otherwise unavailable."""
 
 
 class TwitterSpacesDownloader(BaseDownloader):
@@ -80,8 +93,20 @@ class TwitterSpacesDownloader(BaseDownloader):
                 else f"{title}.m4a",
             )
             self._download_hls(stream_url, output_path, progress_callback)
+            if not os.path.isfile(output_path) or os.path.getsize(output_path) <= 0:
+                raise RuntimeError("ffmpeg completed without producing a non-empty audio file")
             return True
 
+        except _SpaceUnavailableError as exc:
+            logger.warning("[SPACES] Space %s unavailable: %s", space_id, exc)
+            if self.error_handler:
+                self.error_handler.handle_service_failure(
+                    "Twitter Spaces",
+                    "download",
+                    str(exc),
+                    url,
+                )
+            return False
         except Exception as e:
             logger.error(f"[SPACES] Failed to download space {space_id}: {e}", exc_info=True)
             if self.error_handler:
@@ -98,7 +123,7 @@ class TwitterSpacesDownloader(BaseDownloader):
                 "User-Agent": _UA,
             },
             proxies=get_request_proxies(self.config),
-            timeout=15,
+            timeout=self.config.twitter.default_timeout,
         )
         resp.raise_for_status()
         return str(resp.json()["guest_token"])
@@ -109,49 +134,63 @@ class TwitterSpacesDownloader(BaseDownloader):
         variables = json.dumps(
             {
                 "id": space_id,
-                "isMetatagsQuery": False,
+                "isMetatagsQuery": True,
                 "withListeners": True,
                 "withReplays": True,
-            }
+            },
+            separators=(",", ":"),
         )
         features = json.dumps(
             {
                 "spaces_2022_h2_spaces_communities": True,
                 "spaces_2022_h2_clipping": True,
-            }
+            },
+            separators=(",", ":"),
         )
         params = {"variables": variables, "features": features}
         headers = {
             "Authorization": f"Bearer {_BEARER_TOKEN}",
             "x-guest-token": self._guest_token or "",
+            "x-twitter-active-user": "yes",
+            "x-twitter-client-language": "en",
             "content-type": "application/json",
             "User-Agent": _UA,
         }
-        resp = requests.get(
-            _GRAPHQL_URL,
-            params=params,
-            headers=headers,
-            proxies=get_request_proxies(self.config),
-            timeout=30,
-        )
-        if resp.status_code == 403:
-            if self.error_handler:
-                self.error_handler.handle_service_failure(
-                    "Twitter Spaces",
-                    "metadata",
-                    "Guest API access denied. The space may require authentication or the API has changed.",
-                    f"https://x.com/i/spaces/{space_id}",
-                )
-            raise RuntimeError(f"Guest API access denied for space {space_id}")
-        resp.raise_for_status()
-        data = resp.json()
-        space = data.get("data", {}).get("audioSpace")
-        if not space or not isinstance(space, dict) or not space.get("metadata"):
-            raise RuntimeError(
-                f"No accessible audioSpace data for {space_id}. "
-                "The space may be private, deleted, or require authentication."
+
+        response_details: list[str] = []
+        for endpoint in _GRAPHQL_ENDPOINTS:
+            resp = requests.get(
+                endpoint,
+                params=params,
+                headers=headers,
+                proxies=get_request_proxies(self.config),
+                timeout=self.config.twitter.default_timeout,
             )
-        return space
+            if resp.status_code == 403:
+                response_details.append(f"{resp.status_code} from {endpoint}")
+                continue
+            resp.raise_for_status()
+            data = resp.json()
+            raw_errors = data.get("errors")
+            space = data.get("data", {}).get("audioSpace")
+            if isinstance(space, dict) and space.get("metadata"):
+                return space
+
+            if raw_errors:
+                messages = [
+                    str(item.get("message", item)) if isinstance(item, dict) else str(item)
+                    for item in raw_errors
+                ]
+                response_details.extend(messages)
+            else:
+                response_details.append(f"no metadata from {endpoint}")
+
+        detail = "; ".join(response_details)
+        raise _SpaceUnavailableError(
+            f"X returned no metadata for Space {space_id}. X may no longer expose this "
+            "Space, even if an old page still labels it replayable."
+            + (f" API details: {detail}" if detail else "")
+        )
 
     def _extract_stream_url(self, space_data: dict[str, Any]) -> str:
         stream = space_data.get("stream") or {}
@@ -162,27 +201,33 @@ class TwitterSpacesDownloader(BaseDownloader):
             return location
 
         meta = space_data.get("metadata") or {}
-        if meta.get("is_space_available_for_replay") and meta.get("media_key"):
-            location = self._fetch_replay_url(meta["media_key"])
+        if meta.get("media_key"):
+            location = self._fetch_replay_url(str(meta["media_key"]))
             if location:
                 return location
 
         state = meta.get("state", "unknown")
-        raise RuntimeError(
-            f"Space is {state} and has no stream URL available. "
+        raise _SpaceUnavailableError(
+            f"Space is {state} and X returned no playable stream URL. "
             f"Replay available: {meta.get('is_space_available_for_replay', False)}"
         )
 
     def _fetch_replay_url(self, media_key: str) -> str | None:
         resp = requests.get(
             f"https://twitter.com/i/api/1.1/live_video_stream/status/{media_key}",
+            params={
+                "client": "web",
+                "use_syndication_guest_id": "false",
+                "cookie_set_host": "x.com",
+            },
             headers={
                 "Authorization": f"Bearer {_BEARER_TOKEN}",
                 "x-guest-token": self._guest_token or "",
+                "x-twitter-active-user": "yes",
                 "User-Agent": _UA,
             },
             proxies=get_request_proxies(self.config),
-            timeout=15,
+            timeout=self.config.twitter.default_timeout,
         )
         if not resp.ok:
             logger.warning(
@@ -190,7 +235,8 @@ class TwitterSpacesDownloader(BaseDownloader):
             )
             return None
         data = resp.json()
-        return data.get("source", {}).get("location") or data.get("location")
+        source = data.get("source") or {}
+        return source.get("noRedirectPlaybackUrl") or source.get("location") or data.get("location")
 
     @staticmethod
     def _format_title(metadata: dict[str, Any]) -> str | None:
@@ -198,7 +244,14 @@ class TwitterSpacesDownloader(BaseDownloader):
         creator_results = metadata.get("creator_results") or {}
         creator_result = creator_results.get("result") or {}
         legacy = creator_result.get("legacy") or {}
-        creator_name = legacy.get("name") or legacy.get("screen_name") or ""
+        core = creator_result.get("core") or {}
+        creator_name = (
+            core.get("name")
+            or core.get("screen_name")
+            or legacy.get("name")
+            or legacy.get("screen_name")
+            or ""
+        )
         if title and creator_name:
             return f"{creator_name} - {title}"
         if title:
@@ -213,8 +266,12 @@ class TwitterSpacesDownloader(BaseDownloader):
         output_path: str,
         progress_callback: Callable[[float, float], None] | None = None,
     ) -> None:
+        ffmpeg = get_ffmpeg_path()
+        if not ffmpeg:
+            raise RuntimeError("ffmpeg is required to download Twitter Spaces audio")
+
         ffmpeg_args = [
-            "ffmpeg",
+            ffmpeg,
             "-y",
             "-i",
             stream_url,
@@ -226,17 +283,39 @@ class TwitterSpacesDownloader(BaseDownloader):
             "+faststart",
             output_path,
         ]
-        if progress_callback:
-            ffmpeg_args.extend(["-stats"])
 
         logger.info(f"[SPACES] Starting ffmpeg download: {output_path}")
+        if progress_callback:
+            try:
+                progress_callback(0.0, 0.0)
+            except Exception as e:
+                logger.error(f"[SPACES] Progress callback error: {e}")
         process = subprocess.Popen(
             ffmpeg_args,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
         )
-        _, stderr = process.communicate()
+        try:
+            _, stderr = process.communicate(
+                timeout=self.config.twitter.space_download_timeout_seconds
+            )
+        except subprocess.TimeoutExpired as exc:
+            process.kill()
+            _, stderr = process.communicate()
+            with contextlib.suppress(OSError):
+                os.remove(output_path)
+            raise RuntimeError(
+                "ffmpeg exceeded the configured Twitter Spaces download timeout"
+            ) from exc
+
         if process.returncode != 0:
+            with contextlib.suppress(OSError):
+                os.remove(output_path)
             raise RuntimeError(f"ffmpeg failed: {stderr[-500:]}")
+        if progress_callback:
+            try:
+                progress_callback(100.0, 0.0)
+            except Exception as e:
+                logger.error(f"[SPACES] Progress callback error: {e}")
         logger.info(f"[SPACES] Download complete: {output_path}")

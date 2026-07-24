@@ -116,7 +116,7 @@ class YouTubeDownloader(BaseDownloader):
 
         if shutil.which("node"):
             options["js_runtimes"] = {"node": {}}
-            options["remote_components"] = "ejs:github"
+            options["remote_components"] = ["ejs:github"]
 
         # Route yt-dlp through the configured proxy (socks5/http) when set.
         if proxy := get_proxy(self.config):
@@ -394,8 +394,11 @@ class YouTubeDownloader(BaseDownloader):
         Returns:
             True if download was successful, False otherwise
         """
-        if (normalized_url := self._canonicalize_video_url(url)) != url:
-            logger.info("[YOUTUBE_DOWNLOADER] Normalized YouTube URL for download")
+        if (
+            not self.download_playlist
+            and (normalized_url := self._canonicalize_video_url(url)) != url
+        ):
+            logger.info("[YOUTUBE_DOWNLOADER] Normalized single-video YouTube URL for download")
             url = normalized_url
 
         try:
@@ -450,11 +453,27 @@ class YouTubeDownloader(BaseDownloader):
                         "[YOUTUBE_DOWNLOADER] Stopping auth fallback chain after "
                         f"{label} due to error bucket: {bucket.value}"
                     )
+                    if self.error_handler:
+                        self.error_handler.handle_service_failure(
+                            "YouTube",
+                            "download",
+                            self._last_download_error_message or "YouTube download failed",
+                            url,
+                        )
                     return False
+            if self.error_handler:
+                self.error_handler.handle_service_failure(
+                    "YouTube",
+                    "download",
+                    self._last_download_error_message or "All YouTube download strategies failed",
+                    url,
+                )
             return False
 
         except Exception as e:
             logger.error(f"Unexpected error downloading from YouTube: {e!s}", exc_info=True)
+            if self.error_handler:
+                self.error_handler.handle_exception(e, "YouTube download", "YouTube")
             return False
 
     def _verify_download_completion(
@@ -786,10 +805,14 @@ class YouTubeDownloader(BaseDownloader):
 
                     progress = (downloaded / total) * 100 if total > 0 else 0
 
-                    elapsed = time.time() - start_time
-                    speed = downloaded / elapsed if elapsed > 0 else 0
+                    speed_bytes = d.get("speed") or 0
+                    if not speed_bytes:
+                        elapsed = time.time() - start_time
+                        speed_bytes = downloaded / elapsed if elapsed > 0 else 0
+                    # Convert bytes/s to MB/s for the progress callback contract
+                    speed_mbps = speed_bytes / (1024 * 1024)
 
-                    callback(progress, speed)
+                    callback(progress, speed_mbps)
 
                 elif status == "finished":
                     # Only report 100% for video files, not subtitles or thumbnails
