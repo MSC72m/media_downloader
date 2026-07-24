@@ -12,7 +12,7 @@ basedpyright==1.39.9
 black==26.5.1
 isort==5.12.0
 flake8==6.1.0
-mypy==1.7.1
+mypy==2.3.0
 
 # Security scanning
 bandit==1.7.5
