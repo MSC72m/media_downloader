@@ -289,7 +289,7 @@ class ApplicationOrchestrator:
 
         if "status_bar" in components:
             status_bar = cast(_StatusBarProtocol, components["status_bar"])
-            message_queue = MessageQueue(status_bar)
+            message_queue = MessageQueue(status_bar, self._run_on_main_thread)
             self.container.register_instance(IMessageQueue, message_queue)
 
             if self.container.has(IErrorNotifier):

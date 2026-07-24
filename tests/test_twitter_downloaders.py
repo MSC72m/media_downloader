@@ -106,3 +106,88 @@ def test_spaces_ffmpeg_uses_central_path_and_finite_timeout(
     assert popen.call_args.args[0][0] == "/opt/ffmpeg"
     process.communicate.assert_any_call(timeout=7)
     process.kill.assert_called_once_with()
+
+
+class _SpaceResponse:
+    def __init__(self, payload: dict, status_code: int = 200) -> None:
+        self._payload = payload
+        self.status_code = status_code
+        self.ok = 200 <= status_code < 400
+
+    def raise_for_status(self) -> None:
+        if not self.ok:
+            raise requests.HTTPError(f"HTTP {self.status_code}")
+
+    def json(self) -> dict:
+        return self._payload
+
+
+def test_space_metadata_uses_current_operation_and_falls_back_when_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    downloader = TwitterSpacesDownloader(config=AppConfig())
+    downloader._guest_token = "guest"
+    metadata = {
+        "title": "Replay title",
+        "state": "Ended",
+        "is_space_available_for_replay": True,
+        "media_key": "28_123",
+    }
+    responses = [
+        _SpaceResponse({"data": {"audioSpace": {}}}),
+        _SpaceResponse({"data": {"audioSpace": {"metadata": metadata}}}),
+    ]
+    calls: list[tuple[str, dict[str, object]]] = []
+
+    def fake_get(url: str, **kwargs: object) -> _SpaceResponse:
+        calls.append((url, kwargs))
+        return responses.pop(0)
+
+    monkeypatch.setattr("src.services.twitter.spaces.requests.get", fake_get)
+
+    result = downloader._fetch_space_data("1OwxWwQOPlNxQ")
+
+    assert result["metadata"] == metadata
+    assert "xpwpkJD3FetGBaSq7zH4Lw" in calls[0][0]
+    assert "kZ9wfR8EBtiP0As3sFFrBA" in calls[1][0]
+    params = calls[0][1]["params"]
+    assert isinstance(params, dict)
+    assert '"isMetatagsQuery":true' in str(params["variables"])
+
+
+def test_space_replay_prefers_no_redirect_url_and_current_stream_params(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    downloader = TwitterSpacesDownloader(config=AppConfig())
+    downloader._guest_token = "guest"
+    response = _SpaceResponse(
+        {
+            "source": {
+                "location": "https://redirect.example/replay.m3u8",
+                "noRedirectPlaybackUrl": "https://cdn.example/replay.m3u8",
+            }
+        }
+    )
+    get = MagicMock(return_value=response)
+    monkeypatch.setattr("src.services.twitter.spaces.requests.get", get)
+
+    assert downloader._fetch_replay_url("28_123") == "https://cdn.example/replay.m3u8"
+    assert get.call_args.kwargs["params"] == {
+        "client": "web",
+        "use_syndication_guest_id": "false",
+        "cookie_set_host": "x.com",
+    }
+
+
+def test_space_title_supports_current_creator_core_schema() -> None:
+    metadata = {
+        "title": "Current Space",
+        "creator_results": {
+            "result": {"core": {"name": "Current Creator", "screen_name": "creator"}}
+        },
+    }
+
+    assert (
+        TwitterSpacesDownloader._format_title(metadata)
+        == "Current Creator - Current Space"
+    )

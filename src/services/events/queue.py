@@ -21,8 +21,13 @@ class Message(BaseModel):
 
 
 class MessageQueue(IMessageQueue):
-    def __init__(self, status_bar: "_StatusBarProtocol | None") -> None:
+    def __init__(
+        self,
+        status_bar: "_StatusBarProtocol | None",
+        run_on_main_thread: Callable[[Callable[[], None]], None] | None = None,
+    ) -> None:
         self.status_bar = status_bar
+        self._run_on_main_thread = run_on_main_thread
 
     def add_message(self, message: Message | str | Mapping[str, object]) -> None:
         if isinstance(message, Message):
@@ -59,18 +64,28 @@ class MessageQueue(IMessageQueue):
         )
 
     def _show_message(self, message: Message) -> None:
-        if not self.status_bar:
+        status_bar = self.status_bar
+        if not status_bar:
             logger.error("[MESSAGE_QUEUE] Status bar not available!")
             return
 
         text = f"{message.title}: {message.text}" if message.title else message.text
 
-        if message.level == MessageLevel.ERROR:
-            self.status_bar.show_error(text)
-        elif message.level == MessageLevel.WARNING:
-            self.status_bar.show_warning(text)
-        else:
-            self.status_bar.show_message(text)
+        def show() -> None:
+            if message.level == MessageLevel.ERROR:
+                status_bar.show_error(text)
+            elif message.level == MessageLevel.WARNING:
+                status_bar.show_warning(text)
+            else:
+                status_bar.show_message(text)
+
+        try:
+            if self._run_on_main_thread:
+                self._run_on_main_thread(show)
+            else:
+                show()
+        except Exception as exc:
+            logger.error("[MESSAGE_QUEUE] Failed to show message via status bar: %s", exc)
 
 
 class _StatusBarProtocol(Protocol):

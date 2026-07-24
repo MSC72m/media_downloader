@@ -83,7 +83,10 @@ def _stream_chunks_to_temp_file(
             # Convert bytes/s to MB/s for the progress callback contract
             speed_mbps = speed_bytes / (1024 * 1024)
             progress_to_report = _compute_progress_to_report(downloaded, total_size, config)
-            progress_callback(progress_to_report, speed_mbps)
+            try:
+                progress_callback(progress_to_report, speed_mbps)
+            except Exception as e:
+                logger.error("[NETWORK_DOWNLOADER] Progress callback error: %s", e)
 
 
 def _finalize_download(
@@ -98,7 +101,10 @@ def _finalize_download(
         return False
 
     if progress_callback:
-        progress_callback(100.0, 0.0)
+        try:
+            progress_callback(100.0, 0.0)
+        except Exception as e:
+            logger.error("[NETWORK_DOWNLOADER] Progress callback error: %s", e)
     logger.info(completion_log_message, save_path)
     return True
 

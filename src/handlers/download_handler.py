@@ -388,10 +388,8 @@ class DownloadHandler(IDownloadHandler):
         download.status = DownloadStatus.FAILED
         if not download.completed_at:
             download.completed_at = datetime.now()
-        if self.error_handler:
-            self.error_handler.handle_service_failure(
-                "Download Handler", "download", message, download.url
-            )
+        # Note: Error reporting is handled by the individual downloaders
+        # to avoid duplicate error messages
 
     def _invoke_completion_callback(
         self,

@@ -123,7 +123,12 @@ class LogConfig(BaseModel):
 class DownloadConfig(BaseModel):
     """Download-related configuration."""
 
-    max_concurrent_downloads: int = Field(default=1, description="Maximum concurrent downloads")
+    max_concurrent_downloads: int = Field(
+        default=2,
+        ge=1,
+        le=5,
+        description="Maximum concurrent downloads",
+    )
     retry_count: int = Field(default=3, description="Number of retries for failed downloads")
     retry_delay: float = Field(default=3.0, description="Delay between retries in seconds")
     socket_timeout: int = Field(default=15, description="Socket timeout in seconds")
