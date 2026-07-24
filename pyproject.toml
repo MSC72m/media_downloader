@@ -47,7 +47,7 @@ dev = [
     "pre-commit>=4.6.1",
     "mypy>=1.18.2",
     "pytest>=8.4.2",
-    "pytest-cov>=4.0.0",
+    "pytest-cov>=7.1.0",
     "pyinstaller>=6.0.0",
 ]
 
