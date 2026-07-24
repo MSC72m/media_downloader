@@ -5,7 +5,7 @@ pytest-mock==3.12.0
 
 # Quality gates (lint + LSP/type)
 ruff==0.13.0
-basedpyright==1.31.4
+basedpyright==1.39.9
 
 # Legacy/optional tooling
 # Kept for compatibility with existing local workflows.
