@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.2.2 - 2026-07-24
+
+Reliability release with X/Twitter Spaces fixes, theme switching repairs, concurrency improvements, and UI callback hardening.
+
+### Fixed
+
+- **Fixed X/Twitter Spaces downloads**: Updated to current X GraphQL operation (`xpwpkJD3FetGBaSq7zH4Lw/AudioSpaceById`) with automatic legacy fallback. Added current stream query parameters and support for modern creator schema. Public replayable Spaces now resolve to valid HLS manifests.
+- **Fixed theme switching between light and dark modes**: CustomTkinter requires `[light_color, dark_color]` tuples for proper appearance mode switching. GlassFrame and other widgets were passing single color values, causing them to not update when switching themes. Added `resolve_both_palettes()` function and updated all CTk widgets to use color tuples.
+- **Added debouncing to theme switcher**: Prevents race conditions when clicking rapidly between themes.
+- **Changed default concurrent downloads**: Fresh installations now default to 2 concurrent downloads (was 1), matching the UI-supported range of 1-5 workers.
+- **Fixed UI callback safety**: Progress callbacks in network and file downloaders are now protected against exceptions. Removed duplicate top-level error notifications. MessageQueue now uses the orchestrator's main-thread dispatcher, avoiding Tkinter calls from worker threads.
+
+### Changed
+
+- X Spaces resolver now prefers `noRedirectPlaybackUrl` over `source.location` for more reliable HLS stream URLs.
+- Concurrency default is constrained to UI-supported range (1-5) with validation.
+
+### Tests
+
+- Added regression tests for X Spaces operation, request variables, stream parameters, and creator schema.
+- Added concurrency overlap test proving two workers execute in parallel while a third waits.
+
 ## 1.2.1 - 2026-07-22
 
 Security updates, downloader reliability repairs across all eight platforms, reliable theme switching, and four new visual themes.

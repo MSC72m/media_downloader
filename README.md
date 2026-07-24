@@ -4,7 +4,7 @@
 
 A cross-platform desktop application for downloading media from 8 platforms — videos, music, podcasts, and playlists — with a modern, themeable UI.
 
-[![Version](https://img.shields.io/badge/Version-1.2.1-green.svg)](https://github.com/MSC72m/media_downloader/releases)
+[![Version](https://img.shields.io/badge/Version-1.2.2-green.svg)](https://github.com/MSC72m/media_downloader/releases)
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)]()
@@ -33,6 +33,13 @@ A cross-platform desktop application for downloading media from 8 platforms — 
 | **Spotify** | Tracks, Albums, Playlists, Artists | Full metadata display, YouTube-backed audio with match selection |
 | **TikTok** | Videos | Best quality video with metadata and thumbnail preservation |
 | **RadioJavan** | Songs, Videos, Playlists, Podcasts, Albums | Direct MP3/MP4 downloads, playlist and podcast support, auto-cookie generation, CDN fallback across 5 hosts |
+
+## Screenshots
+
+<p float="left" align="middle">
+  <img src="assets/ui.png" width="45%" alt="Media Downloader main interface">
+  <img src="assets/ui-with-settings.png" width="45%" alt="Media Downloader with settings panel">
+</p>
 
 ## Key Features
 
@@ -83,9 +90,9 @@ For `npx basedpyright ...`, install Node.js 18+ if it is not already available.
 
 The easiest way to run Media Downloader on Windows. No Python installation required.
 
-1. **Download** the latest installer from the [Releases page](https://github.com/MSC72m/media_downloader/releases/tag/v1.2.1)
-   - `MediaDownloaderSetup-1.2.1-x64.exe` for 64-bit Intel/AMD PCs
-   - `MediaDownloaderSetup-1.2.1-arm64.exe` for Windows on ARM devices
+1. **Download** the latest installer from the [Releases page](https://github.com/MSC72m/media_downloader/releases/tag/v1.2.2)
+   - `MediaDownloaderSetup-1.2.2-x64.exe` for 64-bit Intel/AMD PCs
+   - `MediaDownloaderSetup-1.2.2-arm64.exe` for Windows on ARM devices
 
 2. **Run** the installer — it will install:
    - The application (`MediaDownloader.exe`) with a Start Menu shortcut
@@ -295,8 +302,11 @@ Launch with: `launchctl load ~/Library/LaunchAgents/com.msc72m.mediadownloader.p
 #### Twitter/X
 
 - Paste a tweet URL to extract its text and available images or videos
-- Paste a Space URL (`x.com/i/spaces/...`) to download public live or replayable audio through ffmpeg
-- Private, deleted, login-gated, or replay-disabled Spaces cannot be downloaded
+- Paste a Space URL (`x.com/i/spaces/...`) to download public live or replayable audio
+  - Supports current X GraphQL API with automatic fallback
+  - Downloads HLS audio streams via ffmpeg
+  - Real-time progress and status indicators
+- **Limitations**: Private, deleted, login-gated, or replay-disabled Spaces cannot be downloaded. Some Spaces may be unavailable due to X API restrictions even if previously accessible.
 
 #### Pinterest
 
@@ -369,7 +379,7 @@ Edit the config file directly or use the application's UI to change settings. Ch
 
 ## Known Limitations
 
-- **Twitter Spaces availability** — Public live and replayable Spaces are supported; private, deleted, login-gated, or replay-disabled Spaces are unavailable
+- **Twitter/X Spaces availability** — Public live and replayable Spaces are supported; private, deleted, login-gated, or replay-disabled Spaces are unavailable
 - **SoundCloud Premium** — Only free tracks can be downloaded (Go+ subscription tracks are blocked by SoundCloud)
 - **Spotify Audio** — Audio is sourced from YouTube, so quality depends on YouTube availability
 - **Instagram Auth** — Private/login-gated content needs a logged-in browser session or a saved `instaloader` session file; public posts work without setup (no password login)
