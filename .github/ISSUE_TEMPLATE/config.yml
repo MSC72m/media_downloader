@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📖 Documentation
+    url: https://github.com/MSC72m/media_downloader#readme
+    about: Check the README for installation and usage instructions
+  - name: 💬 Discussions
+    url: https://github.com/MSC72m/media_downloader/discussions
+    about: Ask questions and discuss with the community

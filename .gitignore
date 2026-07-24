@@ -486,6 +486,9 @@ test_downloads/
 test_downloaders_functional.py
 
 # Documentation files (keep only README.md)
-/*.md
+/* !.md
 !README.md
 !CHANGELOG.md
+!CODE_OF_CONDUCT.md
+!CONTRIBUTING.md
+!SECURITY.md

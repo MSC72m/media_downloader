@@ -422,6 +422,20 @@ playwright install chromium
 - Ensure sufficient disk space in download directory
 - For YouTube, SoundCloud, Spotify, or RadioJavan: Wait for cookie generation to complete if prompted
 
+## Contributing
+
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details on:
+
+- Code of Conduct
+- Branch protection policy (no direct PRs to `main`)
+- Development setup and workflow
+- Commit message conventions
+- Pull request process
+
+## Security
+
+For security concerns, please read our [Security Policy](SECURITY.md) and report vulnerabilities responsibly.
+
 ## License
 
 GNU General Public License v3.0 - See [LICENSE](LICENSE) file for details.
