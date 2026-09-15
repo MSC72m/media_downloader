@@ -1,0 +1,35 @@
+[project]
+name = "navamatn"
+version = "0.1.0"
+description = "Beginner friendly audio to text project with summary and UI"
+readme = "README.md"
+authors = [
+    { name = "copilot-swe-agent[bot]", email = "198982749+Copilot@users.noreply.github.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "openai==3.14.0",
+    "pydantic==2.13.5",
+    "pydantic-settings==2.15.0",
+    "streamlit==1.64.0",
+]
+
+[project.scripts]
+navamatn-cli = "navamatn.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest==8.4.2",
+    "ruff==0.16.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.15,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
